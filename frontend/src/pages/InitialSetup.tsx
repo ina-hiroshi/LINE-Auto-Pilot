@@ -91,6 +91,21 @@ export default function InitialSetup() {
 
       if (storeError) throw storeError
 
+      // 3. Verify creation (RLS check)
+      const { data: storeData, error: verifyError } = await supabase
+        .from('stores')
+        .select('id')
+        .eq('owner_id', user.id)
+        .maybeSingle()
+      
+      if (verifyError) {
+        throw new Error(`店舗情報の作成後にエラーが発生しました: ${verifyError.message}`)
+      }
+      if (!storeData) {
+        throw new Error('店舗情報は作成されましたが、読み込むことができませんでした。データベースの権限設定(RLS)が正しく適用されていない可能性があります。')
+      }
+
+      alert('初期設定が完了しました！')
       // Force reload to re-evaluate auth state in App.tsx
       window.location.href = '/' 
     } catch (error: any) {
