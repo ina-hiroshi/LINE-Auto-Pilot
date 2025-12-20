@@ -1,4 +1,3 @@
-import React from 'react'
 import { Users, Calendar, MessageCircle, TrendingUp } from 'lucide-react'
 
 export default function Dashboard() {

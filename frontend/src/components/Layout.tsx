@@ -1,4 +1,3 @@
-import React from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { LayoutDashboard, Settings, MessageSquare, Users, LogOut } from 'lucide-react'
