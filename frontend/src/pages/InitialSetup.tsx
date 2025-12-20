@@ -19,14 +19,19 @@ export default function InitialSetup() {
   })
 
   const handleLogout = async () => {
+    // 1. まずローカルストレージをクリア（これが最優先）
+    localStorage.clear()
+    sessionStorage.clear()
+
+    // 2. Supabaseのサインアウトを試みる（失敗しても無視）
     try {
       await supabase.auth.signOut()
     } catch (error) {
-      console.error('Logout error:', error)
-    } finally {
-      localStorage.clear()
-      window.location.href = '/'
+      console.error('Logout error (ignored):', error)
     }
+
+    // 3. 強制リロードしてトップページへ
+    window.location.href = '/'
   }
 
   const toKatakana = (str: string) => {
