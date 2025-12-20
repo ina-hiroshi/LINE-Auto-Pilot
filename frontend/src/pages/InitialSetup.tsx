@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Store, User, MapPin, Phone, Briefcase, CheckCircle, Search } from 'lucide-react'
+import { Store, User, MapPin, Phone, Briefcase, CheckCircle, Search, LogOut } from 'lucide-react'
 
 export default function InitialSetup() {
   const [loading, setLoading] = useState(false)
@@ -15,6 +15,11 @@ export default function InitialSetup() {
     store_phone_number: '',
     industry: ''
   })
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    window.location.href = '/'
+  }
 
   const handlePostalCodeSearch = async () => {
     if (!formData.postal_code || formData.postal_code.length < 7) {
@@ -88,7 +93,14 @@ export default function InitialSetup() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans py-10">
       <div className="bg-white max-w-3xl w-full rounded-2xl shadow-xl p-8 border border-slate-100">
-        <div className="text-center mb-10">
+        <div className="text-center mb-10 relative">
+          <button
+            onClick={handleLogout}
+            className="absolute right-0 top-0 text-slate-400 hover:text-slate-600 flex items-center gap-1 text-sm"
+          >
+            <LogOut size={16} />
+            ログアウト
+          </button>
           <div className="bg-indigo-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ring-8 ring-indigo-50/50">
             <Store className="text-indigo-600" size={40} />
           </div>

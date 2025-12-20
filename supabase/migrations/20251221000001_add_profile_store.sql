@@ -19,5 +19,6 @@ CREATE TABLE IF NOT EXISTS stores (
 ALTER TABLE stores ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policy
+DROP POLICY IF EXISTS "Users can manage their own stores" ON stores;
 CREATE POLICY "Users can manage their own stores" ON stores
   USING (owner_id = auth.uid());

@@ -15,25 +15,45 @@ function App() {
   const [hasStore, setHasStore] = useState<boolean | null>(null)
 
   useEffect(() => {
+    let mounted = true
+
+    // 安全策: 5秒経過してもロードが終わらない場合は強制的にロードを終了する
+    const timeoutId = setTimeout(() => {
+      if (mounted) {
+        setLoading(prev => {
+          if (prev) console.warn('Loading timed out, forcing render')
+          return false
+        })
+      }
+    }, 5000)
+
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      setSession(session)
-      if (session) {
-        await checkStore(session.user.id)
-      } else {
-        setLoading(false)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!mounted) return
+        setSession(session)
+        
+        if (session) {
+          await checkStore(session.user.id)
+        } else {
+          setLoading(false)
+        }
+      } catch (error) {
+        console.error('Initialization error:', error)
+        if (mounted) setLoading(false)
       }
     }
     init()
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return
       setSession(session)
+      
       if (session) {
-        // Only check if we don't know yet or if we think we don't have one (re-check)
-        if (hasStore === null || hasStore === false) {
-            await checkStore(session.user.id)
+        if (event === 'SIGNED_IN' || hasStore === null) {
+           await checkStore(session.user.id)
         }
       } else {
         setHasStore(null)
@@ -41,7 +61,11 @@ function App() {
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      clearTimeout(timeoutId)
+      subscription.unsubscribe()
+    }
   }, [])
 
   const checkStore = async (userId: string) => {
@@ -53,12 +77,15 @@ function App() {
         .maybeSingle()
       
       if (error) {
-        console.error('Error checking store:', error)
+        // テーブルが存在しない(404)などのエラー時は、まだストアがないとみなす
+        console.warn('Store check failed (treating as no store):', error.message)
+        setHasStore(false)
+      } else {
+        setHasStore(!!data)
       }
-      
-      setHasStore(!!data)
     } catch (error) {
-      console.error('Error checking store:', error)
+      console.error('Unexpected error checking store:', error)
+      setHasStore(false)
     } finally {
       setLoading(false)
     }
