@@ -17,8 +17,15 @@ export default function InitialSetup() {
   })
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    window.location.href = '/'
+    try {
+      await supabase.auth.signOut()
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      // 強制的にローカルストレージをクリアしてリロード
+      localStorage.clear()
+      window.location.href = '/'
+    }
   }
 
   const handlePostalCodeSearch = async () => {
