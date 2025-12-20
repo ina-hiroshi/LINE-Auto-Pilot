@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { motion } from 'framer-motion'
-import { MessageCircle, Calendar, CreditCard, ArrowRight, Check } from 'lucide-react'
+import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff } from 'lucide-react'
 import topHeroImage from '../assets/top_hero.png'
 import iconImage from '../assets/icon.png'
 
 export default function TopPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [isLoginMode, setIsLoginMode] = useState(true)
   const [loading, setLoading] = useState(false)
 
@@ -23,12 +25,17 @@ export default function TopPage() {
         })
         if (error) throw error
       } else {
+        if (password !== confirmPassword) {
+          alert('パスワードが一致しません。')
+          return
+        }
         const { error } = await supabase.auth.signUp({
           email,
           password,
         })
         if (error) throw error
-        alert('登録確認メールを送信しました。\n\n※メールが届かない場合：\n1. 迷惑メールフォルダをご確認ください。\n2. 短時間に何度も試すと制限がかかる場合があります（1時間ほど空けてください）。\n3. 開発環境のログもご確認ください。')
+        alert('アカウントを作成しました。ログインしてください。')
+        setIsLoginMode(true)
       }
     } catch (error: any) {
       console.error('Auth error:', error)
@@ -389,16 +396,43 @@ export default function TopPage() {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">パスワード</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-slate-50 focus:bg-white"
-                  placeholder="••••••••"
-                  required
-                  minLength={6}
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-slate-50 focus:bg-white pr-10"
+                    placeholder="••••••••"
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               </div>
+
+              {!isLoginMode && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">パスワード（確認）</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-slate-50 focus:bg-white pr-10"
+                      placeholder="••••••••"
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={loading}
