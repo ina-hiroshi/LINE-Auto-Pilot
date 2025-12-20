@@ -61,8 +61,23 @@ export default function InitialSetup() {
 
     try {
       setProgressMsg('ユーザー情報を取得中...')
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      if (authError) throw authError
+      
+      // タイムアウト付きでユーザー情報を取得
+      const getUserWithTimeout = async () => {
+        const timeout = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('通信がタイムアウトしました。ネットワーク状況を確認してください。')), 10000)
+        })
+        const request = supabase.auth.getUser()
+        return Promise.race([request, timeout])
+      }
+
+      // @ts-ignore
+      const { data: { user }, error: authError } = await getUserWithTimeout()
+
+      if (authError) {
+        console.error('Auth error details:', authError)
+        throw new Error(`認証エラー: ${authError.message}`)
+      }
       if (!user) throw new Error('ユーザーが見つかりません。再度ログインしてください。')
 
       // 1. Update Profile
