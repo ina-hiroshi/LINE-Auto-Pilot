@@ -59,15 +59,16 @@ export default function InitialSetup() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('ユーザーが見つかりません。再度ログインしてください。')
 
-      // 1. Update Profile
+      // 1. Update Profile (Upsert to ensure it exists)
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({
+        .upsert({
+          id: user.id,
+          email: user.email,
           full_name: formData.full_name,
           full_name_kana: formData.full_name_kana,
           phone_number: formData.user_phone_number
         })
-        .eq('id', user.id)
 
       if (profileError) throw profileError
 
