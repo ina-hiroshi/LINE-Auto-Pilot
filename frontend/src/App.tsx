@@ -29,15 +29,19 @@ function App() {
 
     const init = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!mounted) return
-        setSession(session)
+        // getSession()の代わりにgetUser()を使用して、サーバー側でトークンの有効性を確認する
+        const { data: { user }, error } = await supabase.auth.getUser()
         
-        if (session) {
-          await checkStore(session.user.id)
-        } else {
+        if (!mounted) return
+        
+        if (error || !user) {
+          setSession(null)
           setLoading(false)
+          return
         }
+
+        setSession({ user }) // 簡易的なセッションオブジェクトを作成
+        await checkStore(user.id)
       } catch (error) {
         console.error('Initialization error:', error)
         if (mounted) setLoading(false)
