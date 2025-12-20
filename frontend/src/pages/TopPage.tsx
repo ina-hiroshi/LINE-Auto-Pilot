@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { motion } from 'framer-motion'
 import { MessageCircle, Calendar, CreditCard, ArrowRight, Check } from 'lucide-react'
