@@ -4,6 +4,7 @@ import { Store, User, MapPin, Phone, Briefcase, CheckCircle, Search, LogOut } fr
 
 export default function InitialSetup() {
   const [loading, setLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [searchingAddress, setSearchingAddress] = useState(false)
   const [formData, setFormData] = useState({
     full_name: '',
@@ -33,6 +34,7 @@ export default function InitialSetup() {
       return
     }
     setSearchingAddress(true)
+    setErrorMsg(null)
     try {
       const response = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${formData.postal_code}`)
       const data = await response.json()
@@ -54,6 +56,7 @@ export default function InitialSetup() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setErrorMsg(null)
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -92,7 +95,7 @@ export default function InitialSetup() {
       window.location.href = '/' 
     } catch (error: any) {
       console.error('Setup error:', error)
-      alert(error.message || '設定の保存中にエラーが発生しました。')
+      setErrorMsg(error.message || '設定の保存中にエラーが発生しました。')
     } finally {
       setLoading(false)
     }
@@ -115,6 +118,12 @@ export default function InitialSetup() {
           <h1 className="text-3xl font-bold text-slate-800 mb-3">お客様情報と店舗情報の入力</h1>
           <p className="text-slate-500">サービスを利用開始するために、基本情報を登録してください。</p>
         </div>
+
+        {errorMsg && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-bold">
+            {errorMsg}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* User Information Section */}
