@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Store, User, MapPin, Phone, Briefcase, CheckCircle, Search, LogOut } from 'lucide-react'
+import { Store, User, CheckCircle, Search, LogOut } from 'lucide-react'
 
 export default function InitialSetup() {
   const [loading, setLoading] = useState(false)
