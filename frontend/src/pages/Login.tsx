@@ -18,8 +18,8 @@ export default function Login() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
-      <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md w-full max-w-md">
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
         <h1 className="text-2xl font-bold mb-6 text-center">LINE Auto-Pilot ログイン</h1>
         <p className="text-sm text-gray-500 mb-4 text-center">
           メールアドレスを入力してログインリンクを受け取ってください。
@@ -31,7 +31,7 @@ export default function Login() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+              className="w-full p-2 border rounded"
               placeholder="your@email.com"
               required
             />

@@ -6,11 +6,12 @@ import Dashboard from './pages/Dashboard'
 import LineSettings from './pages/LineSettings'
 import AutoResponses from './pages/AutoResponses'
 import Customers from './pages/Customers'
-import Login from './pages/Login'
+import TopPage from './pages/TopPage'
 
 function App() {
   const [session, setSession] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -28,17 +29,18 @@ function App() {
   }, [])
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen dark:bg-gray-900 dark:text-white">Loading...</div>
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
   }
 
   return (
     <BrowserRouter>
       <Routes>
         {!session ? (
-          <Route path="*" element={<Login />} />
+          <Route path="*" element={<TopPage />} />
         ) : (
           <Route path="/" element={<Layout />}>
             <Route index element={<Dashboard />} />
+
             <Route path="line-settings" element={<LineSettings />} />
             <Route path="auto-responses" element={<AutoResponses />} />
             <Route path="customers" element={<Customers />} />
