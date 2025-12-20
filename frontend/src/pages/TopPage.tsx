@@ -425,7 +425,7 @@ export default function TopPage() {
                 <span className="text-2xl font-bold text-white tracking-tight">IToguchi</span>
               </div>
               <p className="text-slate-400 max-w-sm leading-relaxed">
-                お店とお客様を繋ぐ、確かな糸口。<br />
+                お店とお客様を繋ぐ、確かな糸ぐち。<br />
                 LINE運用の自動化で、業務効率化と売上アップを実現します。
               </p>
             </div>
