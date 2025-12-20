@@ -1,10 +1,36 @@
+import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { LayoutDashboard, Settings, MessageSquare, Users, LogOut } from 'lucide-react'
+import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User } from 'lucide-react'
 import iconImage from '../assets/icon.png'
 
 export default function Layout() {
   const location = useLocation()
+  const [profile, setProfile] = useState<any>(null)
+  const [store, setStore] = useState<any>(null)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .single()
+      
+      const { data: storeData } = await supabase
+        .from('stores')
+        .select('name')
+        .eq('owner_id', user.id)
+        .single()
+
+      setProfile(profileData)
+      setStore(storeData)
+    }
+    fetchData()
+  }, [])
   
   const navItems = [
     { path: '/', label: 'ダッシュボード', icon: <LayoutDashboard size={20} /> },
@@ -22,8 +48,25 @@ export default function Layout() {
     <div className="flex min-h-screen bg-gray-50 text-gray-900 font-sans">
       {/* Sidebar */}
       <aside className="w-64 bg-white shadow-lg flex flex-col border-r border-gray-100 z-20">
-        <div className="p-6 border-b border-gray-100 flex justify-center">
-          <img src={iconImage} alt="IToguchi" className="h-10 w-auto" />
+        <div className="p-6 border-b border-gray-100 flex flex-col items-center">
+          <img src={iconImage} alt="IToguchi" className="h-10 w-auto mb-4" />
+          
+          {(store?.name || profile?.full_name) && (
+            <div className="w-full text-center space-y-1">
+              {store?.name && (
+                <div className="flex items-center justify-center gap-1.5 text-indigo-700 font-bold text-sm bg-indigo-50 py-1 px-2 rounded-md">
+                  <Store size={14} />
+                  <span className="truncate">{store.name}</span>
+                </div>
+              )}
+              {profile?.full_name && (
+                <div className="flex items-center justify-center gap-1.5 text-gray-600 text-xs font-medium">
+                  <User size={12} />
+                  <span className="truncate">{profile.full_name} 様</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <nav className="mt-6 flex-1 px-3 space-y-1">
           {navItems.map((item) => (
