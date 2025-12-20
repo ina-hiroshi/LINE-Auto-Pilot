@@ -1,11 +1,52 @@
-import { Users, Calendar, MessageCircle, TrendingUp } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
+import { Users, Calendar, MessageCircle, TrendingUp, Store, User } from 'lucide-react'
 
 export default function Dashboard() {
+  const [profile, setProfile] = useState<any>(null)
+  const [store, setStore] = useState<any>(null)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .single()
+      
+      const { data: storeData } = await supabase
+        .from('stores')
+        .select('name')
+        .eq('owner_id', user.id)
+        .single()
+
+      setProfile(profileData)
+      setStore(storeData)
+    }
+    fetchData()
+  }, [])
+
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">ダッシュボード</h1>
-        <p className="text-gray-500 mt-1">本日の店舗状況の概要です。</p>
+      <div className="mb-8 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">ダッシュボード</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 text-gray-600">
+          {store?.name && (
+            <div className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg font-medium">
+              <Store size={18} />
+              {store.name}
+            </div>
+          )}
+          {profile?.full_name && (
+            <div className="flex items-center gap-2 bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg font-medium">
+              <User size={18} />
+              {profile.full_name} 様
+            </div>
+          )}
+        </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
