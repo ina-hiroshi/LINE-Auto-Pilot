@@ -5,6 +5,7 @@ import { Store, User, MapPin, Phone, Briefcase, CheckCircle, Search, LogOut } fr
 export default function InitialSetup() {
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [progressMsg, setProgressMsg] = useState<string>('')
   const [searchingAddress, setSearchingAddress] = useState(false)
   const [formData, setFormData] = useState({
     full_name: '',
@@ -23,7 +24,6 @@ export default function InitialSetup() {
     } catch (error) {
       console.error('Logout error:', error)
     } finally {
-      // 強制的にローカルストレージをクリアしてリロード
       localStorage.clear()
       window.location.href = '/'
     }
@@ -57,12 +57,16 @@ export default function InitialSetup() {
     e.preventDefault()
     setLoading(true)
     setErrorMsg(null)
+    setProgressMsg('処理を開始します...')
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      setProgressMsg('ユーザー情報を取得中...')
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError) throw authError
       if (!user) throw new Error('ユーザーが見つかりません。再度ログインしてください。')
 
-      // 1. Update Profile (Upsert to ensure it exists)
+      // 1. Update Profile
+      setProgressMsg('プロフィールを更新中...')
       const { error: profileError } = await supabase
         .from('profiles')
         .upsert({
@@ -73,9 +77,13 @@ export default function InitialSetup() {
           phone_number: formData.user_phone_number
         })
 
-      if (profileError) throw profileError
+      if (profileError) {
+        console.error('Profile update error:', profileError)
+        throw new Error(`プロフィールの更新に失敗しました: ${profileError.message}`)
+      }
 
       // 2. Create Store
+      setProgressMsg('店舗情報を保存中...')
       const { error: storeError } = await supabase
         .from('stores')
         .insert([
@@ -89,9 +97,13 @@ export default function InitialSetup() {
           }
         ])
 
-      if (storeError) throw storeError
+      if (storeError) {
+        console.error('Store create error:', storeError)
+        throw new Error(`店舗情報の保存に失敗しました: ${storeError.message}`)
+      }
 
-      // 3. Verify creation (RLS check)
+      // 3. Verify creation
+      setProgressMsg('保存内容を確認中...')
       const { data: storeData, error: verifyError } = await supabase
         .from('stores')
         .select('id')
@@ -99,20 +111,21 @@ export default function InitialSetup() {
         .maybeSingle()
       
       if (verifyError) {
-        throw new Error(`店舗情報の作成後にエラーが発生しました: ${verifyError.message}`)
+        throw new Error(`確認中にエラーが発生しました: ${verifyError.message}`)
       }
       if (!storeData) {
-        throw new Error('店舗情報は作成されましたが、読み込むことができませんでした。データベースの権限設定(RLS)が正しく適用されていない可能性があります。')
+        throw new Error('データは保存されましたが、読み込みができませんでした。RLS設定を確認してください。')
       }
 
-      alert('初期設定が完了しました！')
-      // Force reload to re-evaluate auth state in App.tsx
+      setProgressMsg('完了しました！リダイレクトします...')
+      await new Promise(resolve => setTimeout(resolve, 1000)) // Show success message briefly
+      
+      // Force reload
       window.location.href = '/' 
     } catch (error: any) {
       console.error('Setup error:', error)
-      setErrorMsg(error.message || '設定の保存中にエラーが発生しました。')
-    } finally {
-      setLoading(false)
+      setErrorMsg(error.message || '予期せぬエラーが発生しました。')
+      setLoading(false) // Only stop loading on error
     }
   }
 
@@ -137,6 +150,13 @@ export default function InitialSetup() {
         {errorMsg && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-bold">
             {errorMsg}
+          </div>
+        )}
+
+        {loading && progressMsg && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 text-blue-600 rounded-xl text-sm font-bold flex items-center gap-2">
+            <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+            {progressMsg}
           </div>
         )}
 
