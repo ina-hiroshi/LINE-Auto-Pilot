@@ -29,6 +29,24 @@ export default function InitialSetup() {
     }
   }
 
+  const toKatakana = (str: string) => {
+    return str.replace(/[\u3041-\u3096]/g, function(match) {
+      var chr = match.charCodeAt(0) + 0x60;
+      return String.fromCharCode(chr);
+    });
+  }
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      full_name: newValue,
+      // シンプルな自動入力: ひらがなのみカタカナに変換してセットする
+      // 漢字が含まれる場合は変換できないため、ユーザーが手動で修正することを想定
+      full_name_kana: toKatakana(newValue)
+    }));
+  }
+
   const handlePostalCodeSearch = async () => {
     if (!formData.postal_code || formData.postal_code.length < 7) {
       return
@@ -162,19 +180,6 @@ export default function InitialSetup() {
           <p className="text-slate-500">サービスを利用開始するために、基本情報を登録してください。</p>
         </div>
 
-        {errorMsg && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-bold">
-            {errorMsg}
-          </div>
-        )}
-
-        {loading && progressMsg && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 text-blue-600 rounded-xl text-sm font-bold flex items-center gap-2">
-            <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-            {progressMsg}
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* User Information Section */}
           <div className="space-y-4">
@@ -189,7 +194,7 @@ export default function InitialSetup() {
                   type="text"
                   required
                   value={formData.full_name}
-                  onChange={(e) => setFormData({...formData, full_name: e.target.value})}
+                  onChange={handleNameChange}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-slate-50 focus:bg-white"
                   placeholder="山田 太郎"
                 />
@@ -305,7 +310,7 @@ export default function InitialSetup() {
             </div>
           </div>
 
-          <div className="pt-4">
+          <div className="pt-4 space-y-4">
             <button
               type="submit"
               disabled={loading}
@@ -318,6 +323,19 @@ export default function InitialSetup() {
                 </>
               )}
             </button>
+
+            {errorMsg && (
+              <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-bold">
+                {errorMsg}
+              </div>
+            )}
+
+            {loading && progressMsg && (
+              <div className="p-4 bg-blue-50 border border-blue-200 text-blue-600 rounded-xl text-sm font-bold flex items-center gap-2 justify-center">
+                <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                {progressMsg}
+              </div>
+            )}
           </div>
         </form>
       </div>
