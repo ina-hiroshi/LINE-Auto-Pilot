@@ -25,13 +25,6 @@ export default function LineSettings() {
     confirmPassword: ''
   })
 
-  // LINE Settings State (Placeholder for now)
-  const [lineData, setLineData] = useState({
-    channelId: '',
-    channelSecret: '',
-    accessToken: ''
-  })
-
   useEffect(() => {
     fetchData()
   }, [])
