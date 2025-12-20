@@ -12,14 +12,14 @@ import InitialSetup from './pages/InitialSetup'
 function App() {
   const [session, setSession] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [hasLineAccount, setHasLineAccount] = useState<boolean | null>(null)
+  const [hasStore, setHasStore] = useState<boolean | null>(null)
 
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       setSession(session)
       if (session) {
-        await checkLineAccount(session.user.id)
+        await checkStore(session.user.id)
       } else {
         setLoading(false)
       }
@@ -32,11 +32,11 @@ function App() {
       setSession(session)
       if (session) {
         // Only check if we don't know yet or if we think we don't have one (re-check)
-        if (hasLineAccount === null || hasLineAccount === false) {
-            await checkLineAccount(session.user.id)
+        if (hasStore === null || hasStore === false) {
+            await checkStore(session.user.id)
         }
       } else {
-        setHasLineAccount(null)
+        setHasStore(null)
         setLoading(false)
       }
     })
@@ -44,21 +44,21 @@ function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const checkLineAccount = async (userId: string) => {
+  const checkStore = async (userId: string) => {
     try {
       const { data, error } = await supabase
-        .from('line_accounts')
+        .from('stores')
         .select('id')
-        .eq('user_id', userId)
+        .eq('owner_id', userId)
         .maybeSingle()
       
       if (error) {
-        console.error('Error checking line account:', error)
+        console.error('Error checking store:', error)
       }
       
-      setHasLineAccount(!!data)
+      setHasStore(!!data)
     } catch (error) {
-      console.error('Error checking line account:', error)
+      console.error('Error checking store:', error)
     } finally {
       setLoading(false)
     }
@@ -75,7 +75,7 @@ function App() {
           <Route path="*" element={<TopPage />} />
         ) : (
           <>
-            {!hasLineAccount ? (
+            {!hasStore ? (
               <>
                 <Route path="/initial-setup" element={<InitialSetup />} />
                 <Route path="*" element={<Navigate to="/initial-setup" replace />} />
