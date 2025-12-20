@@ -34,7 +34,7 @@ export default function Layout() {
   
   const navItems = [
     { path: '/', label: 'ダッシュボード', icon: <LayoutDashboard size={20} /> },
-    { path: '/line-settings', label: 'LINE設定', icon: <Settings size={20} /> },
+    { path: '/line-settings', label: '設定', icon: <Settings size={20} /> },
     { path: '/auto-responses', label: '応答シナリオ', icon: <MessageSquare size={20} /> },
     { path: '/customers', label: '顧客一覧', icon: <Users size={20} /> },
   ]
