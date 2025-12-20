@@ -70,18 +70,19 @@ function App() {
 
   const checkStore = async (userId: string) => {
     try {
+      // maybeSingle()は複数行あるとエラーになるため、limit(1)でリストとして取得して存在確認する
       const { data, error } = await supabase
         .from('stores')
         .select('id')
         .eq('owner_id', userId)
-        .maybeSingle()
+        .limit(1)
       
       if (error) {
-        // テーブルが存在しない(404)などのエラー時は、まだストアがないとみなす
-        console.warn('Store check failed (treating as no store):', error.message)
+        console.warn('Store check failed:', error.message)
         setHasStore(false)
       } else {
-        setHasStore(!!data)
+        // 配列が空でなければストアが存在する
+        setHasStore(data && data.length > 0)
       }
     } catch (error) {
       console.error('Unexpected error checking store:', error)
