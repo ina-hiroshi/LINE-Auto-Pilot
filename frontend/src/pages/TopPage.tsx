@@ -81,7 +81,7 @@ export default function TopPage() {
               transition={{ duration: 0.8 }}
               className="lg:w-1/2 text-left"
             >
-              <div className="inline-block px-4 py-1.5 mb-6 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-base font-semibold tracking-wide">
+              <div className="inline-block px-4 py-1.5 mb-6 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-sm sm:text-base font-semibold tracking-wide whitespace-nowrap sm:whitespace-normal">
                 誰でも簡単、気軽に始めるLINEマーケティング
               </div>
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 mb-8 leading-[1.15] tracking-tight">
