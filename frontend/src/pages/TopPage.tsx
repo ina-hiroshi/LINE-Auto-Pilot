@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { motion } from 'framer-motion'
 import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff } from 'lucide-react'
-import topHeroImage from '../assets/top_hero.png'
+import topHeroImage from '../assets/top_hero.jpg'
 import iconImage from '../assets/icon.png'
 
 export default function TopPage() {
