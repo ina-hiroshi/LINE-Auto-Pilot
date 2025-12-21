@@ -84,11 +84,11 @@ export default function TopPage() {
               <div className="inline-block px-4 py-1.5 mb-6 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-base font-semibold tracking-wide">
                 誰でも簡単、気軽に始めるLINEマーケティング
               </div>
-              <h1 className="text-4xl lg:text-5xl font-bold text-slate-900 mb-8 leading-[1.15] tracking-tight">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 mb-8 leading-[1.15] tracking-tight">
                 お店とお客様をつなぐ、<br />
                 <span className="text-indigo-700">たしかな糸ぐち。</span>
               </h1>
-              <p className="text-lg text-slate-600 mb-10 max-w-2xl leading-relaxed">
+              <p className="text-base sm:text-lg text-slate-600 mb-10 max-w-2xl leading-relaxed">
                 LINE公式アカウントが、あなたの代わりにお客様対応。<br />
                 質問への自動返信、予約の受付、ポイントカードの管理まで。<br />
                 スマホひとつで、お店のファン作りをサポートします。
