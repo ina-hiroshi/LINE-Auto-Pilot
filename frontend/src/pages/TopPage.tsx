@@ -79,7 +79,7 @@ export default function TopPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
-              className="lg:w-1/2 text-center lg:text-left"
+              className="lg:w-1/2 text-left"
             >
               <div className="inline-block px-4 py-1.5 mb-6 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-base font-semibold tracking-wide">
                 誰でも簡単、気軽に始めるLINEマーケティング
@@ -88,12 +88,12 @@ export default function TopPage() {
                 お店とお客様をつなぐ、<br />
                 <span className="text-indigo-700">たしかな糸ぐち。</span>
               </h1>
-              <p className="text-lg text-slate-600 mb-10 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
+              <p className="text-lg text-slate-600 mb-10 max-w-2xl leading-relaxed">
                 LINE公式アカウントが、あなたの代わりにお客様対応。<br />
                 質問への自動返信、予約の受付、ポイントカードの管理まで。<br />
                 スマホひとつで、お店のファン作りをサポートします。
               </p>
-              <div className="flex flex-col sm:flex-row justify-center lg:justify-start gap-4">
+              <div className="flex flex-col sm:flex-row justify-start gap-4">
                 <a href="#auth" className="px-8 py-4 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition shadow-lg hover:shadow-indigo-200 flex items-center justify-center gap-2 group">
                   無料で始める
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
