@@ -1,12 +1,27 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Store, User, CheckCircle, Search, LogOut } from 'lucide-react'
+import { Store, User, CheckCircle, Search, LogOut, Settings, Loader2 } from 'lucide-react'
+import Modal from '../components/Modal'
+import Toast from '../components/Toast'
 
-export default function InitialSetup() {
+interface InitialSetupProps {
+  onComplete: () => void
+}
+
+export default function InitialSetup({ onComplete }: InitialSetupProps) {
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
+  const [toast, setToast] = useState<{ isVisible: boolean; message: string; type: 'success' | 'error' }>({
+    isVisible: false,
+    message: '',
+    type: 'success',
+  })
   const [progressMsg, setProgressMsg] = useState<string>('')
   const [searchingAddress, setSearchingAddress] = useState(false)
+  const [kanaError, setKanaError] = useState(false)
   const [formData, setFormData] = useState({
     full_name: '',
     full_name_kana: '',
@@ -17,6 +32,29 @@ export default function InitialSetup() {
     store_phone_number: '',
     industry: ''
   })
+
+  // useEffect(() => {
+  //   const checkExistingStore = async () => {
+  //     const { data: { user } } = await supabase.auth.getUser()
+  //     if (user) {
+  //       const { data } = await supabase
+  //         .from('stores')
+  //         .select('id')
+  //         .eq('owner_id', user.id)
+  //         .limit(1)
+        
+  //       if (data && data.length > 0) {
+  //         console.log('Store already exists, redirecting...')
+  //         setToast({ isVisible: true, message: '既に店舗情報が登録されています。ダッシュボードへ移動します。', type: 'success' })
+  //         setTimeout(() => {
+  //           onComplete()
+  //           navigate('/')
+  //         }, 2000)
+  //       }
+  //     }
+  //   }
+  //   checkExistingStore()
+  // }, [])
 
   const handleLogout = async () => {
     // 1. まずローカルストレージをクリア（これが最優先）
@@ -34,22 +72,17 @@ export default function InitialSetup() {
     window.location.href = '/'
   }
 
-  const toKatakana = (str: string) => {
-    return str.replace(/[\u3041-\u3096]/g, function(match) {
-      var chr = match.charCodeAt(0) + 0x60;
-      return String.fromCharCode(chr);
-    });
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, full_name: e.target.value });
   }
 
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    setFormData(prev => ({
-      ...prev,
-      full_name: newValue,
-      // シンプルな自動入力: ひらがなのみカタカナに変換してセットする
-      // 漢字が含まれる場合は変換できないため、ユーザーが手動で修正することを想定
-      full_name_kana: toKatakana(newValue)
-    }));
+  const handleKanaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFormData({ ...formData, full_name_kana: value });
+    
+    // 全角カタカナ以外の文字が含まれているかチェック（スペースは許容）
+    const isInvalid = value !== '' && !/^[\u30A1-\u30F6\u30FC\u3000\s]+$/.test(value);
+    setKanaError(isInvalid);
   }
 
   const handlePostalCodeSearch = async () => {
@@ -57,7 +90,6 @@ export default function InitialSetup() {
       return
     }
     setSearchingAddress(true)
-    setErrorMsg(null)
     try {
       const response = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${formData.postal_code}`)
       const data = await response.json()
@@ -65,42 +97,35 @@ export default function InitialSetup() {
         const result = data.results[0]
         const fullAddress = `${result.address1}${result.address2}${result.address3}`
         setFormData(prev => ({ ...prev, address: fullAddress }))
+        setToast({ isVisible: true, message: '住所を入力しました', type: 'success' })
       } else {
-        alert('住所が見つかりませんでした。')
+        setToast({ isVisible: true, message: '住所が見つかりませんでした', type: 'error' })
       }
     } catch (error) {
       console.error('Address search error:', error)
-      alert('住所検索中にエラーが発生しました。')
+      setToast({ isVisible: true, message: '住所検索中にエラーが発生しました', type: 'error' })
     } finally {
       setSearchingAddress(false)
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    
+    if (kanaError) {
+      setToast({ isVisible: true, message: 'フリガナを全角カタカナで入力してください', type: 'error' });
+      return;
+    }
+
     setLoading(true)
-    setErrorMsg(null)
     setProgressMsg('処理を開始します...')
 
     try {
       setProgressMsg('ユーザー情報を取得中...')
       
-      // タイムアウト付きでユーザー情報を取得
-      const getUserWithTimeout = async () => {
-        const timeout = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('通信がタイムアウトしました。ネットワーク状況を確認してください。')), 10000)
-        })
-        const request = supabase.auth.getUser()
-        return Promise.race([request, timeout])
-      }
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-      // @ts-ignore
-      const { data: { user }, error: authError } = await getUserWithTimeout()
-
-      if (authError) {
-        console.error('Auth error details:', authError)
-        throw new Error(`認証エラー: ${authError.message}`)
-      }
+      if (authError) throw new Error(`認証エラー: ${authError.message}`)
       if (!user) throw new Error('ユーザーが見つかりません。再度ログインしてください。')
 
       // 1. Update Profile
@@ -115,10 +140,7 @@ export default function InitialSetup() {
           phone_number: formData.user_phone_number
         })
 
-      if (profileError) {
-        console.error('Profile update error:', profileError)
-        throw new Error(`プロフィールの更新に失敗しました: ${profileError.message}`)
-      }
+      if (profileError) throw new Error(`プロフィールの更新に失敗しました: ${profileError.message}`)
 
       // 2. Create Store
       setProgressMsg('店舗情報を保存中...')
@@ -135,35 +157,21 @@ export default function InitialSetup() {
           }
         ])
 
-      if (storeError) {
-        console.error('Store create error:', storeError)
-        throw new Error(`店舗情報の保存に失敗しました: ${storeError.message}`)
-      }
+      if (storeError) throw new Error(`店舗情報の保存に失敗しました: ${storeError.message}`)
 
-      // 3. Verify creation
-      setProgressMsg('保存内容を確認中...')
-      const { data: storeData, error: verifyError } = await supabase
-        .from('stores')
-        .select('id')
-        .eq('owner_id', user.id)
-        .maybeSingle()
+      setProgressMsg('完了しました！ダッシュボードへ移動します...')
+      setToast({ isVisible: true, message: '登録が完了しました', type: 'success' })
       
-      if (verifyError) {
-        throw new Error(`確認中にエラーが発生しました: ${verifyError.message}`)
-      }
-      if (!storeData) {
-        throw new Error('データは保存されましたが、読み込みができませんでした。RLS設定を確認してください。')
-      }
-
-      setProgressMsg('完了しました！リダイレクトします...')
-      await new Promise(resolve => setTimeout(resolve, 1000)) // Show success message briefly
+      await new Promise(resolve => setTimeout(resolve, 1000))
       
-      // Force reload
-      window.location.href = '/' 
+      // 状態を更新して遷移（リロードなし）
+      onComplete()
+      navigate('/')
+      
     } catch (error: any) {
       console.error('Setup error:', error)
-      setErrorMsg(error.message || '予期せぬエラーが発生しました。')
-      setLoading(false) // Only stop loading on error
+      setToast({ isVisible: true, message: error.message || '予期せぬエラーが発生しました', type: 'error' })
+      setLoading(false)
     }
   }
 
@@ -172,20 +180,20 @@ export default function InitialSetup() {
       <div className="bg-white max-w-3xl w-full rounded-2xl shadow-xl p-8 border border-slate-100">
         <div className="text-center mb-10 relative">
           <button
-            onClick={handleLogout}
+            onClick={() => setIsLogoutModalOpen(true)}
             className="absolute right-0 top-0 text-slate-400 hover:text-slate-600 flex items-center gap-1 text-sm"
           >
             <LogOut size={16} />
             ログアウト
           </button>
           <div className="bg-indigo-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ring-8 ring-indigo-50/50">
-            <Store className="text-indigo-600" size={40} />
+            <Settings className="text-indigo-600" size={40} />
           </div>
           <h1 className="text-3xl font-bold text-slate-800 mb-3">お客様情報と店舗情報の入力</h1>
           <p className="text-slate-500">サービスを利用開始するために、基本情報を登録してください。</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={(e) => { e.preventDefault(); setIsModalOpen(true); }} className="space-y-8">
           {/* User Information Section */}
           <div className="space-y-4">
             <h2 className="text-lg font-bold text-slate-800 border-b pb-2 flex items-center gap-2">
@@ -210,10 +218,17 @@ export default function InitialSetup() {
                   type="text"
                   required
                   value={formData.full_name_kana}
-                  onChange={(e) => setFormData({...formData, full_name_kana: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-slate-50 focus:bg-white"
+                  onChange={handleKanaChange}
+                  className={`w-full px-4 py-3 rounded-xl border focus:ring-2 outline-none transition ${
+                    kanaError 
+                      ? 'border-red-500 focus:ring-red-200 bg-red-50' 
+                      : 'border-slate-200 focus:ring-indigo-500 bg-slate-50 focus:bg-white'
+                  }`}
                   placeholder="ヤマダ タロウ"
                 />
+                {kanaError && (
+                  <p className="text-xs text-red-600 font-bold">全角カタカナで入力してください</p>
+                )}
               </div>
               <div className="space-y-2 md:col-span-2">
                 <label className="text-sm font-bold text-slate-700">電話番号</label>
@@ -223,7 +238,7 @@ export default function InitialSetup() {
                   value={formData.user_phone_number}
                   onChange={(e) => setFormData({...formData, user_phone_number: e.target.value})}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-slate-50 focus:bg-white"
-                  placeholder="090-1234-5678"
+                  placeholder="09012345678"
                 />
               </div>
             </div>
@@ -321,7 +336,12 @@ export default function InitialSetup() {
               disabled={loading}
               className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
             >
-              {loading ? '設定を保存中...' : (
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  設定を保存中...
+                </>
+              ) : (
                 <>
                   <CheckCircle size={20} />
                   登録して利用を開始する
@@ -329,21 +349,41 @@ export default function InitialSetup() {
               )}
             </button>
 
-            {errorMsg && (
-              <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-bold">
-                {errorMsg}
-              </div>
-            )}
-
             {loading && progressMsg && (
               <div className="p-4 bg-blue-50 border border-blue-200 text-blue-600 rounded-xl text-sm font-bold flex items-center gap-2 justify-center">
-                <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                <Loader2 className="h-4 w-4 animate-spin" />
                 {progressMsg}
               </div>
             )}
           </div>
         </form>
       </div>
+
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onConfirm={handleSubmit}
+        title="登録の確認"
+        message="入力した内容で登録を開始します。よろしいですか？"
+        confirmText="登録する"
+      />
+
+      <Modal
+        isOpen={isLogoutModalOpen}
+        onClose={() => setIsLogoutModalOpen(false)}
+        onConfirm={handleLogout}
+        title="ログアウトの確認"
+        message="ログアウトしてトップページに戻ります。よろしいですか？"
+        confirmText="ログアウト"
+        variant="danger"
+      />
+
+      <Toast
+        isVisible={toast.isVisible}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast({ ...toast, isVisible: false })}
+      />
     </div>
   )
 }

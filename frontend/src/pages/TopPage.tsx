@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { motion } from 'framer-motion'
-import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff } from 'lucide-react'
+import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff, Loader2 } from 'lucide-react'
+import Toast from '../components/Toast'
 import topHeroImage from '../assets/top_hero.jpg'
 import smartAutoChatImage from '../assets/smartautochat.jpg'
 import iconImage from '../assets/icon.png'
@@ -13,6 +14,7 @@ export default function TopPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoginMode, setIsLoginMode] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,7 +29,7 @@ export default function TopPage() {
         if (error) throw error
       } else {
         if (password !== confirmPassword) {
-          alert('パスワードが一致しません。')
+          setToast({ message: 'パスワードが一致しません。', type: 'error' })
           return
         }
         const { error } = await supabase.auth.signUp({
@@ -35,12 +37,18 @@ export default function TopPage() {
           password,
         })
         if (error) throw error
-        alert('アカウントを作成しました。ログインしてください。')
+        setToast({ message: 'アカウントを作成しました。ログインしてください。', type: 'success' })
         setIsLoginMode(true)
       }
     } catch (error: any) {
       console.error('Auth error:', error)
-      alert(error.message || 'エラーが発生しました。')
+      let message = 'エラーが発生しました。'
+      if (error.message === 'Invalid login credentials') {
+        message = 'メールアドレスまたはパスワードが正しくありません。'
+      } else if (error.message) {
+        message = error.message
+      }
+      setToast({ message, type: 'error' })
     } finally {
       setLoading(false)
     }
@@ -437,9 +445,16 @@ export default function TopPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-200 mt-2"
+                className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-200 mt-2 flex items-center justify-center gap-2"
               >
-                {loading ? '処理中...' : (isLoginMode ? 'ログイン' : 'アカウント作成')}
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    処理中...
+                  </>
+                ) : (
+                  isLoginMode ? 'ログイン' : 'アカウント作成'
+                )}
               </button>
             </form>
             {!isLoginMode && (
@@ -486,6 +501,15 @@ export default function TopPage() {
           </div>
         </div>
       </footer>
+
+      {toast && (
+        <Toast
+          isVisible={true}
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   )
 }

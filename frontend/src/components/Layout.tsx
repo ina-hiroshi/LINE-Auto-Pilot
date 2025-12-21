@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User } from 'lucide-react'
+import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User, Code } from 'lucide-react'
+import Modal from './Modal'
 import iconImage from '../assets/icon.png'
 import iconMiniImage from '../assets/icon_mini.png'
 
@@ -9,6 +10,7 @@ export default function Layout() {
   const location = useLocation()
   const [profile, setProfile] = useState<any>(null)
   const [store, setStore] = useState<any>(null)
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -35,9 +37,13 @@ export default function Layout() {
   
   const navItems = [
     { path: '/', label: 'ダッシュボード', icon: <LayoutDashboard size={20} /> },
-    { path: '/line-settings', label: '設定', icon: <Settings size={20} /> },
+    { type: 'header', label: 'LINE管理' },
+    { path: '/line-settings?tab=connection', label: 'LINE設定', icon: <Settings size={20} /> },
     { path: '/auto-responses', label: '応答シナリオ', icon: <MessageSquare size={20} /> },
     { path: '/customers', label: '顧客一覧', icon: <Users size={20} /> },
+    { type: 'header', label: '設定' },
+    { path: '/line-settings?tab=basic', label: '店舗設定', icon: <Settings size={20} /> },
+    { path: '/dev', label: '開発', icon: <Code size={20} /> },
   ]
 
   const handleLogout = async () => {
@@ -65,16 +71,18 @@ export default function Layout() {
           <img src={iconMiniImage} alt="IToguchi" className="h-8 w-auto mb-4 block md:hidden" />
           
           {(store?.name || profile?.full_name) && (
-            <div className="w-full text-center space-y-1 hidden md:block">
+            <div className="w-full text-center space-y-2 hidden md:block">
               {store?.name && (
-                <div className="flex items-center justify-center gap-1.5 text-indigo-700 font-bold text-sm bg-indigo-50 py-1 px-2 rounded-md">
-                  <Store size={14} />
-                  <span className="truncate">{store.name}</span>
+                <div className="flex items-start gap-2 text-indigo-700 font-extrabold bg-indigo-50 py-2 px-3 rounded-lg border border-indigo-100 shadow-sm">
+                  <Store size={18} className="shrink-0 mt-0.5" />
+                  <span className="text-sm leading-snug break-words whitespace-normal text-left flex-1">
+                    {store.name}
+                  </span>
                 </div>
               )}
               {profile?.full_name && (
-                <div className="flex items-center justify-center gap-1.5 text-gray-600 text-xs font-medium">
-                  <User size={12} />
+                <div className="flex items-center justify-start gap-2 text-gray-700 text-sm font-bold px-3">
+                  <User size={16} className="shrink-0 text-gray-400" />
                   <span className="truncate">{profile.full_name} 様</span>
                 </div>
               )}
@@ -82,25 +90,39 @@ export default function Layout() {
           )}
         </div>
         <nav className="mt-6 flex-1 px-2 md:px-3 space-y-1">
-          {navItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center justify-center md:justify-start gap-3 px-3 md:px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
-                location.pathname === item.path 
-                  ? 'bg-blue-50 text-blue-600 shadow-sm' 
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-              title={item.label}
-            >
-              {item.icon}
-              <span className="hidden md:block">{item.label}</span>
-            </Link>
-          ))}
+          {navItems.map((item, index) => {
+            if (item.type === 'header') {
+              return (
+                <div key={index} className="px-3 md:px-4 py-2 mt-4 text-xs font-semibold text-gray-400 uppercase tracking-wider hidden md:block">
+                  {item.label}
+                </div>
+              )
+            }
+
+            const isItemActive = item.path?.includes('?') 
+              ? (location.pathname + location.search) === item.path
+              : location.pathname === item.path
+
+            return (
+              <Link
+                key={item.path}
+                to={item.path!}
+                className={`flex items-center justify-center md:justify-start gap-3 px-3 md:px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
+                  isItemActive
+                    ? 'bg-blue-50 text-blue-600 shadow-sm' 
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+                title={item.label}
+              >
+                {item.icon}
+                <span className="hidden md:block">{item.label}</span>
+              </Link>
+            )
+          })}
         </nav>
         <div className="p-4 border-t border-gray-100">
           <button 
-            onClick={handleLogout}
+            onClick={() => setIsLogoutModalOpen(true)}
             className="flex items-center justify-center md:justify-start gap-3 w-full px-3 md:px-4 py-2 text-sm font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             title="ログアウト"
           >
@@ -109,6 +131,16 @@ export default function Layout() {
           </button>
         </div>
       </aside>
+
+      <Modal
+        isOpen={isLogoutModalOpen}
+        onClose={() => setIsLogoutModalOpen(false)}
+        onConfirm={handleLogout}
+        title="ログアウトの確認"
+        message="ログアウトしてトップページに戻ります。よろしいですか？"
+        confirmText="ログアウト"
+        variant="danger"
+      />
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto bg-gray-50">
