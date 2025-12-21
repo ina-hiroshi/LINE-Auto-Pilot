@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { motion } from 'framer-motion'
 import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff } from 'lucide-react'
 import topHeroImage from '../assets/top_hero.jpg'
+import smartAutoChatImage from '../assets/smartautochat.jpg'
 import iconImage from '../assets/icon.png'
 
 export default function TopPage() {
@@ -192,7 +193,7 @@ export default function TopPage() {
           <div className="grid md:grid-cols-3 gap-10">
             {[
               { 
-                image: 'https://images.unsplash.com/photo-1520923642038-b4259acecbd7?auto=format&fit=crop&w=500&q=60', 
+                image: smartAutoChatImage, 
                 title: 'スマート自動応答', 
                 desc: 'よくある質問にはAIが即座に対応。お客様をお待たせすることなく、機会損失を防ぎます。' 
               },
