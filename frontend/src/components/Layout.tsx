@@ -41,7 +41,18 @@ export default function Layout() {
   ]
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    // 1. まずローカルストレージをクリア（これが最優先）
+    localStorage.clear()
+    sessionStorage.clear()
+
+    // 2. Supabaseのサインアウトを試みる（失敗しても無視）
+    try {
+      await supabase.auth.signOut()
+    } catch (error) {
+      console.error('Logout error (ignored):', error)
+    }
+
+    // 3. 強制リロードしてトップページへ
     window.location.href = '/'
   }
 
