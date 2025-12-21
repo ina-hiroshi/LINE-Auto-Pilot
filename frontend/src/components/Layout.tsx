@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User } from 'lucide-react'
 import iconImage from '../assets/icon.png'
+import iconMiniImage from '../assets/icon_mini.png'
 
 export default function Layout() {
   const location = useLocation()
@@ -49,7 +50,8 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className="w-20 md:w-64 bg-white shadow-lg flex flex-col border-r border-gray-100 z-20 transition-all duration-300">
         <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col items-center">
-          <img src={iconImage} alt="IToguchi" className="h-8 md:h-10 w-auto mb-4" />
+          <img src={iconImage} alt="IToguchi" className="h-10 w-auto mb-4 hidden md:block" />
+          <img src={iconMiniImage} alt="IToguchi" className="h-8 w-auto mb-4 block md:hidden" />
           
           {(store?.name || profile?.full_name) && (
             <div className="w-full text-center space-y-1 hidden md:block">
