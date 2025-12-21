@@ -47,12 +47,12 @@ export default function Layout() {
   return (
     <div className="flex min-h-screen bg-gray-50 text-gray-900 font-sans">
       {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-lg flex flex-col border-r border-gray-100 z-20">
-        <div className="p-6 border-b border-gray-100 flex flex-col items-center">
-          <img src={iconImage} alt="IToguchi" className="h-10 w-auto mb-4" />
+      <aside className="w-20 md:w-64 bg-white shadow-lg flex flex-col border-r border-gray-100 z-20 transition-all duration-300">
+        <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col items-center">
+          <img src={iconImage} alt="IToguchi" className="h-8 md:h-10 w-auto mb-4" />
           
           {(store?.name || profile?.full_name) && (
-            <div className="w-full text-center space-y-1">
+            <div className="w-full text-center space-y-1 hidden md:block">
               {store?.name && (
                 <div className="flex items-center justify-center gap-1.5 text-indigo-700 font-bold text-sm bg-indigo-50 py-1 px-2 rounded-md">
                   <Store size={14} />
@@ -68,29 +68,31 @@ export default function Layout() {
             </div>
           )}
         </div>
-        <nav className="mt-6 flex-1 px-3 space-y-1">
+        <nav className="mt-6 flex-1 px-2 md:px-3 space-y-1">
           {navItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
+              className={`flex items-center justify-center md:justify-start gap-3 px-3 md:px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
                 location.pathname === item.path 
                   ? 'bg-blue-50 text-blue-600 shadow-sm' 
                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
               }`}
+              title={item.label}
             >
               {item.icon}
-              {item.label}
+              <span className="hidden md:block">{item.label}</span>
             </Link>
           ))}
         </nav>
         <div className="p-4 border-t border-gray-100">
           <button 
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-4 py-2 text-sm font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            className="flex items-center justify-center md:justify-start gap-3 w-full px-3 md:px-4 py-2 text-sm font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            title="ログアウト"
           >
             <LogOut size={18} />
-            ログアウト
+            <span className="hidden md:block">ログアウト</span>
           </button>
         </div>
       </aside>
