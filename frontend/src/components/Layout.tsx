@@ -73,7 +73,7 @@ export default function Layout() {
           {(store?.name || profile?.full_name) && (
             <div className="w-full text-center space-y-2 hidden md:block">
               {store?.name && (
-                <div className="flex items-start gap-2 text-indigo-700 font-extrabold bg-indigo-50 py-2 px-3 rounded-lg border border-indigo-100 shadow-sm">
+                <div className="flex items-start gap-2 text-primary-700 font-extrabold bg-primary-50 py-2 px-3 rounded-lg border border-primary-100 shadow-sm">
                   <Store size={18} className="shrink-0 mt-0.5" />
                   <span className="text-sm leading-snug break-words whitespace-normal text-left flex-1">
                     {store.name}
@@ -109,7 +109,7 @@ export default function Layout() {
                 to={item.path!}
                 className={`flex items-center justify-center md:justify-start gap-3 px-3 md:px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
                   isItemActive
-                    ? 'bg-blue-50 text-blue-600 shadow-sm' 
+                    ? 'bg-primary-50 text-primary-600 shadow-sm' 
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}
                 title={item.label}

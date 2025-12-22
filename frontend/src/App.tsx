@@ -12,22 +12,33 @@ import TopPage from './pages/TopPage'
 import InitialSetup from './pages/InitialSetup'
 import DevSandbox from './pages/DevSandbox'
 
+import type { Session } from '@supabase/supabase-js'
+
 function App() {
-  const [session, setSession] = useState<any>(null)
+  const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [hasStore, setHasStore] = useState<boolean | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const lastCheckedUserId = useRef<string | null>(null)
 
-  // ストアの存在確認関数（シンプル版）
+  // ストアの存在確認関数（タイムアウト付き）
   const checkStore = async (userId: string): Promise<boolean> => {
     try {
       console.log('Checking store for user:', userId)
-      const { data, error } = await supabase
+      
+      // 5秒でタイムアウト
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Store check timeout')), 5000)
+      )
+
+      const checkPromise = supabase
         .from('stores')
         .select('id')
         .eq('owner_id', userId)
         .maybeSingle()
+      
+      const result = await Promise.race([checkPromise, timeoutPromise])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = result as any
       
       if (error) {
         console.warn('Store check failed:', error.message)
@@ -44,39 +55,9 @@ function App() {
   useEffect(() => {
     let mounted = true
 
-    // 初期セッション確認
-    const init = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!mounted) return
-        
-        if (user) {
-          setSession({ user })
-          lastCheckedUserId.current = user.id
-          
-          // 初回チェック
-          const exists = await checkStore(user.id)
-          
-          if (mounted) {
-            setHasStore(exists)
-            setLoading(false)
-          }
-        } else {
-          setLoading(false)
-        }
-      } catch (error) {
-        console.error('Init error:', error)
-        if (mounted) {
-          setError('初期化中にエラーが発生しました。')
-          setLoading(false)
-        }
-      }
-    }
-
-    // 認証状態の監視
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
+    const handleSessionCheck = async (currentSession: Session | null) => {
       if (!mounted) return
-      
+
       if (!currentSession) {
         setSession(null)
         setHasStore(null)
@@ -86,20 +67,37 @@ function App() {
       }
 
       setSession(currentSession)
-      
+
+      // ユーザーが変わった場合、または初回チェック
       if (currentSession.user.id !== lastCheckedUserId.current) {
-        setLoading(true)
-        setError(null)
         lastCheckedUserId.current = currentSession.user.id
+        
+        // ストア確認
         const exists = await checkStore(currentSession.user.id)
+        
         if (mounted) {
           setHasStore(exists)
           setLoading(false)
         }
+      } else {
+        // すでにチェック済みのユーザーの場合
+        if (mounted) {
+           setLoading(false)
+        }
       }
+    }
+
+    // 1. イベントリスナーの登録
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleSessionCheck(session)
     })
 
-    init()
+    // 2. 初期化時に一度だけ現在の状態を確認
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (mounted && !lastCheckedUserId.current) {
+         handleSessionCheck(session)
+      }
+    })
 
     return () => {
       mounted = false
@@ -120,7 +118,7 @@ function App() {
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
           className="mb-4"
         >
-          <Loader2 className="w-12 h-12 text-indigo-600" />
+          <Loader2 className="w-12 h-12 text-primary-600" />
         </motion.div>
         <motion.p
           initial={{ opacity: 0 }}
@@ -130,26 +128,6 @@ function App() {
         >
           読み込み中...
         </motion.p>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-4">
-        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center">
-          <div className="text-red-500 mb-4 flex justify-center">
-            <Loader2 className="w-12 h-12 animate-spin" /> 
-          </div>
-          <h2 className="text-xl font-bold text-slate-800 mb-2">通信エラー</h2>
-          <p className="text-slate-600 mb-6">{error}</p>
-          <button 
-            onClick={() => window.location.reload()}
-            className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            再読み込み
-          </button>
-        </div>
       </div>
     )
   }
@@ -168,7 +146,7 @@ function App() {
                 transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                 className="mb-4"
               >
-                <Loader2 className="w-12 h-12 text-indigo-600" />
+                <Loader2 className="w-12 h-12 text-primary-600" />
               </motion.div>
               <p className="text-slate-600 font-medium">情報を確認中...</p>
             </div>

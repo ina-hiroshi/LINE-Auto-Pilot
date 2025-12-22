@@ -20,7 +20,7 @@ export default function DevSandbox() {
     <div className="p-8 max-w-4xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Code className="text-indigo-600" />
+          <Code className="text-primary-600" />
           開発用サンドボックス
         </h1>
         <p className="text-gray-500 mt-1">共通コンポーネントの動作確認用ページです。</p>
@@ -36,7 +36,7 @@ export default function DevSandbox() {
           <div className="space-y-4">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
             >
               通常モーダルを表示
             </button>

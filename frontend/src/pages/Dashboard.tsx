@@ -12,7 +12,7 @@ export default function Dashboard() {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">友だち登録数</h2>
-            <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+            <div className="p-2 bg-primary-50 rounded-lg text-primary-600">
               <Users size={20} />
             </div>
           </div>
@@ -58,7 +58,7 @@ export default function Dashboard() {
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
             <div key={i} className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-lg transition">
-              <div className="w-10 h-10 rounded-full bg-gray-200 flex-shrink-0" />
+              <div className="w-10 h-10 rounded-full bg-gray-200 shrink-0" />
               <div>
                 <p className="text-sm font-medium text-gray-900">ユーザー{i}が予約しました</p>
                 <p className="text-xs text-gray-500">2時間前</p>

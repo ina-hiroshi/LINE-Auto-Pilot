@@ -27,7 +27,7 @@ export default function Toast({
 
   if (!isVisible) return null;
 
-  const bgColor = type === 'success' ? 'bg-green-600' : 'bg-red-600';
+  const bgColor = type === 'success' ? 'bg-primary-600' : 'bg-red-600';
   const Icon = type === 'success' ? CheckCircle : AlertCircle;
 
   return (

@@ -18,7 +18,7 @@ export default function Customers() {
               <td className="px-6 py-4 whitespace-nowrap">500 pt</td>
               <td className="px-6 py-4 whitespace-nowrap">2023-12-01</td>
               <td className="px-6 py-4 whitespace-nowrap">
-                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">会員</span>
+                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary-100 text-primary-800">会員</span>
               </td>
             </tr>
             <tr>

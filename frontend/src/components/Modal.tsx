@@ -23,7 +23,7 @@ export default function Modal({
 
   const confirmButtonClass = variant === 'danger' 
     ? 'bg-red-600 hover:bg-red-700 text-white' 
-    : 'bg-indigo-600 hover:bg-indigo-700 text-white';
+    : 'bg-primary-600 hover:bg-primary-700 text-white';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">

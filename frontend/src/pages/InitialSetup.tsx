@@ -168,9 +168,10 @@ export default function InitialSetup({ onComplete }: InitialSetupProps) {
       onComplete()
       navigate('/')
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Setup error:', error)
-      setToast({ isVisible: true, message: error.message || '予期せぬエラーが発生しました', type: 'error' })
+      const message = error instanceof Error ? error.message : '予期せぬエラーが発生しました'
+      setToast({ isVisible: true, message, type: 'error' })
       setLoading(false)
     }
   }
@@ -186,8 +187,8 @@ export default function InitialSetup({ onComplete }: InitialSetupProps) {
             <LogOut size={16} />
             ログアウト
           </button>
-          <div className="bg-indigo-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ring-8 ring-indigo-50/50">
-            <Settings className="text-indigo-600" size={40} />
+          <div className="bg-primary-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ring-8 ring-primary-50/50">
+            <Settings className="text-primary-600" size={40} />
           </div>
           <h1 className="text-3xl font-bold text-slate-800 mb-3">お客様情報と店舗情報の入力</h1>
           <p className="text-slate-500">サービスを利用開始するために、基本情報を登録してください。</p>
@@ -197,7 +198,7 @@ export default function InitialSetup({ onComplete }: InitialSetupProps) {
           {/* User Information Section */}
           <div className="space-y-4">
             <h2 className="text-lg font-bold text-slate-800 border-b pb-2 flex items-center gap-2">
-              <User size={20} className="text-indigo-600" />
+              <User size={20} className="text-primary-600" />
               お客様情報
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -208,7 +209,7 @@ export default function InitialSetup({ onComplete }: InitialSetupProps) {
                   required
                   value={formData.full_name}
                   onChange={handleNameChange}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-slate-50 focus:bg-white"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition bg-slate-50 focus:bg-white"
                   placeholder="山田 太郎"
                 />
               </div>
@@ -222,7 +223,7 @@ export default function InitialSetup({ onComplete }: InitialSetupProps) {
                   className={`w-full px-4 py-3 rounded-xl border focus:ring-2 outline-none transition ${
                     kanaError 
                       ? 'border-red-500 focus:ring-red-200 bg-red-50' 
-                      : 'border-slate-200 focus:ring-indigo-500 bg-slate-50 focus:bg-white'
+                      : 'border-slate-200 focus:ring-primary-500 bg-slate-50 focus:bg-white'
                   }`}
                   placeholder="ヤマダ タロウ"
                 />
@@ -237,7 +238,7 @@ export default function InitialSetup({ onComplete }: InitialSetupProps) {
                   required
                   value={formData.user_phone_number}
                   onChange={(e) => setFormData({...formData, user_phone_number: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-slate-50 focus:bg-white"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition bg-slate-50 focus:bg-white"
                   placeholder="09012345678"
                 />
               </div>
@@ -247,7 +248,7 @@ export default function InitialSetup({ onComplete }: InitialSetupProps) {
           {/* Store Information Section */}
           <div className="space-y-4">
             <h2 className="text-lg font-bold text-slate-800 border-b pb-2 flex items-center gap-2">
-              <Store size={20} className="text-indigo-600" />
+              <Store size={20} className="text-primary-600" />
               店舗情報
             </h2>
             
@@ -258,7 +259,7 @@ export default function InitialSetup({ onComplete }: InitialSetupProps) {
                 required
                 value={formData.store_name}
                 onChange={(e) => setFormData({...formData, store_name: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-slate-50 focus:bg-white"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition bg-slate-50 focus:bg-white"
                 placeholder="IToguchi カフェ"
               />
             </div>
@@ -272,7 +273,7 @@ export default function InitialSetup({ onComplete }: InitialSetupProps) {
                     required
                     value={formData.postal_code}
                     onChange={(e) => setFormData({...formData, postal_code: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-slate-50 focus:bg-white"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition bg-slate-50 focus:bg-white"
                     placeholder="1000001"
                     maxLength={7}
                   />
@@ -292,7 +293,7 @@ export default function InitialSetup({ onComplete }: InitialSetupProps) {
                   required
                   value={formData.industry}
                   onChange={(e) => setFormData({...formData, industry: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-slate-50 focus:bg-white"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition bg-slate-50 focus:bg-white"
                 >
                   <option value="">選択してください</option>
                   <option value="restaurant">飲食</option>
@@ -312,7 +313,7 @@ export default function InitialSetup({ onComplete }: InitialSetupProps) {
                 required
                 value={formData.address}
                 onChange={(e) => setFormData({...formData, address: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-slate-50 focus:bg-white"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition bg-slate-50 focus:bg-white"
                 placeholder="東京都千代田区千代田1-1"
               />
             </div>
@@ -324,7 +325,7 @@ export default function InitialSetup({ onComplete }: InitialSetupProps) {
                 required
                 value={formData.store_phone_number}
                 onChange={(e) => setFormData({...formData, store_phone_number: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-slate-50 focus:bg-white"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition bg-slate-50 focus:bg-white"
                 placeholder="03-1234-5678"
               />
             </div>
@@ -334,7 +335,7 @@ export default function InitialSetup({ onComplete }: InitialSetupProps) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
+              className="w-full bg-primary-600 text-white py-4 rounded-xl font-bold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary-200 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -350,7 +351,7 @@ export default function InitialSetup({ onComplete }: InitialSetupProps) {
             </button>
 
             {loading && progressMsg && (
-              <div className="p-4 bg-blue-50 border border-blue-200 text-blue-600 rounded-xl text-sm font-bold flex items-center gap-2 justify-center">
+              <div className="p-4 bg-primary-50 border border-primary-200 text-primary-600 rounded-xl text-sm font-bold flex items-center gap-2 justify-center">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {progressMsg}
               </div>

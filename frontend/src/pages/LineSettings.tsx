@@ -41,7 +41,7 @@ export default function LineSettings() {
     const params = new URLSearchParams(location.search)
     const tab = params.get('tab')
     if (tab === 'connection' || tab === 'guide' || tab === 'basic' || tab === 'password') {
-      setActiveTab(tab as any)
+      setActiveTab(tab as 'connection' | 'guide' | 'basic' | 'password')
     } else if (tab === 'line') {
       // Backward compatibility
       setActiveTab('connection')
@@ -65,7 +65,7 @@ export default function LineSettings() {
         return Promise.race([supabase.auth.getUser(), timeout])
       }
 
-      const { data: { user } } = await (getUserWithTimeout() as any)
+      const { data: { user } } = await (getUserWithTimeout() as Promise<{ data: { user: import('@supabase/supabase-js').User | null } }>)
       
       if (!user) {
         window.location.href = '/'
@@ -117,11 +117,12 @@ export default function LineSettings() {
           industry: store?.industry || ''
         })
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching data:', error)
       // タイムアウトや認証エラー（セッション切れ）の場合のみトップページへ
       // ネットワークエラーなどの一時的なエラーでリダイレクトされないようにする
-      if (error.message === 'Timeout' || error.status === 401) {
+      const err = error as { message?: string, status?: number }
+      if (err.message === 'Timeout' || err.status === 401) {
         window.location.href = '/'
       }
     } finally {
@@ -190,8 +191,9 @@ export default function LineSettings() {
       if (error) throw error
 
       setMessage({ type: 'success', text: 'LINE設定を保存しました' })
-    } catch (error: any) {
-      setMessage({ type: 'error', text: '保存に失敗しました: ' + error.message })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '不明なエラー'
+      setMessage({ type: 'error', text: '保存に失敗しました: ' + message })
     } finally {
       setSaving(false)
     }
@@ -233,8 +235,9 @@ export default function LineSettings() {
       if (storeError) throw storeError
 
       setMessage({ type: 'success', text: '基本情報を更新しました' })
-    } catch (error: any) {
-      setMessage({ type: 'error', text: '更新に失敗しました: ' + error.message })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '不明なエラー'
+      setMessage({ type: 'error', text: '更新に失敗しました: ' + message })
     } finally {
       setSaving(false)
     }
@@ -263,8 +266,9 @@ export default function LineSettings() {
 
       setMessage({ type: 'success', text: 'パスワードを更新しました' })
       setPasswordData({ newPassword: '', confirmPassword: '' })
-    } catch (error: any) {
-      setMessage({ type: 'error', text: 'パスワード更新に失敗しました: ' + error.message })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '不明なエラー'
+      setMessage({ type: 'error', text: 'パスワード更新に失敗しました: ' + message })
     } finally {
       setSaving(false)
     }
@@ -272,13 +276,13 @@ export default function LineSettings() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px]">
+      <div className="flex flex-col items-center justify-center min-h-100">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
           className="mb-4"
         >
-          <Loader2 className="w-10 h-10 text-indigo-600" />
+          <Loader2 className="w-10 h-10 text-primary-600" />
         </motion.div>
         <p className="text-slate-600 font-medium">読み込み中...</p>
       </div>
@@ -322,11 +326,11 @@ export default function LineSettings() {
               <button
                 onClick={() => setActiveTab('basic')}
                 className={`px-4 sm:px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
-                  activeTab === 'basic' ? 'text-indigo-600' : 'text-gray-500 hover:text-gray-700'
+                  activeTab === 'basic' ? 'text-primary-600' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
                 基本情報
-                {activeTab === 'basic' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600" />}
+                {activeTab === 'basic' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600" />}
               </button>
               <button
                 onClick={() => setActiveTab('password')}
@@ -533,7 +537,7 @@ export default function LineSettings() {
         {activeTab === 'basic' && (
           <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center gap-2 mb-6 pb-2 border-b">
-              <User className="text-indigo-600" size={24} />
+              <User className="text-primary-600" size={24} />
               <h2 className="text-xl font-bold text-gray-800">基本情報設定</h2>
             </div>
             
@@ -545,7 +549,7 @@ export default function LineSettings() {
                     type="text"
                     value={profileData.full_name}
                     onChange={e => setProfileData({...profileData, full_name: e.target.value})}
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-200 outline-none"
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
                   />
                 </div>
                 <div>
@@ -554,7 +558,7 @@ export default function LineSettings() {
                     type="text"
                     value={profileData.full_name_kana}
                     onChange={e => setProfileData({...profileData, full_name_kana: e.target.value})}
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-200 outline-none"
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
                   />
                 </div>
                 <div>
@@ -563,14 +567,14 @@ export default function LineSettings() {
                     type="tel"
                     value={profileData.user_phone_number}
                     onChange={e => setProfileData({...profileData, user_phone_number: e.target.value})}
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-200 outline-none"
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
                   />
                 </div>
               </div>
 
               <div className="border-t pt-6 mt-6">
                 <div className="flex items-center gap-2 mb-4">
-                  <StoreIcon className="text-indigo-600" size={20} />
+                  <StoreIcon className="text-primary-600" size={20} />
                   <h3 className="text-lg font-semibold text-gray-800">店舗情報</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -580,7 +584,7 @@ export default function LineSettings() {
                       type="text"
                       value={profileData.store_name}
                       onChange={e => setProfileData({...profileData, store_name: e.target.value})}
-                      className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-200 outline-none"
+                      className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
                     />
                   </div>
                   <div>
@@ -590,7 +594,7 @@ export default function LineSettings() {
                         type="text"
                         value={profileData.postal_code}
                         onChange={e => setProfileData({...profileData, postal_code: e.target.value})}
-                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-200 outline-none"
+                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
                         placeholder="123-4567"
                       />
                       <button
@@ -607,7 +611,7 @@ export default function LineSettings() {
                     <select
                       value={profileData.industry}
                       onChange={e => setProfileData({...profileData, industry: e.target.value})}
-                      className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-200 outline-none"
+                      className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
                     >
                       <option value="">選択してください</option>
                       <option value="restaurant">飲食</option>
@@ -623,7 +627,7 @@ export default function LineSettings() {
                       type="text"
                       value={profileData.address}
                       onChange={e => setProfileData({...profileData, address: e.target.value})}
-                      className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-200 outline-none"
+                      className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
                     />
                   </div>
                   <div>
@@ -632,7 +636,7 @@ export default function LineSettings() {
                       type="tel"
                       value={profileData.store_phone_number}
                       onChange={e => setProfileData({...profileData, store_phone_number: e.target.value})}
-                      className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-200 outline-none"
+                      className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
                     />
                   </div>
                 </div>
@@ -642,7 +646,7 @@ export default function LineSettings() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                  className="flex items-center gap-2 bg-primary-600 text-white px-6 py-2.5 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
                 >
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={18} />}
                   {saving ? '保存中...' : '基本情報を保存'}

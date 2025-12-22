@@ -1,52 +1,55 @@
 # LINE Auto-Pilot AI Coding Instructions
 
+## Language Requirement
+
+- **Japanese Only**: All communication, code comments, and documentation must be strictly in Japanese. Do not use English for conversation or explanations.
+
 ## Project Overview
 
-LINE Auto-Pilot is a SaaS platform for building LINE auto-responses, reservations, and point systems.
+LINE Auto-Pilot is a SaaS platform for LINE auto-responses, reservations, and point systems.
 
-- **Frontend**: React (Vite) + Tailwind CSS + Lucide React
-- **Backend**: Supabase (Auth, PostgreSQL, Edge Functions)
-- **Integration**: LINE Messaging API, OpenAI API
+- **Stack**: React (Vite), Tailwind CSS, Lucide React, Supabase (Auth, DB, Edge Functions).
+- **Integrations**: LINE Messaging API, OpenAI API.
 
 ## Architecture & Data Flow
 
-- **Multi-tenancy**: Data is isolated using Row Level Security (RLS). Most tables have an `owner_id` or `id` linked to `auth.uid()`.
-- **Frontend-First**: The frontend interacts directly with Supabase using `supabase-js`.
-- **Edge Functions**: Used for LINE Webhooks and OpenAI integrations. Located in `supabase/functions/`.
+- **Frontend-First**: React app interacts directly with Supabase DB via `supabase-js`.
+- **Multi-tenancy**: Strict data isolation via RLS. Tables typically use `owner_id` linked to `auth.uid()`.
+- **Edge Functions**: Handle LINE Webhooks (`line-webhook`) and backend logic requiring secrets (OpenAI).
+- **Auth**: Managed by Supabase Auth. `App.tsx` handles session state and store existence checks.
 
 ## Development Workflow
 
-- **Frontend**: `cd frontend && npm run dev`
-- **Supabase**: Use Supabase CLI for migrations and edge function deployment.
-- **Database**: Schema is managed via migrations in `supabase/migrations/`.
-- **Git**: AI agents must **NEVER** push changes to GitHub. Pushing is the user's responsibility.
+- **Frontend**: `cd frontend && npm run dev` (Vite).
+- **Supabase**: Use Supabase CLI for local dev, migrations, and function deployment.
+- **Git**: **NEVER** push to GitHub. User handles version control.
 
 ## Coding Conventions
 
 ### Frontend (React)
 
-- **Auth**: Use `supabase.auth.getUser()` to verify the current user.
-- **Data Fetching**: Use the `supabase` client from `@/lib/supabase`.
-- **Patterns**:
-  - When checking for a single record, prefer `.select().eq(...).limit(1)` and checking array length over `.maybeSingle()` to handle potential duplicates gracefully.
-  - Use `lucide-react` for all icons.
-  - Follow the existing page structure in `frontend/src/pages/`.
-  - Navigation is managed in `frontend/src/components/Layout.tsx` via the `navItems` array.
-- **Styling**: Use Tailwind CSS utility classes. Avoid custom CSS unless necessary.
+- **Client**: Import `supabase` from `@/lib/supabase`.
+- **Auth**: Use `supabase.auth.getUser()` for one-off checks, `onAuthStateChange` for subscriptions.
+- **Navigation**: Update `navItems` in `frontend/src/components/Layout.tsx` when adding pages.
+- **Icons**: Use `lucide-react` exclusively.
+- **Styling**: Tailwind CSS utility classes only.
+  - **Theme Color**: Use the `primary` color (Cyan/Turquoise: `#00c3dc`) for main actions and branding. Avoid `indigo` or `blue` for primary actions.
+- **Data Fetching**:
+  - Prefer `.select().eq(...).limit(1)` over `.maybeSingle()` when uniqueness isn't guaranteed by DB constraints.
+  - Handle loading/error states explicitly in UI.
 
-### Backend (Supabase / Edge Functions)
+### Backend (Supabase)
 
-- **RLS**: Always enable RLS on new tables. Ensure policies use `auth.uid()` for isolation.
-- **Edge Functions**: Use Deno standard library. Handle LINE signature verification (TODO in `line-webhook`).
+- **RLS**: **MANDATORY** for all tables. Policies must check `auth.uid()`.
+- **Edge Functions**:
+  - Located in `supabase/functions/`.
+  - Use Deno runtime.
+  - `line-webhook`: Entry point for LINE events. Needs signature verification (TODO).
 
 ## Key Files
 
 - `frontend/src/lib/supabase.ts`: Supabase client initialization.
-- `frontend/src/App.tsx`: Main entry point with auth and routing logic.
-- `supabase/functions/line-webhook/index.ts`: Entry point for LINE events.
-- `REQUIREMENTS.md`: Detailed project requirements and schema design.
-
-## Common Tasks
-
-- **Adding a Page**: Create in `frontend/src/pages/`, add route in `App.tsx`, and update `Layout.tsx` if needed.
-- **Updating Schema**: Create a new migration in `supabase/migrations/`.
+- `frontend/src/App.tsx`: App entry, Auth provider, Routing.
+- `frontend/src/components/Layout.tsx`: Main layout & Navigation logic.
+- `supabase/functions/line-webhook/index.ts`: LINE Webhook handler.
+- `REQUIREMENTS.md`: Project specs & schema design.
