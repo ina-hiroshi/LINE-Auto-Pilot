@@ -16,7 +16,8 @@ export default function LineSettings() {
   const [lineSettings, setLineSettings] = useState({
     channel_id: '',
     channel_secret: '',
-    channel_token: ''
+    channel_token: '',
+    bot_id: ''
   })
 
   // Profile & Store State
@@ -95,7 +96,8 @@ export default function LineSettings() {
         setLineSettings({
           channel_id: lineAccount.channel_id || '',
           channel_secret: lineAccount.channel_secret || '',
-          channel_token: lineAccount.channel_token || ''
+          channel_token: lineAccount.channel_access_token || '',
+          bot_id: lineAccount.bot_id || ''
         })
       }
 
@@ -151,6 +153,23 @@ export default function LineSettings() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('No user found')
 
+      // Verify token and get Bot User ID
+      let lineUserId = null
+      let basicId = null
+      if (lineSettings.channel_token) {
+        const { data: botInfo, error: botError } = await supabase.functions.invoke('get-line-bot-info', {
+          body: { channel_token: lineSettings.channel_token }
+        })
+
+        if (botError) throw new Error('LINEアクセストークンの検証に失敗しました: ' + botError.message)
+        if (botInfo?.userId) {
+          lineUserId = botInfo.userId
+          basicId = botInfo.basicId
+        } else {
+          throw new Error('LINE Bot情報の取得に失敗しました。アクセストークンを確認してください。')
+        }
+      }
+
       // Check if line account exists
       const { data: existing } = await supabase
         .from('line_accounts')
@@ -165,7 +184,9 @@ export default function LineSettings() {
           .update({
             channel_id: lineSettings.channel_id,
             channel_secret: lineSettings.channel_secret,
-            channel_token: lineSettings.channel_token,
+            channel_access_token: lineSettings.channel_token,
+            line_user_id: lineUserId,
+            bot_id: basicId,
             updated_at: new Date().toISOString()
           })
           .eq('user_id', user.id)
@@ -177,16 +198,25 @@ export default function LineSettings() {
             user_id: user.id,
             channel_id: lineSettings.channel_id,
             channel_secret: lineSettings.channel_secret,
-            channel_token: lineSettings.channel_token
+            channel_access_token: lineSettings.channel_token,
+            line_user_id: lineUserId,
+            bot_id: basicId
           })
         error = insertError
       }
 
       if (error) throw error
 
+      // Update local state with new bot_id if available
+      if (basicId) {
+        setLineSettings(prev => ({ ...prev, bot_id: basicId }))
+      }
+
       setMessage({ type: 'success', text: 'LINE設定を保存しました' })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '不明なエラー'
+      console.error('Save error:', error)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const message = error instanceof Error ? error.message : (error as any)?.message || '不明なエラー'
       setMessage({ type: 'error', text: '保存に失敗しました: ' + message })
     } finally {
       setSaving(false)
@@ -340,6 +370,17 @@ export default function LineSettings() {
               <h2 className="text-xl font-bold text-gray-800">接続設定</h2>
             </div>
             <form className="space-y-4" onSubmit={handleUpdateLineSettings} autoComplete="off">
+              {lineSettings.bot_id && (
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg mb-2 flex items-center gap-3">
+                  <div className="bg-[#06C755] p-2 rounded-full text-white">
+                    <MessageSquare size={20} />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">連携中のアカウント (Basic ID)</p>
+                    <p className="text-lg font-bold text-gray-800">{lineSettings.bot_id}</p>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Channel ID</label>
                 <input 
@@ -376,31 +417,6 @@ export default function LineSettings() {
                 ></textarea>
               </div>
               
-              <div className="pt-4 border-t mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Webhook URL</label>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    readOnly
-                    value={webhookUrl}
-                    className="w-full p-2 border rounded-lg bg-gray-50 text-gray-600 outline-none" 
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(webhookUrl)
-                      setMessage({ type: 'success', text: 'Webhook URLをコピーしました' })
-                    }}
-                    className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-sm whitespace-nowrap"
-                  >
-                    コピー
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  このURLをLINE Developers Consoleの「Messaging API設定」＞「Webhook設定」に入力してください。
-                </p>
-              </div>
-
               <div className="flex justify-end pt-4">
                 <button 
                   type="submit" 
@@ -487,8 +503,25 @@ export default function LineSettings() {
                 </p>
                 <ol className="list-decimal list-inside text-sm text-gray-600 ml-8 space-y-2">
                   <li>
-                    <button onClick={() => setActiveTab('connection')} className="text-[#06C755] hover:underline font-medium">接続設定</button>
-                    にある <strong>Webhook URL</strong> をコピーします。
+                    以下の <strong>Webhook URL</strong> をコピーします。
+                    <div className="flex gap-2 mt-2 mb-2">
+                      <input 
+                        type="text" 
+                        readOnly
+                        value={webhookUrl}
+                        className="w-full p-2 border rounded-lg bg-white text-gray-600 outline-none text-xs" 
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(webhookUrl)
+                          setMessage({ type: 'success', text: 'Webhook URLをコピーしました' })
+                        }}
+                        className="px-3 py-1 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 text-xs whitespace-nowrap"
+                      >
+                        コピー
+                      </button>
+                    </div>
                   </li>
                   <li>LINE Developers Consoleの「Messaging API設定」タブを開きます。</li>
                   <li>「Webhook設定」の「編集」をクリックし、コピーしたURLを貼り付けて「更新」します。</li>
