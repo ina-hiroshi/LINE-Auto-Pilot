@@ -42,12 +42,6 @@ export default function LineSettings() {
     const tab = params.get('tab')
     if (tab === 'connection' || tab === 'guide' || tab === 'basic' || tab === 'password') {
       setActiveTab(tab as 'connection' | 'guide' | 'basic' | 'password')
-    } else if (tab === 'line') {
-      // Backward compatibility
-      setActiveTab('connection')
-    } else if (tab === 'create_line') {
-      // Backward compatibility
-      setActiveTab('guide')
     }
   }, [location])
 
@@ -289,60 +283,52 @@ export default function LineSettings() {
     )
   }
 
-  const isLineMode = activeTab === 'connection' || activeTab === 'guide'
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/line-webhook`
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold mb-8 text-gray-800">
-        {isLineMode ? 'LINE設定' : '店舗設定'}
+        設定
       </h1>
 
       {/* Tabs */}
         <div className="flex border-b border-gray-200 mb-8 overflow-x-auto no-scrollbar">
-          {isLineMode ? (
-            <>
-              <button
-                onClick={() => setActiveTab('connection')}
-                className={`px-4 sm:px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
-                  activeTab === 'connection' ? 'text-[#06C755]' : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                接続設定
-                {activeTab === 'connection' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#06C755]" />}
-              </button>
-              <button
-                onClick={() => setActiveTab('guide')}
-                className={`px-4 sm:px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
-                  activeTab === 'guide' ? 'text-[#06C755]' : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                導入ガイド
-                {activeTab === 'guide' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#06C755]" />}
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => setActiveTab('basic')}
-                className={`px-4 sm:px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
-                  activeTab === 'basic' ? 'text-primary-600' : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                基本情報
-                {activeTab === 'basic' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600" />}
-              </button>
-              <button
-                onClick={() => setActiveTab('password')}
-                className={`px-4 sm:px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
-                  activeTab === 'password' ? 'text-gray-800' : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                パスワード変更
-                {activeTab === 'password' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-800" />}
-              </button>
-            </>
-          )}
+          <button
+            onClick={() => setActiveTab('basic')}
+            className={`px-4 sm:px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
+              activeTab === 'basic' ? 'text-primary-600' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            店舗情報
+            {activeTab === 'basic' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600" />}
+          </button>
+          <button
+            onClick={() => setActiveTab('connection')}
+            className={`px-4 sm:px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
+              activeTab === 'connection' ? 'text-[#06C755]' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            LINE連携
+            {activeTab === 'connection' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#06C755]" />}
+          </button>
+          <button
+            onClick={() => setActiveTab('guide')}
+            className={`px-4 sm:px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
+              activeTab === 'guide' ? 'text-[#06C755]' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            導入ガイド
+            {activeTab === 'guide' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#06C755]" />}
+          </button>
+          <button
+            onClick={() => setActiveTab('password')}
+            className={`px-4 sm:px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
+              activeTab === 'password' ? 'text-gray-800' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            パスワード変更
+            {activeTab === 'password' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-800" />}
+          </button>
         </div>
 
         <div className="space-y-8">

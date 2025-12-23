@@ -37,12 +37,8 @@ export default function Layout() {
   
   const navItems = [
     { path: '/', label: 'ダッシュボード', icon: <LayoutDashboard size={20} /> },
-    { type: 'header', label: 'LINE管理' },
-    { path: '/line-settings?tab=connection', label: 'LINE設定', icon: <Settings size={20} /> },
     { path: '/auto-responses', label: '応答シナリオ', icon: <MessageSquare size={20} /> },
     { path: '/customers', label: '顧客一覧', icon: <Users size={20} /> },
-    { type: 'header', label: '設定' },
-    { path: '/line-settings?tab=basic', label: '店舗設定', icon: <Settings size={20} /> },
     { path: '/dev', label: '開発', icon: <Code size={20} /> },
   ]
 
@@ -63,42 +59,47 @@ export default function Layout() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50 text-gray-900 font-sans">
-      {/* Sidebar */}
-      <aside className="w-20 md:w-64 bg-white shadow-lg flex flex-col border-r border-gray-100 z-20 transition-all duration-300">
-        <div className="p-4 md:p-6 border-b border-gray-100 flex flex-col items-center">
-          <img src={iconImage} alt="IToguchi" className="h-10 w-auto mb-4 hidden md:block" />
-          <img src={iconMiniImage} alt="IToguchi" className="h-8 w-auto mb-4 block md:hidden" />
-          
+    <div className="flex flex-col md:flex-row h-screen bg-gray-50 text-gray-900 font-sans overflow-hidden">
+      {/* Mobile Header */}
+      <header className="md:hidden bg-white border-b border-gray-200 p-3 flex items-center justify-between shrink-0 z-30">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <img src={iconImage} alt="IToguchi" className="h-8 w-auto shrink-0" />
           {(store?.name || profile?.full_name) && (
-            <div className="w-full text-center space-y-2 hidden md:block">
+            <div className="flex flex-col min-w-0">
               {store?.name && (
-                <div className="flex items-start gap-2 text-primary-700 font-extrabold bg-primary-50 py-2 px-3 rounded-lg border border-primary-100 shadow-sm">
-                  <Store size={18} className="shrink-0 mt-0.5" />
-                  <span className="text-sm leading-snug break-words whitespace-normal text-left flex-1">
-                    {store.name}
-                  </span>
+                <div className="font-bold text-sm text-gray-800 truncate flex items-center gap-1">
+                  <Store size={14} className="text-primary-600 shrink-0" />
+                  <span className="truncate">{store.name}</span>
                 </div>
               )}
               {profile?.full_name && (
-                <div className="flex items-center justify-start gap-2 text-gray-700 text-sm font-bold px-3">
-                  <User size={16} className="shrink-0 text-gray-400" />
+                <div className="text-xs text-gray-500 truncate font-medium flex items-center gap-1">
+                  <User size={12} className="text-gray-400 shrink-0" />
                   <span className="truncate">{profile.full_name} 様</span>
                 </div>
               )}
             </div>
           )}
         </div>
-        <nav className="mt-6 flex-1 px-2 md:px-3 space-y-1">
-          {navItems.map((item, index) => {
-            if (item.type === 'header') {
-              return (
-                <div key={index} className="px-3 md:px-4 py-2 mt-4 text-xs font-semibold text-gray-400 uppercase tracking-wider hidden md:block">
-                  {item.label}
-                </div>
-              )
-            }
+        <div className="flex items-center gap-1 shrink-0 ml-2">
+          <Link to="/line-settings" className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
+            <Settings size={20} />
+          </Link>
+          <button onClick={() => setIsLogoutModalOpen(true)} className="p-2 text-gray-500 hover:bg-red-50 hover:text-red-500 rounded-lg">
+            <LogOut size={20} />
+          </button>
+        </div>
+      </header>
 
+      {/* Sidebar (Desktop) */}
+      <aside className="hidden md:flex w-64 bg-primary-600 text-white shadow-lg flex-col z-20 transition-all duration-300 h-full shrink-0">
+        {/* Logo Area */}
+        <div className="bg-white p-6 flex flex-col items-center border-b border-primary-500/20">
+          <img src={iconImage} alt="IToguchi" className="h-10 w-auto" />
+        </div>
+
+        <nav className="flex-1 px-3 space-y-1 mt-4">
+          {navItems.map((item) => {
             const isItemActive = item.path?.includes('?') 
               ? (location.pathname + location.search) === item.path
               : location.pathname === item.path
@@ -107,28 +108,66 @@ export default function Layout() {
               <Link
                 key={item.path}
                 to={item.path!}
-                className={`flex items-center justify-center md:justify-start gap-3 px-3 md:px-4 py-3 rounded-lg transition-all duration-200 font-medium ${
+                className={`flex items-center justify-start gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-bold ${
                   isItemActive
-                    ? 'bg-primary-50 text-primary-600 shadow-sm' 
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-white text-primary-600 shadow-md' 
+                    : 'text-white hover:bg-white/10'
                 }`}
                 title={item.label}
               >
                 {item.icon}
-                <span className="hidden md:block">{item.label}</span>
+                <span>{item.label}</span>
               </Link>
             )
           })}
         </nav>
-        <div className="p-4 border-t border-gray-100">
-          <button 
-            onClick={() => setIsLogoutModalOpen(true)}
-            className="flex items-center justify-center md:justify-start gap-3 w-full px-3 md:px-4 py-2 text-sm font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            title="ログアウト"
-          >
-            <LogOut size={18} />
-            <span className="hidden md:block">ログアウト</span>
-          </button>
+
+        {/* Bottom Section */}
+        <div className="p-4 border-t border-primary-500 bg-primary-700">
+          <div className="flex items-center gap-3">
+            {/* Left: Store & User Info */}
+            <div className="flex-1 min-w-0">
+              {(store?.name || profile?.full_name) && (
+                <div className="space-y-1">
+                  {store?.name && (
+                    <div className="font-bold text-lg truncate text-white flex items-center gap-2" title={store.name}>
+                      <Store size={20} className="text-primary-200 shrink-0" />
+                      <span className="truncate">{store.name}</span>
+                    </div>
+                  )}
+                  {profile?.full_name && (
+                    <div className="text-base text-primary-100 truncate font-medium flex items-center gap-2" title={profile.full_name}>
+                      <User size={18} className="text-primary-200 shrink-0" />
+                      <span className="truncate">{profile.full_name} 様</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Right: Actions */}
+            <div className="flex flex-col gap-1 shrink-0 items-end">
+              <Link
+                to="/line-settings"
+                className="group relative flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 text-primary-200 hover:bg-white/20 hover:text-white"
+              >
+                <Settings size={22} />
+                <span className="absolute right-full mr-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                  設定
+                </span>
+              </Link>
+              
+              <button 
+                onClick={() => setIsLogoutModalOpen(true)}
+                className="group relative flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 text-primary-200 hover:bg-red-500/40 hover:text-white"
+              >
+                <LogOut size={22} />
+                <span className="absolute right-full mr-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                  ログアウト
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
       </aside>
 
@@ -143,9 +182,35 @@ export default function Layout() {
       />
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto bg-gray-50">
+      <main className="flex-1 overflow-y-auto bg-gray-50 pb-20 md:pb-0">
         <Outlet />
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-primary-600 border-t border-primary-500 z-30 pb-safe">
+        <div className="flex justify-around items-center h-16">
+          {navItems.map((item) => {
+            const isItemActive = item.path?.includes('?') 
+              ? (location.pathname + location.search) === item.path
+              : location.pathname === item.path
+
+            return (
+              <Link
+                key={item.path}
+                to={item.path!}
+                className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${
+                  isItemActive
+                    ? 'text-white bg-white/10' 
+                    : 'text-primary-100 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {item.icon}
+                <span className="text-[10px] font-bold">{item.label}</span>
+              </Link>
+            )
+          })}
+        </div>
+      </nav>
     </div>
   )
 }
