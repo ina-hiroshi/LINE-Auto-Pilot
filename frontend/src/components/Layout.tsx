@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase'
 import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User, Code } from 'lucide-react'
 import Modal from './Modal'
 import iconImage from '../assets/icon.png'
-import iconMiniImage from '../assets/icon_mini.png'
 
 export default function Layout() {
   const location = useLocation()
