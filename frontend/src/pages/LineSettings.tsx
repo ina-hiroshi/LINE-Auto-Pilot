@@ -258,6 +258,9 @@ export default function LineSettings() {
 
       if (storeError) throw storeError
 
+      // Notify other components (like Layout) that profile has changed
+      window.dispatchEvent(new Event('profile-updated'))
+
       setMessage({ type: 'success', text: '基本情報を更新しました' })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '不明なエラー'
@@ -316,7 +319,7 @@ export default function LineSettings() {
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/line-webhook`
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+    <div className="p-8 max-w-7xl mx-auto">
       <h1 className="text-2xl font-bold mb-8 text-gray-800">
         設定
       </h1>

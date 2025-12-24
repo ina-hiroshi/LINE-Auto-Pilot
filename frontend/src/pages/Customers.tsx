@@ -1,7 +1,7 @@
 export default function Customers() {
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">顧客一覧</h1>
+    <div className="p-8 max-w-7xl mx-auto">
+      <h1 className="text-2xl font-bold mb-8 text-gray-900">顧客一覧</h1>
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">

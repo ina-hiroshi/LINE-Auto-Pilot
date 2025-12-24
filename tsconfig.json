@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es6",
+    "rootDir": ".",
+    "baseUrl": "."
+  },
+  "exclude": [
+    "supabase",
+    "node_modules",
+    "**/*.spec.ts"
+  ]
+}

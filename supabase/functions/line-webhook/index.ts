@@ -42,7 +42,7 @@ async function replyMessage(accessToken: string, replyToken: string, messages: a
   }
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   try {
     // Only allow POST requests
     if (req.method !== 'POST') {
@@ -88,14 +88,32 @@ serve(async (req) => {
 
     // Try DB lookup if destination exists
     let account = null
+    let storeId = null
+    let isAiEnabled = false
+
     if (destination) {
+        // Join with stores to get AI settings
         const { data, error } = await supabase
             .from('line_accounts')
-            .select('channel_secret, channel_access_token')
+            .select(`
+                channel_secret, 
+                channel_access_token,
+                store_id,
+                stores (
+                    is_ai_enabled
+                )
+            `)
             .eq('line_user_id', destination)
             .maybeSingle()
         
-        account = data
+        if (data) {
+            account = data
+            channelSecret = data.channel_secret
+            channelAccessToken = data.channel_access_token
+            storeId = data.store_id
+            // @ts-ignore: Supabase join result type
+            isAiEnabled = data.stores?.is_ai_enabled || false
+        }
         
         if (error) {
             console.error('Database error:', error)
@@ -108,7 +126,7 @@ serve(async (req) => {
             channelAccessToken = account.channel_access_token
         } else {
             console.warn('No LINE account found for destination:', destination, 'Using fallback env vars if available.')
-            return new Response(`Internal Server Error: No account found for destination ${destination}`, { status: 500 })
+            // Do not return error here, allow fallback to env vars
         }
     }
 
@@ -131,14 +149,93 @@ serve(async (req) => {
       if (event.type === 'message' && event.message.type === 'text') {
         const replyToken = event.replyToken
         const text = event.message.text
+        const userId = event.source.userId
         
-        console.log(`Received message: ${text}`)
+        console.log(`Received message: ${text} from ${userId}`)
 
-        // Echo back
-        await replyMessage(channelAccessToken, replyToken, [{
-          type: 'text',
-          text: `You said: ${text}`
-        }])
+        let replyText = null
+        let status = 'manual_reply_needed'
+
+        if (storeId) {
+            // 1. Get Auto Responses
+            const { data: rules } = await supabase
+                .from('auto_responses')
+                .select('*')
+                .eq('store_id', storeId)
+                .eq('is_active', true)
+            
+            // 2. Scoring Logic
+            let bestScore = 0
+            let bestRule = null
+
+            if (rules && rules.length > 0) {
+                for (const rule of rules) {
+                    let score = 0
+                    
+                    // Exact match (100 pts)
+                    if (text === rule.keyword) {
+                        score = 100
+                    } 
+                    // Main keyword match (30 pts)
+                    else if (text.includes(rule.keyword)) {
+                        score += 30
+                    }
+
+                    // Sub keywords match (10 pts each)
+                    if (rule.sub_keywords && Array.isArray(rule.sub_keywords)) {
+                        for (const sub of rule.sub_keywords) {
+                            if (text.includes(sub)) {
+                                score += 10
+                            }
+                        }
+                    }
+
+                    if (score > bestScore) {
+                        bestScore = score
+                        bestRule = rule
+                    }
+                }
+            }
+
+            // 3. Threshold Check (Threshold: 20)
+            if (bestScore >= 20 && bestRule) {
+                replyText = bestRule.response_text
+                status = 'auto_replied'
+            } else {
+                // Fallback
+                if (isAiEnabled) {
+                    // TODO: Call OpenAI API
+                    // For now, just a placeholder
+                    // replyText = await callOpenAI(text, storeId)
+                    replyText = "AIモードは現在準備中です。（AIが回答を生成する予定）"
+                    status = 'ai_replied'
+                } else {
+                    // Manual Reply Needed
+                    replyText = "お問い合わせありがとうございます。\n担当者が確認次第、返信させていただきます。\n今しばらくお待ちください。"
+                    status = 'manual_reply_needed'
+                }
+            }
+
+            // 4. Send Reply
+            if (replyText) {
+                await replyMessage(channelAccessToken, replyToken, [{
+                    type: 'text',
+                    text: replyText
+                }])
+            }
+
+            // 5. Save Log
+            await supabase.from('customer_logs').insert({
+                store_id: storeId,
+                line_user_id: userId,
+                message_content: text,
+                reply_content: replyText,
+                status: status
+            })
+
+        } else {
+            console.warn('Store ID not found for this destination, skipping auto-response logic.')
+        }
       }
     }
 
@@ -146,10 +243,11 @@ serve(async (req) => {
       JSON.stringify({ message: 'OK' }),
       { headers: { "Content-Type": "application/json" } },
     )
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error processing request:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     )
   }

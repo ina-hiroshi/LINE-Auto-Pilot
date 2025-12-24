@@ -27,7 +27,8 @@
 - **profiles**: 管理者（ユーザー）情報、プラン（free/pro）、契約ステータス。
 - **line_accounts**: Messaging API キー、アクセストークン (`channel_access_token`)、bot_id（ユニーク URL 用）、**line_user_id**（Webhook 宛先識別用）。
 - **auto_responses**: キーワード応答ルール（キーワード、返信文、AI 優先フラグ）。
-- **reservations**: 予約データ（日時、LINE ユーザー ID、ステータス、店舗側メモ）。
+- **reservations**: 予約データ（日時、LINE ユーザー ID、ステータス、店舗側メモ、**google_event_id**）。
+- **google_calendar_settings**: Google カレンダー連携設定（リフレッシュトークン、同期対象カレンダー ID）。
 - **points**: 顧客別ポイント管理（現在のポイント数、最終更新日、ポイント履歴 URL）。
 - **customer_logs**: LINE ユーザーとの接触履歴、送信メッセージログ。
 
@@ -49,6 +50,13 @@ GAS による管理を廃止し、すべての操作を Web UI 上で行う。
 - **マルチテナント識別**: Webhook リクエスト内の `destination` (LINE User ID) を基に、適切な店舗アカウントを自動判別。
 - **予約・ポイント LIFF**: LINE 内で開く高機能な専用 UI。予約カレンダーやマイページを提供。
 - **AI 自動接客**: 既存の応答ルールに該当しない場合、OpenAI が店舗情報を基に回答。
+
+### 4.3 予約同期システム（Google カレンダー連携）
+
+- **アーキテクチャ**: Google カレンダーを「予約のハブ」として利用し、ホットペッパー等の外部予約システムとのダブルブッキングを防止。
+- **OAuth 連携**: `access_type=offline` によりリフレッシュトークンを取得し、永続的なバックグラウンド同期を実現。
+- **リアルタイム同期 (Watch)**: Google Calendar API の Webhook 機能を利用し、カレンダーの変更を即座に検知して在庫を更新。
+- **空き枠計算**: ユーザーが予約画面を開いた瞬間に、IToguchi 内の予約と Google カレンダーの予定をマージして正確な空き時間を提示。
 
 ## 5. セキュリティ・運用方針
 

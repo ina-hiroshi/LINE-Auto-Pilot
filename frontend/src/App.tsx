@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import LineSettings from './pages/LineSettings'
 import AutoResponses from './pages/AutoResponses'
 import Customers from './pages/Customers'
+import Reservations from './pages/Reservations'
 import TopPage from './pages/TopPage'
 import InitialSetup from './pages/InitialSetup'
 import DevSandbox from './pages/DevSandbox'
@@ -159,6 +160,7 @@ function App() {
         ) : (
           <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/reservations" element={<Reservations />} />
             <Route path="/line-settings" element={<LineSettings />} />
             <Route path="/auto-responses" element={<AutoResponses />} />
             <Route path="/customers" element={<Customers />} />
