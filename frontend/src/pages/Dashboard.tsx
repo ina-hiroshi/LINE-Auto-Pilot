@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Users, Calendar, AlertCircle, CheckCircle2, Bot, User, MessageSquare } from 'lucide-react'
+import { Users, Calendar, AlertCircle, Bot, User } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 type DashboardStats = {
@@ -19,12 +19,6 @@ type LogEntry = {
   status: 'auto_replied' | 'ai_replied' | 'manual_reply_needed'
   display_name?: string
   profile_picture_url?: string
-}
-
-const COLORS = {
-  auto_replied: '#10B981', // Green
-  ai_replied: '#3B82F6',   // Blue
-  manual_reply_needed: '#EF4444' // Red
 }
 
 const STATUS_LABELS = {
