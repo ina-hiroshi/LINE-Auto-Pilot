@@ -44,13 +44,13 @@ export default function Modal({
         <div className="p-6 overflow-y-auto">
           {children ? children : <p className="text-gray-600">{message}</p>}
         </div>
-        <div className={`flex items-center ${footerContent ? 'justify-between' : 'justify-end'} gap-3 p-4 bg-gray-50 shrink-0 border-t`}>
-          {footerContent && <div className="flex-1 mr-4 text-left">{footerContent}</div>}
-          <div className="flex items-center gap-3 shrink-0">
+        <div className={`flex flex-col sm:flex-row items-stretch sm:items-center ${footerContent ? 'justify-between' : 'justify-end'} gap-4 p-4 bg-gray-50 shrink-0 border-t`}>
+          {footerContent && <div className="text-left sm:flex-1 sm:mr-4">{footerContent}</div>}
+          <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
             <button
               onClick={onClose}
               disabled={isLoading}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="flex-1 sm:flex-none px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 justify-center flex"
             >
               {cancelText}
             </button>
@@ -59,7 +59,7 @@ export default function Modal({
                 onConfirm();
               }}
               disabled={isLoading}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2 ${confirmButtonClass}`}
+              className={`flex-1 sm:flex-none px-4 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${confirmButtonClass}`}
             >
               {isLoading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
               {confirmText}

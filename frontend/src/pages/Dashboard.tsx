@@ -390,71 +390,71 @@ export default function Dashboard() {
       </div>
       
       {/* Top Section: Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* 1. Manual Reply Needed */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-red-100 hover:shadow-md transition relative overflow-hidden">
+        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-red-100 hover:shadow-md transition relative overflow-hidden">
           <div className="absolute top-0 right-0 w-12 h-12 bg-red-50 rounded-bl-full -mr-4 -mt-4" />
           <div className="flex items-center justify-between mb-2 relative">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">要対応 {getTimeRangeLabel()}</h2>
-            <div className="p-1.5 bg-red-50 rounded-lg text-red-600">
+            <h2 className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">要対応 {getTimeRangeLabel()}</h2>
+            <div className="p-1.5 bg-red-50 rounded-lg text-red-600 shrink-0">
               <AlertCircle size={16} />
             </div>
           </div>
-          <div className="flex items-end gap-2 relative">
-            <p className="text-2xl font-bold text-gray-900">{stats.manualReplyNeeded}</p>
-            <p className="text-xs text-red-600 font-medium mb-1">件</p>
+          <div className="flex items-end gap-1 sm:gap-2 relative flex-wrap">
+            <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.manualReplyNeeded}</p>
+            <p className="text-[10px] sm:text-xs text-red-600 font-medium mb-1">件</p>
             {stats.totalLogs > 0 && (
-              <span className="text-2xl font-bold text-gray-500 mb-0.5 ml-auto">
-                {Math.round((stats.manualReplyNeeded / stats.totalLogs) * 100)}%
+              <span className="text-sm sm:text-2xl font-bold text-gray-500 mb-0.5 ml-auto">
+                {Math.round((stats.manualReplyNeeded / stats.totalLogs) * 100)}<span className="text-[10px] sm:text-base">%</span>
               </span>
             )}
           </div>
         </div>
 
         {/* 2. Today's Auto Responses */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">自動応答 {getTimeRangeLabel()}</h2>
-            <div className="p-1.5 bg-primary-50 rounded-lg text-primary-600">
+            <h2 className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">自動応答 {getTimeRangeLabel()}</h2>
+            <div className="p-1.5 bg-primary-50 rounded-lg text-primary-600 shrink-0">
               <Bot size={16} />
             </div>
           </div>
-          <div className="flex items-end gap-2">
-            <p className="text-2xl font-bold text-gray-900">{stats.todayAutoResponses}</p>
-            <p className="text-xs text-gray-400 mb-1">回</p>
+          <div className="flex items-end gap-1 sm:gap-2 flex-wrap">
+            <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.todayAutoResponses}</p>
+            <p className="text-[10px] sm:text-xs text-gray-400 mb-1">回</p>
             {stats.totalLogs > 0 && (
-              <span className="text-2xl font-bold text-gray-500 mb-0.5 ml-auto">
-                {Math.round((stats.todayAutoResponses / stats.totalLogs) * 100)}%
+              <span className="text-sm sm:text-2xl font-bold text-gray-500 mb-0.5 ml-auto">
+                {Math.round((stats.todayAutoResponses / stats.totalLogs) * 100)}<span className="text-[10px] sm:text-base">%</span>
               </span>
             )}
           </div>
         </div>
 
         {/* 3. Today's Reservations */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">予約 {getTimeRangeLabel()}</h2>
-            <div className="p-1.5 bg-purple-50 rounded-lg text-purple-600">
+            <h2 className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">予約 {getTimeRangeLabel()}</h2>
+            <div className="p-1.5 bg-purple-50 rounded-lg text-purple-600 shrink-0">
               <Calendar size={16} />
             </div>
           </div>
-          <div className="flex items-end gap-2">
-            <p className="text-2xl font-bold text-gray-900">{stats.todayReservations}</p>
-            <p className="text-xs text-gray-400 mb-1">件</p>
+          <div className="flex items-end gap-1 sm:gap-2">
+            <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.todayReservations}</p>
+            <p className="text-[10px] sm:text-xs text-gray-400 mb-1">件</p>
           </div>
         </div>
 
         {/* 4. Total Friends (Proxy) */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">ユーザー {getTimeRangeLabel()}</h2>
-            <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600">
+            <h2 className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">ユーザー {getTimeRangeLabel()}</h2>
+            <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600 shrink-0">
               <Users size={16} />
             </div>
           </div>
-          <div className="flex items-end gap-2">
-            <p className="text-2xl font-bold text-gray-900">{stats.totalFriends}</p>
-            <p className="text-xs text-gray-400 mb-1">人</p>
+          <div className="flex items-end gap-1 sm:gap-2">
+            <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.totalFriends}</p>
+            <p className="text-[10px] sm:text-xs text-gray-400 mb-1">人</p>
           </div>
         </div>
       </div>
