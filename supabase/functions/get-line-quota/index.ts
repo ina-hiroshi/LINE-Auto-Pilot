@@ -62,12 +62,15 @@ serve(async (req) => {
 
     const token = lineAccount.channel_access_token
 
-    // 4. Fetch Quota and Consumption from LINE API
-    const [quotaRes, consumptionRes] = await Promise.all([
+    // 4. Fetch Quota, Consumption, and Bot Info from LINE API
+    const [quotaRes, consumptionRes, botInfoRes] = await Promise.all([
       fetch('https://api.line.me/v2/bot/message/quota', {
         headers: { Authorization: `Bearer ${token}` },
       }),
       fetch('https://api.line.me/v2/bot/message/quota/consumption', {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      fetch('https://api.line.me/v2/bot/info', {
         headers: { Authorization: `Bearer ${token}` },
       }),
     ])
@@ -82,11 +85,14 @@ serve(async (req) => {
 
     const quotaData = await quotaRes.json()
     const consumptionData = await consumptionRes.json()
+    const botInfoData = botInfoRes.ok ? await botInfoRes.json() : {}
 
     return new Response(JSON.stringify({
       type: quotaData.type,
       limit: quotaData.value, // Can be undefined if type is 'none'
-      totalUsage: consumptionData.totalUsage
+      totalUsage: consumptionData.totalUsage,
+      basicId: botInfoData.basicId,
+      displayName: botInfoData.displayName
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
