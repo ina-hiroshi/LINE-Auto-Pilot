@@ -21,6 +21,7 @@ export default function LineSettings() {
   })
 
   // Profile & Store State
+  const [storeId, setStoreId] = useState<string | null>(null)
   const [profileData, setProfileData] = useState({
     full_name: '',
     full_name_kana: '',
@@ -82,6 +83,7 @@ export default function LineSettings() {
         .limit(1)
       
       const store = stores && stores.length > 0 ? stores[0] : null
+      if (store) setStoreId(store.id)
 
       // Fetch Line Account
       const { data: lineAccounts } = await supabase
@@ -187,6 +189,7 @@ export default function LineSettings() {
             channel_access_token: lineSettings.channel_token,
             line_user_id: lineUserId,
             bot_id: basicId,
+            store_id: storeId,
             updated_at: new Date().toISOString()
           })
           .eq('user_id', user.id)
@@ -200,7 +203,8 @@ export default function LineSettings() {
             channel_secret: lineSettings.channel_secret,
             channel_access_token: lineSettings.channel_token,
             line_user_id: lineUserId,
-            bot_id: basicId
+            bot_id: basicId,
+            store_id: storeId
           })
         error = insertError
       }

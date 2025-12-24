@@ -42,6 +42,22 @@ async function replyMessage(accessToken: string, replyToken: string, messages: a
   }
 }
 
+// Helper to get user profile
+async function getProfile(accessToken: string, userId: string): Promise<{ displayName: string, pictureUrl?: string } | null> {
+  try {
+    const response = await fetch(`https://api.line.me/v2/bot/profile/${userId}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+    if (!response.ok) return null
+    return await response.json()
+  } catch (e) {
+    console.error('Error fetching profile:', e)
+    return null
+  }
+}
+
 serve(async (req: Request) => {
   try {
     // Only allow POST requests
@@ -107,12 +123,15 @@ serve(async (req: Request) => {
             .maybeSingle()
         
         if (data) {
+            console.log('Account data found:', JSON.stringify(data))
             account = data
             channelSecret = data.channel_secret
             channelAccessToken = data.channel_access_token
             storeId = data.store_id
             // @ts-ignore: Supabase join result type
             isAiEnabled = data.stores?.is_ai_enabled || false
+        } else {
+            console.log('No account data found for destination:', destination)
         }
         
         if (error) {
@@ -157,12 +176,19 @@ serve(async (req: Request) => {
         let status = 'manual_reply_needed'
 
         if (storeId) {
+            console.log('Processing auto-response for storeId:', storeId)
             // 1. Get Auto Responses
-            const { data: rules } = await supabase
+            const { data: rules, error: rulesError } = await supabase
                 .from('auto_responses')
                 .select('*')
                 .eq('store_id', storeId)
                 .eq('is_active', true)
+            
+            if (rulesError) {
+                console.error('Error fetching rules:', rulesError)
+            } else {
+                console.log(`Found ${rules?.length || 0} active rules`)
+            }
             
             // 2. Scoring Logic
             let bestScore = 0
@@ -189,6 +215,8 @@ serve(async (req: Request) => {
                             }
                         }
                     }
+                    
+                    console.log(`Rule "${rule.keyword}" score: ${score}`)
 
                     if (score > bestScore) {
                         bestScore = score
@@ -196,11 +224,14 @@ serve(async (req: Request) => {
                     }
                 }
             }
+            
+            console.log(`Best score: ${bestScore}`)
 
             // 3. Threshold Check (Threshold: 20)
             if (bestScore >= 20 && bestRule) {
                 replyText = bestRule.response_text
                 status = 'auto_replied'
+                console.log('Selected auto-response rule:', bestRule.keyword)
             } else {
                 // Fallback
                 if (isAiEnabled) {
@@ -209,29 +240,56 @@ serve(async (req: Request) => {
                     // replyText = await callOpenAI(text, storeId)
                     replyText = "AIモードは現在準備中です。（AIが回答を生成する予定）"
                     status = 'ai_replied'
+                    console.log('Fallback to AI')
                 } else {
                     // Manual Reply Needed
                     replyText = "お問い合わせありがとうございます。\n担当者が確認次第、返信させていただきます。\n今しばらくお待ちください。"
                     status = 'manual_reply_needed'
+                    console.log('Fallback to Manual Reply')
                 }
             }
 
             // 4. Send Reply
             if (replyText) {
-                await replyMessage(channelAccessToken, replyToken, [{
-                    type: 'text',
-                    text: replyText
-                }])
+                console.log('Sending reply:', replyText)
+                try {
+                    await replyMessage(channelAccessToken, replyToken, [{
+                        type: 'text',
+                        text: replyText
+                    }])
+                    console.log('Reply sent successfully')
+                } catch (e) {
+                    console.error('Failed to send reply:', e)
+                }
             }
 
             // 5. Save Log
-            await supabase.from('customer_logs').insert({
+            // Fetch profile for display name
+            let displayName = null
+            let pictureUrl = null
+            if (channelAccessToken) {
+                const profile = await getProfile(channelAccessToken, userId)
+                if (profile) {
+                    displayName = profile.displayName
+                    pictureUrl = profile.pictureUrl
+                }
+            }
+
+            const { error: logError } = await supabase.from('customer_logs').insert({
                 store_id: storeId,
                 line_user_id: userId,
+                display_name: displayName,
+                profile_picture_url: pictureUrl,
                 message_content: text,
                 reply_content: replyText,
                 status: status
             })
+            
+            if (logError) {
+                console.error('Error saving log:', logError)
+            } else {
+                console.log('Log saved successfully')
+            }
 
         } else {
             console.warn('Store ID not found for this destination, skipping auto-response logic.')

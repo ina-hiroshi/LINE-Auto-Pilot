@@ -1,70 +1,413 @@
-import { Users, Calendar, MessageCircle, TrendingUp } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Users, Calendar, AlertCircle, CheckCircle2, Bot, User, MessageSquare } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+
+type DashboardStats = {
+  manualReplyNeeded: number
+  todayReservations: number
+  todayAutoResponses: number
+  totalFriends: number
+  totalLogs: number
+}
+
+type LogEntry = {
+  id: string
+  created_at: string
+  line_user_id: string
+  message_content: string
+  reply_content: string | null
+  status: 'auto_replied' | 'ai_replied' | 'manual_reply_needed'
+  display_name?: string
+  profile_picture_url?: string
+}
+
+const COLORS = {
+  auto_replied: '#10B981', // Green
+  ai_replied: '#3B82F6',   // Blue
+  manual_reply_needed: '#EF4444' // Red
+}
+
+const STATUS_LABELS = {
+  auto_replied: '自動応答',
+  ai_replied: 'AI応答',
+  manual_reply_needed: '要対応'
+}
 
 export default function Dashboard() {
+  const [stats, setStats] = useState<DashboardStats>({
+    manualReplyNeeded: 0,
+    todayReservations: 0,
+    todayAutoResponses: 0,
+    totalFriends: 0,
+    totalLogs: 0
+  })
+  const [allLogs, setAllLogs] = useState<LogEntry[]>([])
+  const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filterStatus, setFilterStatus] = useState<'all' | 'auto_replied' | 'ai_replied' | 'manual_reply_needed'>('all')
+  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'all'>('today')
+
+  useEffect(() => {
+    fetchDashboardData()
+
+    // Real-time subscription for logs
+    const channel = supabase
+      .channel('dashboard-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'customer_logs' },
+        () => {
+          fetchDashboardData()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [timeRange]) // Re-fetch when timeRange changes
+
+  useEffect(() => {
+    if (filterStatus === 'all') {
+      setFilteredLogs(allLogs.slice(0, 20))
+    } else {
+      setFilteredLogs(allLogs.filter(log => log.status === filterStatus).slice(0, 20))
+    }
+  }, [filterStatus, allLogs])
+
+  const fetchDashboardData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Get Store ID
+      const { data: stores } = await supabase
+        .from('stores')
+        .select('id')
+        .eq('owner_id', user.id)
+        .limit(1)
+      
+      const storeId = stores?.[0]?.id
+      if (!storeId) {
+        setLoading(false)
+        return
+      }
+
+      // Calculate Date Range
+      const now = new Date()
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      let start: string | null = null
+      let end: string | null = null
+
+      switch (timeRange) {
+        case 'today': {
+            const endOfToday = new Date(startOfToday)
+            endOfToday.setHours(23, 59, 59, 999)
+            start = startOfToday.toISOString()
+            end = endOfToday.toISOString()
+            break
+        }
+        case 'week': {
+            const startOfWeek = new Date(startOfToday)
+            startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay()) // Sunday
+            const endOfWeek = new Date(startOfWeek)
+            endOfWeek.setDate(startOfWeek.getDate() + 6)
+            endOfWeek.setHours(23, 59, 59, 999)
+            start = startOfWeek.toISOString()
+            end = endOfWeek.toISOString()
+            break
+        }
+        case 'month': {
+            const startOfMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1)
+            const endOfMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth() + 1, 0)
+            endOfMonth.setHours(23, 59, 59, 999)
+            start = startOfMonth.toISOString()
+            end = endOfMonth.toISOString()
+            break
+        }
+        case 'all':
+            start = null
+            end = null
+            break
+      }
+
+      // 1. Fetch Logs for Stats & Chart
+      let logsQuery = supabase
+        .from('customer_logs')
+        .select('*')
+        .eq('store_id', storeId)
+        .order('created_at', { ascending: false })
+      
+      if (start) logsQuery = logsQuery.gte('created_at', start)
+      if (end) logsQuery = logsQuery.lte('created_at', end)
+      
+      if (!start) {
+          logsQuery = logsQuery.limit(2000) // Higher limit for 'all'
+      }
+
+      const { data: logs } = await logsQuery
+
+      if (logs) {
+        // Calculate Stats
+        const manualNeeded = logs.filter(l => l.status === 'manual_reply_needed').length
+        const autoResponses = logs.filter(l => l.status === 'auto_replied').length
+
+        setStats(prev => ({
+          ...prev,
+          manualReplyNeeded: manualNeeded,
+          todayAutoResponses: autoResponses,
+          totalLogs: logs.length
+        }))
+        setAllLogs(logs)
+      }
+
+      // 2. Fetch Reservations
+      let resQuery = supabase
+        .from('reservations')
+        .select('*', { count: 'exact', head: true })
+        .eq('store_id', storeId)
+      
+      if (start) resQuery = resQuery.gte('start_time', start)
+      if (end) resQuery = resQuery.lte('start_time', end)
+      
+      const { count: reservationCount, error: resError } = await resQuery
+      
+      if (!resError) {
+        setStats(prev => ({ ...prev, todayReservations: reservationCount || 0 }))
+      }
+
+      // 3. Fetch Total Friends (Unique users in logs as proxy for now)
+      if (logs) {
+        const uniqueUsers = new Set(logs.map(l => l.line_user_id)).size
+        setStats(prev => ({ ...prev, totalFriends: uniqueUsers }))
+      }
+
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getTimeRangeLabel = () => {
+      switch(timeRange) {
+          case 'today': return '(今日)'
+          case 'week': return '(今週)'
+          case 'month': return '(今月)'
+          case 'all': return '(全期間)'
+      }
+  }
+
+
+  if (loading) {
+    return <div className="p-8 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div></div>
+  }
+
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">ダッシュボード</h1>
-        <p className="text-gray-500 mt-1">本日の店舗状況の概要です。</p>
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">ダッシュボード</h1>
+          <p className="text-gray-500 mt-1">店舗状況と自動応答のパフォーマンス</p>
+        </div>
+        <div className="flex bg-gray-100 p-1 rounded-lg">
+            {(['today', 'week', 'month', 'all'] as const).map((range) => (
+                <button
+                    key={range}
+                    onClick={() => setTimeRange(range)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                        timeRange === range 
+                            ? 'bg-white text-gray-900 shadow-sm' 
+                            : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    {range === 'today' ? '今日' : range === 'week' ? '今週' : range === 'month' ? '今月' : '全期間'}
+                </button>
+            ))}
+        </div>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">友だち登録数</h2>
-            <div className="p-2 bg-primary-50 rounded-lg text-primary-600">
-              <Users size={20} />
+      {/* Top Section: Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 1. Manual Reply Needed */}
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-red-100 hover:shadow-md transition relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-12 h-12 bg-red-50 rounded-bl-full -mr-4 -mt-4" />
+          <div className="flex items-center justify-between mb-2 relative">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">要対応 {getTimeRangeLabel()}</h2>
+            <div className="p-1.5 bg-red-50 rounded-lg text-red-600">
+              <AlertCircle size={16} />
             </div>
           </div>
-          <div className="flex items-end gap-3">
-            <p className="text-3xl font-bold text-gray-900">1,234</p>
-            <p className="text-sm text-green-600 font-medium flex items-center mb-1">
-              <TrendingUp size={16} className="mr-1" />
-              12% 先月比
-            </p>
+          <div className="flex items-end gap-2 relative">
+            <p className="text-2xl font-bold text-gray-900">{stats.manualReplyNeeded}</p>
+            <p className="text-xs text-red-600 font-medium mb-1">件</p>
+            {stats.totalLogs > 0 && (
+              <span className="text-2xl font-bold text-gray-500 mb-0.5 ml-auto">
+                {Math.round((stats.manualReplyNeeded / stats.totalLogs) * 100)}%
+              </span>
+            )}
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">今日の予約</h2>
-            <div className="p-2 bg-purple-50 rounded-lg text-purple-600">
-              <Calendar size={20} />
+        {/* 2. Today's Auto Responses */}
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">自動応答 {getTimeRangeLabel()}</h2>
+            <div className="p-1.5 bg-green-50 rounded-lg text-green-600">
+              <Bot size={16} />
             </div>
           </div>
-          <div className="flex items-end gap-3">
-            <p className="text-3xl font-bold text-gray-900">5</p>
-            <p className="text-sm text-gray-400 mb-1">全 8 枠中</p>
+          <div className="flex items-end gap-2">
+            <p className="text-2xl font-bold text-gray-900">{stats.todayAutoResponses}</p>
+            <p className="text-xs text-gray-400 mb-1">回</p>
+            {stats.totalLogs > 0 && (
+              <span className="text-2xl font-bold text-gray-500 mb-0.5 ml-auto">
+                {Math.round((stats.todayAutoResponses / stats.totalLogs) * 100)}%
+              </span>
+            )}
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">ポイント発行</h2>
-            <div className="p-2 bg-orange-50 rounded-lg text-orange-600">
-              <MessageCircle size={20} />
+        {/* 3. Today's Reservations */}
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">予約 {getTimeRangeLabel()}</h2>
+            <div className="p-1.5 bg-purple-50 rounded-lg text-purple-600">
+              <Calendar size={16} />
             </div>
           </div>
-          <div className="flex items-end gap-3">
-            <p className="text-3xl font-bold text-gray-900">12,000</p>
-            <p className="text-sm text-gray-400 mb-1">pt</p>
+          <div className="flex items-end gap-2">
+            <p className="text-2xl font-bold text-gray-900">{stats.todayReservations}</p>
+            <p className="text-xs text-gray-400 mb-1">件</p>
+          </div>
+        </div>
+
+        {/* 4. Total Friends (Proxy) */}
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">ユーザー {getTimeRangeLabel()}</h2>
+            <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600">
+              <Users size={16} />
+            </div>
+          </div>
+          <div className="flex items-end gap-2">
+            <p className="text-2xl font-bold text-gray-900">{stats.totalFriends}</p>
+            <p className="text-xs text-gray-400 mb-1">人</p>
           </div>
         </div>
       </div>
 
-      {/* Recent Activity Placeholder */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">最近のアクティビティ</h3>
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center gap-4 p-3 hover:bg-gray-50 rounded-lg transition">
-              <div className="w-10 h-10 rounded-full bg-gray-200 shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">ユーザー{i}が予約しました</p>
-                <p className="text-xs text-gray-500">2時間前</p>
-              </div>
+      {/* Recent Logs List (Compact) */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col flex-1 min-h-0 overflow-hidden h-[600px]">
+        <div className="p-4 border-b border-gray-100 flex justify-between items-center shrink-0 bg-white z-10">
+            <h3 className="font-bold text-gray-900">直近の対話ログ</h3>
+            
+            {/* Filter Tabs */}
+            <div className="flex bg-gray-100 p-1 rounded-lg">
+                {(['all', 'manual_reply_needed', 'auto_replied', 'ai_replied'] as const).map((status) => (
+                    <button
+                        key={status}
+                        onClick={() => setFilterStatus(status)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                            filterStatus === status 
+                                ? 'bg-white text-gray-900 shadow-sm' 
+                                : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                        {status === 'all' ? 'すべて' : STATUS_LABELS[status]}
+                    </button>
+                ))}
             </div>
-          ))}
+        </div>
+
+        <div className="divide-y divide-gray-100 overflow-y-auto">
+          {filteredLogs.length > 0 ? (
+            filteredLogs.map((log) => (
+              <div key={log.id} className="group hover:bg-gray-50 transition-colors">
+                <div className="flex items-stretch">
+                  {/* Status Indicator Strip */}
+                  <div className={`w-1 shrink-0 ${
+                    log.status === 'auto_replied' ? 'bg-emerald-500' : 
+                    log.status === 'ai_replied' ? 'bg-blue-500' : 
+                    'bg-red-500'
+                  }`} />
+
+                  <div className="flex-1 p-3 flex flex-col sm:flex-row gap-4 items-start">
+                    {/* User Info (Compact) */}
+                    <div className="w-full sm:w-32 shrink-0 flex flex-row sm:flex-col gap-2 sm:gap-1 items-center sm:items-start justify-between sm:justify-start">
+                      <div className="flex items-center gap-2">
+                         <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 border border-gray-200 shrink-0 overflow-hidden">
+                            {log.profile_picture_url ? (
+                                <img src={log.profile_picture_url} alt={log.display_name} className="w-full h-full object-cover" />
+                            ) : log.display_name ? (
+                                <span className="font-bold text-xs text-gray-600">{log.display_name[0]}</span>
+                            ) : (
+                                <User size={14} />
+                            )}
+                         </div>
+                         <span className="font-bold text-sm truncate max-w-[100px]">{log.display_name || 'ゲスト'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 sm:block">
+                        <div className="text-xs text-gray-400">
+                            {new Date(log.created_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                        <div className="mt-0 sm:mt-1">
+                            <span className={`text-xs px-2 py-1 rounded border font-bold ${
+                                log.status === 'auto_replied' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 
+                                log.status === 'ai_replied' ? 'bg-blue-100 text-blue-800 border-blue-200' : 
+                                'bg-red-100 text-red-800 border-red-200'
+                            }`}>
+                            {STATUS_LABELS[log.status]}
+                            </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Messages Area (Side by Side) */}
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                      {/* User Message */}
+                      <div className="relative ml-4">
+                        <div className="absolute top-0 -left-[12px]">
+                           <svg width="12" height="20" viewBox="0 0 12 20">
+                             <path d="M12,0 L0,0 L12,20 Z" fill="#f3f4f6" />
+                           </svg>
+                        </div>
+                        <div className="bg-gray-100 rounded-2xl rounded-tl-none p-3 text-sm text-gray-800 max-h-32 overflow-y-auto shadow-sm">
+                            {log.message_content}
+                        </div>
+                      </div>
+
+                      {/* Bot Reply */}
+                      {log.reply_content ? (
+                        <div className="relative mr-4">
+                            <div className="absolute top-0 -right-[11px]">
+                               <svg width="12" height="20" viewBox="0 0 12 20" className="overflow-visible">
+                                 <path d="M0,0 L12,0 L0,20 Z" fill="#f0fdfa" stroke="none" />
+                                 <path d="M0,20 L12,0 L0,0" fill="none" stroke="#ccfbf1" strokeWidth="1" />
+                               </svg>
+                            </div>
+                            
+                            <div className="bg-primary-50 rounded-2xl rounded-tr-none p-3 text-sm text-gray-800 border border-primary-100 max-h-32 overflow-y-auto shadow-sm">
+                                <div className="flex items-center gap-1 mb-1 sticky top-0 bg-primary-50 pb-1 border-b border-primary-100/50 w-full z-10">
+                                    <Bot size={12} className="text-primary-600" />
+                                    <span className="text-[10px] font-bold text-primary-600">Bot</span>
+                                </div>
+                                {log.reply_content}
+                            </div>
+                        </div>
+                      ) : (
+                        <div className="hidden md:block"></div> // Spacer to keep grid alignment
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-gray-400">ログがありません</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
