@@ -191,15 +191,15 @@ export default function AutoResponses() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">自動応答設定</h1>
-          <p className="text-gray-500 mt-1">LINE公式アカウントの自動応答メッセージを管理します</p>
+          <p className="text-gray-500 mt-1 text-sm sm:text-base">LINE公式アカウントの自動応答メッセージを管理します</p>
         </div>
         <button 
           onClick={handleCreate}
-          className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition shadow-sm"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition shadow-sm whitespace-nowrap"
         >
           <Plus size={20} />
           新規ルール作成
@@ -207,7 +207,7 @@ export default function AutoResponses() {
       </div>
 
       {isEditing && currentRule ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8 animate-in slide-in-from-top-4 duration-200">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6 mb-8 animate-in slide-in-from-top-4 duration-200">
           <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
             <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <Edit2 size={18} className="text-primary-600" />
@@ -295,8 +295,8 @@ export default function AutoResponses() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-4">
-                <label className="flex items-center gap-3 cursor-pointer">
+              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between pt-4 gap-4">
+                <label className="flex items-center gap-3 cursor-pointer select-none">
                   <input 
                     type="checkbox" 
                     className="sr-only"
@@ -311,17 +311,17 @@ export default function AutoResponses() {
                   </span>
                 </label>
 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     onClick={() => setIsEditing(false)}
-                    className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition"
+                    className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition w-full sm:w-auto text-center"
                   >
                     キャンセル
                   </button>
                   <button
                     onClick={handleSave}
                     disabled={!currentRule.mainKeyword || !currentRule.response || saving}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
                   >
                     {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
                     保存する
@@ -335,15 +335,15 @@ export default function AutoResponses() {
       
       <div className="grid grid-cols-1 gap-4">
         {rules.map((rule) => (
-          <div key={rule.id} className={`bg-white rounded-xl p-6 border transition-all hover:shadow-md ${!rule.isActive ? 'opacity-60 bg-gray-50 border-gray-100' : 'border-gray-100 shadow-sm'}`}>
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-3">
-                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                    <Tag size={18} className="text-primary-600" />
+          <div key={rule.id} className={`bg-white rounded-xl p-4 sm:p-6 border transition-all hover:shadow-md ${!rule.isActive ? 'opacity-60 bg-gray-50 border-gray-100' : 'border-gray-100 shadow-sm'}`}>
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+              <div className="flex-1 w-full">
+                <div className="flex flex-wrap items-center gap-3 mb-3">
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 break-all">
+                    <Tag size={18} className="text-primary-600 shrink-0" />
                     {rule.mainKeyword}
                   </h3>
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${rule.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-600'}`}>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${rule.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-600'}`}>
                     {rule.isActive ? '有効' : '無効'}
                   </span>
                 </div>
@@ -358,12 +358,12 @@ export default function AutoResponses() {
                   </div>
                 )}
 
-                <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100">
+                <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap border border-gray-100 break-words">
                   {rule.response}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 ml-6">
+              <div className="flex items-center gap-2 self-end sm:self-start sm:ml-6">
                 <button 
                   onClick={() => handleEdit(rule)}
                   className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition"

@@ -1,12 +1,16 @@
+import React from 'react';
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
   title: string;
-  message: string;
+  message?: string;
+  children?: React.ReactNode;
   confirmText?: string;
   cancelText?: string;
-  variant?: 'primary' | 'danger';
+  variant?: 'primary' | 'danger' | 'emerald';
+  isLoading?: boolean;
 }
 
 export default function Modal({
@@ -15,14 +19,18 @@ export default function Modal({
   onConfirm,
   title,
   message,
+  children,
   confirmText = '確定',
   cancelText = 'キャンセル',
   variant = 'primary',
+  isLoading = false,
 }: ModalProps) {
   if (!isOpen) return null;
 
   const confirmButtonClass = variant === 'danger' 
     ? 'bg-red-600 hover:bg-red-700 text-white' 
+    : variant === 'emerald'
+    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
     : 'bg-primary-600 hover:bg-primary-700 text-white';
 
   return (
@@ -32,22 +40,24 @@ export default function Modal({
           <h3 className="text-lg font-bold text-gray-900">{title}</h3>
         </div>
         <div className="p-6">
-          <p className="text-gray-600">{message}</p>
+          {children ? children : <p className="text-gray-600">{message}</p>}
         </div>
         <div className="flex items-center justify-end gap-3 p-4 bg-gray-50">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            disabled={isLoading}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
             {cancelText}
           </button>
           <button
             onClick={() => {
               onConfirm();
-              onClose();
             }}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${confirmButtonClass}`}
+            disabled={isLoading}
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2 ${confirmButtonClass}`}
           >
+            {isLoading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
             {confirmText}
           </button>
         </div>
