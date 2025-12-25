@@ -94,7 +94,7 @@ export default function Booking() {
       const profile = await liff.getProfile()
       setLineUserId(profile.userId)
       setDisplayName(profile.displayName)
-      setPictureUrl(profile.pictureUrl || '')
+      // setPictureUrl(profile.pictureUrl || '')
 
       // Get Store ID from LIFF context (liff.getContext().endpointUrl params?) 
       // or for now, fetch the first store as fallback
