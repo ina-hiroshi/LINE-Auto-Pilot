@@ -11,16 +11,6 @@ type Customer = {
   furigana: string | null
 }
 
-type Point = {
-  line_user_id: string
-  balance: number
-}
-
-type Reservation = {
-  line_user_id: string
-  start_time: string
-}
-
 type CustomerData = Customer & {
   points: number
   lastVisit: string | null
