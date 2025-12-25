@@ -19,7 +19,7 @@ export default function Booking() {
   // User Data
   const [lineUserId, setLineUserId] = useState('')
   const [displayName, setDisplayName] = useState('')
-  const [pictureUrl, setPictureUrl] = useState('')
+  // const [pictureUrl, setPictureUrl] = useState('')
   const [existingCustomer, setExistingCustomer] = useState<any>(null)
   const [realName, setRealName] = useState('')
   const [furigana, setFurigana] = useState('')

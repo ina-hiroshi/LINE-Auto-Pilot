@@ -95,7 +95,7 @@ export default function LineSettings() {
   // Preview Refresh State
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0)
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const richMenuRef = useRef<HTMLDivElement>(null)
+  // const richMenuRef = useRef<HTMLDivElement>(null)
 
   // Send settings to iframe when they change
   useEffect(() => {
@@ -494,7 +494,7 @@ export default function LineSettings() {
       try {
         const blob = await generateImage()
         const fileName = `rich-menu-${storeId}-${Date.now()}.png`
-        const { data: uploadData, error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from('rich_menus')
           .upload(fileName, blob, {
             upsert: true,

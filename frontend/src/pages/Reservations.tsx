@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Calendar, Clock, User, Settings, CheckCircle, AlertCircle, Loader2, RefreshCw, Lock } from 'lucide-react'
+import { Calendar, Clock, User, CheckCircle, AlertCircle, Loader2, RefreshCw, Lock } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import Toast from '../components/Toast'
 
