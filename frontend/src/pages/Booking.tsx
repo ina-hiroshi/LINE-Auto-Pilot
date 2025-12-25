@@ -79,6 +79,15 @@ export default function Booking() {
   }
 
   const initializeLiff = async () => {
+    // Preview Mode Check (iframe)
+    if (window.self !== window.top) {
+      console.log('Running in Preview Mode (iframe)')
+      setLineUserId('PREVIEW_USER')
+      setDisplayName('プレビュー太郎')
+      await fetchStore()
+      return
+    }
+
     try {
       const LIFF_ID = import.meta.env.VITE_LIFF_ID
       if (!LIFF_ID) {
@@ -124,9 +133,10 @@ export default function Booking() {
 
     if (!targetStoreId) {
         // Fallback: Get first store
-        const { data } = await supabase.from('stores').select('id, liff_template_id, liff_theme_color, liff_logo_url').limit(1).maybeSingle()
+        const { data } = await supabase.from('stores').select('id, name, liff_template_id, liff_theme_color, liff_logo_url').limit(1).maybeSingle()
         targetStoreId = data?.id
         if (data) {
+          if (data.name) document.title = data.name
           setStoreSettings({
             liff_template_id: data.liff_template_id || 'simple',
             liff_theme_color: data.liff_theme_color || '#00c3dc',
@@ -135,8 +145,9 @@ export default function Booking() {
         }
     } else {
         // Fetch specific store settings
-        const { data } = await supabase.from('stores').select('liff_template_id, liff_theme_color, liff_logo_url').eq('id', targetStoreId).maybeSingle()
+        const { data } = await supabase.from('stores').select('name, liff_template_id, liff_theme_color, liff_logo_url').eq('id', targetStoreId).maybeSingle()
         if (data) {
+          if (data.name) document.title = data.name
           setStoreSettings({
             liff_template_id: data.liff_template_id || 'simple',
             liff_theme_color: data.liff_theme_color || '#00c3dc',
