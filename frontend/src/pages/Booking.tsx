@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import liff from '@line/liff'
 
 export default function Booking() {
-  const [step, setStep] = useState<'loading' | 'error' | 'date' | 'info' | 'confirm' | 'complete'>('loading')
+  const [step, setStep] = useState<'loading' | 'error' | 'date' | 'info' | 'confirm' | 'complete' | 'existing_reservation'>('loading')
   const [errorMsg, setErrorMsg] = useState('')
   const [checkingUser, setCheckingUser] = useState(false)
   
@@ -15,11 +15,12 @@ export default function Booking() {
   const [slots, setSlots] = useState<{ time: string; available: boolean }[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [activeReservation, setActiveReservation] = useState<any>(null)
   
   // User Data
   const [lineUserId, setLineUserId] = useState('')
   const [displayName, setDisplayName] = useState('')
-  // const [pictureUrl, setPictureUrl] = useState('')
+  const [pictureUrl, setPictureUrl] = useState('')
   const [existingCustomer, setExistingCustomer] = useState<any>(null)
   const [realName, setRealName] = useState('')
   const [furigana, setFurigana] = useState('')
@@ -36,11 +37,14 @@ export default function Booking() {
     initializeLiff()
   }, [])
 
-  // Set default date to today
+  // Set default date to today (Local Time)
   useEffect(() => {
     if (!date) {
-      const today = new Date().toISOString().split('T')[0]
-      setDate(today)
+      const now = new Date()
+      const year = now.getFullYear()
+      const month = String(now.getMonth() + 1).padStart(2, '0')
+      const day = String(now.getDate()).padStart(2, '0')
+      setDate(`${year}-${month}-${day}`)
     }
   }, [])
 
@@ -104,7 +108,7 @@ export default function Booking() {
       const profile = await liff.getProfile()
       setLineUserId(profile.userId)
       setDisplayName(profile.displayName)
-      // setPictureUrl(profile.pictureUrl || '')
+      setPictureUrl(profile.pictureUrl || '')
 
       // Get Store ID from LIFF context (liff.getContext().endpointUrl params?) 
       // or for now, fetch the first store as fallback
@@ -158,7 +162,7 @@ export default function Booking() {
 
     if (targetStoreId) {
         setStoreId(targetStoreId)
-        setStep('date') // Ready to start
+        // setStep('date') // Removed: Wait for checkReservation to decide step
     } else {
         setStep('error')
         setErrorMsg('店舗情報が見つかりませんでした。')
@@ -167,7 +171,14 @@ export default function Booking() {
 
   useEffect(() => {
     if (storeId && lineUserId) {
-      checkCustomer()
+      // Initial step is loading or date, but we want to check reservation first.
+      // If no reservation found, checkReservation will do nothing to step (it stays at 'loading' or we should set it to 'date' if not found)
+      // Let's modify checkReservation to handle "not found" case to set step to 'date'
+      const init = async () => {
+        await checkCustomer()
+        await checkReservation()
+      }
+      init()
     }
   }, [storeId, lineUserId])
 
@@ -214,6 +225,56 @@ export default function Booking() {
       console.error(e)
     } finally {
       setCheckingUser(false)
+    }
+  }
+
+  const checkReservation = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('booking', {
+        body: {
+          action: 'get_active_reservation',
+          store_id: storeId,
+          line_user_id: lineUserId
+        }
+      })
+      
+      if (error) throw error
+      
+      if (data?.reservation) {
+        setActiveReservation(data.reservation)
+        setStep('existing_reservation')
+      } else {
+        setStep('date')
+      }
+    } catch (e) {
+      console.error('Failed to check reservation:', e)
+      setStep('date') // Fallback
+    }
+  }
+
+  const handleCancelReservation = async () => {
+    if (!activeReservation) return
+    if (!confirm('現在の予約をキャンセルしますか？')) return
+
+    setLoading(true)
+    try {
+      const { error } = await supabase.functions.invoke('booking', {
+        body: {
+          action: 'cancel_reservation',
+          reservation_id: activeReservation.id
+        }
+      })
+
+      if (error) throw error
+
+      setActiveReservation(null)
+      alert('予約をキャンセルしました。')
+      setStep('date')
+    } catch (e) {
+      console.error('Failed to cancel reservation:', e)
+      alert('キャンセルに失敗しました。')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -420,8 +481,54 @@ export default function Booking() {
             </div>
           )}
 
+          {step === 'existing_reservation' && activeReservation && (
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+              <h2 className={theme.title} style={theme.titleStyle}>
+                <CheckCircle color={theme.iconColor} /> 現在の予約
+              </h2>
+
+              <div className={`${theme.infoBox} space-y-3 mb-6`}>
+                <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
+                  <span className="opacity-70">日時</span>
+                  <span className="font-bold">
+                    {new Date(activeReservation.start_time).toLocaleDateString('ja-JP')} {new Date(activeReservation.start_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="opacity-70">ステータス</span>
+                  <span className="font-bold text-green-600">予約確定</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 mt-8">
+                <button 
+                  onClick={() => {
+                    if (confirm('予約を変更するには、現在の予約をキャンセルして再予約する必要があります。よろしいですか？')) {
+                      handleCancelReservation()
+                    }
+                  }}
+                  className={theme.buttonPrimary}
+                  style={theme.primaryStyle}
+                >
+                  予約を変更する
+                </button>
+                <button 
+                  onClick={handleCancelReservation}
+                  className={theme.buttonSecondary}
+                >
+                  予約をキャンセルする
+                </button>
+              </div>
+            </motion.div>
+          )}
+
           {step === 'date' && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+              {pictureUrl && (
+                <div className="flex justify-center mb-4">
+                  <img src={pictureUrl} alt={displayName} className="w-16 h-16 rounded-full border-2 border-white shadow-md" />
+                </div>
+              )}
               <h2 className={theme.title} style={theme.titleStyle}>
                 <Calendar color={theme.iconColor} /> 日時を選択
               </h2>

@@ -77,6 +77,38 @@ serve(async (req) => {
       });
     }
 
+    if (action === 'get_active_reservation') {
+      const now = new Date().toISOString()
+      const { data, error } = await supabaseClient
+        .from('reservations')
+        .select('*')
+        .eq('store_id', store_id)
+        .eq('line_user_id', line_user_id)
+        .neq('status', 'cancelled')
+        .gte('start_time', now)
+        .order('start_time', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+
+      if (error) throw error
+      return new Response(JSON.stringify({ reservation: data }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (action === 'cancel_reservation') {
+        const { reservation_id } = await req.json()
+        const { error } = await supabaseClient
+            .from('reservations')
+            .update({ status: 'cancelled' })
+            .eq('id', reservation_id)
+        
+        if (error) throw error
+        return new Response(JSON.stringify({ success: true }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+    }
+
     if (action === 'create_reservation') {
       // 0. Get line_account_id
       const { data: lineAccount, error: laError } = await supabaseClient
@@ -111,6 +143,7 @@ serve(async (req) => {
           store_id,
           line_account_id: lineAccount.id,
           line_user_id,
+          reservation_datetime: startDateTime.toISOString(), // For backward compatibility
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
           status: 'pending',
