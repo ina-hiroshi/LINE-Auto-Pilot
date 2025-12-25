@@ -80,9 +80,10 @@ export default function Booking() {
 
   const initializeLiff = async () => {
     try {
-      // TODO: Replace with actual LIFF ID from environment or DB
-      // For development without LIFF ID, we might need a mock mode or just fail gracefully
-      const LIFF_ID = import.meta.env.VITE_LIFF_ID || 'YOUR_LIFF_ID'
+      const LIFF_ID = import.meta.env.VITE_LIFF_ID
+      if (!LIFF_ID) {
+        throw new Error('VITE_LIFF_ID が設定されていません')
+      }
       
       await liff.init({ liffId: LIFF_ID })
 
@@ -110,7 +111,8 @@ export default function Booking() {
         await fetchStore()
       } else {
         setStep('error')
-        setErrorMsg('LINEからのアクセスのみ対応しています。')
+        const msg = error instanceof Error ? error.message : String(error)
+        setErrorMsg(`エラーが発生しました: ${msg}`)
       }
     }
   }
