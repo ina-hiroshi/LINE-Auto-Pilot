@@ -255,6 +255,94 @@ export default function TopPage() {
         </div>
       </section>
 
+      {/* Campaign Section */}
+      <section className="py-20 bg-linear-to-br from-primary-600 to-primary-800 text-white relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-20">
+          <div className="absolute -top-[50%] -left-[20%] w-[100%] h-[100%] rounded-full bg-white blur-3xl"></div>
+          <div className="absolute bottom-[10%] right-[10%] w-[60%] h-[60%] rounded-full bg-primary-300 blur-3xl"></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center mb-12">
+            <span className="inline-block px-4 py-1 bg-white/20 backdrop-blur-sm rounded-full text-sm font-bold mb-4 border border-white/30">
+              リリース記念キャンペーン
+            </span>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
+              選べる「モニター限定特典」
+            </h2>
+            <p className="text-primary-100 text-lg max-w-2xl mx-auto">
+              簡単なアンケートにご協力いただける方限定で、<br className="hidden md:block" />
+              約1.5万円相当の特典をご用意しました。
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            {/* Course 1 */}
+            <motion.div 
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 hover:bg-white/20 transition duration-300"
+            >
+              <div className="bg-white text-primary-700 text-xs font-bold px-3 py-1 rounded-full inline-block mb-4">
+                丸投げしたい方向け
+              </div>
+              <h3 className="text-2xl font-bold mb-2">おまかせ導入コース</h3>
+              <div className="text-4xl font-bold mb-6 text-yellow-300">
+                ¥0 <span className="text-base font-normal text-white/80">でスタート</span>
+              </div>
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-start gap-3">
+                  <Check className="w-5 h-5 text-yellow-300 shrink-0 mt-0.5" />
+                  <span>初期設定代行費（¥9,980）が<span className="font-bold text-yellow-300">無料</span></span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Check className="w-5 h-5 text-yellow-300 shrink-0 mt-0.5" />
+                  <span>Proプラン<span className="font-bold text-yellow-300">初月無料</span></span>
+                </li>
+              </ul>
+              <a href="#auth" className="block w-full py-3 bg-white text-primary-700 rounded-xl font-bold text-center hover:bg-primary-50 transition">
+                この特典で始める
+              </a>
+            </motion.div>
+
+            {/* Course 2 */}
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 hover:bg-white/20 transition duration-300"
+            >
+              <div className="bg-white text-primary-700 text-xs font-bold px-3 py-1 rounded-full inline-block mb-4">
+                安く使いたい方向け
+              </div>
+              <h3 className="text-2xl font-bold mb-2">じっくりお得コース</h3>
+              <div className="text-4xl font-bold mb-6 text-yellow-300">
+                3ヶ月 <span className="text-base font-normal text-white/80">無料</span>
+              </div>
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-start gap-3">
+                  <Check className="w-5 h-5 text-yellow-300 shrink-0 mt-0.5" />
+                  <span>Proプランが<span className="font-bold text-yellow-300">3ヶ月間無料</span></span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Check className="w-5 h-5 text-yellow-300 shrink-0 mt-0.5" />
+                  <span>初期設定代行（¥9,980）を利用可能</span>
+                </li>
+              </ul>
+              <a href="#auth" className="block w-full py-3 bg-white text-primary-700 rounded-xl font-bold text-center hover:bg-primary-50 transition">
+                この特典で始める
+              </a>
+            </motion.div>
+          </div>
+          
+          <p className="text-center text-primary-200 text-sm mt-8">
+            ※ 特典の適用には、導入後のインタビューフォームへの回答が必要です。
+          </p>
+        </div>
+      </section>
+
       {/* Pricing Section */}
       <section id="pricing" className="py-24 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -282,9 +370,10 @@ export default function TopPage() {
               </div>
               <ul className="space-y-4 mb-8 flex-1">
                 {[
-                  '1アカウント連携',
+                  '予約管理（無制限）',
                   '固定応答 10件',
-                  '予約・ポイント基本機能'
+                  'ポイントカード基本機能',
+                  '※一部機能制限あり'
                 ].map((item, i) => (
                   <li key={i} className="flex items-center text-slate-600">
                     <Check className="w-5 h-5 text-primary-500 mr-3 shrink-0" />
@@ -313,15 +402,16 @@ export default function TopPage() {
               </div>
               <h3 className="text-2xl font-bold text-slate-900 mb-2">Pro</h3>
               <div className="flex items-baseline mb-8">
-                <span className="text-4xl font-bold text-slate-900">¥5,000</span>
-                <span className="text-slate-500 ml-2">/月〜</span>
+                <span className="text-4xl font-bold text-slate-900">¥4,980</span>
+                <span className="text-slate-500 ml-2">/月</span>
               </div>
               <ul className="space-y-4 mb-8 flex-1">
                 {[
-                  '無制限応答',
-                  'AI応答機能',
-                  '詳細分析レポート',
-                  '優先サポート'
+                  '全機能解放',
+                  'Googleカレンダー連携',
+                  'デジタル会員証（フル機能）',
+                  '無制限応答 & AI応答',
+                  '詳細分析レポート'
                 ].map((item, i) => (
                   <li key={i} className="flex items-center text-slate-700 font-medium">
                     <Check className="w-5 h-5 text-primary-600 mr-3 shrink-0" />
@@ -334,7 +424,7 @@ export default function TopPage() {
               </a>
             </motion.div>
 
-            {/* Enterprise Plan */}
+            {/* Executive Plan */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -343,18 +433,19 @@ export default function TopPage() {
               className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 flex flex-col"
             >
               <div className="mb-4">
-                <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold uppercase tracking-wider">Business</span>
+                <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold uppercase tracking-wider">Coming Soon</span>
               </div>
-              <h3 className="text-2xl font-bold text-slate-900 mb-2">Enterprise</h3>
+              <h3 className="text-2xl font-bold text-slate-900 mb-2">Executive</h3>
               <div className="flex items-baseline mb-8">
-                <span className="text-3xl font-bold text-slate-900">要相談</span>
+                <span className="text-3xl font-bold text-slate-900">¥19,800〜</span>
+                <span className="text-slate-500 ml-2">/月</span>
               </div>
               <ul className="space-y-4 mb-8 flex-1">
                 {[
-                  '独自ドメイン',
-                  '個別カスタマイズ開発',
-                  'スタッフ連携機能',
-                  '専任担当者サポート'
+                  '複数店舗管理',
+                  'ホワイトラベル',
+                  '個別相談・コンサル',
+                  '独自開発の依頼権'
                 ].map((item, i) => (
                   <li key={i} className="flex items-center text-slate-600">
                     <Check className="w-5 h-5 text-primary-500 mr-3 shrink-0" />

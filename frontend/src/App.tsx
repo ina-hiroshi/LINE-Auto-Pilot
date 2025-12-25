@@ -12,6 +12,7 @@ import Reservations from './pages/Reservations'
 import TopPage from './pages/TopPage'
 import InitialSetup from './pages/InitialSetup'
 import DevSandbox from './pages/DevSandbox'
+import Booking from './pages/Booking'
 
 import type { Session } from '@supabase/supabase-js'
 
@@ -136,6 +137,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/booking" element={<Booking />} />
         {!session ? (
           <Route path="*" element={<TopPage />} />
         ) : hasStore === null ? (

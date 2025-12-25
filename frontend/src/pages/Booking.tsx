@@ -1,0 +1,611 @@
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+import { Calendar, User, CheckCircle, Loader2, AlertCircle } from 'lucide-react'
+import { motion } from 'framer-motion'
+import liff from '@line/liff'
+
+export default function Booking() {
+  const [step, setStep] = useState<'loading' | 'error' | 'date' | 'info' | 'confirm' | 'complete'>('loading')
+  const [errorMsg, setErrorMsg] = useState('')
+  const [checkingUser, setCheckingUser] = useState(false)
+  
+  // Reservation Data
+  const [date, setDate] = useState('')
+  const [time, setTime] = useState('')
+  const [slots, setSlots] = useState<{ time: string; available: boolean }[]>([])
+  const [loadingSlots, setLoadingSlots] = useState(false)
+  const [loading, setLoading] = useState(false)
+  
+  // User Data
+  const [lineUserId, setLineUserId] = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [pictureUrl, setPictureUrl] = useState('')
+  const [existingCustomer, setExistingCustomer] = useState<any>(null)
+  const [realName, setRealName] = useState('')
+  const [furigana, setFurigana] = useState('')
+  
+  // Store Data
+  const [storeId, setStoreId] = useState<string | null>(null)
+  const [storeSettings, setStoreSettings] = useState({
+    liff_template_id: 'simple',
+    liff_theme_color: '#00c3dc',
+    liff_logo_url: ''
+  })
+
+  useEffect(() => {
+    initializeLiff()
+  }, [])
+
+  // Set default date to today
+  useEffect(() => {
+    if (!date) {
+      const today = new Date().toISOString().split('T')[0]
+      setDate(today)
+    }
+  }, [])
+
+  // Fetch slots when date or storeId changes
+  useEffect(() => {
+    if (storeId && date) {
+      fetchSlots()
+    }
+  }, [storeId, date])
+
+  const fetchSlots = async () => {
+    setLoadingSlots(true)
+    setTime('') // Reset selected time
+    try {
+      const { data, error } = await supabase.functions.invoke('booking', {
+        body: {
+          action: 'get_available_slots',
+          store_id: storeId,
+          date: date
+        }
+      })
+      
+      if (error) throw error
+      
+      if (data?.slots) {
+        setSlots(data.slots)
+      } else {
+        setSlots([])
+      }
+    } catch (e) {
+      console.error('Failed to fetch slots:', e)
+      setSlots([])
+    } finally {
+      setLoadingSlots(false)
+    }
+  }
+
+  const initializeLiff = async () => {
+    try {
+      // TODO: Replace with actual LIFF ID from environment or DB
+      // For development without LIFF ID, we might need a mock mode or just fail gracefully
+      const LIFF_ID = import.meta.env.VITE_LIFF_ID || 'YOUR_LIFF_ID'
+      
+      await liff.init({ liffId: LIFF_ID })
+
+      if (!liff.isLoggedIn()) {
+        liff.login()
+        return
+      }
+
+      const profile = await liff.getProfile()
+      setLineUserId(profile.userId)
+      setDisplayName(profile.displayName)
+      setPictureUrl(profile.pictureUrl || '')
+
+      // Get Store ID from LIFF context (liff.getContext().endpointUrl params?) 
+      // or for now, fetch the first store as fallback
+      await fetchStore()
+      
+    } catch (error) {
+      console.error('LIFF Initialization failed', error)
+      // Fallback for local development (if not in LINE)
+      if (import.meta.env.DEV) {
+        console.log('Running in Dev mode, using mock user')
+        setLineUserId('U_MOCK_USER_ID')
+        setDisplayName('Mock User')
+        await fetchStore()
+      } else {
+        setStep('error')
+        setErrorMsg('LINEからのアクセスのみ対応しています。')
+      }
+    }
+  }
+
+  const fetchStore = async () => {
+    // In production, store_id should be passed via query param ?store_id=...
+    const params = new URLSearchParams(window.location.search)
+    let targetStoreId = params.get('store_id')
+
+    if (!targetStoreId) {
+        // Fallback: Get first store
+        const { data } = await supabase.from('stores').select('id, liff_template_id, liff_theme_color, liff_logo_url').limit(1).maybeSingle()
+        targetStoreId = data?.id
+        if (data) {
+          setStoreSettings({
+            liff_template_id: data.liff_template_id || 'simple',
+            liff_theme_color: data.liff_theme_color || '#00c3dc',
+            liff_logo_url: data.liff_logo_url || ''
+          })
+        }
+    } else {
+        // Fetch specific store settings
+        const { data } = await supabase.from('stores').select('liff_template_id, liff_theme_color, liff_logo_url').eq('id', targetStoreId).maybeSingle()
+        if (data) {
+          setStoreSettings({
+            liff_template_id: data.liff_template_id || 'simple',
+            liff_theme_color: data.liff_theme_color || '#00c3dc',
+            liff_logo_url: data.liff_logo_url || ''
+          })
+        }
+    }
+
+    if (targetStoreId) {
+        setStoreId(targetStoreId)
+        setStep('date') // Ready to start
+    } else {
+        setStep('error')
+        setErrorMsg('店舗情報が見つかりませんでした。')
+    }
+  }
+
+  useEffect(() => {
+    if (storeId && lineUserId) {
+      checkCustomer()
+    }
+  }, [storeId, lineUserId])
+
+  // Listen for settings updates from parent window (LineSettings.tsx)
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'UPDATE_SETTINGS' && event.data?.settings) {
+        console.log('Received settings update:', event.data.settings)
+        setStoreSettings(prev => ({
+          ...prev,
+          ...event.data.settings
+        }))
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [])
+
+
+  const checkCustomer = async () => {
+    setCheckingUser(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('booking', {
+        body: {
+          action: 'check_customer',
+          store_id: storeId,
+          line_user_id: lineUserId
+        }
+      })
+      
+      if (error) throw error
+      
+      if (data?.customer) {
+        setExistingCustomer(data.customer)
+        if (data.customer.real_name) setRealName(data.customer.real_name)
+        if (data.customer.furigana) setFurigana(data.customer.furigana)
+      } else {
+        setExistingCustomer(null)
+        setRealName('')
+        setFurigana('')
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setCheckingUser(false)
+    }
+  }
+
+  const handleSubmit = async () => {
+    // Preview mode check (running in iframe)
+    if (window.self !== window.top) {
+      setLoading(true)
+      // Simulate network delay
+      setTimeout(() => {
+        setLoading(false)
+        setStep('complete')
+      }, 800)
+      return
+    }
+
+    if (!storeId) return
+    setLoading(true)
+    try {
+      const { error } = await supabase.functions.invoke('booking', {
+        body: {
+          action: 'create_reservation',
+          store_id: storeId,
+          line_user_id: lineUserId,
+          real_name: realName,
+          furigana: furigana,
+          date,
+          time
+        }
+      })
+
+      if (error) throw error
+
+      setStep('complete')
+    } catch (error) {
+      console.error('Booking failed:', error)
+      alert('予約に失敗しました。')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Dynamic Styles based on Template
+  const theme = (() => {
+    const t = storeSettings.liff_template_id
+    const c = storeSettings.liff_theme_color
+
+    const common = {
+      container: 'min-h-screen py-8 px-4 transition-colors duration-300 flex flex-col items-center justify-center',
+      card: 'w-full max-w-md mx-auto overflow-hidden transition-all duration-300 relative',
+      input: 'w-full p-3 outline-none transition-all duration-200',
+    }
+
+    switch (t) {
+      case 'elegant':
+        return {
+          container: `${common.container} bg-[#F5F5F4] font-serif`,
+          card: `${common.card} bg-white shadow-xl border border-[#E7E5E4] rounded-sm`,
+          header: 'p-8 text-center border-b border-[#E7E5E4]',
+          title: 'text-xl tracking-[0.2em] text-[#44403C] font-medium flex items-center justify-center gap-3',
+          label: 'block text-xs font-bold text-[#78716C] mb-2 tracking-widest uppercase',
+          input: `${common.input} bg-transparent border-b border-[#D6D3D1] focus:border-[#44403C] rounded-none px-0 text-[#44403C] placeholder-[#A8A29E]`,
+          buttonPrimary: 'w-full py-4 bg-[#44403C] text-[#F5F5F4] hover:bg-[#292524] uppercase tracking-[0.2em] text-xs rounded-sm shadow-sm transition-colors',
+          buttonSecondary: 'w-full py-4 bg-transparent border border-[#D6D3D1] text-[#78716C] hover:bg-[#F5F5F4] uppercase tracking-[0.2em] text-xs rounded-sm transition-colors',
+          slotGrid: 'grid grid-cols-3 gap-3',
+          slotButton: (selected: boolean, available: boolean) => `
+            py-4 text-sm font-serif tracking-wider border transition-all
+            ${selected 
+              ? 'bg-[#44403C] text-[#F5F5F4] border-[#44403C]' 
+              : available 
+                ? 'bg-white text-[#57534E] border-[#E7E5E4] hover:border-[#78716C]' 
+                : 'bg-[#F5F5F4] text-[#D6D3D1] border-transparent cursor-not-allowed'}
+          `,
+          infoBox: 'p-6 bg-[#FAFAF9] border border-[#E7E5E4] text-[#57534E]',
+          iconColor: '#57534E',
+          primaryStyle: {}, 
+          headerStyle: {},
+          titleStyle: {},
+          cardStyle: {},
+        }
+
+      case 'pop':
+        return {
+          container: `${common.container} bg-gray-50 font-sans`,
+          card: `${common.card} bg-white rounded-[40px] shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border-4 border-white`,
+          header: 'p-8 text-center bg-gray-50 rounded-b-[40px] mb-4 mx-2',
+          title: 'text-2xl font-black tracking-tight flex items-center justify-center gap-2',
+          label: 'block text-sm font-bold text-gray-400 mb-2 ml-3',
+          input: `${common.input} bg-gray-100 border-2 border-transparent rounded-3xl focus:bg-white focus:border-current transition-all font-bold text-gray-700 px-5`,
+          buttonPrimary: 'w-full py-4 text-white font-black rounded-full shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all text-lg',
+          buttonSecondary: 'w-full py-4 bg-white text-gray-500 font-black rounded-full border-2 border-gray-100 hover:bg-gray-50 transition-all',
+          slotGrid: 'grid grid-cols-3 gap-3',
+          slotButton: (selected: boolean, available: boolean) => `
+            py-3 rounded-2xl font-bold transition-all border-2
+            ${selected 
+              ? 'text-white shadow-md transform scale-105 border-transparent' 
+              : available 
+                ? 'bg-white text-gray-600 border-gray-100 hover:border-current' 
+                : 'bg-gray-50 text-gray-300 border-transparent cursor-not-allowed'}
+          `,
+          infoBox: 'p-5 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200',
+          iconColor: c,
+          primaryStyle: { backgroundColor: c, borderColor: c },
+          headerStyle: { backgroundColor: `${c}15` }, // 10% opacity of theme color
+          titleStyle: { color: c },
+          cardStyle: {},
+        }
+
+      case 'dark':
+        return {
+          container: `${common.container} bg-slate-950 font-sans`,
+          card: `${common.card} bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl text-slate-200`,
+          header: 'p-6 text-center border-b border-slate-800 bg-slate-900/50 backdrop-blur',
+          title: 'text-xl font-bold text-white flex items-center justify-center gap-2',
+          label: 'block text-sm font-medium text-slate-300 mb-2',
+          input: `${common.input} bg-slate-950 border border-slate-800 rounded-lg text-white focus:border-white focus:ring-1 focus:ring-white placeholder-slate-500`,
+          buttonPrimary: 'w-full py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all',
+          buttonSecondary: 'w-full py-3 bg-slate-800 text-slate-300 border border-slate-700 font-bold rounded-lg hover:bg-slate-700 transition-all',
+          slotGrid: 'grid grid-cols-3 gap-3',
+          slotButton: (selected: boolean, available: boolean) => `
+            py-3 rounded-lg font-medium transition-all
+            ${selected 
+              ? 'bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
+              : available 
+                ? 'bg-slate-800 text-slate-200 border border-slate-700 hover:border-slate-500' 
+                : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}
+          `,
+          infoBox: 'p-4 bg-slate-800/50 border border-slate-700 rounded-lg',
+          iconColor: 'white',
+          primaryStyle: {},
+          headerStyle: {},
+          titleStyle: { textShadow: `0 0 20px ${c}` },
+          cardStyle: {},
+        }
+
+      case 'simple':
+      default:
+        return {
+          container: `${common.container} bg-gray-50 font-sans`,
+          card: `${common.card} bg-white shadow-sm border border-gray-100 rounded-xl`,
+          header: 'p-5 text-center border-b border-gray-100',
+          title: 'text-lg font-bold text-gray-800 flex items-center justify-center gap-2',
+          label: 'block text-sm font-medium text-gray-700 mb-2',
+          input: `${common.input} bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-opacity-50 focus:border-transparent`,
+          buttonPrimary: 'w-full py-3 text-white font-bold rounded-lg shadow-sm hover:opacity-90 transition-opacity',
+          buttonSecondary: 'w-full py-3 bg-white text-gray-600 border border-gray-200 font-bold rounded-lg hover:bg-gray-50 transition-colors',
+          slotGrid: 'grid grid-cols-3 gap-3',
+          slotButton: (selected: boolean, available: boolean) => `
+            py-3 rounded-lg text-sm font-bold transition-all
+            ${selected 
+              ? 'text-white shadow-md transform scale-105' 
+              : available 
+                ? 'bg-white border border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50' 
+                : 'bg-gray-50 text-gray-300 border border-gray-100 cursor-not-allowed'}
+          `,
+          infoBox: 'p-4 bg-gray-50 border border-gray-100 rounded-lg',
+          iconColor: c,
+          primaryStyle: { backgroundColor: c },
+          headerStyle: {},
+          titleStyle: {},
+          cardStyle: {},
+        }
+    }
+  })()
+
+  if (step === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-10 h-10 animate-spin" style={{ color: storeSettings.liff_theme_color }} />
+      </div>
+    )
+  }
+
+  if (step === 'error') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="bg-white p-6 rounded-xl shadow-sm text-center max-w-sm w-full">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-lg font-bold text-gray-900 mb-2">エラーが発生しました</h2>
+          <p className="text-gray-600">{errorMsg}</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={theme.container}>
+      <div className={theme.card} style={theme.cardStyle}>
+        <div className={theme.header} style={theme.headerStyle}>
+          {storeSettings.liff_logo_url ? (
+            <img src={storeSettings.liff_logo_url} alt="Logo" className="h-8 mx-auto object-contain" />
+          ) : (
+            <h1 className={theme.title} style={theme.titleStyle}>予約フォーム</h1>
+          )}
+        </div>
+
+        <div className="p-6">
+          {/* Debug Info (Only in Dev) */}
+          {import.meta.env.DEV && (
+            <div className="mb-6 p-2 bg-gray-100 rounded text-xs text-gray-600">
+              <p className="font-bold">DEV MODE: {displayName}</p>
+              <p className="truncate">{lineUserId}</p>
+            </div>
+          )}
+
+          {step === 'date' && (
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+              <h2 className={theme.title} style={theme.titleStyle}>
+                <Calendar color={theme.iconColor} /> 日時を選択
+              </h2>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className={theme.label}>日付</label>
+                  <input 
+                    type="date" 
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className={theme.input}
+                  />
+                </div>
+                
+                <div>
+                  <label className={theme.label}>時間</label>
+                  
+                  {loadingSlots ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="animate-spin text-gray-400" />
+                    </div>
+                  ) : slots.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                      予約可能な枠がありません
+                    </div>
+                  ) : (
+                    <div className={theme.slotGrid}>
+                      {slots.map((slot) => (
+                        <button
+                          key={slot.time}
+                          onClick={() => slot.available && setTime(slot.time)}
+                          disabled={!slot.available}
+                          className={theme.slotButton(time === slot.time, slot.available)}
+                          style={time === slot.time && storeSettings.liff_template_id === 'simple' ? { backgroundColor: storeSettings.liff_theme_color } : {}}
+                        >
+                          {slot.time}
+                          {!slot.available && (
+                            <span className="absolute top-1 right-1 text-xs opacity-50">×</span>
+                          )}
+                          {slot.available && time !== slot.time && (
+                            <span className="absolute top-1 right-1 text-xs opacity-50">○</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <button 
+                onClick={() => {
+                  if (date && time) setStep('info')
+                }}
+                disabled={!date || !time}
+                className={`${theme.buttonPrimary} mt-8 disabled:opacity-50 disabled:cursor-not-allowed`}
+                style={theme.primaryStyle}
+              >
+                次へ進む
+              </button>
+            </motion.div>
+          )}
+
+          {step === 'info' && (
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+              <h2 className={theme.title} style={theme.titleStyle}>
+                <User color={theme.iconColor} /> お客様情報
+              </h2>
+
+              {checkingUser ? (
+                <div className="py-8 flex justify-center"><Loader2 className="animate-spin" color={theme.iconColor} /></div>
+              ) : (
+                <div className="space-y-4">
+                  {existingCustomer?.real_name ? (
+                    <div className={theme.infoBox}>
+                      <p className="text-sm mb-1 opacity-70">ようこそ、</p>
+                      <p className="font-bold text-lg">{existingCustomer.real_name} 様</p>
+                      <p className="text-xs mt-2 opacity-70">※ご登録済みのお名前を使用します</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className={theme.infoBox}>
+                        初回予約のため、お名前を入力してください。
+                      </div>
+                      <div>
+                        <label className={theme.label}>お名前 (漢字)</label>
+                        <input 
+                          type="text" 
+                          placeholder="例: 山田 太郎"
+                          value={realName}
+                          onChange={(e) => setRealName(e.target.value)}
+                          className={theme.input}
+                        />
+                      </div>
+                      <div>
+                        <label className={theme.label}>フリガナ</label>
+                        <input 
+                          type="text" 
+                          placeholder="例: ヤマダ タロウ"
+                          value={furigana}
+                          onChange={(e) => setFurigana(e.target.value)}
+                          className={theme.input}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-3 mt-8">
+                <button 
+                  onClick={() => setStep('date')}
+                  className={theme.buttonSecondary}
+                >
+                  戻る
+                </button>
+                <button 
+                  onClick={() => {
+                    if (existingCustomer?.real_name || (realName && furigana)) {
+                      setStep('confirm')
+                    }
+                  }}
+                  disabled={!existingCustomer?.real_name && (!realName || !furigana)}
+                  className={`${theme.buttonPrimary} disabled:opacity-50 disabled:cursor-not-allowed`}
+                  style={theme.primaryStyle}
+                >
+                  確認へ
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {step === 'confirm' && (
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+              <h2 className={theme.title} style={theme.titleStyle}>
+                <CheckCircle color={theme.iconColor} /> 予約内容の確認
+              </h2>
+
+              <div className={`${theme.infoBox} space-y-3 mb-6`}>
+                <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
+                  <span className="opacity-70">日時</span>
+                  <span className="font-bold">{date} {time}</span>
+                </div>
+                <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
+                  <span className="opacity-70">お名前</span>
+                  <span className="font-bold">{realName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="opacity-70">フリガナ</span>
+                  <span className="font-bold">{furigana}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-8">
+                <button 
+                  onClick={() => setStep('info')}
+                  className={theme.buttonSecondary}
+                >
+                  修正する
+                </button>
+                <button 
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className={`${theme.buttonPrimary} disabled:opacity-50`}
+                  style={theme.primaryStyle}
+                >
+                  {loading ? <Loader2 className="animate-spin" /> : '予約を確定する'}
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {step === 'complete' && (
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-8">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 bg-green-100 text-green-600">
+                <CheckCircle size={40} />
+              </div>
+              <h2 className={theme.title} style={theme.titleStyle}>予約完了</h2>
+              <p className="mb-8 opacity-70 whitespace-nowrap">ご予約ありがとうございます。</p>
+              
+              {/* Reservation Details Card for Screenshot */}
+              <div className={`${theme.infoBox} text-left mb-8`}>
+                 <div className="text-xs opacity-70 mb-1">予約日時</div>
+                 <div className="text-xl font-bold mb-4">{date} {time}</div>
+                 <div className="text-xs opacity-70 mb-1">お名前</div>
+                 <div className="text-lg font-bold">{realName} 様</div>
+              </div>
+
+              <button 
+                onClick={() => liff.closeWindow()}
+                className="font-bold hover:underline"
+                style={{ color: theme.iconColor }}
+              >
+                閉じる
+              </button>
+            </motion.div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

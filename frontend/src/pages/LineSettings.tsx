@@ -1,16 +1,48 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { supabase } from '../lib/supabase'
-import { Save, Lock, User, Store as StoreIcon, MessageSquare, Loader2, ExternalLink } from 'lucide-react'
+import { Save, Lock, User, Store as StoreIcon, MessageSquare, Loader2, ExternalLink, Smartphone, Palette, Image as ImageIcon, Grid, MousePointerClick, Calendar, Layout, Instagram, Globe, MapPin, Phone, Ticket, CreditCard, Twitter, Facebook, Youtube, Mail } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Toast from '../components/Toast'
 
+// Icon mapping for selection
+const AVAILABLE_ICONS = [
+  { id: 'instagram', icon: Instagram, label: 'Instagram' },
+  { id: 'globe', icon: Globe, label: 'Web' },
+  { id: 'map-pin', icon: MapPin, label: 'Map' },
+  { id: 'phone', icon: Phone, label: 'Phone' },
+  { id: 'ticket', icon: Ticket, label: 'Coupon' },
+  { id: 'credit-card', icon: CreditCard, label: 'Card' },
+  { id: 'twitter', icon: Twitter, label: 'X (Twitter)' },
+  { id: 'facebook', icon: Facebook, label: 'Facebook' },
+  { id: 'youtube', icon: Youtube, label: 'YouTube' },
+  { id: 'mail', icon: Mail, label: 'Mail' },
+  { id: 'external-link', icon: ExternalLink, label: 'Link' }
+]
+
+// Layout Definitions
+const RICH_MENU_LAYOUTS = [
+  { id: 'large_4', name: '標準 (2×2)', type: 'large', slots: 4, grid: 'grid-cols-2 grid-rows-2' },
+  { id: 'large_6', name: '多機能 (3×2)', type: 'large', slots: 6, grid: 'grid-cols-3 grid-rows-2' },
+  { id: 'large_3_upper', name: '上部強調 (1+2)', type: 'large', slots: 3, grid: 'grid-cols-2 grid-rows-2', customGrid: true },
+  { id: 'compact_2', name: 'コンパクト (2列)', type: 'compact', slots: 2, grid: 'grid-cols-2 grid-rows-1' },
+  { id: 'compact_3', name: 'コンパクト (3列)', type: 'compact', slots: 3, grid: 'grid-cols-3 grid-rows-1' },
+]
+
 export default function LineSettings() {
   const location = useLocation()
-  const [activeTab, setActiveTab] = useState<'connection' | 'guide' | 'basic' | 'password'>('connection')
+  const [activeTab, setActiveTab] = useState<'connection' | 'guide' | 'basic' | 'password' | 'booking_page' | 'rich_menu' | 'calendar'>('connection')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  
+  // Google Calendar State
+  const [googleCalendarSettings, setGoogleCalendarSettings] = useState<{
+    connected: boolean
+    calendar_id?: string
+    updated_at?: string
+  }>({ connected: false })
   
   // Line Settings State
   const [lineSettings, setLineSettings] = useState({
@@ -33,19 +65,116 @@ export default function LineSettings() {
     industry: ''
   })
 
+  // Booking Page Settings State
+  const [bookingSettings, setBookingSettings] = useState({
+    liff_template_id: 'simple',
+    liff_theme_color: '#00c3dc',
+    liff_logo_url: ''
+  })
+
+  // Rich Menu Settings State
+  const [richMenuSettings, setRichMenuSettings] = useState({
+    template_id: 'simple', // Design Theme: simple, elegant, pop, dark
+    layout_id: 'large_4', // Layout: large_4, large_6, etc.
+    custom_image_url: '',
+    // Dynamic actions based on slots. 
+    // Slot 1 & 2 are always Booking & Keyboard.
+    // Slots 3+ are optional.
+    actions: {} as Record<number, { label: string, url: string, icon: string }>
+  })
+
   // Password State
   const [passwordData, setPasswordData] = useState({
     newPassword: '',
     confirmPassword: ''
   })
 
+  // Icon Selector State
+  const [openIconSelector, setOpenIconSelector] = useState<number | null>(null)
+
+  // Preview Refresh State
+  const [previewRefreshKey, setPreviewRefreshKey] = useState(0)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const richMenuRef = useRef<HTMLDivElement>(null)
+
+  // Send settings to iframe when they change
+  useEffect(() => {
+    if (activeTab === 'booking_page' && iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({
+        type: 'UPDATE_SETTINGS',
+        settings: bookingSettings
+      }, '*')
+    }
+  }, [bookingSettings, activeTab])
+
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const tab = params.get('tab')
-    if (tab === 'connection' || tab === 'guide' || tab === 'basic' || tab === 'password') {
-      setActiveTab(tab as 'connection' | 'guide' | 'basic' | 'password')
+    const code = params.get('code')
+
+    if (code) {
+      handleGoogleCallback(code)
+      // Remove code from URL
+      window.history.replaceState({}, '', window.location.pathname + (tab ? `?tab=${tab}` : ''))
+    }
+
+    if (tab === 'connection' || tab === 'guide' || tab === 'basic' || tab === 'password' || tab === 'booking_page' || tab === 'rich_menu' || tab === 'calendar') {
+      setActiveTab(tab as any)
     }
   }, [location])
+
+  const handleGoogleConnect = async () => {
+    try {
+      setSaving(true)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-auth`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
+      
+      const { url, error } = await response.json()
+      if (error) throw new Error(error)
+      
+      window.location.href = url
+    } catch (error: any) {
+      console.error('Google Connect Error:', error)
+      setMessage({ type: 'error', text: 'Google連携の開始に失敗しました: ' + error.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleGoogleCallback = async (code: string) => {
+    try {
+      setSaving(true)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-auth`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ code })
+      })
+      
+      const result = await response.json()
+      if (result.error) throw new Error(result.error)
+      
+      setMessage({ type: 'success', text: 'Googleカレンダーと連携しました。' })
+      fetchData()
+    } catch (error: any) {
+      console.error('Google Callback Error:', error)
+      setMessage({ type: 'error', text: 'Google連携に失敗しました: ' + error.message })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   useEffect(() => {
     fetchData()
@@ -68,6 +197,23 @@ export default function LineSettings() {
         return
       }
 
+      // Fetch Google Calendar Settings
+      const { data: calendarSettings } = await supabase
+        .from('google_calendar_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      
+      if (calendarSettings) {
+        setGoogleCalendarSettings({
+          connected: true,
+          calendar_id: calendarSettings.calendar_id,
+          updated_at: calendarSettings.updated_at
+        })
+      } else {
+        setGoogleCalendarSettings({ connected: false })
+      }
+
       // Fetch Profile
       const { data: profile } = await supabase
         .from('profiles')
@@ -83,7 +229,22 @@ export default function LineSettings() {
         .limit(1)
       
       const store = stores && stores.length > 0 ? stores[0] : null
-      if (store) setStoreId(store.id)
+      if (store) {
+        setStoreId(store.id)
+        setBookingSettings({
+          liff_template_id: store.liff_template_id || 'simple',
+          liff_theme_color: store.liff_theme_color || '#00c3dc',
+          liff_logo_url: store.liff_logo_url || ''
+        })
+        // Load Rich Menu Settings (Mock for now, assuming stored in JSON or separate columns)
+        // In real implementation, parse store.rich_menu_custom_json
+        setRichMenuSettings({
+            template_id: store.rich_menu_template_id || 'simple',
+            layout_id: store.rich_menu_layout_id || 'large_4',
+            custom_image_url: store.rich_menu_custom_image_url || '',
+            actions: store.rich_menu_actions || {}
+        })
+      }
 
       // Fetch Line Account
       const { data: lineAccounts } = await supabase
@@ -143,6 +304,245 @@ export default function LineSettings() {
       }
     } catch (error) {
       console.error('Address search error:', error)
+    }
+  }
+
+  const handleUpdateBookingSettings = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setMessage(null)
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('No user found')
+
+      const { error } = await supabase
+        .from('stores')
+        .update({
+          liff_template_id: bookingSettings.liff_template_id,
+          liff_theme_color: bookingSettings.liff_theme_color,
+          liff_logo_url: bookingSettings.liff_logo_url
+        })
+        .eq('owner_id', user.id)
+
+      if (error) throw error
+
+      setMessage({ type: 'success', text: '予約ページ設定を保存しました' })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '不明なエラー'
+      setMessage({ type: 'error', text: '保存に失敗しました: ' + message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleUpdateRichMenuSettings = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!import.meta.env.VITE_LIFF_ID) {
+      setMessage({ type: 'error', text: '環境変数 VITE_LIFF_ID が設定されていません。.envファイルにLIFF IDを追加してください。' })
+      return
+    }
+
+    console.log('Sending LIFF ID to backend:', import.meta.env.VITE_LIFF_ID)
+
+    setSaving(true)
+    setMessage(null)
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('No user found')
+
+      // 0. Generate Image using Canvas API (No html2canvas)
+      let generatedImageUrl = null
+      
+      const generateImage = async (): Promise<Blob> => {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        if (!ctx) throw new Error('Canvas context not supported')
+
+        const layout = RICH_MENU_LAYOUTS.find(l => l.id === richMenuSettings.layout_id) || RICH_MENU_LAYOUTS[0]
+        const width = 1200
+        const height = layout.id.startsWith('compact') ? 405 : 810
+        canvas.width = width
+        canvas.height = height
+
+        // Colors
+        const colors = {
+          simple: { bg: '#e5e7eb', slot: '#ffffff', text: '#1f2937' },
+          elegant: { bg: '#D4C4B7', slot: '#F5F5F0', text: '#5D4037' },
+          pop: { bg: '#00B8A9', slot: '#f0fdfa', text: '#0f766e' },
+          dark: { bg: '#334155', slot: '#1e293b', text: '#ffffff' }
+        }
+        const theme = colors[richMenuSettings.template_id as keyof typeof colors] || colors.simple
+
+        // Fill Background
+        ctx.fillStyle = theme.bg
+        ctx.fillRect(0, 0, width, height)
+
+        // Custom Image
+        if (richMenuSettings.custom_image_url) {
+          const img = new Image()
+          img.crossOrigin = 'anonymous'
+          await new Promise((resolve, reject) => {
+            img.onload = resolve
+            img.onerror = reject
+            img.src = richMenuSettings.custom_image_url
+          })
+          // Cover
+          const scale = Math.max(width / img.width, height / img.height)
+          const x = (width - img.width * scale) / 2
+          const y = (height - img.height * scale) / 2
+          ctx.drawImage(img, x, y, img.width * scale, img.height * scale)
+          
+          return new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error('Blob failed')), 'image/png'))
+        }
+
+        // Draw Slots
+        const gap = 4
+        
+        const drawSlot = async (slotNum: number, x: number, y: number, w: number, h: number) => {
+          ctx.fillStyle = theme.slot
+          ctx.fillRect(x, y, w, h)
+
+          let IconComp = ExternalLink
+          let label = '未設定'
+          let isSet = false
+
+          if (slotNum === 1) {
+            IconComp = Smartphone
+            label = '予約する'
+            isSet = true
+          } else if (slotNum === 2) {
+            IconComp = MessageSquare
+            label = 'メッセージ入力'
+            isSet = true
+          } else {
+            const action = richMenuSettings.actions[slotNum]
+            if (action) {
+              const found = AVAILABLE_ICONS.find(i => i.id === action.icon)
+              if (found) IconComp = found.icon
+              label = action.label || '未設定'
+              isSet = true
+            }
+          }
+
+          if (!isSet) ctx.globalAlpha = 0.5
+
+          // Icon
+          const svgString = renderToStaticMarkup(
+            <IconComp 
+              size={64} 
+              color={theme.text} 
+              strokeWidth={2}
+            />
+          )
+          const img = new Image()
+          const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+          const url = URL.createObjectURL(svgBlob)
+          
+          await new Promise((resolve) => {
+            img.onload = resolve
+            img.src = url
+          })
+          
+          const iconSize = 64
+          const iconX = x + (w - iconSize) / 2
+          const iconY = y + (h - iconSize) / 2 - 20
+
+          ctx.drawImage(img, iconX, iconY, iconSize, iconSize)
+          URL.revokeObjectURL(url)
+
+          // Text
+          ctx.fillStyle = theme.text
+          ctx.font = 'bold 36px sans-serif'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'top'
+          ctx.fillText(label, x + w / 2, iconY + iconSize + 16)
+
+          ctx.globalAlpha = 1.0
+        }
+
+        // Grid Logic
+        if (layout.id === 'large_3_upper') {
+          const h = (height - gap) / 2
+          const w = (width - gap) / 2
+          await drawSlot(1, 0, 0, width, h)
+          await drawSlot(2, 0, h + gap, w, h)
+          await drawSlot(3, w + gap, h + gap, w, h)
+        } else {
+          const rows = layout.id.startsWith('compact') ? 1 : 2
+          const cols = (layout.id.includes('3') && !layout.id.includes('upper')) || layout.id.includes('6') ? 3 : 2
+          
+          const cellW = (width - (cols - 1) * gap) / cols
+          const cellH = (height - (rows - 1) * gap) / rows
+
+          let slotCount = 1
+          for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+              const x = c * (cellW + gap)
+              const y = r * (cellH + gap)
+              await drawSlot(slotCount, x, y, cellW, cellH)
+              slotCount++
+            }
+          }
+        }
+
+        return new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error('Blob failed')), 'image/png'))
+      }
+
+      try {
+        const blob = await generateImage()
+        const fileName = `rich-menu-${storeId}-${Date.now()}.png`
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('rich_menus')
+          .upload(fileName, blob, {
+            upsert: true,
+            contentType: 'image/png'
+          })
+        
+        if (uploadError) throw uploadError
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from('rich_menus')
+          .getPublicUrl(fileName)
+        
+        generatedImageUrl = publicUrl
+      } catch (imgError: any) {
+        console.error('Image generation failed:', imgError)
+        throw new Error('リッチメニュー画像の生成に失敗しました: ' + (imgError?.message || String(imgError)))
+      }
+
+      // 1. Save Settings to DB
+      const { error } = await supabase
+        .from('stores')
+        .update({
+          rich_menu_template_id: richMenuSettings.template_id,
+          rich_menu_layout_id: richMenuSettings.layout_id,
+          rich_menu_custom_image_url: richMenuSettings.custom_image_url,
+          rich_menu_actions: richMenuSettings.actions
+          // Store other settings in JSON if needed
+        })
+        .eq('owner_id', user.id)
+
+      if (error) throw error
+
+      // 2. Call Edge Function to Apply Rich Menu to LINE
+      const { error: apiError } = await supabase.functions.invoke('apply-rich-menu', {
+        body: { 
+          store_id: storeId,
+          generated_image_url: generatedImageUrl,
+          liff_id: import.meta.env.VITE_LIFF_ID
+        }
+      })
+      if (apiError) throw apiError
+
+      setMessage({ type: 'success', text: 'リッチメニュー設定を保存・反映しました' })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '不明なエラー'
+      setMessage({ type: 'error', text: '保存に失敗しました: ' + message })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -340,6 +740,24 @@ export default function LineSettings() {
             {activeTab === 'basic' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600" />}
           </button>
           <button
+            onClick={() => setActiveTab('booking_page')}
+            className={`px-4 sm:px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
+              activeTab === 'booking_page' ? 'text-primary-600' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            予約ページ
+            {activeTab === 'booking_page' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600" />}
+          </button>
+          <button
+            onClick={() => setActiveTab('rich_menu')}
+            className={`px-4 sm:px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
+              activeTab === 'rich_menu' ? 'text-primary-600' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            リッチメニュー
+            {activeTab === 'rich_menu' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-600" />}
+          </button>
+          <button
             onClick={() => setActiveTab('connection')}
             className={`px-4 sm:px-6 py-3 text-sm font-medium transition-colors relative whitespace-nowrap ${
               activeTab === 'connection' ? 'text-[#06C755]' : 'text-gray-500 hover:text-gray-700'
@@ -369,6 +787,616 @@ export default function LineSettings() {
         </div>
 
         <div className="space-y-8">
+        {/* 予約ページ設定 */}
+        {activeTab === 'booking_page' && (
+          <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-2 mb-6 pb-2 border-b">
+              <Smartphone className="text-primary-600" size={24} />
+              <h2 className="text-xl font-bold text-gray-800">予約ページ設定</h2>
+            </div>
+            
+            <form onSubmit={handleUpdateBookingSettings} className="space-y-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* 左カラム：設定 */}
+                <div className="space-y-8">
+                  {/* テンプレート選択 */}
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                      <Palette size={16} /> デザインテーマ選択
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {[
+                        { id: 'simple', name: 'シンプル', color: 'bg-gray-50 border-gray-200' },
+                        { id: 'elegant', name: 'エレガント', color: 'bg-[#F5F5F0] border-[#E0E0D0]' },
+                        { id: 'pop', name: 'ポップ', color: 'bg-primary-50 border-primary-200' },
+                        { id: 'dark', name: 'ダーク', color: 'bg-slate-800 text-white border-slate-700' }
+                      ].map((template) => (
+                        <label 
+                          key={template.id}
+                          className={`
+                            relative cursor-pointer rounded-lg border-2 p-4 transition-all flex flex-col items-center justify-center gap-2 h-24
+                            ${bookingSettings.liff_template_id === template.id 
+                              ? 'border-primary-500 ring-2 ring-primary-100' 
+                              : 'border-gray-200 hover:border-gray-300'}
+                            ${template.color}
+                          `}
+                        >
+                          <input
+                            type="radio"
+                            name="template"
+                            value={template.id}
+                            checked={bookingSettings.liff_template_id === template.id}
+                            onChange={(e) => setBookingSettings({...bookingSettings, liff_template_id: e.target.value})}
+                            className="sr-only"
+                          />
+                          <div className="text-center text-sm font-medium">{template.name}</div>
+                          {bookingSettings.liff_template_id === template.id && (
+                            <div className="absolute top-2 right-2 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center">
+                              <div className="w-2 h-2 bg-white rounded-full" />
+                            </div>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 右カラム：プレビュー */}
+                <div className="lg:sticky lg:top-8 h-fit">
+                  <div className="mb-4 flex items-center justify-between w-full max-w-[320px] mx-auto">
+                    <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                      <Smartphone size={16} /> プレビュー
+                    </h3>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewRefreshKey(prev => prev + 1)}
+                        className="text-xs flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded hover:bg-gray-50"
+                      >
+                        <ExternalLink size={12} /> リロード
+                      </button>
+                      <a
+                        href={`/booking${storeId ? `?store_id=${storeId}` : ''}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs flex items-center gap-1 px-2 py-1 bg-primary-50 text-primary-700 rounded hover:bg-primary-100"
+                      >
+                        <ExternalLink size={12} /> 別タブ
+                      </a>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-800 rounded-[3rem] p-4 border-4 border-gray-900 shadow-2xl max-w-[320px] mx-auto">
+                    <div className="bg-white rounded-[2rem] overflow-hidden h-[600px] relative flex flex-col">
+                      {/* Header */}
+                      <div className="bg-slate-100 p-4 border-b flex items-center justify-between shrink-0">
+                        <div className="w-4 h-4 rounded-full bg-slate-300" />
+                        <div className="w-20 h-2 rounded-full bg-slate-300" />
+                        <div className="w-4 h-4 rounded-full bg-slate-300" />
+                      </div>
+
+                      {/* Content */}
+                      <iframe
+                        ref={iframeRef}
+                        key={previewRefreshKey}
+                        src={`/booking${storeId ? `?store_id=${storeId}` : ''}`}
+                        className="w-full h-full bg-white"
+                        title="LIFF Booking Preview"
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm text-gray-500 text-center max-w-md mx-auto">
+                    ※設定を保存した後、リロードボタンを押すと変更が反映されます。
+                  </p>
+                </div>
+              </div>
+
+              {/* カスタマイズ (Proプラン) */}
+              <div className="border-t pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                    <ImageIcon size={16} /> カスタマイズ
+                  </h3>
+                  <span className="text-xs font-bold px-2 py-1 bg-gradient-to-r from-amber-200 to-yellow-400 text-yellow-900 rounded-full">
+                    Proプラン機能
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-6 max-w-lg">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">テーマカラー</label>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="color"
+                        value={bookingSettings.liff_theme_color}
+                        onChange={(e) => setBookingSettings({...bookingSettings, liff_theme_color: e.target.value})}
+                        className="h-10 w-20 p-1 rounded border border-gray-300 cursor-pointer"
+                      />
+                      <span className="text-sm text-gray-500 font-mono">{bookingSettings.liff_theme_color}</span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ロゴ画像 URL</label>
+                    <input
+                      type="text"
+                      value={bookingSettings.liff_logo_url}
+                      onChange={(e) => setBookingSettings({...bookingSettings, liff_logo_url: e.target.value})}
+                      placeholder="https://example.com/logo.png"
+                      className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">※現在はURL直接入力のみ対応</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-4">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex items-center gap-2 bg-primary-600 text-white px-6 py-2.5 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={18} />}
+                  {saving ? '保存中...' : '設定を保存'}
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
+
+        {/* リッチメニュー設定 */}
+        {activeTab === 'rich_menu' && (
+          <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-2 mb-6 pb-2 border-b">
+              <Grid className="text-primary-600" size={24} />
+              <h2 className="text-xl font-bold text-gray-800">リッチメニュー設定</h2>
+            </div>
+            
+            <form onSubmit={handleUpdateRichMenuSettings} className="space-y-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="space-y-8">
+                  {/* レイアウト選択 */}
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                      <Layout size={16} /> レイアウト
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {RICH_MENU_LAYOUTS.map((layout) => (
+                        <label 
+                          key={layout.id}
+                          className={`
+                            relative cursor-pointer rounded-lg border-2 p-4 transition-all flex flex-col items-center justify-center gap-2 h-24
+                            ${richMenuSettings.layout_id === layout.id 
+                              ? 'border-primary-500 ring-2 ring-primary-100 bg-primary-50' 
+                              : 'border-gray-200 hover:border-gray-300 bg-gray-50'}
+                          `}
+                        >
+                          <input
+                            type="radio"
+                            name="rm_layout"
+                            value={layout.id}
+                            checked={richMenuSettings.layout_id === layout.id}
+                            onChange={(e) => setRichMenuSettings({...richMenuSettings, layout_id: e.target.value})}
+                            className="sr-only"
+                          />
+                          <div className="text-center text-sm font-medium">{layout.name}</div>
+                          {richMenuSettings.layout_id === layout.id && (
+                            <div className="absolute top-2 right-2 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center">
+                              <div className="w-2 h-2 bg-white rounded-full" />
+                            </div>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* テンプレート選択 */}
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                      <Palette size={16} /> デザインテーマ
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {[
+                        { id: 'simple', name: 'シンプル', color: 'bg-gray-50 border-gray-200' },
+                        { id: 'elegant', name: 'エレガント', color: 'bg-[#F5F5F0] border-[#E0E0D0]' },
+                        { id: 'pop', name: 'ポップ', color: 'bg-primary-50 border-primary-200' },
+                        { id: 'dark', name: 'ダーク', color: 'bg-slate-800 text-white border-slate-700' }
+                      ].map((template) => (
+                        <label 
+                          key={template.id}
+                          className={`
+                            relative cursor-pointer rounded-lg border-2 p-4 transition-all flex flex-col items-center justify-center gap-2 h-24
+                            ${richMenuSettings.template_id === template.id 
+                              ? 'border-primary-500 ring-2 ring-primary-100' 
+                              : 'border-gray-200 hover:border-gray-300'}
+                            ${template.color}
+                          `}
+                        >
+                          <input
+                            type="radio"
+                            name="rm_template"
+                            value={template.id}
+                            checked={richMenuSettings.template_id === template.id}
+                            onChange={(e) => setRichMenuSettings({...richMenuSettings, template_id: e.target.value})}
+                            className="sr-only"
+                          />
+                          <div className="text-center text-sm font-medium">{template.name}</div>
+                          {richMenuSettings.template_id === template.id && (
+                            <div className="absolute top-2 right-2 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center">
+                              <div className="w-2 h-2 bg-white rounded-full" />
+                            </div>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ボタン設定 */}
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                      <MousePointerClick size={16} /> ボタン設定
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      {/* Dynamic Slots based on Layout */}
+                      {(() => {
+                        const layout = RICH_MENU_LAYOUTS.find(l => l.id === richMenuSettings.layout_id) || RICH_MENU_LAYOUTS[0]
+                        const slots = Array.from({ length: layout.slots }, (_, i) => i + 1)
+                        
+                        return slots.map(slotNum => {
+                          // Slot 1 & 2 are fixed
+                          if (slotNum === 1) {
+                            return (
+                              <div key={slotNum} className="p-3 bg-gray-50 rounded-lg border border-gray-200 relative">
+                                <div className="absolute -top-2.5 left-3 bg-primary-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">
+                                  ボタン 1 (必須)
+                                </div>
+                                <div className="mt-2 flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-primary-100 rounded flex items-center justify-center text-primary-600">
+                                    <Smartphone size={16} />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-bold text-gray-800">予約する</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          }
+                          if (slotNum === 2) {
+                            return (
+                              <div key={slotNum} className="p-3 bg-gray-50 rounded-lg border border-gray-200 relative">
+                                <div className="absolute -top-2.5 left-3 bg-primary-600 text-white text-[10px] font-bold px-2 py-0.5 rounded">
+                                  ボタン 2 (必須)
+                                </div>
+                                <div className="mt-2 flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center text-gray-600">
+                                    <MessageSquare size={16} />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-bold text-gray-800">メッセージ入力</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          // Optional Slots
+                          const action = richMenuSettings.actions[slotNum] || { label: '', url: '', icon: 'external-link' }
+                          
+                          return (
+                            <div key={slotNum} className="p-3 bg-white rounded-lg border border-gray-200 relative">
+                              <div className="absolute -top-2.5 left-3 bg-gray-500 text-white text-[10px] font-bold px-2 py-0.5 rounded">
+                                ボタン {slotNum} (任意)
+                              </div>
+                              <div className="mt-2 space-y-3">
+                                <div className="flex gap-2">
+                                  <div className="flex-1">
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">ラベル</label>
+                                    <input
+                                      type="text"
+                                      value={action.label}
+                                      onChange={(e) => {
+                                        const newActions = { ...richMenuSettings.actions }
+                                        newActions[slotNum] = { ...action, label: e.target.value }
+                                        setRichMenuSettings({ ...richMenuSettings, actions: newActions })
+                                      }}
+                                      className="w-full p-1.5 border rounded text-sm"
+                                      placeholder="例: Instagram"
+                                    />
+                                  </div>
+                                  <div className="relative">
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">アイコン</label>
+                                    <button
+                                      type="button"
+                                      onClick={() => setOpenIconSelector(openIconSelector === slotNum ? null : slotNum)}
+                                      className="w-28 p-1.5 border rounded text-sm flex items-center justify-between bg-white hover:bg-gray-50"
+                                    >
+                                      <div className="flex items-center gap-2 overflow-hidden">
+                                        {(() => {
+                                          const SelectedIcon = AVAILABLE_ICONS.find(i => i.id === action.icon)?.icon || ExternalLink
+                                          return <SelectedIcon size={16} className="shrink-0" />
+                                        })()}
+                                        <span className="truncate text-xs">
+                                          {AVAILABLE_ICONS.find(i => i.id === action.icon)?.label || 'Link'}
+                                        </span>
+                                      </div>
+                                    </button>
+                                    
+                                    {openIconSelector === slotNum && (
+                                      <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setOpenIconSelector(null)} />
+                                        <div className="absolute z-50 top-full right-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-xl p-2 grid grid-cols-4 gap-2">
+                                          {AVAILABLE_ICONS.map(iconItem => (
+                                            <button
+                                              key={iconItem.id}
+                                              type="button"
+                                              onClick={() => {
+                                                const newActions = { ...richMenuSettings.actions }
+                                                newActions[slotNum] = { ...action, icon: iconItem.id }
+                                                setRichMenuSettings({ ...richMenuSettings, actions: newActions })
+                                                setOpenIconSelector(null)
+                                              }}
+                                              className={`flex flex-col items-center justify-center p-2 rounded hover:bg-gray-100 ${action.icon === iconItem.id ? 'bg-primary-50 text-primary-600' : 'text-gray-600'}`}
+                                              title={iconItem.label}
+                                            >
+                                              <iconItem.icon size={20} className="mb-1" />
+                                              <span className="text-[10px] truncate w-full text-center">{iconItem.label}</span>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-700 mb-1">URL</label>
+                                  <input
+                                    type="text"
+                                    value={action.url}
+                                    onChange={(e) => {
+                                      const newActions = { ...richMenuSettings.actions }
+                                      newActions[slotNum] = { ...action, url: e.target.value }
+                                      setRichMenuSettings({ ...richMenuSettings, actions: newActions })
+                                    }}
+                                    className="w-full p-1.5 border rounded text-sm"
+                                    placeholder="https://..."
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* プレビューエリア */}
+                <div className="lg:sticky lg:top-8 h-fit">
+                  <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                    <Smartphone size={16} /> プレビュー
+                  </h3>
+                  <div className="bg-gray-800 rounded-[3rem] p-4 border-4 border-gray-900 shadow-2xl max-w-[320px] mx-auto">
+                    <div className="bg-white rounded-[2rem] overflow-hidden h-[600px] relative flex flex-col">
+                      {/* Header */}
+                      <div className="bg-slate-100 p-4 border-b flex items-center justify-between shrink-0">
+                        <div className="w-4 h-4 rounded-full bg-slate-300" />
+                        <div className="w-20 h-2 rounded-full bg-slate-300" />
+                        <div className="w-4 h-4 rounded-full bg-slate-300" />
+                      </div>
+                      
+                      {/* Chat Area */}
+                      <div className="flex-1 bg-[#8C9DA9] p-4 overflow-hidden relative">
+                        <div className="flex gap-2 mb-4">
+                          <div className="w-8 h-8 rounded-full bg-white shrink-0" />
+                          <div className="bg-white p-2 rounded-lg rounded-tl-none text-xs max-w-[70%] shadow-sm">
+                            いらっしゃいませ！<br/>
+                            下のメニューからご予約いただけます。
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Rich Menu Preview */}
+                      <div className="shrink-0 border-t border-gray-200">
+                        <div className="bg-gray-100 px-4 py-1 flex justify-between items-center text-[10px] text-gray-500 border-b border-gray-200">
+                          <span>メニュー ▲</span>
+                          <span>キーボード</span>
+                        </div>
+                        <div className={`w-full relative ${richMenuSettings.layout_id.startsWith('compact') ? 'aspect-[3/1]' : 'aspect-[1.5/1]'}`}>
+                          {/* Custom Image Background if set */}
+                          {richMenuSettings.custom_image_url ? (
+                            <img 
+                              src={richMenuSettings.custom_image_url} 
+                              alt="Rich Menu Background" 
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                          ) : (
+                            // Template Backgrounds
+                            <div className={`absolute inset-0 w-full h-full grid gap-0.5 p-0.5
+                              ${(() => {
+                                const layout = RICH_MENU_LAYOUTS.find(l => l.id === richMenuSettings.layout_id)
+                                if (layout?.id === 'large_3_upper') return 'grid-cols-2 grid-rows-2' // Special handling
+                                return layout?.grid || 'grid-cols-2 grid-rows-2'
+                              })()}
+                              ${richMenuSettings.template_id === 'simple' ? 'bg-gray-200' : ''}
+                              ${richMenuSettings.template_id === 'elegant' ? 'bg-[#D4C4B7]' : ''}
+                              ${richMenuSettings.template_id === 'pop' ? 'bg-primary-500' : ''}
+                              ${richMenuSettings.template_id === 'dark' ? 'bg-slate-700' : ''}
+                            `}>
+                              {(() => {
+                                const layout = RICH_MENU_LAYOUTS.find(l => l.id === richMenuSettings.layout_id) || RICH_MENU_LAYOUTS[0]
+                                const slots = Array.from({ length: layout.slots }, (_, i) => i + 1)
+                                
+                                return slots.map(slotNum => {
+                                  // Determine content
+                                  let icon = <ExternalLink size={20} className="mb-1" />
+                                  let label = '未設定'
+                                  let isSet = false
+
+                                  if (slotNum === 1) {
+                                    icon = <Smartphone size={20} className="mb-1" />
+                                    label = '予約する'
+                                    isSet = true
+                                  } else if (slotNum === 2) {
+                                    icon = <MessageSquare size={20} className="mb-1" />
+                                    label = 'メッセージ入力'
+                                    isSet = true
+                                  } else {
+                                    const action = richMenuSettings.actions[slotNum]
+                                    if (action) {
+                                      const IconComp = AVAILABLE_ICONS.find(i => i.id === action.icon)?.icon || ExternalLink
+                                      icon = <IconComp size={20} className="mb-1" />
+                                      label = action.label || '未設定'
+                                      isSet = true
+                                    }
+                                  }
+
+                                  // Determine style
+                                  const styleClass = `
+                                    flex flex-col items-center justify-center p-2 overflow-hidden
+                                    ${richMenuSettings.template_id === 'simple' ? 'bg-white text-gray-800' : ''}
+                                    ${richMenuSettings.template_id === 'elegant' ? 'bg-[#F5F5F0] text-[#5D4037]' : ''}
+                                    ${richMenuSettings.template_id === 'pop' ? 'bg-primary-50 text-primary-700' : ''}
+                                    ${richMenuSettings.template_id === 'dark' ? 'bg-slate-800 text-white' : ''}
+                                    ${!isSet ? 'opacity-50' : ''}
+                                  `
+
+                                  // Special Grid Handling for large_3_upper
+                                  let gridSpan = ''
+                                  if (layout.id === 'large_3_upper') {
+                                    if (slotNum === 1) gridSpan = 'col-span-2'
+                                  }
+
+                                  return (
+                                    <div key={slotNum} className={`${styleClass} ${gridSpan}`}>
+                                      {icon}
+                                      <span className="text-[10px] font-bold truncate w-full text-center">{label}</span>
+                                    </div>
+                                  )
+                                })
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-center text-xs text-gray-500 mt-4">
+                    ※実際の表示は端末により多少異なる場合があります
+                  </p>
+                </div>
+              </div>
+
+              {/* カスタム画像 (Pro) */}
+              <div className="border-t pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                    <ImageIcon size={16} /> 背景画像カスタマイズ
+                  </h3>
+                  <span className="text-xs font-bold px-2 py-1 bg-gradient-to-r from-amber-200 to-yellow-400 text-yellow-900 rounded-full">
+                    Proプラン機能
+                  </span>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">画像 URL</label>
+                  <input
+                    type="text"
+                    value={richMenuSettings.custom_image_url}
+                    onChange={(e) => setRichMenuSettings({...richMenuSettings, custom_image_url: e.target.value})}
+                    placeholder="https://example.com/richmenu.png"
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">※未設定の場合はシステム標準の画像が使用されます</p>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-4">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex items-center gap-2 bg-primary-600 text-white px-6 py-2.5 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={18} />}
+                  {saving ? '保存中...' : '設定を保存してLINEに反映'}
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
+
+        {/* Google Calendar Settings */}
+        {activeTab === 'calendar' && (
+          <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-2 mb-6 pb-2 border-b">
+              <Calendar className="text-primary-600" size={24} />
+              <h2 className="text-xl font-bold text-gray-800">Googleカレンダー連携</h2>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                <h3 className="font-bold text-blue-800 mb-2">機能について</h3>
+                <p className="text-sm text-blue-700 leading-relaxed">
+                  Googleカレンダーと連携すると、以下の機能が利用可能になります：
+                </p>
+                <ul className="list-disc list-inside text-sm text-blue-700 mt-2 space-y-1">
+                  <li>LINEからの予約が自動的にGoogleカレンダーに登録されます</li>
+                  <li>Googleカレンダーの予定（他の予約など）を考慮して、空き枠を計算します</li>
+                  <li>ダブルブッキングを防止し、予約管理を一元化できます</li>
+                </ul>
+              </div>
+
+              <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-200 rounded-xl">
+                {googleCalendarSettings.connected ? (
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Calendar size={32} />
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-800 mb-2">連携済み</h3>
+                    <p className="text-gray-600 mb-6">
+                      Googleカレンダーと正常に連携しています。<br/>
+                      カレンダーID: <span className="font-mono bg-gray-100 px-2 py-1 rounded">{googleCalendarSettings.calendar_id || 'primary'}</span>
+                    </p>
+                    <div className="text-xs text-gray-400 mb-6">
+                      最終更新: {new Date(googleCalendarSettings.updated_at || '').toLocaleString()}
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (confirm('連携を解除してもよろしいですか？')) {
+                          // TODO: Implement disconnect
+                          alert('連携解除機能は現在開発中です。');
+                        }
+                      }}
+                      className="px-6 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-bold"
+                    >
+                      連携を解除
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Calendar size={32} />
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-800 mb-2">未連携</h3>
+                    <p className="text-gray-600 mb-6">
+                      Googleアカウントにログインして、<br/>
+                      カレンダーへのアクセスを許可してください。
+                    </p>
+                    <button
+                      onClick={handleGoogleConnect}
+                      disabled={saving}
+                      className="px-8 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-bold shadow-sm flex items-center gap-3 mx-auto"
+                    >
+                      <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
+                      Googleでログイン
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* 接続設定 */}
         {activeTab === 'connection' && (
           <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -733,6 +1761,8 @@ export default function LineSettings() {
           onClose={() => setMessage(null)}
         />
       )}
+
+
     </div>
   )
 }
