@@ -116,9 +116,10 @@ serve(async (req) => {
     throw new Error('Invalid action')
 
   } catch (error) {
+    console.error('Booking Function Error:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
+      status: 200, // Return 200 so the client can read the error message
     })
   }
 })

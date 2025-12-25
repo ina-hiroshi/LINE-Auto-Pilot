@@ -232,7 +232,7 @@ export default function Booking() {
     if (!storeId) return
     setLoading(true)
     try {
-      const { error } = await supabase.functions.invoke('booking', {
+      const { data, error } = await supabase.functions.invoke('booking', {
         body: {
           action: 'create_reservation',
           store_id: storeId,
@@ -245,6 +245,7 @@ export default function Booking() {
       })
 
       if (error) throw error
+      if (data?.error) throw new Error(data.error)
 
       setStep('complete')
     } catch (error: any) {
