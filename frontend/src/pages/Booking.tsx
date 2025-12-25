@@ -247,9 +247,10 @@ export default function Booking() {
       if (error) throw error
 
       setStep('complete')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Booking failed:', error)
-      alert('予約に失敗しました。')
+      const errorMessage = error?.message || JSON.stringify(error) || '不明なエラー'
+      alert(`予約に失敗しました。\n詳細: ${errorMessage}`)
     } finally {
       setLoading(false)
     }
