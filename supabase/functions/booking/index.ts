@@ -78,6 +78,16 @@ serve(async (req) => {
     }
 
     if (action === 'create_reservation') {
+      // 0. Get line_account_id
+      const { data: lineAccount, error: laError } = await supabaseClient
+        .from('line_accounts')
+        .select('id')
+        .eq('store_id', store_id)
+        .maybeSingle()
+      
+      if (laError) throw laError
+      if (!lineAccount) throw new Error('LINE Account not found for this store')
+
       // 1. Upsert Customer
       const { error: custError } = await supabaseClient
         .from('customers')
@@ -99,6 +109,7 @@ serve(async (req) => {
         .from('reservations')
         .insert({
           store_id,
+          line_account_id: lineAccount.id,
           line_user_id,
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
