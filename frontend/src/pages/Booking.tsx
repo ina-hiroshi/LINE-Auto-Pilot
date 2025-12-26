@@ -523,6 +523,12 @@ export default function Booking() {
               ? 'border-[#44403C] bg-[#44403C]/10' 
               : 'border-[#E7E5E4] bg-white hover:border-[#D6D3D1]'}
           `,
+          selectableListItem: (selected: boolean) => `
+            w-full p-4 rounded-xl border-2 transition-all flex items-center justify-between gap-3 text-left
+            ${selected 
+              ? 'border-[#44403C] bg-[#44403C]/10' 
+              : 'border-[#E7E5E4] bg-white hover:border-[#D6D3D1]'}
+          `,
           selectableItemText: (_selected: boolean) => 'text-[#44403C]',
           selectableItemSubText: (_selected: boolean) => 'text-[#78716C]',
           infoBox: 'p-6 bg-[#FAFAF9] border border-[#E7E5E4] text-[#57534E]',
@@ -556,6 +562,12 @@ export default function Booking() {
           `,
           selectableItem: (selected: boolean) => `
             p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
+            ${selected 
+              ? 'border-current bg-opacity-10' 
+              : 'border-gray-100 bg-white hover:border-gray-200'}
+          `,
+          selectableListItem: (selected: boolean) => `
+            p-4 rounded-xl border-2 transition-all flex flex-row items-center gap-3
             ${selected 
               ? 'border-current bg-opacity-10' 
               : 'border-gray-100 bg-white hover:border-gray-200'}
@@ -597,6 +609,12 @@ export default function Booking() {
               ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
               : 'bg-slate-800 text-slate-200 border-slate-700 hover:border-slate-500'}
           `,
+          selectableListItem: (selected: boolean) => `
+            p-4 rounded-xl border-2 transition-all flex flex-row items-center gap-3
+            ${selected 
+              ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
+              : 'bg-slate-800 text-slate-200 border-slate-700 hover:border-slate-500'}
+          `,
           selectableItemText: (selected: boolean) => selected ? 'text-black' : 'text-white',
           selectableItemSubText: (selected: boolean) => selected ? 'text-gray-600' : 'text-slate-400',
           infoBox: 'p-4 bg-slate-800/50 border border-slate-700 rounded-lg',
@@ -631,6 +649,12 @@ export default function Booking() {
           `,
           selectableItem: (selected: boolean) => `
             p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
+            ${selected 
+              ? 'border-current bg-opacity-10' 
+              : 'border-gray-100 bg-white hover:border-gray-200'}
+          `,
+          selectableListItem: (selected: boolean) => `
+            p-4 rounded-xl border-2 transition-all flex flex-row items-center gap-3
             ${selected 
               ? 'border-current bg-opacity-10' 
               : 'border-gray-100 bg-white hover:border-gray-200'}
@@ -742,12 +766,8 @@ export default function Booking() {
                       </div>
                     )}
 
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <span className="opacity-70 text-xs block">ステータス</span>
-                        <span className="font-bold text-green-600">予約確定</span>
-                      </div>
-                      <div className="flex gap-2 mt-3">
+                    <div className="flex justify-end items-center mt-2">
+                      <div className="flex gap-2">
                         <button 
                           onClick={() => handleModifyStart(res.id)}
                           className={(theme as any).actionButtonPrimary || "text-xs text-blue-500 underline hover:text-blue-700"}
@@ -874,7 +894,7 @@ export default function Booking() {
                         }}
                         className={`
                           w-full text-left flex justify-between items-center
-                          ${theme.selectableItem(selectedMenu?.id === menu.id)}
+                          ${theme.selectableListItem(selectedMenu?.id === menu.id)}
                         `}
                         style={selectedMenu?.id === menu.id && storeSettings.liff_template_id !== 'dark' ? { borderColor: storeSettings.liff_theme_color, backgroundColor: `${storeSettings.liff_theme_color}10` } : {}}
                       >

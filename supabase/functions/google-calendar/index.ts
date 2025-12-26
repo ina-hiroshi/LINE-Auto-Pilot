@@ -83,6 +83,33 @@ serve(async (req) => {
       })
     }
 
+    if (action === 'list_events') {
+      const calendarId = url.searchParams.get('calendar_id') || 'primary'
+      const timeMin = url.searchParams.get('timeMin')
+      const timeMax = url.searchParams.get('timeMax')
+
+      if (!timeMin || !timeMax) {
+        throw new Error('Missing timeMin or timeMax')
+      }
+
+      const eventsResponse = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      )
+      
+      const eventsData = await eventsResponse.json()
+      
+      if (eventsData.error) {
+        throw new Error(`Google API Error: ${eventsData.error.message}`)
+      }
+
+      return new Response(JSON.stringify({ events: eventsData.items }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     return new Response(JSON.stringify({ error: 'Invalid action' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
