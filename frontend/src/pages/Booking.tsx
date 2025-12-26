@@ -742,7 +742,7 @@ export default function Booking() {
                   <div key={res.id} className={`${theme.infoBox} relative`}>
                     <div className="flex justify-between border-b border-current pb-2 border-opacity-20 mb-2">
                       <span className="opacity-70">日時</span>
-                      <span className="font-bold">
+                      <span className="font-bold text-right">
                         {new Date(res.start_time).toLocaleDateString('ja-JP')} {new Date(res.start_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
@@ -751,7 +751,7 @@ export default function Booking() {
                     {(res as any).staff?.name && (
                       <div className="flex justify-between border-b border-current pb-2 border-opacity-20 mb-2">
                         <span className="opacity-70">担当</span>
-                        <span className="font-bold">{(res as any).staff.name}</span>
+                        <span className="font-bold text-right">{(res as any).staff.name}</span>
                       </div>
                     )}
 
@@ -759,7 +759,7 @@ export default function Booking() {
                     {(res as any).menu?.name && (
                       <div className="flex justify-between border-b border-current pb-2 border-opacity-20 mb-2">
                         <span className="opacity-70">メニュー</span>
-                        <span className="font-bold">
+                        <span className="font-bold text-right">
                           {(res as any).menu.name}
                           {(res as any).menu.price ? ` (¥${(res as any).menu.price.toLocaleString()})` : ''}
                         </span>
@@ -1131,27 +1131,27 @@ export default function Booking() {
               <div className={`${theme.infoBox} space-y-3 mb-6`}>
                 <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
                   <span className="opacity-70">日時</span>
-                  <span className="font-bold">{date} {time}</span>
+                  <span className="font-bold text-right">{date} {time}</span>
                 </div>
                 {selectedStaff && (
                   <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
                     <span className="opacity-70">指名スタッフ</span>
-                    <span className="font-bold">{selectedStaff.name}</span>
+                    <span className="font-bold text-right">{selectedStaff.name}</span>
                   </div>
                 )}
                 {selectedMenu && (
                   <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
                     <span className="opacity-70">メニュー</span>
-                    <span className="font-bold">{selectedMenu.name}</span>
+                    <span className="font-bold text-right">{selectedMenu.name}</span>
                   </div>
                 )}
                 <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
                   <span className="opacity-70">お名前</span>
-                  <span className="font-bold">{realName}</span>
+                  <span className="font-bold text-right">{realName}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="opacity-70">フリガナ</span>
-                  <span className="font-bold">{furigana}</span>
+                  <span className="font-bold text-right">{furigana}</span>
                 </div>
               </div>
 

@@ -47,6 +47,14 @@ type GoogleCalendar = {
   backgroundColor?: string
 }
 
+type GoogleEvent = {
+  id: string
+  summary: string
+  start: { dateTime?: string; date?: string }
+  end: { dateTime?: string; date?: string }
+  htmlLink: string
+}
+
 export default function Reservations() {
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
   const [isGoogleConnected, setIsGoogleConnected] = useState(false)
@@ -58,6 +66,8 @@ export default function Reservations() {
   const [calendars, setCalendars] = useState<GoogleCalendar[]>([])
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>('')
   const [calendarLoading, setCalendarLoading] = useState(false)
+  const [googleEvents, setGoogleEvents] = useState<GoogleEvent[]>([])
+  const [currentDate, setCurrentDate] = useState(new Date())
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   // Modal State
@@ -245,6 +255,53 @@ export default function Reservations() {
       setCalendarLoading(false)
     }
   }
+
+  const fetchGoogleEvents = async () => {
+    if (!isGoogleConnected || !selectedCalendarId || viewMode !== 'calendar') return
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      // Calculate start and end of the month view (including padding)
+      const year = currentDate.getFullYear()
+      const month = currentDate.getMonth()
+      const firstDay = new Date(year, month, 1)
+      const lastDay = new Date(year, month + 1, 0)
+      
+      // Add padding for grid (start from Sunday)
+      const startDate = new Date(firstDay)
+      startDate.setDate(startDate.getDate() - startDate.getDay())
+      
+      // Add padding for end (end on Saturday)
+      const endDate = new Date(lastDay)
+      endDate.setDate(endDate.getDate() + (6 - endDate.getDay()))
+      
+      // Add buffer just in case
+      startDate.setHours(0, 0, 0, 0)
+      endDate.setHours(23, 59, 59, 999)
+
+      const timeMin = startDate.toISOString()
+      const timeMax = endDate.toISOString()
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=list_events&calendar_id=${encodeURIComponent(selectedCalendarId)}&timeMin=${timeMin}&timeMax=${timeMax}`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
+      
+      const result = await response.json()
+      if (result.error) throw new Error(result.error)
+      
+      setGoogleEvents(result.events || [])
+    } catch (error) {
+      console.error('Fetch Google Events Error:', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchGoogleEvents()
+  }, [currentDate, selectedCalendarId, isGoogleConnected, viewMode])
 
   const handleSaveCalendarSettings = async () => {
     try {
@@ -580,35 +637,80 @@ export default function Reservations() {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col h-[800px] bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               {/* Header / Settings Bar */}
-              <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 text-green-700 font-medium px-3 py-1 bg-green-100 rounded-full text-sm">
-                    <CheckCircle size={14} />
+              <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center bg-white gap-4 sticky top-0 z-10">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-xl font-bold text-gray-800">
+                    {currentDate.getFullYear()}年 {currentDate.getMonth() + 1}月
+                  </h2>
+                  <div className="flex bg-gray-100 rounded-lg p-0.5">
+                    <button 
+                      onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
+                      className="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition text-gray-600"
+                    >
+                      ←
+                    </button>
+                    <button 
+                      onClick={() => setCurrentDate(new Date())}
+                      className="px-3 py-1.5 text-sm font-medium hover:bg-white hover:shadow-sm rounded-md transition text-gray-600"
+                    >
+                      今日
+                    </button>
+                    <button 
+                      onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
+                      className="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition text-gray-600"
+                    >
+                      →
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 text-green-700 font-medium px-3 py-1 bg-green-100 rounded-full text-xs whitespace-nowrap">
+                    <CheckCircle size={12} />
                     <span>連携中</span>
                   </div>
-                  <span className="text-sm text-gray-500 hidden sm:inline">
-                    {selectedCalendarId ? 'カレンダー設定済み' : 'カレンダーを選択してください'}
-                  </span>
-                </div>
-                <div className="flex gap-2">
+                  
+                  {selectedCalendarId && (
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={selectedCalendarId}
+                        onChange={(e) => setSelectedCalendarId(e.target.value)}
+                        className="text-sm border-gray-300 rounded-md shadow-sm focus:border-primary-500 focus:ring-primary-500 py-1.5"
+                      >
+                        {calendars.map(cal => (
+                          <option key={cal.id} value={cal.id}>{cal.summary}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={handleSaveCalendarSettings}
+                        disabled={calendarLoading}
+                        className="text-sm text-primary-600 hover:text-primary-700 font-medium whitespace-nowrap"
+                      >
+                        保存
+                      </button>
+                    </div>
+                  )}
+                  
                   <button 
-                    onClick={fetchCalendars}
-                    className="text-sm text-gray-500 hover:text-gray-700 p-2 hover:bg-gray-200 rounded-md transition"
+                    onClick={() => {
+                      fetchCalendars()
+                      fetchGoogleEvents()
+                    }}
+                    className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition"
                     title="更新"
                   >
                     <RefreshCw size={16} />
                   </button>
-                  {/* Settings Toggle could go here */}
                 </div>
               </div>
 
               {/* Main Content Area */}
-              <div className="flex-1 p-6 overflow-y-auto">
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 {!selectedCalendarId ? (
                   // Initial Setup UI (Select Calendar)
-                  <div className="max-w-lg mx-auto mt-10">
+                  <div className="max-w-lg mx-auto mt-10 p-6 overflow-y-auto">
                     <h3 className="text-lg font-bold text-gray-800 mb-2 text-center">予約管理に使用するカレンダー</h3>
                     <p className="text-sm text-gray-500 mb-6 text-center">
                       LINEからの予約を登録し、空き状況を確認するカレンダーを選択してください。
@@ -663,32 +765,96 @@ export default function Reservations() {
                     )}
                   </div>
                 ) : (
-                  // Calendar View (Placeholder for now)
-                  <div className="h-full flex flex-col items-center justify-center text-center">
-                    <div className="w-full max-w-4xl h-[600px] bg-white rounded-xl border border-gray-200 shadow-sm p-4 relative">
-                      {/* Mock Calendar UI */}
-                      <div className="absolute inset-0 flex items-center justify-center bg-gray-50/50 backdrop-blur-sm z-10">
-                        <div className="text-center p-8 bg-white rounded-2xl shadow-xl border border-gray-100">
-                          <Calendar size={48} className="mx-auto text-primary-300 mb-4" />
-                          <h3 className="text-xl font-bold text-gray-800 mb-2">カレンダー表示準備中</h3>
-                          <p className="text-gray-500 mb-6">
-                            選択されたカレンダーID: <span className="font-mono bg-gray-100 px-2 py-1 rounded text-xs">{selectedCalendarId}</span><br/>
-                            現在、カレンダー表示機能を実装中です。
-                          </p>
-                          <button 
-                            onClick={() => setSelectedCalendarId('')}
-                            className="text-sm text-primary-600 hover:text-primary-700 font-medium underline"
-                          >
-                            カレンダー選択に戻る
-                          </button>
+                  // Calendar Grid View
+                  <div className="flex-1 flex flex-col min-h-0">
+                    {/* Days Header */}
+                    <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50 shrink-0">
+                      {['日', '月', '火', '水', '木', '金', '土'].map((day, i) => (
+                        <div key={day} className={`py-2 text-center text-xs font-semibold ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-500'}`}>
+                          {day}
                         </div>
-                      </div>
-                      {/* Background Grid Mock */}
-                      <div className="grid grid-cols-7 h-full opacity-20 pointer-events-none">
-                        {[...Array(7)].map((_, i) => (
-                          <div key={i} className="border-r border-gray-300 h-full"></div>
-                        ))}
-                      </div>
+                      ))}
+                    </div>
+
+                    {/* Days Cells */}
+                    <div className="flex-1 grid grid-cols-7 grid-rows-6 divide-x divide-y divide-gray-200 bg-gray-200 gap-px overflow-hidden">
+                      {(() => {
+                        const year = currentDate.getFullYear()
+                        const month = currentDate.getMonth()
+                        const firstDay = new Date(year, month, 1)
+                        const lastDay = new Date(year, month + 1, 0)
+                        const daysInMonth = lastDay.getDate()
+                        const startingDay = firstDay.getDay() // 0 = Sunday
+                        
+                        const days = []
+                        
+                        // Previous month padding
+                        const prevMonthLastDay = new Date(year, month, 0).getDate()
+                        for (let i = 0; i < startingDay; i++) {
+                          days.push({ day: prevMonthLastDay - startingDay + 1 + i, currentMonth: false, date: new Date(year, month - 1, prevMonthLastDay - startingDay + 1 + i) })
+                        }
+                        
+                        // Current month
+                        for (let i = 1; i <= daysInMonth; i++) {
+                          days.push({ day: i, currentMonth: true, date: new Date(year, month, i) })
+                        }
+                        
+                        // Next month padding
+                        const remainingCells = 42 - days.length // 6 rows * 7 cols
+                        for (let i = 1; i <= remainingCells; i++) {
+                          days.push({ day: i, currentMonth: false, date: new Date(year, month + 1, i) })
+                        }
+
+                        return days.map((d, idx) => {
+                          const dateStr = d.date.toISOString().split('T')[0]
+                          
+                          // Filter Reservations
+                          const dayReservations = reservations.filter(r => r.start_time.startsWith(dateStr))
+                          
+                          // Filter Google Events
+                          const dayGoogleEvents = googleEvents.filter(e => {
+                            const start = e.start.dateTime || e.start.date
+                            return start?.startsWith(dateStr)
+                          })
+
+                          const isToday = new Date().toDateString() === d.date.toDateString()
+
+                          return (
+                            <div key={idx} className={`bg-white min-h-0 p-1 flex flex-col ${!d.currentMonth ? 'bg-gray-50 text-gray-400' : ''}`}>
+                              <div className={`text-xs font-medium mb-1 flex justify-between items-center shrink-0 ${isToday ? 'text-primary-600' : ''}`}>
+                                <span className={`w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-primary-100 font-bold' : ''}`}>
+                                  {d.day}
+                                </span>
+                              </div>
+                              
+                              <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar">
+                                {/* App Reservations */}
+                                {dayReservations.map(r => (
+                                  <div key={r.id} className="text-[10px] bg-primary-50 text-primary-700 p-1 rounded border-l-2 border-primary-500 truncate cursor-pointer hover:opacity-80"
+                                       onClick={() => openModifyModal(r)}>
+                                    <span className="font-bold">{new Date(r.start_time).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</span>
+                                    {' '}
+                                    {r.customer?.real_name || r.customer?.display_name || 'ゲスト'}
+                                  </div>
+                                ))}
+
+                                {/* Google Events */}
+                                {dayGoogleEvents.map(e => (
+                                  <div key={e.id} className="text-[10px] bg-gray-100 text-gray-600 p-1 rounded border-l-2 border-gray-400 truncate" title={e.summary}>
+                                    <span className="font-bold">
+                                      {e.start.dateTime 
+                                        ? new Date(e.start.dateTime).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})
+                                        : '終日'}
+                                    </span>
+                                    {' '}
+                                    {e.summary}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )
+                        })
+                      })()}
                     </div>
                   </div>
                 )}
