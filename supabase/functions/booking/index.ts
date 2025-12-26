@@ -17,7 +17,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { action, store_id, line_user_id, display_name, profile_picture_url, real_name, furigana, date, time, reservation_id } = await req.json()
+    const { action, store_id, line_user_id, display_name, profile_picture_url, real_name, furigana, date, time, reservation_id, staff_id, menu_id } = await req.json()
 
     console.log(`[Booking] Action: ${action}, User: ${line_user_id}, Name: ${display_name}, Pic: ${profile_picture_url ? 'Yes' : 'No'}`)
 
@@ -83,7 +83,7 @@ serve(async (req) => {
       const now = new Date().toISOString()
       const { data, error } = await supabaseClient
         .from('reservations')
-        .select('*')
+        .select('*, staff:staff_members(name), menu:booking_menus(name, price)')
         .eq('store_id', store_id)
         .eq('line_user_id', line_user_id)
         .neq('status', 'cancelled')
@@ -158,7 +158,9 @@ serve(async (req) => {
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
           status: 'confirmed',
-          memo: 'LINE予約(変更)'
+          memo: 'LINE予約(変更)',
+          staff_id: staff_id || null,
+          menu_id: menu_id || null
         })
 
       if (resError) throw resError
@@ -208,7 +210,9 @@ serve(async (req) => {
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
           status: 'confirmed',
-          memo: 'LINE予約'
+          memo: 'LINE予約',
+          staff_id: staff_id || null,
+          menu_id: menu_id || null
         })
 
       if (resError) throw resError

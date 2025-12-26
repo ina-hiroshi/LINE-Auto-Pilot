@@ -708,6 +708,26 @@ export default function Booking() {
                         {new Date(res.start_time).toLocaleDateString('ja-JP')} {new Date(res.start_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
+                    
+                    {/* 担当者表示 */}
+                    {(res as any).staff?.name && (
+                      <div className="flex justify-between border-b border-current pb-2 border-opacity-20 mb-2">
+                        <span className="opacity-70">担当</span>
+                        <span className="font-bold">{(res as any).staff.name}</span>
+                      </div>
+                    )}
+
+                    {/* メニュー表示 */}
+                    {(res as any).menu?.name && (
+                      <div className="flex justify-between border-b border-current pb-2 border-opacity-20 mb-2">
+                        <span className="opacity-70">メニュー</span>
+                        <span className="font-bold">
+                          {(res as any).menu.name}
+                          {(res as any).menu.price ? ` (¥${(res as any).menu.price.toLocaleString()})` : ''}
+                        </span>
+                      </div>
+                    )}
+
                     <div className="flex justify-between items-center">
                       <div>
                         <span className="opacity-70 text-xs block">ステータス</span>

@@ -17,6 +17,27 @@ type Reservation = {
     real_name: string | null
     furigana: string | null
   }
+  staff?: {
+    name: string
+  }
+  menu?: {
+    name: string
+  }
+  staff_id?: string
+  menu_id?: string
+}
+
+type Staff = {
+  id: string
+  name: string
+  is_active: boolean
+}
+
+type Menu = {
+  id: string
+  name: string
+  price: number | null
+  is_active: boolean
 }
 
 type GoogleCalendar = {
@@ -45,6 +66,10 @@ export default function Reservations() {
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
   const [modifyDate, setModifyDate] = useState('')
   const [modifyTime, setModifyTime] = useState('')
+  const [modifyStaffId, setModifyStaffId] = useState<string>('')
+  const [modifyMenuId, setModifyMenuId] = useState<string>('')
+  const [staffList, setStaffList] = useState<Staff[]>([])
+  const [menuList, setMenuList] = useState<Menu[]>([])
   const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
@@ -83,6 +108,32 @@ export default function Reservations() {
     return () => {
       supabase.removeChannel(channel)
     }
+  }, [storeId])
+
+  useEffect(() => {
+    if (!storeId) return
+    
+    const fetchStoreData = async () => {
+      const { data: staff } = await supabase
+        .from('staff_members')
+        .select('id, name, is_active')
+        .eq('store_id', storeId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: true })
+      
+      if (staff) setStaffList(staff)
+
+      const { data: menus } = await supabase
+        .from('booking_menus')
+        .select('id, name, price, is_active')
+        .eq('store_id', storeId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: true })
+      
+      if (menus) setMenuList(menus)
+    }
+
+    fetchStoreData()
   }, [storeId])
 
   const checkGoogleConnection = async () => {
@@ -236,7 +287,7 @@ export default function Reservations() {
       // Fetch Reservations
       const { data: resData, error: resError } = await supabase
         .from('reservations')
-        .select('*')
+        .select('*, staff:staff_members(name), menu:booking_menus(name, price)')
         .eq('store_id', currentStoreId)
         .neq('status', 'cancelled') // キャンセル済みを除外
         .order('start_time', { ascending: true })
@@ -304,7 +355,9 @@ export default function Reservations() {
           real_name: selectedReservation.customer?.real_name,
           furigana: selectedReservation.customer?.furigana,
           date: modifyDate,
-          time: modifyTime
+          time: modifyTime,
+          staff_id: modifyStaffId || null,
+          menu_id: modifyMenuId || null
         }
       })
       if (error) throw error
@@ -330,6 +383,8 @@ export default function Reservations() {
     
     setModifyDate(`${year}-${month}-${day}`)
     setModifyTime(`${hour}:${minute}`)
+    setModifyStaffId(reservation.staff_id || '')
+    setModifyMenuId(reservation.menu_id || '')
     setIsModifyModalOpen(true)
   }
 
@@ -440,26 +495,36 @@ export default function Reservations() {
                                         </span>
                                     )}
                                 </div>
+
+                                {/* Staff and Menu Display */}
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-sm text-gray-600 ml-2 border-l pl-3 border-gray-200">
+                                    {reservation.staff?.name && (
+                                        <span className="text-xs">担当: <span className="font-medium text-gray-800">{reservation.staff.name}</span></span>
+                                    )}
+                                    {reservation.menu?.name && (
+                                        <span className="text-xs">メニュー: <span className="font-medium text-gray-800">{reservation.menu.name} {(reservation.menu as any).price ? `(¥${(reservation.menu as any).price.toLocaleString()})` : ''}</span></span>
+                                    )}
+                                </div>
                             </div>
                           </div>
                         </div>
-                        <div className="flex flex-row gap-2 w-full sm:w-auto mt-1 sm:mt-0">
+                        <div className="flex flex-row gap-2 w-full sm:w-auto mt-1 sm:mt-0 items-center">
                           <button 
                             onClick={() => openModifyModal(reservation)}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-primary-600 rounded hover:bg-primary-700 shadow-sm transition-all hover:shadow-md active:scale-95 whitespace-nowrap"
+                            className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-full transition"
+                            title="変更"
                           >
-                            <Edit2 size={12} />
-                            変更
+                            <Edit2 size={18} />
                           </button>
                           <button 
                             onClick={() => {
                               setSelectedReservation(reservation)
                               setIsCancelModalOpen(true)
                             }}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-bold text-red-600 bg-white border border-red-100 rounded hover:bg-red-50 hover:border-red-200 shadow-sm transition-all hover:shadow-md active:scale-95 whitespace-nowrap"
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition"
+                            title="キャンセル"
                           >
-                            <XCircle size={12} />
-                            キャンセル
+                            <XCircle size={18} />
                           </button>
                         </div>
                       </div>
@@ -671,7 +736,7 @@ export default function Reservations() {
         isLoading={actionLoading}
       >
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">新しい日時を選択してください。</p>
+          <p className="text-sm text-gray-600">新しい予約内容を入力してください。</p>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">日付</label>
             <input 
@@ -690,6 +755,40 @@ export default function Reservations() {
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
             />
           </div>
+          
+          {staffList.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">担当スタッフ</label>
+              <select
+                value={modifyStaffId}
+                onChange={(e) => setModifyStaffId(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="">指定なし</option>
+                {staffList.map(staff => (
+                  <option key={staff.id} value={staff.id}>{staff.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {menuList.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">メニュー</label>
+              <select
+                value={modifyMenuId}
+                onChange={(e) => setModifyMenuId(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="">指定なし</option>
+                {menuList.map(menu => (
+                  <option key={menu.id} value={menu.id}>
+                    {menu.name} {menu.price ? `(¥${menu.price.toLocaleString()})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </Modal>
     </div>
