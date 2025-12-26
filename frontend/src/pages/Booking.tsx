@@ -517,8 +517,8 @@ export default function Booking() {
               ? 'border-[#44403C] bg-[#44403C]/10' 
               : 'border-[#E7E5E4] bg-white hover:border-[#D6D3D1]'}
           `,
-          selectableItemText: (selected: boolean) => 'text-[#44403C]',
-          selectableItemSubText: (selected: boolean) => 'text-[#78716C]',
+          selectableItemText: (_selected: boolean) => 'text-[#44403C]',
+          selectableItemSubText: (_selected: boolean) => 'text-[#78716C]',
           infoBox: 'p-6 bg-[#FAFAF9] border border-[#E7E5E4] text-[#57534E]',
           iconColor: '#57534E',
           primaryStyle: {}, 
@@ -552,8 +552,8 @@ export default function Booking() {
               ? 'border-current bg-opacity-10' 
               : 'border-gray-100 bg-white hover:border-gray-200'}
           `,
-          selectableItemText: (selected: boolean) => 'text-gray-800',
-          selectableItemSubText: (selected: boolean) => 'text-gray-500',
+          selectableItemText: (_selected: boolean) => 'text-gray-800',
+          selectableItemSubText: (_selected: boolean) => 'text-gray-500',
           infoBox: 'p-5 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200',
           iconColor: c,
           primaryStyle: { backgroundColor: c, borderColor: c },
@@ -623,8 +623,8 @@ export default function Booking() {
               ? 'border-current bg-opacity-10' 
               : 'border-gray-100 bg-white hover:border-gray-200'}
           `,
-          selectableItemText: (selected: boolean) => 'text-gray-800',
-          selectableItemSubText: (selected: boolean) => 'text-gray-500',
+          selectableItemText: (_selected: boolean) => 'text-gray-800',
+          selectableItemSubText: (_selected: boolean) => 'text-gray-500',
           infoBox: 'p-4 bg-gray-50 border border-gray-100 rounded-lg',
           iconColor: c,
           primaryStyle: { backgroundColor: c },
