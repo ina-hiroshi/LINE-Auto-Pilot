@@ -68,6 +68,7 @@ export default function Reservations() {
   const [calendarLoading, setCalendarLoading] = useState(false)
   const [googleEvents, setGoogleEvents] = useState<GoogleEvent[]>([])
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [calendarView, setCalendarView] = useState<'month' | 'week' | 'day'>('month')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   // Modal State
@@ -263,19 +264,34 @@ export default function Reservations() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
 
-      // Calculate start and end of the month view (including padding)
-      const year = currentDate.getFullYear()
-      const month = currentDate.getMonth()
-      const firstDay = new Date(year, month, 1)
-      const lastDay = new Date(year, month + 1, 0)
-      
-      // Add padding for grid (start from Sunday)
-      const startDate = new Date(firstDay)
-      startDate.setDate(startDate.getDate() - startDate.getDay())
-      
-      // Add padding for end (end on Saturday)
-      const endDate = new Date(lastDay)
-      endDate.setDate(endDate.getDate() + (6 - endDate.getDay()))
+      // Calculate start and end based on view mode
+      let startDate = new Date(currentDate)
+      let endDate = new Date(currentDate)
+
+      if (calendarView === 'month') {
+        const year = currentDate.getFullYear()
+        const month = currentDate.getMonth()
+        const firstDay = new Date(year, month, 1)
+        const lastDay = new Date(year, month + 1, 0)
+        
+        startDate = new Date(firstDay)
+        startDate.setDate(startDate.getDate() - startDate.getDay()) // Start from Sunday
+        
+        endDate = new Date(lastDay)
+        endDate.setDate(endDate.getDate() + (6 - endDate.getDay())) // End on Saturday
+      } else if (calendarView === 'week') {
+        const day = currentDate.getDay()
+        const diff = currentDate.getDate() - day
+        startDate = new Date(currentDate)
+        startDate.setDate(diff)
+        
+        endDate = new Date(startDate)
+        endDate.setDate(startDate.getDate() + 6)
+      } else {
+        // Day view
+        startDate = new Date(currentDate)
+        endDate = new Date(currentDate)
+      }
       
       // Add buffer just in case
       startDate.setHours(0, 0, 0, 0)
@@ -301,7 +317,7 @@ export default function Reservations() {
 
   useEffect(() => {
     fetchGoogleEvents()
-  }, [currentDate, selectedCalendarId, isGoogleConnected, viewMode])
+  }, [currentDate, selectedCalendarId, isGoogleConnected, viewMode, calendarView])
 
   const handleSaveCalendarSettings = async () => {
     try {
@@ -646,7 +662,13 @@ export default function Reservations() {
                   </h2>
                   <div className="flex bg-gray-100 rounded-lg p-0.5">
                     <button 
-                      onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
+                      onClick={() => {
+                        const newDate = new Date(currentDate)
+                        if (calendarView === 'month') newDate.setMonth(newDate.getMonth() - 1)
+                        else if (calendarView === 'week') newDate.setDate(newDate.getDate() - 7)
+                        else newDate.setDate(newDate.getDate() - 1)
+                        setCurrentDate(newDate)
+                      }}
                       className="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition text-gray-600"
                     >
                       ←
@@ -658,10 +680,37 @@ export default function Reservations() {
                       今日
                     </button>
                     <button 
-                      onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
+                      onClick={() => {
+                        const newDate = new Date(currentDate)
+                        if (calendarView === 'month') newDate.setMonth(newDate.getMonth() + 1)
+                        else if (calendarView === 'week') newDate.setDate(newDate.getDate() + 7)
+                        else newDate.setDate(newDate.getDate() + 1)
+                        setCurrentDate(newDate)
+                      }}
                       className="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition text-gray-600"
                     >
                       →
+                    </button>
+                  </div>
+                  
+                  <div className="flex bg-gray-100 rounded-lg p-0.5">
+                    <button 
+                      onClick={() => setCalendarView('month')}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${calendarView === 'month' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      月
+                    </button>
+                    <button 
+                      onClick={() => setCalendarView('week')}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${calendarView === 'week' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      週
+                    </button>
+                    <button 
+                      onClick={() => setCalendarView('day')}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${calendarView === 'day' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      日
                     </button>
                   </div>
                 </div>
@@ -768,94 +817,223 @@ export default function Reservations() {
                   // Calendar Grid View
                   <div className="flex-1 flex flex-col min-h-0">
                     {/* Days Header */}
-                    <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50 shrink-0">
-                      {['日', '月', '火', '水', '木', '金', '土'].map((day, i) => (
-                        <div key={day} className={`py-2 text-center text-xs font-semibold ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-500'}`}>
-                          {day}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Days Cells */}
-                    <div className="flex-1 grid grid-cols-7 grid-rows-6 divide-x divide-y divide-gray-200 bg-gray-200 gap-px overflow-hidden">
+                    <div className={`grid ${calendarView === 'day' ? 'grid-cols-1' : 'grid-cols-7'} border-b border-gray-200 bg-gray-50 shrink-0`}>
                       {(() => {
-                        const year = currentDate.getFullYear()
-                        const month = currentDate.getMonth()
-                        const firstDay = new Date(year, month, 1)
-                        const lastDay = new Date(year, month + 1, 0)
-                        const daysInMonth = lastDay.getDate()
-                        const startingDay = firstDay.getDay() // 0 = Sunday
-                        
-                        const days = []
-                        
-                        // Previous month padding
-                        const prevMonthLastDay = new Date(year, month, 0).getDate()
-                        for (let i = 0; i < startingDay; i++) {
-                          days.push({ day: prevMonthLastDay - startingDay + 1 + i, currentMonth: false, date: new Date(year, month - 1, prevMonthLastDay - startingDay + 1 + i) })
-                        }
-                        
-                        // Current month
-                        for (let i = 1; i <= daysInMonth; i++) {
-                          days.push({ day: i, currentMonth: true, date: new Date(year, month, i) })
-                        }
-                        
-                        // Next month padding
-                        const remainingCells = 42 - days.length // 6 rows * 7 cols
-                        for (let i = 1; i <= remainingCells; i++) {
-                          days.push({ day: i, currentMonth: false, date: new Date(year, month + 1, i) })
-                        }
-
-                        return days.map((d, idx) => {
-                          const dateStr = d.date.toISOString().split('T')[0]
-                          
-                          // Filter Reservations
-                          const dayReservations = reservations.filter(r => r.start_time.startsWith(dateStr))
-                          
-                          // Filter Google Events
-                          const dayGoogleEvents = googleEvents.filter(e => {
-                            const start = e.start.dateTime || e.start.date
-                            return start?.startsWith(dateStr)
-                          })
-
-                          const isToday = new Date().toDateString() === d.date.toDateString()
-
+                        if (calendarView === 'day') {
+                          const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][currentDate.getDay()]
                           return (
-                            <div key={idx} className={`bg-white min-h-0 p-1 flex flex-col ${!d.currentMonth ? 'bg-gray-50 text-gray-400' : ''}`}>
-                              <div className={`text-xs font-medium mb-1 flex justify-between items-center shrink-0 ${isToday ? 'text-primary-600' : ''}`}>
-                                <span className={`w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-primary-100 font-bold' : ''}`}>
-                                  {d.day}
-                                </span>
-                              </div>
-                              
-                              <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar">
-                                {/* App Reservations */}
-                                {dayReservations.map(r => (
-                                  <div key={r.id} className="text-[10px] bg-primary-50 text-primary-700 p-1 rounded border-l-2 border-primary-500 truncate cursor-pointer hover:opacity-80"
-                                       onClick={() => openModifyModal(r)}>
-                                    <span className="font-bold">{new Date(r.start_time).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</span>
-                                    {' '}
-                                    {r.customer?.real_name || r.customer?.display_name || 'ゲスト'}
-                                  </div>
-                                ))}
-
-                                {/* Google Events */}
-                                {dayGoogleEvents.map(e => (
-                                  <div key={e.id} className="text-[10px] bg-gray-100 text-gray-600 p-1 rounded border-l-2 border-gray-400 truncate" title={e.summary}>
-                                    <span className="font-bold">
-                                      {e.start.dateTime 
-                                        ? new Date(e.start.dateTime).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})
-                                        : '終日'}
-                                    </span>
-                                    {' '}
-                                    {e.summary}
-                                  </div>
-                                ))}
-                              </div>
+                            <div className="py-2 text-center text-xs font-semibold text-gray-700">
+                              {currentDate.getDate()}日 ({dayOfWeek})
                             </div>
                           )
-                        })
+                        }
+                        
+                        // Week or Month view header
+                        const days = ['日', '月', '火', '水', '木', '金', '土']
+                        if (calendarView === 'week') {
+                          const startOfWeek = new Date(currentDate)
+                          startOfWeek.setDate(currentDate.getDate() - currentDate.getDay())
+                          return days.map((day, i) => {
+                            const d = new Date(startOfWeek)
+                            d.setDate(startOfWeek.getDate() + i)
+                            return (
+                              <div key={day} className={`py-2 text-center text-xs font-semibold ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-500'}`}>
+                                {d.getDate()} ({day})
+                              </div>
+                            )
+                          })
+                        }
+                        
+                        return days.map((day, i) => (
+                          <div key={day} className={`py-2 text-center text-xs font-semibold ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-500'}`}>
+                            {day}
+                          </div>
+                        ))
                       })()}
                     </div>
+
+                    {/* Calendar Body */}
+                    {calendarView === 'month' ? (
+                      <div className="flex-1 grid grid-cols-7 grid-rows-6 divide-x divide-y divide-gray-200 bg-gray-200 gap-px overflow-hidden">
+                        {(() => {
+                          const year = currentDate.getFullYear()
+                          const month = currentDate.getMonth()
+                          const firstDay = new Date(year, month, 1)
+                          const lastDay = new Date(year, month + 1, 0)
+                          const daysInMonth = lastDay.getDate()
+                          const startingDay = firstDay.getDay() // 0 = Sunday
+                          
+                          const days = []
+                          
+                          // Previous month padding
+                          const prevMonthLastDay = new Date(year, month, 0).getDate()
+                          for (let i = 0; i < startingDay; i++) {
+                            days.push({ day: prevMonthLastDay - startingDay + 1 + i, currentMonth: false, date: new Date(year, month - 1, prevMonthLastDay - startingDay + 1 + i) })
+                          }
+                          
+                          // Current month
+                          for (let i = 1; i <= daysInMonth; i++) {
+                            days.push({ day: i, currentMonth: true, date: new Date(year, month, i) })
+                          }
+                          
+                          // Next month padding
+                          const remainingCells = 42 - days.length // 6 rows * 7 cols
+                          for (let i = 1; i <= remainingCells; i++) {
+                            days.push({ day: i, currentMonth: false, date: new Date(year, month + 1, i) })
+                          }
+
+                          return days.map((d, idx) => {
+                            const dateStr = d.date.toISOString().split('T')[0]
+                            
+                            // Filter Reservations
+                            const dayReservations = reservations.filter(r => r.start_time.startsWith(dateStr))
+                            
+                            // Filter Google Events
+                            const dayGoogleEvents = googleEvents.filter(e => {
+                              const start = e.start.dateTime || e.start.date
+                              return start?.startsWith(dateStr)
+                            })
+
+                            const isToday = new Date().toDateString() === d.date.toDateString()
+
+                            return (
+                              <div key={idx} className={`bg-white min-h-0 p-1 flex flex-col ${!d.currentMonth ? 'bg-gray-50 text-gray-400' : ''}`}>
+                                <div className={`text-xs font-medium mb-1 flex justify-between items-center shrink-0 ${isToday ? 'text-primary-600' : ''}`}>
+                                  <span className={`w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-primary-100 font-bold' : ''}`}>
+                                    {d.day}
+                                  </span>
+                                </div>
+                                
+                                <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar">
+                                  {/* App Reservations */}
+                                  {dayReservations.map(r => (
+                                    <div key={r.id} className="text-[10px] bg-primary-50 text-primary-700 p-1 rounded border-l-2 border-primary-500 truncate cursor-pointer hover:opacity-80"
+                                         onClick={() => openModifyModal(r)}>
+                                      <span className="font-bold">{new Date(r.start_time).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</span>
+                                      {' '}
+                                      {r.customer?.real_name || r.customer?.display_name || 'ゲスト'}
+                                    </div>
+                                  ))}
+
+                                  {/* Google Events */}
+                                  {dayGoogleEvents.map(e => (
+                                    <div key={e.id} className="text-[10px] bg-gray-100 text-gray-600 p-1 rounded border-l-2 border-gray-400 truncate" title={e.summary}>
+                                      <span className="font-bold">
+                                        {e.start.dateTime 
+                                          ? new Date(e.start.dateTime).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})
+                                          : '終日'}
+                                      </span>
+                                      {' '}
+                                      {e.summary}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          })
+                        })()}
+                      </div>
+                    ) : (
+                      // Week / Day View (Time Grid)
+                      <div className="flex-1 overflow-y-auto relative bg-white">
+                        <div className="flex min-h-[1440px]"> {/* 24 hours * 60px */}
+                          {/* Time Labels */}
+                          <div className="w-12 flex-shrink-0 border-r border-gray-200 bg-gray-50">
+                            {[...Array(24)].map((_, i) => (
+                              <div key={i} className="h-[60px] text-[10px] text-gray-500 text-right pr-2 pt-1 border-b border-gray-100">
+                                {i}:00
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Grid Columns */}
+                          <div className={`flex-1 grid ${calendarView === 'day' ? 'grid-cols-1' : 'grid-cols-7'} divide-x divide-gray-200`}>
+                            {(() => {
+                              const days = []
+                              if (calendarView === 'day') {
+                                days.push(currentDate)
+                              } else {
+                                const startOfWeek = new Date(currentDate)
+                                startOfWeek.setDate(currentDate.getDate() - currentDate.getDay())
+                                for (let i = 0; i < 7; i++) {
+                                  const d = new Date(startOfWeek)
+                                  d.setDate(startOfWeek.getDate() + i)
+                                  days.push(d)
+                                }
+                              }
+
+                              return days.map((d, colIdx) => {
+                                const dateStr = d.toISOString().split('T')[0]
+                                
+                                // Filter Reservations
+                                const dayReservations = reservations.filter(r => r.start_time.startsWith(dateStr))
+                                
+                                // Filter Google Events
+                                const dayGoogleEvents = googleEvents.filter(e => {
+                                  const start = e.start.dateTime || e.start.date
+                                  return start?.startsWith(dateStr)
+                                })
+
+                                return (
+                                  <div key={colIdx} className="relative h-full">
+                                    {/* Hour Lines */}
+                                    {[...Array(24)].map((_, i) => (
+                                      <div key={i} className="h-[60px] border-b border-gray-100"></div>
+                                    ))}
+
+                                    {/* Events */}
+                                    {dayReservations.map(r => {
+                                      const start = new Date(r.start_time)
+                                      const end = new Date(r.end_time)
+                                      const startMinutes = start.getHours() * 60 + start.getMinutes()
+                                      const duration = (end.getTime() - start.getTime()) / (1000 * 60)
+                                      
+                                      return (
+                                        <div
+                                          key={r.id}
+                                          className="absolute left-1 right-1 bg-primary-100 border-l-4 border-primary-500 text-primary-800 text-xs p-1 rounded overflow-hidden cursor-pointer hover:opacity-90 z-10"
+                                          style={{
+                                            top: `${startMinutes}px`,
+                                            height: `${Math.max(duration, 20)}px`
+                                          }}
+                                          onClick={() => openModifyModal(r)}
+                                        >
+                                          <div className="font-bold">{start.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</div>
+                                          <div className="truncate">{r.customer?.real_name || 'ゲスト'}</div>
+                                        </div>
+                                      )
+                                    })}
+
+                                    {dayGoogleEvents.map(e => {
+                                      if (!e.start.dateTime) return null // Skip all-day events for now in time grid
+                                      
+                                      const start = new Date(e.start.dateTime)
+                                      const end = e.end.dateTime ? new Date(e.end.dateTime) : new Date(start.getTime() + 60 * 60 * 1000)
+                                      const startMinutes = start.getHours() * 60 + start.getMinutes()
+                                      const duration = (end.getTime() - start.getTime()) / (1000 * 60)
+
+                                      return (
+                                        <div
+                                          key={e.id}
+                                          className="absolute left-1 right-1 bg-gray-100 border-l-4 border-gray-400 text-gray-600 text-xs p-1 rounded overflow-hidden z-0 opacity-80"
+                                          style={{
+                                            top: `${startMinutes}px`,
+                                            height: `${Math.max(duration, 20)}px`
+                                          }}
+                                        >
+                                          <div className="font-bold">{start.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</div>
+                                          <div className="truncate">{e.summary}</div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )
+                              })
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

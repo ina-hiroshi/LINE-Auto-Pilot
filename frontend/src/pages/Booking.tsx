@@ -758,7 +758,7 @@ export default function Booking() {
                     {/* メニュー表示 */}
                     {(res as any).menu?.name && (
                       <div className="flex justify-between border-b border-current pb-2 border-opacity-20 mb-2">
-                        <span className="opacity-70">メニュー</span>
+                        <span className="opacity-70 whitespace-nowrap">メニュー</span>
                         <span className="font-bold text-right">
                           {(res as any).menu.name}
                           {(res as any).menu.price ? ` (¥${(res as any).menu.price.toLocaleString()})` : ''}
@@ -1142,7 +1142,10 @@ export default function Booking() {
                 {selectedMenu && (
                   <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
                     <span className="opacity-70">メニュー</span>
-                    <span className="font-bold text-right">{selectedMenu.name}</span>
+                    <span className="font-bold text-right">
+                      {selectedMenu.name}
+                      {selectedMenu.price ? ` (¥${selectedMenu.price.toLocaleString()})` : ''}
+                    </span>
                   </div>
                 )}
                 <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
