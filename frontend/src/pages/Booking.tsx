@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { Calendar, User, CheckCircle, Loader2, AlertCircle, Grid, Clock, ChevronLeft } from 'lucide-react'
+import { Calendar, User, CheckCircle, Loader2, AlertCircle, Grid, Clock } from 'lucide-react'
 import { motion } from 'framer-motion'
 import liff from '@line/liff'
 import LiffModal from '../components/liff/LiffModal'
