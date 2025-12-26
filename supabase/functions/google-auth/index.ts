@@ -33,17 +33,28 @@ serve(async (req) => {
 
     const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID')
     const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET')
-    const GOOGLE_REDIRECT_URI = Deno.env.get('GOOGLE_REDIRECT_URI')
+    // Default to env var, but allow override from request
+    let redirectUri = Deno.env.get('GOOGLE_REDIRECT_URI')
 
-    if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REDIRECT_URI) {
+    if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
       throw new Error('Missing Google OAuth credentials in Edge Function environment variables')
     }
 
     // GET: Generate Auth URL
     if (req.method === 'GET') {
+      const urlParams = new URL(req.url).searchParams
+      const clientRedirectUri = urlParams.get('redirect_uri')
+      if (clientRedirectUri) {
+        redirectUri = clientRedirectUri
+      }
+
+      if (!redirectUri) {
+        throw new Error('Missing redirect_uri')
+      }
+
       const params = new URLSearchParams({
         client_id: GOOGLE_CLIENT_ID,
-        redirect_uri: GOOGLE_REDIRECT_URI,
+        redirect_uri: redirectUri,
         response_type: 'code',
         scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
         access_type: 'offline',
@@ -60,10 +71,18 @@ serve(async (req) => {
 
     // POST: Exchange Code for Tokens
     if (req.method === 'POST') {
-      const { code } = await req.json()
+      const { code, redirect_uri: clientRedirectUri } = await req.json()
       
+      if (clientRedirectUri) {
+        redirectUri = clientRedirectUri
+      }
+
       if (!code) {
         throw new Error('No code provided')
+      }
+
+      if (!redirectUri) {
+        throw new Error('Missing redirect_uri')
       }
 
       // Exchange code for tokens
@@ -74,7 +93,7 @@ serve(async (req) => {
           code,
           client_id: GOOGLE_CLIENT_ID,
           client_secret: GOOGLE_CLIENT_SECRET,
-          redirect_uri: GOOGLE_REDIRECT_URI,
+          redirect_uri: redirectUri,
           grant_type: 'authorization_code',
         }),
       })

@@ -107,7 +107,10 @@ export default function Reservations() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-auth`, {
+      // Use current page as redirect URI
+      const redirectUri = window.location.origin + '/reservations'
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-auth?redirect_uri=${encodeURIComponent(redirectUri)}`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${session.access_token}`
@@ -133,13 +136,16 @@ export default function Reservations() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
 
+      // Use current page as redirect URI (must match the one used in GET)
+      const redirectUri = window.location.origin + '/reservations'
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-auth`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ code })
+        body: JSON.stringify({ code, redirect_uri: redirectUri })
       })
       
       const result = await response.json()
