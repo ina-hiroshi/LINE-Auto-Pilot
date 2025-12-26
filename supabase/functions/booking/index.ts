@@ -87,11 +87,10 @@ serve(async (req) => {
         .neq('status', 'cancelled')
         .gte('start_time', now)
         .order('start_time', { ascending: true })
-        .limit(1)
-        .maybeSingle()
+        // .limit(1) // 複数予約に対応するためlimitを削除
 
       if (error) throw error
-      return new Response(JSON.stringify({ reservation: data }), {
+      return new Response(JSON.stringify({ reservations: data }), { // reservation -> reservations (Array)
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }

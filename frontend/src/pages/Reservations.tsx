@@ -196,6 +196,7 @@ export default function Reservations() {
         .from('reservations')
         .select('*')
         .eq('store_id', storeId)
+        .neq('status', 'cancelled') // キャンセル済みを除外
         .order('start_time', { ascending: true })
 
       if (resError) throw resError

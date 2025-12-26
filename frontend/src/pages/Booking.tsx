@@ -15,7 +15,7 @@ export default function Booking() {
   const [slots, setSlots] = useState<{ time: string; available: boolean }[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [activeReservation, setActiveReservation] = useState<any>(null)
+  const [activeReservations, setActiveReservations] = useState<any[]>([])
   
   // User Data
   const [lineUserId, setLineUserId] = useState('')
@@ -240,8 +240,8 @@ export default function Booking() {
       
       if (error) throw error
       
-      if (data?.reservation) {
-        setActiveReservation(data.reservation)
+      if (data?.reservations && data.reservations.length > 0) {
+        setActiveReservations(data.reservations)
         setStep('existing_reservation')
       } else {
         setStep('date')
@@ -252,24 +252,27 @@ export default function Booking() {
     }
   }
 
-  const handleCancelReservation = async () => {
-    if (!activeReservation) return
-    if (!confirm('現在の予約をキャンセルしますか？')) return
+  const handleCancelReservation = async (reservationId: string) => {
+    if (!confirm('この予約をキャンセルしますか？')) return
 
     setLoading(true)
     try {
       const { error } = await supabase.functions.invoke('booking', {
         body: {
           action: 'cancel_reservation',
-          reservation_id: activeReservation.id
+          reservation_id: reservationId
         }
       })
 
       if (error) throw error
 
-      setActiveReservation(null)
+      const updated = activeReservations.filter(r => r.id !== reservationId)
+      setActiveReservations(updated)
       alert('予約をキャンセルしました。')
-      setStep('date')
+      
+      if (updated.length === 0) {
+        setStep('date')
+      }
     } catch (e) {
       console.error('Failed to cancel reservation:', e)
       alert('キャンセルに失敗しました。')
@@ -481,42 +484,44 @@ export default function Booking() {
             </div>
           )}
 
-          {step === 'existing_reservation' && activeReservation && (
+          {step === 'existing_reservation' && activeReservations.length > 0 && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
               <h2 className={theme.title} style={theme.titleStyle}>
                 <CheckCircle color={theme.iconColor} /> 現在の予約
               </h2>
 
-              <div className={`${theme.infoBox} space-y-3 mb-6`}>
-                <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
-                  <span className="opacity-70">日時</span>
-                  <span className="font-bold">
-                    {new Date(activeReservation.start_time).toLocaleDateString('ja-JP')} {new Date(activeReservation.start_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="opacity-70">ステータス</span>
-                  <span className="font-bold text-green-600">予約確定</span>
-                </div>
+              <div className="space-y-4 mb-6">
+                {activeReservations.map((res) => (
+                  <div key={res.id} className={`${theme.infoBox} relative`}>
+                    <div className="flex justify-between border-b border-current pb-2 border-opacity-20 mb-2">
+                      <span className="opacity-70">日時</span>
+                      <span className="font-bold">
+                        {new Date(res.start_time).toLocaleDateString('ja-JP')} {new Date(res.start_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="opacity-70 text-xs block">ステータス</span>
+                        <span className="font-bold text-green-600">予約確定</span>
+                      </div>
+                      <button 
+                        onClick={() => handleCancelReservation(res.id)}
+                        className="text-xs text-red-500 underline hover:text-red-700"
+                      >
+                        キャンセル
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div className="flex flex-col gap-3 mt-8">
                 <button 
-                  onClick={() => {
-                    if (confirm('予約を変更するには、現在の予約をキャンセルして再予約する必要があります。よろしいですか？')) {
-                      handleCancelReservation()
-                    }
-                  }}
+                  onClick={() => setStep('date')}
                   className={theme.buttonPrimary}
                   style={theme.primaryStyle}
                 >
-                  予約を変更する
-                </button>
-                <button 
-                  onClick={handleCancelReservation}
-                  className={theme.buttonSecondary}
-                >
-                  予約をキャンセルする
+                  新しい予約を追加する
                 </button>
               </div>
             </motion.div>
