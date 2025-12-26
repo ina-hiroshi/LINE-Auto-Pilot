@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Calendar, Clock, User, CheckCircle, AlertCircle, Loader2, RefreshCw, Lock, Edit2, XCircle } from 'lucide-react'
+import { Calendar, Clock, User, CheckCircle, AlertCircle, Loader2, RefreshCw, Lock, Edit2, XCircle, FileText, MessageSquare } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import Toast from '../components/Toast'
 import Modal from '../components/Modal'
@@ -68,17 +68,19 @@ export default function Reservations() {
   const [calendarLoading, setCalendarLoading] = useState(false)
   const [googleEvents, setGoogleEvents] = useState<GoogleEvent[]>([])
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [calendarView, setCalendarView] = useState<'month' | 'week' | 'day'>('month')
+  const [calendarView, setCalendarView] = useState<'month' | 'week' | 'day'>('day')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   // Modal State
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
   const [isModifyModalOpen, setIsModifyModalOpen] = useState(false)
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
   const [modifyDate, setModifyDate] = useState('')
   const [modifyTime, setModifyTime] = useState('')
   const [modifyStaffId, setModifyStaffId] = useState<string>('')
   const [modifyMenuId, setModifyMenuId] = useState<string>('')
+  const [modifyMemo, setModifyMemo] = useState<string>('')
   const [staffList, setStaffList] = useState<Staff[]>([])
   const [menuList, setMenuList] = useState<Menu[]>([])
   const [actionLoading, setActionLoading] = useState(false)
@@ -160,6 +162,8 @@ export default function Reservations() {
     if (settings) {
       setIsGoogleConnected(true)
       setSelectedCalendarId(settings.calendar_id)
+      // Fetch calendars to populate the dropdown
+      fetchCalendars()
     }
   }
 
@@ -430,7 +434,8 @@ export default function Reservations() {
           date: modifyDate,
           time: modifyTime,
           staff_id: modifyStaffId || null,
-          menu_id: modifyMenuId || null
+          menu_id: modifyMenuId || null,
+          memo: modifyMemo
         }
       })
       if (error) throw error
@@ -445,8 +450,14 @@ export default function Reservations() {
     }
   }
 
+  const openDetailModal = (reservation: Reservation) => {
+    setSelectedReservation(reservation)
+    setIsDetailModalOpen(true)
+  }
+
   const openModifyModal = (reservation: Reservation) => {
     setSelectedReservation(reservation)
+    setIsDetailModalOpen(false) // Close detail modal if open
     const d = new Date(reservation.start_time)
     const year = d.getFullYear()
     const month = String(d.getMonth() + 1).padStart(2, '0')
@@ -458,6 +469,7 @@ export default function Reservations() {
     setModifyTime(`${hour}:${minute}`)
     setModifyStaffId(reservation.staff_id || '')
     setModifyMenuId(reservation.menu_id || '')
+    setModifyMemo(reservation.memo || '')
     setIsModifyModalOpen(true)
   }
 
@@ -507,7 +519,10 @@ export default function Reservations() {
                     const endTime = new Date(reservation.end_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
 
                     return (
-                      <div key={reservation.id} className="p-2 hover:bg-gray-50 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                      <div key={reservation.id} 
+                           className="p-2 hover:bg-gray-50 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 cursor-pointer"
+                           onClick={() => openDetailModal(reservation)}
+                      >
                         <div className="flex items-start sm:items-center gap-2 w-full">
                           <div className="flex flex-col items-center justify-center w-14 h-14 bg-primary-50 rounded-lg text-primary-700 shrink-0">
                             <span className="text-[10px] font-bold uppercase leading-none">{month}月</span>
@@ -583,14 +598,18 @@ export default function Reservations() {
                         </div>
                         <div className="flex flex-row gap-2 w-full sm:w-auto mt-1 sm:mt-0 items-center">
                           <button 
-                            onClick={() => openModifyModal(reservation)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openDetailModal(reservation)
+                            }}
                             className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-full transition"
-                            title="変更"
+                            title="詳細・変更"
                           >
                             <Edit2 size={18} />
                           </button>
                           <button 
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation()
                               setSelectedReservation(reservation)
                               setIsCancelModalOpen(true)
                             }}
@@ -736,6 +755,7 @@ export default function Reservations() {
                         onClick={handleSaveCalendarSettings}
                         disabled={calendarLoading}
                         className="text-sm text-primary-600 hover:text-primary-700 font-medium whitespace-nowrap"
+                        title="選択したカレンダーをデフォルトとして保存します"
                       >
                         保存
                       </button>
@@ -883,15 +903,21 @@ export default function Reservations() {
                           }
 
                           return days.map((d, idx) => {
-                            const dateStr = d.date.toISOString().split('T')[0]
-                            
+                            // Helper to check if dates are on the same day (Local Time)
+                            const isSameDay = (date1: Date, date2: Date) => {
+                              return date1.getFullYear() === date2.getFullYear() &&
+                                     date1.getMonth() === date2.getMonth() &&
+                                     date1.getDate() === date2.getDate()
+                            }
+
                             // Filter Reservations
-                            const dayReservations = reservations.filter(r => r.start_time.startsWith(dateStr))
+                            const dayReservations = reservations.filter(r => isSameDay(new Date(r.start_time), d.date))
                             
                             // Filter Google Events
                             const dayGoogleEvents = googleEvents.filter(e => {
-                              const start = e.start.dateTime || e.start.date
-                              return start?.startsWith(dateStr)
+                              if (!e.start.dateTime && !e.start.date) return false
+                              const start = new Date(e.start.dateTime || e.start.date!)
+                              return isSameDay(start, d.date)
                             })
 
                             const isToday = new Date().toDateString() === d.date.toDateString()
@@ -907,11 +933,18 @@ export default function Reservations() {
                                 <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar">
                                   {/* App Reservations */}
                                   {dayReservations.map(r => (
-                                    <div key={r.id} className="text-[10px] bg-primary-50 text-primary-700 p-1 rounded border-l-2 border-primary-500 truncate cursor-pointer hover:opacity-80"
-                                         onClick={() => openModifyModal(r)}>
-                                      <span className="font-bold">{new Date(r.start_time).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</span>
-                                      {' '}
-                                      {r.customer?.real_name || r.customer?.display_name || 'ゲスト'}
+                                    <div key={r.id} className="text-[10px] bg-primary-50 text-primary-700 p-1 rounded border-l-2 border-primary-500 truncate cursor-pointer hover:opacity-80 flex flex-col gap-0.5 leading-tight"
+                                         onClick={() => openDetailModal(r)}>
+                                      <div>
+                                        <span className="font-bold">{new Date(r.start_time).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</span>
+                                        {' '}
+                                        {r.customer?.real_name || r.customer?.display_name || 'ゲスト'}
+                                      </div>
+                                      {(r.menu?.name || r.staff?.name) && (
+                                        <div className="text-[9px] opacity-80 truncate">
+                                          {r.menu?.name} {r.staff?.name && `(${r.staff.name})`}
+                                        </div>
+                                      )}
                                     </div>
                                   ))}
 
@@ -963,15 +996,21 @@ export default function Reservations() {
                               }
 
                               return days.map((d, colIdx) => {
-                                const dateStr = d.toISOString().split('T')[0]
-                                
+                                // Helper to check if dates are on the same day (Local Time)
+                                const isSameDay = (date1: Date, date2: Date) => {
+                                  return date1.getFullYear() === date2.getFullYear() &&
+                                         date1.getMonth() === date2.getMonth() &&
+                                         date1.getDate() === date2.getDate()
+                                }
+
                                 // Filter Reservations
-                                const dayReservations = reservations.filter(r => r.start_time.startsWith(dateStr))
+                                const dayReservations = reservations.filter(r => isSameDay(new Date(r.start_time), d))
                                 
                                 // Filter Google Events
                                 const dayGoogleEvents = googleEvents.filter(e => {
-                                  const start = e.start.dateTime || e.start.date
-                                  return start?.startsWith(dateStr)
+                                  if (!e.start.dateTime && !e.start.date) return false
+                                  const start = new Date(e.start.dateTime || e.start.date!)
+                                  return isSameDay(start, d)
                                 })
 
                                 return (
@@ -991,15 +1030,23 @@ export default function Reservations() {
                                       return (
                                         <div
                                           key={r.id}
-                                          className="absolute left-1 right-1 bg-primary-100 border-l-4 border-primary-500 text-primary-800 text-xs p-1 rounded overflow-hidden cursor-pointer hover:opacity-90 z-10"
+                                          className="absolute left-1 right-1 bg-primary-100 border-l-4 border-primary-500 text-primary-800 text-xs p-1 rounded overflow-hidden cursor-pointer hover:opacity-90 z-10 flex flex-col"
                                           style={{
                                             top: `${startMinutes}px`,
                                             height: `${Math.max(duration, 20)}px`
                                           }}
-                                          onClick={() => openModifyModal(r)}
+                                          onClick={() => openDetailModal(r)}
                                         >
-                                          <div className="font-bold">{start.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</div>
-                                          <div className="truncate">{r.customer?.real_name || 'ゲスト'}</div>
+                                          <div className="flex items-center gap-1 font-bold text-[10px] leading-tight">
+                                            <span>{start.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</span>
+                                            <span className="truncate">{r.customer?.real_name || r.customer?.display_name || 'ゲスト'}</span>
+                                          </div>
+                                          {duration > 30 && (
+                                            <>
+                                              {r.menu?.name && <div className="truncate text-[10px] opacity-90 mt-0.5">{r.menu.name}</div>}
+                                              {r.staff?.name && <div className="truncate text-[10px] opacity-80">担当: {r.staff.name}</div>}
+                                            </>
+                                          )}
                                         </div>
                                       )
                                     })}
@@ -1059,6 +1106,103 @@ export default function Reservations() {
           onClose={() => setToast(null)}
         />
       )}
+
+      <Modal
+        isOpen={isDetailModalOpen}
+        onClose={() => setIsDetailModalOpen(false)}
+        onConfirm={() => selectedReservation && openModifyModal(selectedReservation)}
+        title="予約詳細"
+        confirmText="変更する"
+        cancelText="閉じる"
+        footerContent={
+          <button
+            onClick={() => {
+              setIsDetailModalOpen(false)
+              setIsCancelModalOpen(true)
+            }}
+            className="text-red-600 hover:text-red-700 text-sm font-medium flex items-center gap-1 px-2 py-1 rounded hover:bg-red-50 transition"
+          >
+            <XCircle size={16} />
+            予約をキャンセル
+          </button>
+        }
+      >
+        {selectedReservation && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-4">
+                 <div className="w-16 h-16 rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+                    {selectedReservation.customer?.profile_picture_url ? (
+                      <img src={selectedReservation.customer.profile_picture_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <User size={32} className="text-gray-400" />
+                    )}
+                 </div>
+                 <div>
+                   <div className="text-lg font-bold text-gray-900">
+                     {selectedReservation.customer?.real_name || selectedReservation.customer?.display_name || 'ゲスト'}
+                   </div>
+                   {selectedReservation.customer?.furigana && (
+                     <div className="text-sm text-gray-500">{selectedReservation.customer.furigana}</div>
+                   )}
+                   <div className="text-xs text-gray-400 mt-1">LINE名: {selectedReservation.customer?.display_name || '-'}</div>
+                 </div>
+              </div>
+              <span className={`px-2 py-1 text-xs font-bold rounded-full ${
+                selectedReservation.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+              }`}>
+                {selectedReservation.status === 'cancelled' ? 'キャンセル' : (selectedReservation.memo === 'Web予約' ? 'LINE予約' : selectedReservation.memo || 'LINE予約')}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 text-sm">
+              <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                <Clock className="w-5 h-5 text-primary-500 mt-0.5" />
+                <div>
+                  <div className="font-bold text-gray-700 text-xs mb-1">日時</div>
+                  <div className="text-gray-900 font-medium">
+                    {new Date(selectedReservation.start_time).toLocaleDateString('ja-JP', {year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'})}
+                  </div>
+                  <div className="text-xl font-bold text-primary-600 mt-0.5">
+                    {new Date(selectedReservation.start_time).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}
+                    {' - '}
+                    {new Date(selectedReservation.end_time).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                <User className="w-5 h-5 text-gray-400" />
+                <div>
+                  <div className="font-bold text-gray-700 text-xs mb-1">担当スタッフ</div>
+                  <div className="text-gray-900 font-medium">{selectedReservation.staff?.name || '指定なし'}</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                <FileText className="w-5 h-5 text-gray-400" />
+                <div>
+                  <div className="font-bold text-gray-700 text-xs mb-1">メニュー</div>
+                  <div className="text-gray-900 font-medium">
+                    {selectedReservation.menu?.name || '指定なし'}
+                    {selectedReservation.menu && (selectedReservation.menu as any).price && ` (¥${(selectedReservation.menu as any).price.toLocaleString()})`}
+                  </div>
+                </div>
+              </div>
+              
+              {selectedReservation.memo && selectedReservation.memo !== 'Web予約' && selectedReservation.memo !== 'LINE予約' && (
+                <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                  <MessageSquare className="w-5 h-5 text-gray-400 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-gray-700 text-xs mb-1">メモ</div>
+                    <div className="text-gray-900 whitespace-pre-wrap">{selectedReservation.memo}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         isOpen={isCancelModalOpen}
@@ -1133,6 +1277,16 @@ export default function Reservations() {
               </select>
             </div>
           )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">メモ</label>
+            <textarea
+              value={modifyMemo}
+              onChange={(e) => setModifyMemo(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 min-h-[100px]"
+              placeholder="予約に関するメモを入力してください"
+            />
+          </div>
         </div>
       </Modal>
     </div>
