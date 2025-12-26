@@ -1,15 +1,36 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { Calendar, User, CheckCircle, Loader2, AlertCircle } from 'lucide-react'
+import { Calendar, User, CheckCircle, Loader2, AlertCircle, Grid, Clock, ChevronLeft } from 'lucide-react'
 import { motion } from 'framer-motion'
 import liff from '@line/liff'
 import LiffModal from '../components/liff/LiffModal'
 import LiffToast from '../components/liff/LiffToast'
 
+interface Staff {
+  id: string
+  name: string
+  role?: string
+  image_url?: string
+}
+
+interface Menu {
+  id: string
+  name: string
+  description?: string
+  price?: number
+  duration_minutes?: number
+}
+
 export default function Booking() {
-  const [step, setStep] = useState<'loading' | 'error' | 'date' | 'info' | 'confirm' | 'complete' | 'existing_reservation'>('loading')
+  const [step, setStep] = useState<'loading' | 'error' | 'staff_select' | 'menu_select' | 'date' | 'info' | 'confirm' | 'complete' | 'existing_reservation'>('loading')
   const [errorMsg, setErrorMsg] = useState('')
   const [checkingUser, setCheckingUser] = useState(false)
+  
+  // Salon/Restaurant Data
+  const [staffList, setStaffList] = useState<Staff[]>([])
+  const [menuList, setMenuList] = useState<Menu[]>([])
+  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null)
+  const [selectedMenu, setSelectedMenu] = useState<Menu | null>(null)
   
   // UI State
   const [modalConfig, setModalConfig] = useState<{
@@ -80,7 +101,8 @@ export default function Booking() {
   const [storeSettings, setStoreSettings] = useState({
     liff_template_id: 'simple',
     liff_theme_color: '#00c3dc',
-    liff_logo_url: ''
+    liff_logo_url: '',
+    booking_system_type: 'generic'
   })
 
   useEffect(() => {
@@ -187,32 +209,39 @@ export default function Booking() {
 
     if (!targetStoreId) {
         // Fallback: Get first store
-        const { data } = await supabase.from('stores').select('id, name, liff_template_id, liff_theme_color, liff_logo_url').limit(1).maybeSingle()
+        const { data } = await supabase.from('stores').select('id, name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type').limit(1).maybeSingle()
         targetStoreId = data?.id
         if (data) {
           if (data.name) document.title = data.name
           setStoreSettings({
             liff_template_id: data.liff_template_id || 'simple',
             liff_theme_color: data.liff_theme_color || '#00c3dc',
-            liff_logo_url: data.liff_logo_url || ''
+            liff_logo_url: data.liff_logo_url || '',
+            booking_system_type: data.booking_system_type || 'generic'
           })
         }
     } else {
         // Fetch specific store settings
-        const { data } = await supabase.from('stores').select('name, liff_template_id, liff_theme_color, liff_logo_url').eq('id', targetStoreId).maybeSingle()
+        const { data } = await supabase.from('stores').select('name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type').eq('id', targetStoreId).maybeSingle()
         if (data) {
           if (data.name) document.title = data.name
           setStoreSettings({
             liff_template_id: data.liff_template_id || 'simple',
             liff_theme_color: data.liff_theme_color || '#00c3dc',
-            liff_logo_url: data.liff_logo_url || ''
+            liff_logo_url: data.liff_logo_url || '',
+            booking_system_type: data.booking_system_type || 'generic'
           })
         }
     }
 
     if (targetStoreId) {
         setStoreId(targetStoreId)
-        // setStep('date') // Removed: Wait for checkReservation to decide step
+        // Fetch Staff & Menus if needed
+        const { data: staff } = await supabase.from('staff_members').select('*').eq('store_id', targetStoreId).eq('is_active', true).order('created_at')
+        if (staff) setStaffList(staff)
+
+        const { data: menus } = await supabase.from('booking_menus').select('*').eq('store_id', targetStoreId).eq('is_active', true).order('created_at')
+        if (menus) setMenuList(menus)
     } else {
         setStep('error')
         setErrorMsg('店舗情報が見つかりませんでした。')
@@ -236,11 +265,33 @@ export default function Booking() {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'UPDATE_SETTINGS' && event.data?.settings) {
-        console.log('Received settings update:', event.data.settings)
-        setStoreSettings(prev => ({
-          ...prev,
-          ...event.data.settings
-        }))
+        console.log('Received settings update:', event.data)
+        
+        const newSettings = event.data.settings
+        
+        setStoreSettings(prev => {
+          // Check if booking system type changed
+          if (prev.booking_system_type !== newSettings.booking_system_type) {
+            // Reset step based on new type
+            setTimeout(() => {
+              if (newSettings.booking_system_type === 'salon') {
+                setStep('staff_select')
+              } else if (newSettings.booking_system_type === 'restaurant') {
+                setStep('menu_select')
+              } else {
+                setStep('date')
+              }
+              // Reset selections
+              setSelectedStaff(null)
+              setSelectedMenu(null)
+            }, 0)
+          }
+          return { ...prev, ...newSettings }
+        })
+
+        // Update Staff & Menu Lists
+        if (event.data.staffList) setStaffList(event.data.staffList)
+        if (event.data.menuList) setMenuList(event.data.menuList)
       }
     }
 
@@ -294,11 +345,25 @@ export default function Booking() {
         setActiveReservations(data.reservations)
         setStep('existing_reservation')
       } else {
-        setStep('date')
+        // Determine initial step based on booking system type
+        if (storeSettings.booking_system_type === 'salon') {
+          setStep('staff_select')
+        } else if (storeSettings.booking_system_type === 'restaurant') {
+          setStep('menu_select')
+        } else {
+          setStep('date')
+        }
       }
     } catch (e) {
       console.error('Failed to check reservation:', e)
-      setStep('date') // Fallback
+      // Fallback
+      if (storeSettings.booking_system_type === 'salon') {
+        setStep('staff_select')
+      } else if (storeSettings.booking_system_type === 'restaurant') {
+        setStep('menu_select')
+      } else {
+        setStep('date')
+      }
     }
   }
 
@@ -340,7 +405,13 @@ export default function Booking() {
 
   const handleModifyStart = (reservationId: string) => {
     setModifyingReservationId(reservationId)
-    setStep('date')
+    if (storeSettings.booking_system_type === 'salon') {
+      setStep('staff_select')
+    } else if (storeSettings.booking_system_type === 'restaurant') {
+      setStep('menu_select')
+    } else {
+      setStep('date')
+    }
   }
 
   const handleSubmit = async () => {
@@ -386,6 +457,8 @@ export default function Booking() {
           furigana: furigana,
           date,
           time,
+          staff_id: selectedStaff?.id,
+          menu_id: selectedMenu?.id,
           reservation_id: modifyingReservationId // Only used if action is update_reservation
         }
       })
@@ -636,6 +709,130 @@ export default function Booking() {
             </motion.div>
           )}
 
+          {step === 'staff_select' && (
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+              <h2 className={theme.title} style={theme.titleStyle}>
+                <User color={theme.iconColor} /> スタッフ選択
+              </h2>
+              
+              <div className="space-y-4 mt-6">
+                {staffList.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                    スタッフが登録されていません
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    {staffList.map((staff) => (
+                      <button
+                        key={staff.id}
+                        onClick={() => {
+                          setSelectedStaff(staff)
+                          setStep('menu_select')
+                        }}
+                        className={`
+                          p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
+                          ${selectedStaff?.id === staff.id 
+                            ? 'border-current bg-opacity-10' 
+                            : 'border-gray-100 bg-white hover:border-gray-200'}
+                        `}
+                        style={selectedStaff?.id === staff.id ? { borderColor: storeSettings.liff_theme_color, backgroundColor: `${storeSettings.liff_theme_color}10` } : {}}
+                      >
+                        <div className="w-16 h-16 rounded-full bg-gray-100 overflow-hidden flex items-center justify-center">
+                          {staff.image_url ? (
+                            <img src={staff.image_url} alt={staff.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="text-gray-400" size={32} />
+                          )}
+                        </div>
+                        <div className="text-center">
+                          <div className="font-bold text-gray-800 text-sm">{staff.name}</div>
+                          {staff.role && <div className="text-xs text-gray-500 mt-1">{staff.role}</div>}
+                        </div>
+                      </button>
+                    ))}
+                    {/* "指名なし" Option */}
+                    <button
+                      onClick={() => {
+                        setSelectedStaff(null)
+                        setStep('menu_select')
+                      }}
+                      className="p-4 rounded-xl border-2 border-gray-100 bg-white hover:border-gray-200 transition-all flex flex-col items-center justify-center gap-3"
+                    >
+                      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+                        <User className="text-gray-400" size={32} />
+                      </div>
+                      <div className="font-bold text-gray-800 text-sm">指名なし</div>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {step === 'menu_select' && (
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+              <h2 className={theme.title} style={theme.titleStyle}>
+                <Grid color={theme.iconColor} /> {storeSettings.booking_system_type === 'restaurant' ? 'コース選択' : 'メニュー選択'}
+              </h2>
+              
+              <div className="space-y-4 mt-6">
+                {menuList.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                    メニューが登録されていません
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {menuList.map((menu) => (
+                      <button
+                        key={menu.id}
+                        onClick={() => {
+                          setSelectedMenu(menu)
+                          setStep('date')
+                        }}
+                        className={`
+                          w-full p-4 rounded-xl border-2 transition-all text-left flex justify-between items-center
+                          ${selectedMenu?.id === menu.id 
+                            ? 'border-current bg-opacity-10' 
+                            : 'border-gray-100 bg-white hover:border-gray-200'}
+                        `}
+                        style={selectedMenu?.id === menu.id ? { borderColor: storeSettings.liff_theme_color, backgroundColor: `${storeSettings.liff_theme_color}10` } : {}}
+                      >
+                        <div>
+                          <div className="font-bold text-gray-800">{menu.name}</div>
+                          {menu.description && <div className="text-xs text-gray-500 mt-1 line-clamp-2">{menu.description}</div>}
+                          <div className="text-xs text-gray-500 mt-2 flex gap-3">
+                            {menu.duration_minutes && <span className="flex items-center gap-1"><Clock size={12} /> {menu.duration_minutes}分</span>}
+                            {menu.price && <span>¥{menu.price.toLocaleString()}</span>}
+                          </div>
+                        </div>
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedMenu?.id === menu.id ? 'border-current' : 'border-gray-300'}`}
+                             style={selectedMenu?.id === menu.id ? { borderColor: storeSettings.liff_theme_color } : {}}>
+                          {selectedMenu?.id === menu.id && <div className="w-3 h-3 rounded-full bg-current" style={{ backgroundColor: storeSettings.liff_theme_color }} />}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 mt-8">
+                <button 
+                  onClick={() => {
+                    if (storeSettings.booking_system_type === 'salon') {
+                      setStep('staff_select')
+                    } else {
+                      // For restaurant, maybe go back to something else? Or just disable back if it's the first step
+                      // Actually restaurant starts at menu_select, so no back button needed unless we have a home screen
+                    }
+                  }}
+                  className={`${theme.buttonSecondary} ${storeSettings.booking_system_type === 'restaurant' ? 'hidden' : ''}`}
+                >
+                  戻る
+                </button>
+              </div>
+            </motion.div>
+          )}
+
           {step === 'date' && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
               {pictureUrl && (
@@ -646,6 +843,30 @@ export default function Booking() {
               <h2 className={theme.title} style={theme.titleStyle}>
                 <Calendar color={theme.iconColor} /> {modifyingReservationId ? '予約日時の変更' : '日時を選択'}
               </h2>
+              
+              {/* Selected Info Summary */}
+              {(selectedStaff || selectedMenu) && (
+                <div className="mb-6 p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm space-y-1">
+                  {selectedStaff && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">指名スタッフ:</span>
+                      <span className="font-bold">{selectedStaff.name}</span>
+                    </div>
+                  )}
+                  {selectedMenu && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">メニュー:</span>
+                      <span className="font-bold">{selectedMenu.name}</span>
+                    </div>
+                  )}
+                  <button 
+                    onClick={() => setStep(storeSettings.booking_system_type === 'salon' ? 'staff_select' : 'menu_select')}
+                    className="text-xs text-blue-500 underline w-full text-right mt-2"
+                  >
+                    選択し直す
+                  </button>
+                </div>
+              )}
               
               {modifyingReservationId && (
                 <div className="mb-4 p-3 bg-blue-50 text-blue-700 text-sm rounded-lg border border-blue-100">
@@ -708,16 +929,26 @@ export default function Booking() {
                 </div>
               </div>
 
-              <button 
-                onClick={() => {
-                  if (date && time) setStep('info')
-                }}
-                disabled={!date || !time}
-                className={`${theme.buttonPrimary} mt-8 disabled:opacity-50 disabled:cursor-not-allowed`}
-                style={theme.primaryStyle}
-              >
-                次へ進む
-              </button>
+              <div className="flex gap-3 mt-8">
+                {(storeSettings.booking_system_type === 'salon' || storeSettings.booking_system_type === 'restaurant') && (
+                  <button 
+                    onClick={() => setStep('menu_select')}
+                    className={theme.buttonSecondary}
+                  >
+                    戻る
+                  </button>
+                )}
+                <button 
+                  onClick={() => {
+                    if (date && time) setStep('info')
+                  }}
+                  disabled={!date || !time}
+                  className={`${theme.buttonPrimary} disabled:opacity-50 disabled:cursor-not-allowed`}
+                  style={theme.primaryStyle}
+                >
+                  次へ進む
+                </button>
+              </div>
             </motion.div>
           )}
 
@@ -801,6 +1032,18 @@ export default function Booking() {
                   <span className="opacity-70">日時</span>
                   <span className="font-bold">{date} {time}</span>
                 </div>
+                {selectedStaff && (
+                  <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
+                    <span className="opacity-70">指名スタッフ</span>
+                    <span className="font-bold">{selectedStaff.name}</span>
+                  </div>
+                )}
+                {selectedMenu && (
+                  <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
+                    <span className="opacity-70">メニュー</span>
+                    <span className="font-bold">{selectedMenu.name}</span>
+                  </div>
+                )}
                 <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
                   <span className="opacity-70">お名前</span>
                   <span className="font-bold">{realName}</span>

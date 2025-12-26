@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { supabase } from '../lib/supabase'
-import { Save, Lock, User, Store as StoreIcon, MessageSquare, Loader2, ExternalLink, Smartphone, Palette, Image as ImageIcon, Grid, MousePointerClick, Calendar, Layout, Instagram, Globe, MapPin, Phone, Ticket, CreditCard, Twitter, Facebook, Youtube, Mail } from 'lucide-react'
+import { Save, Lock, User, Store as StoreIcon, MessageSquare, Loader2, ExternalLink, Smartphone, Palette, Image as ImageIcon, Grid, MousePointerClick, Calendar, Layout, Instagram, Globe, MapPin, Phone, Ticket, CreditCard, Twitter, Facebook, Youtube, Mail, Edit, Trash2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Toast from '../components/Toast'
+import Modal from '../components/Modal'
 
 // Icon mapping for selection
 const AVAILABLE_ICONS = [
@@ -29,6 +30,23 @@ const RICH_MENU_LAYOUTS = [
   { id: 'compact_2', name: 'コンパクト (2列)', type: 'compact', slots: 2, grid: 'grid-cols-2 grid-rows-1' },
   { id: 'compact_3', name: 'コンパクト (3列)', type: 'compact', slots: 3, grid: 'grid-cols-3 grid-rows-1' },
 ]
+
+interface Staff {
+  id: string
+  name: string
+  role?: string
+  image_url?: string
+  is_active: boolean
+}
+
+interface Menu {
+  id: string
+  name: string
+  description?: string
+  price?: number
+  duration_minutes?: number
+  is_active: boolean
+}
 
 export default function LineSettings() {
   const location = useLocation()
@@ -69,8 +87,23 @@ export default function LineSettings() {
   const [bookingSettings, setBookingSettings] = useState({
     liff_template_id: 'simple',
     liff_theme_color: '#00c3dc',
-    liff_logo_url: ''
+    liff_logo_url: '',
+    booking_system_type: 'generic'
   })
+
+  // Salon Data State
+  const [staffList, setStaffList] = useState<Staff[]>([])
+  const [menuList, setMenuList] = useState<Menu[]>([])
+
+  // Modal State
+  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false)
+  const [isMenuModalOpen, setIsMenuModalOpen] = useState(false)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [deletingItem, setDeletingItem] = useState<{ type: 'staff' | 'menu', id: string, name: string } | null>(null)
+  const [staffFormData, setStaffFormData] = useState({ name: '', role: '', image_url: '' })
+  const [menuFormData, setMenuFormData] = useState({ name: '', description: '', price: 0, duration_minutes: 60 })
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null)
+  const [editingMenuId, setEditingMenuId] = useState<string | null>(null)
 
   // Rich Menu Settings State
   const [richMenuSettings, setRichMenuSettings] = useState({
@@ -102,10 +135,12 @@ export default function LineSettings() {
     if (activeTab === 'booking_page' && iframeRef.current?.contentWindow) {
       iframeRef.current.contentWindow.postMessage({
         type: 'UPDATE_SETTINGS',
-        settings: bookingSettings
+        settings: bookingSettings,
+        staffList,
+        menuList
       }, '*')
     }
-  }, [bookingSettings, activeTab])
+  }, [bookingSettings, activeTab, staffList, menuList])
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -234,7 +269,8 @@ export default function LineSettings() {
         setBookingSettings({
           liff_template_id: store.liff_template_id || 'simple',
           liff_theme_color: store.liff_theme_color || '#00c3dc',
-          liff_logo_url: store.liff_logo_url || ''
+          liff_logo_url: store.liff_logo_url || '',
+          booking_system_type: store.booking_system_type || 'generic'
         })
         // Load Rich Menu Settings (Mock for now, assuming stored in JSON or separate columns)
         // In real implementation, parse store.rich_menu_custom_json
@@ -244,6 +280,23 @@ export default function LineSettings() {
             custom_image_url: store.rich_menu_custom_image_url || '',
             actions: store.rich_menu_actions || {}
         })
+
+        // Fetch Staff & Menus
+        const { data: staff } = await supabase
+          .from('staff_members')
+          .select('*')
+          .eq('store_id', store.id)
+          .order('created_at', { ascending: true })
+        
+        if (staff) setStaffList(staff)
+
+        const { data: menus } = await supabase
+          .from('booking_menus')
+          .select('*')
+          .eq('store_id', store.id)
+          .order('created_at', { ascending: true })
+        
+        if (menus) setMenuList(menus)
       }
 
       // Fetch Line Account
@@ -307,6 +360,192 @@ export default function LineSettings() {
     }
   }
 
+  const handleAddStaff = () => {
+    setEditingStaffId(null)
+    setStaffFormData({ name: '', role: '', image_url: '' })
+    setIsStaffModalOpen(true)
+  }
+
+  const handleEditStaff = (staff: Staff) => {
+    setEditingStaffId(staff.id)
+    setStaffFormData({
+      name: staff.name,
+      role: staff.role || '',
+      image_url: staff.image_url || ''
+    })
+    setIsStaffModalOpen(true)
+  }
+
+  const handleSubmitStaff = async () => {
+    if (!storeId || !staffFormData.name) return
+    setSaving(true)
+    try {
+      let result
+      
+      if (editingStaffId) {
+        // Update
+        result = await supabase
+          .from('staff_members')
+          .update({ 
+            name: staffFormData.name,
+            role: staffFormData.role,
+            image_url: staffFormData.image_url
+          })
+          .eq('id', editingStaffId)
+          .select()
+          .single()
+      } else {
+        // Create
+        result = await supabase
+          .from('staff_members')
+          .insert({ 
+            store_id: storeId, 
+            name: staffFormData.name,
+            role: staffFormData.role,
+            image_url: staffFormData.image_url
+          })
+          .select()
+          .single()
+      }
+
+      const { data, error } = result
+
+      if (error) throw error
+      
+      if (editingStaffId) {
+        setStaffList(staffList.map(s => s.id === editingStaffId ? data : s))
+        setMessage({ type: 'success', text: 'スタッフ情報を更新しました' })
+      } else {
+        setStaffList([...staffList, data])
+        setMessage({ type: 'success', text: 'スタッフを追加しました' })
+      }
+      setIsStaffModalOpen(false)
+    } catch (error: any) {
+      console.error('Error saving staff:', error)
+      setMessage({ type: 'error', text: 'スタッフの保存に失敗しました' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteStaff = (id: string) => {
+    const staff = staffList.find(s => s.id === id)
+    if (!staff) return
+    setDeletingItem({ type: 'staff', id: staff.id, name: staff.name })
+    setIsDeleteModalOpen(true)
+  }
+
+  const handleAddMenu = () => {
+    setEditingMenuId(null)
+    setMenuFormData({ name: '', description: '', price: 0, duration_minutes: 60 })
+    setIsMenuModalOpen(true)
+  }
+
+  const handleEditMenu = (menu: Menu) => {
+    setEditingMenuId(menu.id)
+    setMenuFormData({
+      name: menu.name,
+      description: menu.description || '',
+      price: menu.price || 0,
+      duration_minutes: menu.duration_minutes || 60
+    })
+    setIsMenuModalOpen(true)
+  }
+
+  const handleSubmitMenu = async () => {
+    if (!storeId || !menuFormData.name) return
+    setSaving(true)
+    try {
+      let result
+
+      if (editingMenuId) {
+        // Update
+        result = await supabase
+          .from('booking_menus')
+          .update({ 
+            name: menuFormData.name,
+            description: menuFormData.description,
+            price: menuFormData.price, 
+            duration_minutes: menuFormData.duration_minutes 
+          })
+          .eq('id', editingMenuId)
+          .select()
+          .single()
+      } else {
+        // Create
+        result = await supabase
+          .from('booking_menus')
+          .insert({ 
+            store_id: storeId, 
+            name: menuFormData.name,
+            description: menuFormData.description,
+            price: menuFormData.price, 
+            duration_minutes: menuFormData.duration_minutes 
+          })
+          .select()
+          .single()
+      }
+
+      const { data, error } = result
+
+      if (error) throw error
+      
+      if (editingMenuId) {
+        setMenuList(menuList.map(m => m.id === editingMenuId ? data : m))
+        setMessage({ type: 'success', text: 'メニュー情報を更新しました' })
+      } else {
+        setMenuList([...menuList, data])
+        setMessage({ type: 'success', text: 'メニューを追加しました' })
+      }
+      setIsMenuModalOpen(false)
+    } catch (error: any) {
+      console.error('Error saving menu:', error)
+      setMessage({ type: 'error', text: 'メニューの保存に失敗しました' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteMenu = (id: string) => {
+    const menu = menuList.find(m => m.id === id)
+    if (!menu) return
+    setDeletingItem({ type: 'menu', id: menu.id, name: menu.name })
+    setIsDeleteModalOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deletingItem) return
+    setSaving(true)
+    try {
+      if (deletingItem.type === 'staff') {
+        const { error } = await supabase
+          .from('staff_members')
+          .delete()
+          .eq('id', deletingItem.id)
+
+        if (error) throw error
+        setStaffList(staffList.filter(s => s.id !== deletingItem.id))
+        setMessage({ type: 'success', text: 'スタッフを削除しました' })
+      } else {
+        const { error } = await supabase
+          .from('booking_menus')
+          .delete()
+          .eq('id', deletingItem.id)
+
+        if (error) throw error
+        setMenuList(menuList.filter(m => m.id !== deletingItem.id))
+        setMessage({ type: 'success', text: 'メニューを削除しました' })
+      }
+      setIsDeleteModalOpen(false)
+      setDeletingItem(null)
+    } catch (error: any) {
+      console.error('Error deleting item:', error)
+      setMessage({ type: 'error', text: '削除に失敗しました' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleUpdateBookingSettings = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
@@ -321,7 +560,8 @@ export default function LineSettings() {
         .update({
           liff_template_id: bookingSettings.liff_template_id,
           liff_theme_color: bookingSettings.liff_theme_color,
-          liff_logo_url: bookingSettings.liff_logo_url
+          liff_logo_url: bookingSettings.liff_logo_url,
+          booking_system_type: bookingSettings.booking_system_type
         })
         .eq('owner_id', user.id)
 
@@ -799,6 +1039,153 @@ export default function LineSettings() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* 左カラム：設定 */}
                 <div className="space-y-8">
+                  {/* 予約システムタイプ */}
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                      <Layout size={16} /> 予約システムタイプ
+                    </h3>
+                    <div className="grid grid-cols-1 gap-3">
+                      {[
+                        { id: 'generic', name: '標準 (日時のみ)', desc: 'シンプルな日時選択' },
+                        { id: 'salon', name: 'サロン・美容室', desc: '担当者・メニュー選択' },
+                        { id: 'restaurant', name: '飲食店', desc: '人数・コース選択' }
+                      ].map((type) => (
+                        <label 
+                          key={type.id}
+                          className={`
+                            cursor-pointer rounded-lg border-2 p-3 transition-all flex flex-col gap-1
+                            ${bookingSettings.booking_system_type === type.id 
+                              ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500' 
+                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}
+                          `}
+                        >
+                          <input
+                            type="radio"
+                            name="booking_system_type"
+                            value={type.id}
+                            checked={bookingSettings.booking_system_type === type.id}
+                            onChange={(e) => setBookingSettings({...bookingSettings, booking_system_type: e.target.value})}
+                            className="sr-only"
+                          />
+                          <div className="font-bold text-sm text-gray-900">{type.name}</div>
+                          <div className="text-xs text-gray-500">{type.desc}</div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Salon & Restaurant Settings */}
+                  {(bookingSettings.booking_system_type === 'salon' || bookingSettings.booking_system_type === 'restaurant') && (
+                    <div className="space-y-6 border-t pt-6">
+                      {/* Staff Management - Salon Only */}
+                      {bookingSettings.booking_system_type === 'salon' && (
+                        <div>
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                              <User size={16} /> スタッフ管理
+                            </h3>
+                            <button
+                              type="button"
+                              onClick={handleAddStaff}
+                              className="text-xs bg-primary-50 text-primary-700 px-3 py-1.5 rounded-lg hover:bg-primary-100 font-bold"
+                            >
+                              + 追加
+                            </button>
+                          </div>
+                          <div className="space-y-2">
+                            {staffList.length === 0 ? (
+                              <p className="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded-lg">
+                                スタッフが登録されていません
+                              </p>
+                            ) : (
+                              staffList.map(staff => (
+                                <div key={staff.id} className="flex items-center justify-between p-3 bg-white border rounded-lg">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
+                                      <User size={16} />
+                                    </div>
+                                    <span className="font-medium text-sm">{staff.name}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditStaff(staff)}
+                                      className="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
+                                      title="編集"
+                                    >
+                                      <Edit size={16} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteStaff(staff.id)}
+                                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                      title="削除"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Menu Management - Salon & Restaurant */}
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                            <Grid size={16} /> 
+                            {bookingSettings.booking_system_type === 'restaurant' ? 'コース・メニュー管理' : 'メニュー管理'}
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={handleAddMenu}
+                            className="text-xs bg-primary-50 text-primary-700 px-3 py-1.5 rounded-lg hover:bg-primary-100 font-bold"
+                          >
+                            + 追加
+                          </button>
+                        </div>
+                        <div className="space-y-2">
+                          {menuList.length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded-lg">
+                              {bookingSettings.booking_system_type === 'restaurant' ? 'コース・メニュー' : 'メニュー'}が登録されていません
+                            </p>
+                          ) : (
+                            menuList.map(menu => (
+                              <div key={menu.id} className="flex items-center justify-between p-3 bg-white border rounded-lg">
+                                <div>
+                                  <div className="font-medium text-sm">{menu.name}</div>
+                                  <div className="text-xs text-gray-500">
+                                    {menu.duration_minutes}分 / ¥{menu.price?.toLocaleString()}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditMenu(menu)}
+                                    className="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
+                                    title="編集"
+                                  >
+                                    <Edit size={16} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteMenu(menu.id)}
+                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                    title="削除"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* テンプレート選択 */}
                   <div>
                     <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
@@ -886,7 +1273,7 @@ export default function LineSettings() {
                     </div>
                   </div>
                   <p className="mt-4 text-sm text-gray-500 text-center max-w-md mx-auto">
-                    ※設定を保存した後、リロードボタンを押すと変更が反映されます。
+                    ※プレビュー画面は実際に操作して動作を確認できます。
                   </p>
                 </div>
               </div>
@@ -1752,6 +2139,122 @@ export default function LineSettings() {
           </section>
         )}
       </div>
+
+      {/* Staff Modal */}
+      <Modal
+        isOpen={isStaffModalOpen}
+        onClose={() => setIsStaffModalOpen(false)}
+        onConfirm={handleSubmitStaff}
+        title={editingStaffId ? "スタッフ編集" : "スタッフ追加"}
+        confirmText={editingStaffId ? "更新" : "追加"}
+        isLoading={saving}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">名前 <span className="text-red-500">*</span></label>
+            <input
+              type="text"
+              value={staffFormData.name}
+              onChange={(e) => setStaffFormData({...staffFormData, name: e.target.value})}
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
+              placeholder="例: 山田 花子"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">役職・肩書き</label>
+            <input
+              type="text"
+              value={staffFormData.role}
+              onChange={(e) => setStaffFormData({...staffFormData, role: e.target.value})}
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
+              placeholder="例: 店長, スタイリスト"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">画像URL</label>
+            <input
+              type="text"
+              value={staffFormData.image_url}
+              onChange={(e) => setStaffFormData({...staffFormData, image_url: e.target.value})}
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
+              placeholder="https://..."
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* Menu Modal */}
+      <Modal
+        isOpen={isMenuModalOpen}
+        onClose={() => setIsMenuModalOpen(false)}
+        onConfirm={handleSubmitMenu}
+        title={editingMenuId ? (bookingSettings.booking_system_type === 'restaurant' ? 'コース・メニュー編集' : 'メニュー編集') : (bookingSettings.booking_system_type === 'restaurant' ? 'コース・メニュー追加' : 'メニュー追加')}
+        confirmText={editingMenuId ? "更新" : "追加"}
+        isLoading={saving}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {bookingSettings.booking_system_type === 'restaurant' ? 'コース・メニュー名' : 'メニュー名'} <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={menuFormData.name}
+              onChange={(e) => setMenuFormData({...menuFormData, name: e.target.value})}
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
+              placeholder={bookingSettings.booking_system_type === 'restaurant' ? "例: 季節のディナーコース" : "例: カット & カラー"}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">説明</label>
+            <textarea
+              value={menuFormData.description}
+              onChange={(e) => setMenuFormData({...menuFormData, description: e.target.value})}
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none h-24 resize-none"
+              placeholder={bookingSettings.booking_system_type === 'restaurant' ? "コース内容やアレルギー情報など..." : "メニューの詳細説明..."}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">価格 (円)</label>
+              <input
+                type="number"
+                value={menuFormData.price}
+                onChange={(e) => setMenuFormData({...menuFormData, price: parseInt(e.target.value) || 0})}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
+                min="0"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">所要時間 (分)</label>
+              <input
+                type="number"
+                value={menuFormData.duration_minutes}
+                onChange={(e) => setMenuFormData({...menuFormData, duration_minutes: parseInt(e.target.value) || 0})}
+                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
+                min="0"
+                step="10"
+              />
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="削除の確認"
+        confirmText="削除"
+        variant="danger"
+        isLoading={saving}
+      >
+        <p className="text-gray-600">
+          「{deletingItem?.name}」を削除してもよろしいですか？<br />
+          この操作は取り消せません。
+        </p>
+      </Modal>
 
       {message && (
         <Toast

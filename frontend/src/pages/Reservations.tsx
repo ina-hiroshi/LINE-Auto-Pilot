@@ -420,16 +420,17 @@ export default function Reservations() {
                                 <div className="flex flex-col">
                                     {reservation.customer?.real_name ? (
                                         <div className="flex items-baseline gap-1">
-                                            <span className="text-sm font-bold text-gray-900 leading-tight">
-                                                {reservation.customer.real_name} <span className="text-xs font-normal text-gray-500">様</span>
+                                            <span className="text-base font-bold text-gray-900 leading-tight">
+                                                {reservation.customer.real_name}
                                             </span>
                                             {reservation.customer.furigana && (
-                                                <span className="text-[10px] text-gray-500 leading-tight">({reservation.customer.furigana})</span>
+                                                <span className="text-xs text-gray-500 leading-tight">({reservation.customer.furigana})</span>
                                             )}
+                                            <span className="text-sm font-normal text-gray-500">様</span>
                                         </div>
                                     ) : (
-                                        <span className="text-sm font-bold text-gray-900">
-                                            {reservation.customer?.display_name || 'ゲスト'} <span className="text-xs font-normal text-gray-500">様 (LINE名)</span>
+                                        <span className="text-base font-bold text-gray-900">
+                                            {reservation.customer?.display_name || 'ゲスト'} <span className="text-sm font-normal text-gray-500">様 (LINE名)</span>
                                         </span>
                                     )}
                                 </div>
@@ -439,9 +440,9 @@ export default function Reservations() {
                         <div className="flex flex-row gap-2 w-full sm:w-auto mt-1 sm:mt-0">
                           <button 
                             onClick={() => openModifyModal(reservation)}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-2 py-1 text-[10px] font-bold text-white bg-primary-600 rounded hover:bg-primary-700 shadow-sm transition-all hover:shadow-md active:scale-95 whitespace-nowrap"
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-primary-600 rounded hover:bg-primary-700 shadow-sm transition-all hover:shadow-md active:scale-95 whitespace-nowrap"
                           >
-                            <Edit2 size={10} />
+                            <Edit2 size={12} />
                             変更
                           </button>
                           <button 
@@ -449,9 +450,9 @@ export default function Reservations() {
                               setSelectedReservation(reservation)
                               setIsCancelModalOpen(true)
                             }}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-2 py-1 text-[10px] font-bold text-red-600 bg-white border border-red-100 rounded hover:bg-red-50 hover:border-red-200 shadow-sm transition-all hover:shadow-md active:scale-95 whitespace-nowrap"
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-bold text-red-600 bg-white border border-red-100 rounded hover:bg-red-50 hover:border-red-200 shadow-sm transition-all hover:shadow-md active:scale-95 whitespace-nowrap"
                           >
-                            <XCircle size={10} />
+                            <XCircle size={12} />
                             キャンセル
                           </button>
                         </div>
