@@ -17,7 +17,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { action, store_id, line_user_id, real_name, furigana, date, time, reservation_id } = await req.json()
+    const { action, store_id, line_user_id, display_name, profile_picture_url, real_name, furigana, date, time, reservation_id } = await req.json()
+
+    console.log(`[Booking] Action: ${action}, User: ${line_user_id}, Name: ${display_name}, Pic: ${profile_picture_url ? 'Yes' : 'No'}`)
 
     if (action === 'check_customer') {
       const { data, error } = await supabaseClient
@@ -133,6 +135,8 @@ serve(async (req) => {
         .upsert({
           store_id,
           line_user_id,
+          display_name,
+          profile_picture_url,
           real_name,
           furigana,
         }, { onConflict: 'store_id, line_user_id' })
@@ -140,7 +144,8 @@ serve(async (req) => {
       if (custError) throw custError
 
       // 2. Create Reservation
-      const startDateTime = new Date(`${date}T${time}:00`)
+      // Treat input time as JST (+09:00)
+      const startDateTime = new Date(`${date}T${time}:00+09:00`)
       const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000)
 
       const { error: resError } = await supabaseClient
@@ -152,8 +157,8 @@ serve(async (req) => {
           reservation_datetime: startDateTime.toISOString(),
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
-          status: 'pending',
-          memo: 'Web予約(変更)'
+          status: 'confirmed',
+          memo: 'LINE予約(変更)'
         })
 
       if (resError) throw resError
@@ -180,15 +185,17 @@ serve(async (req) => {
         .upsert({
           store_id,
           line_user_id,
+          display_name,
+          profile_picture_url,
           real_name,
           furigana,
-          // display_name would ideally come from LINE API if not present
         }, { onConflict: 'store_id, line_user_id' })
 
       if (custError) throw custError
 
       // 2. Create Reservation
-      const startDateTime = new Date(`${date}T${time}:00`)
+      // Treat input time as JST (+09:00)
+      const startDateTime = new Date(`${date}T${time}:00+09:00`)
       const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000)
 
       const { error: resError } = await supabaseClient
@@ -200,8 +207,8 @@ serve(async (req) => {
           reservation_datetime: startDateTime.toISOString(), // For backward compatibility
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
-          status: 'pending',
-          memo: 'Web予約'
+          status: 'confirmed',
+          memo: 'LINE予約'
         })
 
       if (resError) throw resError

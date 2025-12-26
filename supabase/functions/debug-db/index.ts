@@ -7,8 +7,9 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
   const { data, error } = await supabase
-    .from('line_accounts')
-    .select('*')
+    .from('customers')
+    .select('profile_picture_url')
+    .limit(1)
 
   return new Response(
     JSON.stringify({ data, error }),

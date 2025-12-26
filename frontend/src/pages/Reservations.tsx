@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Calendar, Clock, User, CheckCircle, AlertCircle, Loader2, RefreshCw, Lock } from 'lucide-react'
+import { Calendar, Clock, User, CheckCircle, AlertCircle, Loader2, RefreshCw, Lock, Edit2, XCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import Toast from '../components/Toast'
+import Modal from '../components/Modal'
 
 type Reservation = {
   id: string
@@ -30,12 +31,21 @@ export default function Reservations() {
   const [isGoogleConnected, setIsGoogleConnected] = useState(false)
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [loading, setLoading] = useState(true)
+  const [storeId, setStoreId] = useState<string | null>(null)
   
   // Google Calendar State
   const [calendars, setCalendars] = useState<GoogleCalendar[]>([])
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>('')
   const [calendarLoading, setCalendarLoading] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  // Modal State
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
+  const [isModifyModalOpen, setIsModifyModalOpen] = useState(false)
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
+  const [modifyDate, setModifyDate] = useState('')
+  const [modifyTime, setModifyTime] = useState('')
+  const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
     fetchReservations()
@@ -49,6 +59,31 @@ export default function Reservations() {
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [])
+
+  // Realtime Subscription
+  useEffect(() => {
+    if (!storeId) return
+
+    const channel = supabase
+      .channel('reservations-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reservations',
+          filter: `store_id=eq.${storeId}`
+        },
+        () => {
+          fetchReservations()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [storeId])
 
   const checkGoogleConnection = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -188,14 +223,15 @@ export default function Reservations() {
         .eq('owner_id', user.id)
         .limit(1)
       
-      const storeId = stores?.[0]?.id
-      if (!storeId) return
+      const currentStoreId = stores?.[0]?.id
+      if (!currentStoreId) return
+      setStoreId(currentStoreId)
 
       // Fetch Reservations
       const { data: resData, error: resError } = await supabase
         .from('reservations')
         .select('*')
-        .eq('store_id', storeId)
+        .eq('store_id', currentStoreId)
         .neq('status', 'cancelled') // キャンセル済みを除外
         .order('start_time', { ascending: true })
 
@@ -208,7 +244,7 @@ export default function Reservations() {
         const { data: customers, error: custError } = await supabase
           .from('customers')
           .select('line_user_id, display_name, profile_picture_url, real_name, furigana')
-          .eq('store_id', storeId)
+          .eq('store_id', currentStoreId)
           .in('line_user_id', userIds)
 
         if (custError) throw custError
@@ -225,6 +261,70 @@ export default function Reservations() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleCancelReservation = async () => {
+    if (!selectedReservation) return
+    setActionLoading(true)
+    try {
+      const { error } = await supabase.functions.invoke('booking', {
+        body: {
+          action: 'cancel_reservation',
+          reservation_id: selectedReservation.id
+        }
+      })
+      if (error) throw error
+      setToast({ message: '予約をキャンセルしました', type: 'success' })
+      setIsCancelModalOpen(false)
+      fetchReservations()
+    } catch (error: any) {
+      console.error('Cancel Error:', error)
+      setToast({ message: 'キャンセルに失敗しました', type: 'error' })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleModifyReservation = async () => {
+    if (!selectedReservation || !modifyDate || !modifyTime) return
+    setActionLoading(true)
+    try {
+      const { error } = await supabase.functions.invoke('booking', {
+        body: {
+          action: 'update_reservation',
+          reservation_id: selectedReservation.id,
+          store_id: storeId,
+          line_user_id: selectedReservation.line_user_id,
+          real_name: selectedReservation.customer?.real_name,
+          furigana: selectedReservation.customer?.furigana,
+          date: modifyDate,
+          time: modifyTime
+        }
+      })
+      if (error) throw error
+      setToast({ message: '予約を変更しました', type: 'success' })
+      setIsModifyModalOpen(false)
+      fetchReservations()
+    } catch (error: any) {
+      console.error('Modify Error:', error)
+      setToast({ message: '変更に失敗しました', type: 'error' })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const openModifyModal = (reservation: Reservation) => {
+    setSelectedReservation(reservation)
+    const d = new Date(reservation.start_time)
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const hour = String(d.getHours()).padStart(2, '0')
+    const minute = String(d.getMinutes()).padStart(2, '0')
+    
+    setModifyDate(`${year}-${month}-${day}`)
+    setModifyTime(`${hour}:${minute}`)
+    setIsModifyModalOpen(true)
   }
 
   return (
@@ -268,52 +368,65 @@ export default function Reservations() {
                     const startDate = new Date(reservation.start_time)
                     const month = startDate.getMonth() + 1
                     const day = startDate.getDate()
+                    const dayOfWeek = startDate.toLocaleDateString('ja-JP', { weekday: 'short' })
                     const startTime = startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
                     const endTime = new Date(reservation.end_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
 
                     return (
-                      <div key={reservation.id} className="p-4 sm:p-6 hover:bg-gray-50 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div className="flex items-start sm:items-center gap-4 sm:gap-6 w-full">
-                          <div className="flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-primary-50 rounded-lg text-primary-700 shrink-0">
-                            <span className="text-[10px] sm:text-xs font-bold uppercase">{month}月</span>
-                            <span className="text-lg sm:text-xl font-bold">{day}</span>
+                      <div key={reservation.id} className="p-2 hover:bg-gray-50 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                        <div className="flex items-start sm:items-center gap-2 w-full">
+                          <div className="flex flex-col items-center justify-center w-14 h-14 bg-primary-50 rounded-lg text-primary-700 shrink-0">
+                            <span className="text-[10px] font-bold uppercase leading-none">{month}月</span>
+                            <span className="text-xl font-bold leading-none my-0.5">{day}</span>
+                            <span className="text-[10px] font-bold leading-none">({dayOfWeek})</span>
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
-                              <div className="flex items-center gap-1 text-gray-900 font-bold">
-                                <Clock size={16} className="text-gray-400" />
+                              <div className="flex items-center gap-1 text-gray-900 font-bold text-sm">
+                                <Clock size={12} className="text-gray-400" />
                                 <span>{startTime} - {endTime}</span>
                               </div>
-                              <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
-                                reservation.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                              <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-medium ${
                                 reservation.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                                'bg-yellow-100 text-yellow-800'
+                                'bg-green-100 text-green-700'
                               }`}>
-                                {reservation.status === 'confirmed' ? '確定' : 
-                                 reservation.status === 'cancelled' ? 'キャンセル' : '承認待ち'}
+                                {reservation.status === 'cancelled' ? 'キャンセル' : (reservation.memo === 'Web予約' ? 'LINE予約' : reservation.memo || 'LINE予約')}
                               </span>
                             </div>
-                            <div className="flex items-center gap-3 mt-2">
-                                {/* LINE Icon / Profile Picture */}
-                                <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+                            <div className="flex items-center gap-3 mt-1">
+                                {/* Profile Picture */}
+                                <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
                                     {reservation.customer?.profile_picture_url ? (
-                                        <img src={reservation.customer.profile_picture_url} alt="" className="w-full h-full object-cover" />
+                                        <>
+                                          <img 
+                                            src={reservation.customer.profile_picture_url} 
+                                            alt="" 
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                              e.currentTarget.style.display = 'none';
+                                              // Show the sibling icon
+                                              const icon = e.currentTarget.nextElementSibling;
+                                              if (icon) icon.classList.remove('hidden');
+                                            }}
+                                          />
+                                          <User size={18} className="text-gray-400 hidden" />
+                                        </>
                                     ) : (
-                                        <User size={16} className="text-gray-400" />
+                                        <User size={18} className="text-gray-400" />
                                     )}
                                 </div>
                                 
                                 {/* Name Display */}
                                 <div className="flex flex-col">
                                     {reservation.customer?.real_name ? (
-                                        <>
+                                        <div className="flex items-baseline gap-1">
                                             <span className="text-sm font-bold text-gray-900 leading-tight">
-                                                {reservation.customer.real_name} <span className="text-xs font-normal text-gray-500 ml-1">様</span>
+                                                {reservation.customer.real_name} <span className="text-xs font-normal text-gray-500">様</span>
                                             </span>
                                             {reservation.customer.furigana && (
-                                                <span className="text-[10px] text-gray-500 leading-tight">{reservation.customer.furigana}</span>
+                                                <span className="text-[10px] text-gray-500 leading-tight">({reservation.customer.furigana})</span>
                                             )}
-                                        </>
+                                        </div>
                                     ) : (
                                         <span className="text-sm font-bold text-gray-900">
                                             {reservation.customer?.display_name || 'ゲスト'} <span className="text-xs font-normal text-gray-500">様 (LINE名)</span>
@@ -321,14 +434,27 @@ export default function Reservations() {
                                     )}
                                 </div>
                             </div>
-                            {reservation.memo && (
-                                <p className="text-xs text-gray-500 mt-2 bg-gray-50 p-2 rounded inline-block">
-                                    {reservation.memo}
-                                </p>
-                            )}
                           </div>
                         </div>
-                        <button className="w-full sm:w-auto text-center text-sm text-gray-500 hover:text-primary-600 border sm:border-none rounded py-2 sm:py-0 mt-2 sm:mt-0">詳細</button>
+                        <div className="flex flex-row gap-2 w-full sm:w-auto mt-1 sm:mt-0">
+                          <button 
+                            onClick={() => openModifyModal(reservation)}
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-2 py-1 text-[10px] font-bold text-white bg-primary-600 rounded hover:bg-primary-700 shadow-sm transition-all hover:shadow-md active:scale-95 whitespace-nowrap"
+                          >
+                            <Edit2 size={10} />
+                            変更
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setSelectedReservation(reservation)
+                              setIsCancelModalOpen(true)
+                            }}
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-2 py-1 text-[10px] font-bold text-red-600 bg-white border border-red-100 rounded hover:bg-red-50 hover:border-red-200 shadow-sm transition-all hover:shadow-md active:scale-95 whitespace-nowrap"
+                          >
+                            <XCircle size={10} />
+                            キャンセル
+                          </button>
+                        </div>
                       </div>
                     )
                 })
@@ -517,6 +643,48 @@ export default function Reservations() {
           onClose={() => setToast(null)}
         />
       )}
+
+      <Modal
+        isOpen={isCancelModalOpen}
+        onClose={() => setIsCancelModalOpen(false)}
+        onConfirm={handleCancelReservation}
+        title="予約キャンセル"
+        message="この予約をキャンセルしますか？この操作は取り消せません。"
+        confirmText="キャンセルする"
+        variant="danger"
+        isLoading={actionLoading}
+      />
+
+      <Modal
+        isOpen={isModifyModalOpen}
+        onClose={() => setIsModifyModalOpen(false)}
+        onConfirm={handleModifyReservation}
+        title="予約変更"
+        confirmText="変更する"
+        isLoading={actionLoading}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">新しい日時を選択してください。</p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">日付</label>
+            <input 
+              type="date" 
+              value={modifyDate}
+              onChange={(e) => setModifyDate(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">時間</label>
+            <input 
+              type="time" 
+              value={modifyTime}
+              onChange={(e) => setModifyTime(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

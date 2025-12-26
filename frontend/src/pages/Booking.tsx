@@ -358,12 +358,30 @@ export default function Booking() {
     if (!storeId) return
     setLoading(true)
     try {
+      // Ensure we have the latest profile info
+      let currentPictureUrl = pictureUrl
+      let currentDisplayName = displayName
+      
+      if (!currentPictureUrl && liff.isLoggedIn()) {
+        try {
+          const profile = await liff.getProfile()
+          currentPictureUrl = profile.pictureUrl || ''
+          currentDisplayName = profile.displayName || ''
+          setPictureUrl(currentPictureUrl)
+          setDisplayName(currentDisplayName)
+        } catch (e) {
+          console.error('Failed to refresh profile:', e)
+        }
+      }
+
       const action = modifyingReservationId ? 'update_reservation' : 'create_reservation'
       const { data, error } = await supabase.functions.invoke('booking', {
         body: {
           action,
           store_id: storeId,
           line_user_id: lineUserId,
+          display_name: currentDisplayName,
+          profile_picture_url: currentPictureUrl,
           real_name: realName,
           furigana: furigana,
           date,
