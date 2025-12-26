@@ -99,6 +99,7 @@ export default function Booking() {
   // Store Data
   const [storeId, setStoreId] = useState<string | null>(null)
   const [storeSettings, setStoreSettings] = useState({
+    name: '',
     liff_template_id: 'simple',
     liff_theme_color: '#00c3dc',
     liff_logo_url: '',
@@ -214,6 +215,7 @@ export default function Booking() {
         if (data) {
           if (data.name) document.title = data.name
           setStoreSettings({
+            name: data.name || '',
             liff_template_id: data.liff_template_id || 'simple',
             liff_theme_color: data.liff_theme_color || '#00c3dc',
             liff_logo_url: data.liff_logo_url || '',
@@ -226,6 +228,7 @@ export default function Booking() {
         if (data) {
           if (data.name) document.title = data.name
           setStoreSettings({
+            name: data.name || '',
             liff_template_id: data.liff_template_id || 'simple',
             liff_theme_color: data.liff_theme_color || '#00c3dc',
             liff_logo_url: data.liff_logo_url || '',
@@ -1099,6 +1102,11 @@ export default function Booking() {
             </motion.div>
           )}
         </div>
+      </div>
+      
+      {/* Debug Info / Store Name Footer */}
+      <div className="mt-4 text-center text-[10px] text-gray-400 pb-4">
+        {storeSettings.name} {storeId ? `(ID: ${storeId.slice(0, 8)}...)` : ''}
       </div>
     </div>
   )
