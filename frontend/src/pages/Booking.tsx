@@ -3,11 +3,60 @@ import { supabase } from '../lib/supabase'
 import { Calendar, User, CheckCircle, Loader2, AlertCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import liff from '@line/liff'
+import LiffModal from '../components/liff/LiffModal'
+import LiffToast from '../components/liff/LiffToast'
 
 export default function Booking() {
   const [step, setStep] = useState<'loading' | 'error' | 'date' | 'info' | 'confirm' | 'complete' | 'existing_reservation'>('loading')
   const [errorMsg, setErrorMsg] = useState('')
   const [checkingUser, setCheckingUser] = useState(false)
+  
+  // UI State
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    confirmText?: string;
+    cancelText?: string;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  })
+  const [toastConfig, setToastConfig] = useState<{
+    isVisible: boolean;
+    message: string;
+    type: 'success' | 'error';
+  }>({
+    isVisible: false,
+    message: '',
+    type: 'success',
+  })
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToastConfig({ isVisible: true, message, type })
+  }
+
+  const hideToast = () => {
+    setToastConfig(prev => ({ ...prev, isVisible: false }))
+  }
+
+  const showModal = (title: string, message: string, onConfirm: () => void, confirmText = 'はい', cancelText = 'いいえ') => {
+    setModalConfig({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+      confirmText,
+      cancelText
+    })
+  }
+
+  const hideModal = () => {
+    setModalConfig(prev => ({ ...prev, isOpen: false }))
+  }
   
   // Reservation Data
   const [date, setDate] = useState('')
@@ -16,6 +65,7 @@ export default function Booking() {
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [loading, setLoading] = useState(false)
   const [activeReservations, setActiveReservations] = useState<any[]>([])
+  const [modifyingReservationId, setModifyingReservationId] = useState<string | null>(null)
   
   // User Data
   const [lineUserId, setLineUserId] = useState('')
@@ -253,32 +303,44 @@ export default function Booking() {
   }
 
   const handleCancelReservation = async (reservationId: string) => {
-    if (!confirm('この予約をキャンセルしますか？')) return
+    showModal(
+      '予約キャンセル',
+      'この予約をキャンセルしますか？',
+      async () => {
+        hideModal()
+        setLoading(true)
+        try {
+          const { error } = await supabase.functions.invoke('booking', {
+            body: {
+              action: 'cancel_reservation',
+              reservation_id: reservationId
+            }
+          })
 
-    setLoading(true)
-    try {
-      const { error } = await supabase.functions.invoke('booking', {
-        body: {
-          action: 'cancel_reservation',
-          reservation_id: reservationId
+          if (error) throw error
+
+          const updated = activeReservations.filter(r => r.id !== reservationId)
+          setActiveReservations(updated)
+          showToast('予約をキャンセルしました。', 'success')
+          
+          if (updated.length === 0) {
+            setStep('date')
+          }
+        } catch (e) {
+          console.error('Failed to cancel reservation:', e)
+          showToast('キャンセルに失敗しました。', 'error')
+        } finally {
+          setLoading(false)
         }
-      })
+      },
+      '予約をキャンセル',
+      '戻る'
+    )
+  }
 
-      if (error) throw error
-
-      const updated = activeReservations.filter(r => r.id !== reservationId)
-      setActiveReservations(updated)
-      alert('予約をキャンセルしました。')
-      
-      if (updated.length === 0) {
-        setStep('date')
-      }
-    } catch (e) {
-      console.error('Failed to cancel reservation:', e)
-      alert('キャンセルに失敗しました。')
-    } finally {
-      setLoading(false)
-    }
+  const handleModifyStart = (reservationId: string) => {
+    setModifyingReservationId(reservationId)
+    setStep('date')
   }
 
   const handleSubmit = async () => {
@@ -296,15 +358,17 @@ export default function Booking() {
     if (!storeId) return
     setLoading(true)
     try {
+      const action = modifyingReservationId ? 'update_reservation' : 'create_reservation'
       const { data, error } = await supabase.functions.invoke('booking', {
         body: {
-          action: 'create_reservation',
+          action,
           store_id: storeId,
           line_user_id: lineUserId,
           real_name: realName,
           furigana: furigana,
           date,
-          time
+          time,
+          reservation_id: modifyingReservationId // Only used if action is update_reservation
         }
       })
 
@@ -312,10 +376,11 @@ export default function Booking() {
       if (data?.error) throw new Error(data.error)
 
       setStep('complete')
+      setModifyingReservationId(null) // Reset modification state
     } catch (error: any) {
       console.error('Booking failed:', error)
       const errorMessage = error?.message || JSON.stringify(error) || '不明なエラー'
-      alert(`予約に失敗しました。\n詳細: ${errorMessage}`)
+      showToast(`予約に失敗しました。\n詳細: ${errorMessage}`, 'error')
     } finally {
       setLoading(false)
     }
@@ -466,6 +531,24 @@ export default function Booking() {
 
   return (
     <div className={theme.container}>
+      <LiffToast 
+        isVisible={toastConfig.isVisible}
+        message={toastConfig.message}
+        type={toastConfig.type}
+        onClose={hideToast}
+        theme={theme}
+      />
+      <LiffModal
+        isOpen={modalConfig.isOpen}
+        onClose={hideModal}
+        onConfirm={modalConfig.onConfirm}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        confirmText={modalConfig.confirmText}
+        cancelText={modalConfig.cancelText}
+        theme={theme}
+        isLoading={loading}
+      />
       <div className={theme.card} style={theme.cardStyle}>
         <div className={theme.header} style={theme.headerStyle}>
           {storeSettings.liff_logo_url ? (
@@ -504,12 +587,20 @@ export default function Booking() {
                         <span className="opacity-70 text-xs block">ステータス</span>
                         <span className="font-bold text-green-600">予約確定</span>
                       </div>
-                      <button 
-                        onClick={() => handleCancelReservation(res.id)}
-                        className="text-xs text-red-500 underline hover:text-red-700"
-                      >
-                        キャンセル
-                      </button>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleModifyStart(res.id)}
+                          className="text-xs text-blue-500 underline hover:text-blue-700"
+                        >
+                          予約を変更
+                        </button>
+                        <button 
+                          onClick={() => handleCancelReservation(res.id)}
+                          className="text-xs text-red-500 underline hover:text-red-700"
+                        >
+                          予約をキャンセル
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -535,8 +626,23 @@ export default function Booking() {
                 </div>
               )}
               <h2 className={theme.title} style={theme.titleStyle}>
-                <Calendar color={theme.iconColor} /> 日時を選択
+                <Calendar color={theme.iconColor} /> {modifyingReservationId ? '予約日時の変更' : '日時を選択'}
               </h2>
+              
+              {modifyingReservationId && (
+                <div className="mb-4 p-3 bg-blue-50 text-blue-700 text-sm rounded-lg border border-blue-100">
+                  現在、予約の変更を行っています。新しい日時を選択してください。
+                  <button 
+                    onClick={() => {
+                      setModifyingReservationId(null)
+                      setStep('existing_reservation')
+                    }}
+                    className="block mt-1 underline font-bold"
+                  >
+                    変更を中止して戻る
+                  </button>
+                </div>
+              )}
               
               <div className="space-y-6">
                 <div>
@@ -669,7 +775,7 @@ export default function Booking() {
           {step === 'confirm' && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
               <h2 className={theme.title} style={theme.titleStyle}>
-                <CheckCircle color={theme.iconColor} /> 予約内容の確認
+                <CheckCircle color={theme.iconColor} /> {modifyingReservationId ? '変更内容の確認' : '予約内容の確認'}
               </h2>
 
               <div className={`${theme.infoBox} space-y-3 mb-6`}>
@@ -700,7 +806,7 @@ export default function Booking() {
                   className={`${theme.buttonPrimary} disabled:opacity-50`}
                   style={theme.primaryStyle}
                 >
-                  {loading ? <Loader2 className="animate-spin" /> : '予約を確定する'}
+                  {loading ? <Loader2 className="animate-spin" /> : (modifyingReservationId ? '変更を確定する' : '予約を確定する')}
                 </button>
               </div>
             </motion.div>
@@ -711,8 +817,8 @@ export default function Booking() {
               <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 bg-green-100 text-green-600">
                 <CheckCircle size={40} />
               </div>
-              <h2 className={theme.title} style={theme.titleStyle}>予約完了</h2>
-              <p className="mb-8 opacity-70 whitespace-nowrap">ご予約ありがとうございます。</p>
+              <h2 className={theme.title} style={theme.titleStyle}>{modifyingReservationId ? '変更完了' : '予約完了'}</h2>
+              <p className="mb-8 opacity-70 whitespace-nowrap">{modifyingReservationId ? '予約の変更が完了しました。' : 'ご予約ありがとうございます。'}</p>
               
               {/* Reservation Details Card for Screenshot */}
               <div className={`${theme.infoBox} text-left mb-8`}>

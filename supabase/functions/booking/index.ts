@@ -17,7 +17,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { action, store_id, line_user_id, real_name, furigana, date, time } = await req.json()
+    const { action, store_id, line_user_id, real_name, furigana, date, time, reservation_id } = await req.json()
 
     if (action === 'check_customer') {
       const { data, error } = await supabaseClient
@@ -96,7 +96,6 @@ serve(async (req) => {
     }
 
     if (action === 'cancel_reservation') {
-        const { reservation_id } = await req.json()
         const { error } = await supabaseClient
             .from('reservations')
             .update({ status: 'cancelled' })
@@ -106,6 +105,62 @@ serve(async (req) => {
         return new Response(JSON.stringify({ success: true }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
+    }
+
+    if (action === 'update_reservation') {
+      // 1. Cancel old reservation
+      const { error: cancelError } = await supabaseClient
+          .from('reservations')
+          .update({ status: 'cancelled' })
+          .eq('id', reservation_id)
+      
+      if (cancelError) throw cancelError
+
+      // 2. Create new reservation (Same logic as create_reservation)
+      // 0. Get line_account_id
+      const { data: lineAccount, error: laError } = await supabaseClient
+        .from('line_accounts')
+        .select('id')
+        .eq('store_id', store_id)
+        .maybeSingle()
+      
+      if (laError) throw laError
+      if (!lineAccount) throw new Error('LINE Account not found for this store')
+
+      // 1. Upsert Customer
+      const { error: custError } = await supabaseClient
+        .from('customers')
+        .upsert({
+          store_id,
+          line_user_id,
+          real_name,
+          furigana,
+        }, { onConflict: 'store_id, line_user_id' })
+
+      if (custError) throw custError
+
+      // 2. Create Reservation
+      const startDateTime = new Date(`${date}T${time}:00`)
+      const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000)
+
+      const { error: resError } = await supabaseClient
+        .from('reservations')
+        .insert({
+          store_id,
+          line_account_id: lineAccount.id,
+          line_user_id,
+          reservation_datetime: startDateTime.toISOString(),
+          start_time: startDateTime.toISOString(),
+          end_time: endDateTime.toISOString(),
+          status: 'pending',
+          memo: 'Web予約(変更)'
+        })
+
+      if (resError) throw resError
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
     if (action === 'create_reservation') {
