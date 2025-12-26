@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { Calendar, User, CheckCircle, Loader2, AlertCircle, Grid, Clock } from 'lucide-react'
+import { Calendar, User, CheckCircle, Loader2, AlertCircle, Grid, Clock, Edit2, XCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import liff from '@line/liff'
 import LiffModal from '../components/liff/LiffModal'
@@ -392,7 +392,13 @@ export default function Booking() {
           showToast('予約をキャンセルしました。', 'success')
           
           if (updated.length === 0) {
-            setStep('date')
+            if (storeSettings.booking_system_type === 'salon') {
+              setStep('staff_select')
+            } else if (storeSettings.booking_system_type === 'restaurant') {
+              setStep('menu_select')
+            } else {
+              setStep('date')
+            }
           }
         } catch (e) {
           console.error('Failed to cancel reservation:', e)
@@ -520,6 +526,8 @@ export default function Booking() {
           selectableItemText: (_selected: boolean) => 'text-[#44403C]',
           selectableItemSubText: (_selected: boolean) => 'text-[#78716C]',
           infoBox: 'p-6 bg-[#FAFAF9] border border-[#E7E5E4] text-[#57534E]',
+          actionButtonPrimary: 'flex items-center justify-center gap-1 px-3 py-2 bg-[#44403C] text-[#F5F5F4] text-xs uppercase tracking-wider rounded-sm hover:bg-[#292524] transition-colors',
+          actionButtonSecondary: 'flex items-center justify-center gap-1 px-3 py-2 bg-transparent border border-[#D6D3D1] text-[#78716C] text-xs uppercase tracking-wider rounded-sm hover:bg-[#F5F5F4] transition-colors',
           iconColor: '#57534E',
           primaryStyle: {}, 
           headerStyle: {},
@@ -555,6 +563,8 @@ export default function Booking() {
           selectableItemText: (_selected: boolean) => 'text-gray-800',
           selectableItemSubText: (_selected: boolean) => 'text-gray-500',
           infoBox: 'p-5 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200',
+          actionButtonPrimary: 'flex items-center justify-center gap-1 px-4 py-2 text-white font-bold rounded-full shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all text-xs',
+          actionButtonSecondary: 'flex items-center justify-center gap-1 px-4 py-2 bg-white text-gray-500 font-bold rounded-full border-2 border-gray-100 hover:bg-gray-50 transition-all text-xs',
           iconColor: c,
           primaryStyle: { backgroundColor: c, borderColor: c },
           headerStyle: { backgroundColor: `${c}15` }, // 10% opacity of theme color
@@ -590,6 +600,8 @@ export default function Booking() {
           selectableItemText: (selected: boolean) => selected ? 'text-black' : 'text-white',
           selectableItemSubText: (selected: boolean) => selected ? 'text-gray-600' : 'text-slate-400',
           infoBox: 'p-4 bg-slate-800/50 border border-slate-700 rounded-lg',
+          actionButtonPrimary: 'flex items-center justify-center gap-1 px-3 py-2 bg-white text-black font-bold rounded-lg hover:bg-gray-200 shadow-[0_0_10px_rgba(255,255,255,0.2)] transition-all text-xs',
+          actionButtonSecondary: 'flex items-center justify-center gap-1 px-3 py-2 bg-slate-800 text-slate-300 border border-slate-700 font-bold rounded-lg hover:bg-slate-700 transition-all text-xs',
           iconColor: 'white',
           primaryStyle: {},
           headerStyle: {},
@@ -626,6 +638,8 @@ export default function Booking() {
           selectableItemText: (_selected: boolean) => 'text-gray-800',
           selectableItemSubText: (_selected: boolean) => 'text-gray-500',
           infoBox: 'p-4 bg-gray-50 border border-gray-100 rounded-lg',
+          actionButtonPrimary: 'flex items-center justify-center gap-1 px-3 py-2 text-white font-bold rounded-lg shadow-sm hover:opacity-90 transition-opacity text-xs',
+          actionButtonSecondary: 'flex items-center justify-center gap-1 px-3 py-2 bg-white text-gray-600 border border-gray-200 font-bold rounded-lg hover:bg-gray-50 transition-colors text-xs',
           iconColor: c,
           primaryStyle: { backgroundColor: c },
           headerStyle: {},
@@ -733,17 +747,23 @@ export default function Booking() {
                         <span className="opacity-70 text-xs block">ステータス</span>
                         <span className="font-bold text-green-600">予約確定</span>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 mt-3">
                         <button 
                           onClick={() => handleModifyStart(res.id)}
-                          className="text-xs text-blue-500 underline hover:text-blue-700"
+                          className={(theme as any).actionButtonPrimary || "text-xs text-blue-500 underline hover:text-blue-700"}
+                          style={storeSettings.liff_template_id === 'simple' ? { backgroundColor: storeSettings.liff_theme_color } : {}}
                         >
+                          <Edit2 size={14} />
                           予約を変更
                         </button>
                         <button 
-                          onClick={() => handleCancelReservation(res.id)}
-                          className="text-xs text-red-500 underline hover:text-red-700"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleCancelReservation(res.id)
+                          }}
+                          className={(theme as any).actionButtonSecondary || "text-xs text-red-500 underline hover:text-red-700"}
                         >
+                          <XCircle size={14} />
                           予約をキャンセル
                         </button>
                       </div>
