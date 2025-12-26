@@ -511,6 +511,14 @@ export default function Booking() {
                 ? 'bg-white text-[#57534E] border-[#E7E5E4] hover:border-[#78716C]' 
                 : 'bg-[#F5F5F4] text-[#D6D3D1] border-transparent cursor-not-allowed'}
           `,
+          selectableItem: (selected: boolean) => `
+            p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
+            ${selected 
+              ? 'border-[#44403C] bg-[#44403C]/10' 
+              : 'border-[#E7E5E4] bg-white hover:border-[#D6D3D1]'}
+          `,
+          selectableItemText: (selected: boolean) => 'text-[#44403C]',
+          selectableItemSubText: (selected: boolean) => 'text-[#78716C]',
           infoBox: 'p-6 bg-[#FAFAF9] border border-[#E7E5E4] text-[#57534E]',
           iconColor: '#57534E',
           primaryStyle: {}, 
@@ -538,6 +546,14 @@ export default function Booking() {
                 ? 'bg-white text-gray-600 border-gray-100 hover:border-current' 
                 : 'bg-gray-50 text-gray-300 border-transparent cursor-not-allowed'}
           `,
+          selectableItem: (selected: boolean) => `
+            p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
+            ${selected 
+              ? 'border-current bg-opacity-10' 
+              : 'border-gray-100 bg-white hover:border-gray-200'}
+          `,
+          selectableItemText: (selected: boolean) => 'text-gray-800',
+          selectableItemSubText: (selected: boolean) => 'text-gray-500',
           infoBox: 'p-5 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200',
           iconColor: c,
           primaryStyle: { backgroundColor: c, borderColor: c },
@@ -565,6 +581,14 @@ export default function Booking() {
                 ? 'bg-slate-800 text-slate-200 border border-slate-700 hover:border-slate-500' 
                 : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}
           `,
+          selectableItem: (selected: boolean) => `
+            p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
+            ${selected 
+              ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
+              : 'bg-slate-800 text-slate-200 border-slate-700 hover:border-slate-500'}
+          `,
+          selectableItemText: (selected: boolean) => selected ? 'text-black' : 'text-white',
+          selectableItemSubText: (selected: boolean) => selected ? 'text-gray-600' : 'text-slate-400',
           infoBox: 'p-4 bg-slate-800/50 border border-slate-700 rounded-lg',
           iconColor: 'white',
           primaryStyle: {},
@@ -593,6 +617,14 @@ export default function Booking() {
                 ? 'bg-white border border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50' 
                 : 'bg-gray-50 text-gray-300 border border-gray-100 cursor-not-allowed'}
           `,
+          selectableItem: (selected: boolean) => `
+            p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
+            ${selected 
+              ? 'border-current bg-opacity-10' 
+              : 'border-gray-100 bg-white hover:border-gray-200'}
+          `,
+          selectableItemText: (selected: boolean) => 'text-gray-800',
+          selectableItemSubText: (selected: boolean) => 'text-gray-500',
           infoBox: 'p-4 bg-gray-50 border border-gray-100 rounded-lg',
           iconColor: c,
           primaryStyle: { backgroundColor: c },
@@ -702,7 +734,20 @@ export default function Booking() {
 
               <div className="flex flex-col gap-3 mt-8">
                 <button 
-                  onClick={() => setStep('date')}
+                  onClick={() => {
+                    setSelectedStaff(null)
+                    setSelectedMenu(null)
+                    setDate('')
+                    setTime('')
+                    
+                    if (storeSettings.booking_system_type === 'salon') {
+                      setStep('staff_select')
+                    } else if (storeSettings.booking_system_type === 'restaurant') {
+                      setStep('menu_select')
+                    } else {
+                      setStep('date')
+                    }
+                  }}
                   className={theme.buttonPrimary}
                   style={theme.primaryStyle}
                 >
@@ -732,24 +777,19 @@ export default function Booking() {
                           setSelectedStaff(staff)
                           setStep('menu_select')
                         }}
-                        className={`
-                          p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
-                          ${selectedStaff?.id === staff.id 
-                            ? 'border-current bg-opacity-10' 
-                            : 'border-gray-100 bg-white hover:border-gray-200'}
-                        `}
-                        style={selectedStaff?.id === staff.id ? { borderColor: storeSettings.liff_theme_color, backgroundColor: `${storeSettings.liff_theme_color}10` } : {}}
+                        className={theme.selectableItem(selectedStaff?.id === staff.id)}
+                        style={selectedStaff?.id === staff.id && storeSettings.liff_template_id !== 'dark' ? { borderColor: storeSettings.liff_theme_color, backgroundColor: `${storeSettings.liff_theme_color}10` } : {}}
                       >
-                        <div className="w-16 h-16 rounded-full bg-gray-100 overflow-hidden flex items-center justify-center">
+                        <div className={`w-16 h-16 rounded-full overflow-hidden flex items-center justify-center ${storeSettings.liff_template_id === 'dark' ? 'bg-slate-700' : 'bg-gray-100'}`}>
                           {staff.image_url ? (
                             <img src={staff.image_url} alt={staff.name} className="w-full h-full object-cover" />
                           ) : (
-                            <User className="text-gray-400" size={32} />
+                            <User className={storeSettings.liff_template_id === 'dark' ? 'text-slate-400' : 'text-gray-400'} size={32} />
                           )}
                         </div>
                         <div className="text-center">
-                          <div className="font-bold text-gray-800 text-sm">{staff.name}</div>
-                          {staff.role && <div className="text-xs text-gray-500 mt-1">{staff.role}</div>}
+                          <div className={`font-bold text-sm ${theme.selectableItemText(selectedStaff?.id === staff.id)}`}>{staff.name}</div>
+                          {staff.role && <div className={`text-xs mt-1 ${theme.selectableItemSubText(selectedStaff?.id === staff.id)}`}>{staff.role}</div>}
                         </div>
                       </button>
                     ))}
@@ -759,12 +799,12 @@ export default function Booking() {
                         setSelectedStaff(null)
                         setStep('menu_select')
                       }}
-                      className="p-4 rounded-xl border-2 border-gray-100 bg-white hover:border-gray-200 transition-all flex flex-col items-center justify-center gap-3"
+                      className={theme.selectableItem(false)}
                     >
-                      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
-                        <User className="text-gray-400" size={32} />
+                      <div className={`w-16 h-16 rounded-full flex items-center justify-center ${storeSettings.liff_template_id === 'dark' ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                        <User className={storeSettings.liff_template_id === 'dark' ? 'text-slate-400' : 'text-gray-400'} size={32} />
                       </div>
-                      <div className="font-bold text-gray-800 text-sm">指名なし</div>
+                      <div className={`font-bold text-sm ${theme.selectableItemText(false)}`}>指名なし</div>
                     </button>
                   </div>
                 )}
@@ -793,22 +833,20 @@ export default function Booking() {
                           setStep('date')
                         }}
                         className={`
-                          w-full p-4 rounded-xl border-2 transition-all text-left flex justify-between items-center
-                          ${selectedMenu?.id === menu.id 
-                            ? 'border-current bg-opacity-10' 
-                            : 'border-gray-100 bg-white hover:border-gray-200'}
+                          w-full text-left flex justify-between items-center
+                          ${theme.selectableItem(selectedMenu?.id === menu.id)}
                         `}
-                        style={selectedMenu?.id === menu.id ? { borderColor: storeSettings.liff_theme_color, backgroundColor: `${storeSettings.liff_theme_color}10` } : {}}
+                        style={selectedMenu?.id === menu.id && storeSettings.liff_template_id !== 'dark' ? { borderColor: storeSettings.liff_theme_color, backgroundColor: `${storeSettings.liff_theme_color}10` } : {}}
                       >
                         <div>
-                          <div className="font-bold text-gray-800">{menu.name}</div>
-                          {menu.description && <div className="text-xs text-gray-500 mt-1 line-clamp-2">{menu.description}</div>}
-                          <div className="text-xs text-gray-500 mt-2 flex gap-3">
+                          <div className={`font-bold ${theme.selectableItemText(selectedMenu?.id === menu.id)}`}>{menu.name}</div>
+                          {menu.description && <div className={`text-xs mt-1 line-clamp-2 ${theme.selectableItemSubText(selectedMenu?.id === menu.id)}`}>{menu.description}</div>}
+                          <div className={`text-xs mt-2 flex gap-3 ${theme.selectableItemSubText(selectedMenu?.id === menu.id)}`}>
                             {menu.duration_minutes && <span className="flex items-center gap-1"><Clock size={12} /> {menu.duration_minutes}分</span>}
                             {menu.price && <span>¥{menu.price.toLocaleString()}</span>}
                           </div>
                         </div>
-                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedMenu?.id === menu.id ? 'border-current' : 'border-gray-300'}`}
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedMenu?.id === menu.id ? 'border-current' : (storeSettings.liff_template_id === 'dark' ? 'border-slate-600' : 'border-gray-300')}`}
                              style={selectedMenu?.id === menu.id ? { borderColor: storeSettings.liff_theme_color } : {}}>
                           {selectedMenu?.id === menu.id && <div className="w-3 h-3 rounded-full bg-current" style={{ backgroundColor: storeSettings.liff_theme_color }} />}
                         </div>
@@ -1106,7 +1144,7 @@ export default function Booking() {
       
       {/* Debug Info / Store Name Footer */}
       <div className="mt-4 text-center text-[10px] text-gray-400 pb-4">
-        {storeSettings.name} {storeId ? `(ID: ${storeId.slice(0, 8)}...)` : ''}
+        {storeSettings.name}
       </div>
     </div>
   )
