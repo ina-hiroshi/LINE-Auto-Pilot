@@ -542,61 +542,65 @@ export default function Reservations() {
                                 {reservation.status === 'cancelled' ? 'キャンセル' : (reservation.memo === 'Web予約' ? 'LINE予約' : reservation.memo || 'LINE予約')}
                               </span>
                             </div>
-                            <div className="flex items-center gap-3 mt-1">
-                                {/* Profile Picture */}
-                                <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
-                                    {reservation.customer?.profile_picture_url ? (
-                                        <>
-                                          <img 
-                                            src={reservation.customer.profile_picture_url} 
-                                            alt="" 
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => {
-                                              e.currentTarget.style.display = 'none';
-                                              // Show the sibling icon
-                                              const icon = e.currentTarget.nextElementSibling;
-                                              if (icon) icon.classList.remove('hidden');
-                                            }}
-                                          />
-                                          <User size={18} className="text-gray-400 hidden" />
-                                        </>
-                                    ) : (
-                                        <User size={18} className="text-gray-400" />
-                                    )}
-                                </div>
-                                
-                                {/* Name Display */}
-                                <div className="flex flex-col">
-                                    {reservation.customer?.real_name ? (
-                                        <div className="flex items-baseline gap-1">
-                                            <span className="text-base font-bold text-gray-900 leading-tight">
-                                                {reservation.customer.real_name}
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-1">
+                                <div className="flex items-center gap-3">
+                                    {/* Profile Picture */}
+                                    <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+                                        {reservation.customer?.profile_picture_url ? (
+                                            <>
+                                              <img 
+                                                src={reservation.customer.profile_picture_url} 
+                                                alt="" 
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                  e.currentTarget.style.display = 'none';
+                                                  // Show the sibling icon
+                                                  const icon = e.currentTarget.nextElementSibling;
+                                                  if (icon) icon.classList.remove('hidden');
+                                                }}
+                                              />
+                                              <User size={18} className="text-gray-400 hidden" />
+                                            </>
+                                        ) : (
+                                            <User size={18} className="text-gray-400" />
+                                        )}
+                                    </div>
+                                    
+                                    {/* Name Display */}
+                                    <div className="flex flex-col min-w-0">
+                                        {reservation.customer?.real_name ? (
+                                            <div className="flex items-baseline gap-1 flex-wrap">
+                                                <span className="text-base font-bold text-gray-900 leading-tight whitespace-nowrap">
+                                                    {reservation.customer.real_name}
+                                                </span>
+                                                {reservation.customer.furigana && (
+                                                    <span className="text-xs text-gray-500 leading-tight whitespace-nowrap">({reservation.customer.furigana})</span>
+                                                )}
+                                                <span className="text-sm font-normal text-gray-500">様</span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-base font-bold text-gray-900">
+                                                {reservation.customer?.display_name || 'ゲスト'} <span className="text-sm font-normal text-gray-500">様 (LINE名)</span>
                                             </span>
-                                            {reservation.customer.furigana && (
-                                                <span className="text-xs text-gray-500 leading-tight">({reservation.customer.furigana})</span>
-                                            )}
-                                            <span className="text-sm font-normal text-gray-500">様</span>
-                                        </div>
-                                    ) : (
-                                        <span className="text-base font-bold text-gray-900">
-                                            {reservation.customer?.display_name || 'ゲスト'} <span className="text-sm font-normal text-gray-500">様 (LINE名)</span>
-                                        </span>
-                                    )}
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Staff and Menu Display */}
-                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-sm text-gray-600 ml-2 border-l pl-3 border-gray-200">
-                                    {reservation.staff?.name && (
-                                        <span className="text-xs">担当: <span className="font-medium text-gray-800">{reservation.staff.name}</span></span>
-                                    )}
-                                    {reservation.menu?.name && (
-                                        <span className="text-xs">メニュー: <span className="font-medium text-gray-800">{reservation.menu.name} {(reservation.menu as any).price ? `(¥${(reservation.menu as any).price.toLocaleString()})` : ''}</span></span>
-                                    )}
-                                </div>
+                                {(reservation.staff?.name || reservation.menu?.name) && (
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600 sm:ml-2 sm:border-l sm:pl-3 sm:border-gray-200 pl-12 sm:pl-3">
+                                        {reservation.staff?.name && (
+                                            <span className="text-xs whitespace-nowrap">担当: <span className="font-medium text-gray-800">{reservation.staff.name}</span></span>
+                                        )}
+                                        {reservation.menu?.name && (
+                                            <span className="text-xs">メニュー: <span className="font-medium text-gray-800">{reservation.menu.name} {(reservation.menu as any).price ? `(¥${(reservation.menu as any).price.toLocaleString()})` : ''}</span></span>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                           </div>
                         </div>
-                        <div className="flex flex-row gap-2 w-full sm:w-auto mt-1 sm:mt-0 items-center">
+                        <div className="flex flex-row gap-2 w-full sm:w-auto mt-1 sm:mt-0 justify-end sm:justify-start">
                           <button 
                             onClick={(e) => {
                               e.stopPropagation()
@@ -674,105 +678,111 @@ export default function Reservations() {
           ) : (
             <div className="flex flex-col h-[800px] bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               {/* Header / Settings Bar */}
-              <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center bg-white gap-4 sticky top-0 z-10">
-                <div className="flex items-center gap-4">
-                  <h2 className="text-xl font-bold text-gray-800">
-                    {currentDate.getFullYear()}年 {currentDate.getMonth() + 1}月
-                  </h2>
-                  <div className="flex bg-gray-100 rounded-lg p-0.5">
-                    <button 
-                      onClick={() => {
-                        const newDate = new Date(currentDate)
-                        if (calendarView === 'month') newDate.setMonth(newDate.getMonth() - 1)
-                        else if (calendarView === 'week') newDate.setDate(newDate.getDate() - 7)
-                        else newDate.setDate(newDate.getDate() - 1)
-                        setCurrentDate(newDate)
-                      }}
-                      className="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition text-gray-600"
-                    >
-                      ←
-                    </button>
-                    <button 
-                      onClick={() => setCurrentDate(new Date())}
-                      className="px-3 py-1.5 text-sm font-medium hover:bg-white hover:shadow-sm rounded-md transition text-gray-600"
-                    >
-                      今日
-                    </button>
-                    <button 
-                      onClick={() => {
-                        const newDate = new Date(currentDate)
-                        if (calendarView === 'month') newDate.setMonth(newDate.getMonth() + 1)
-                        else if (calendarView === 'week') newDate.setDate(newDate.getDate() + 7)
-                        else newDate.setDate(newDate.getDate() + 1)
-                        setCurrentDate(newDate)
-                      }}
-                      className="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition text-gray-600"
-                    >
-                      →
-                    </button>
+              <div className="p-4 border-b border-gray-100 flex flex-col gap-4 sticky top-0 z-10 bg-white">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                  <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 whitespace-nowrap">
+                      {currentDate.getFullYear()}年 {currentDate.getMonth() + 1}月
+                    </h2>
+                    
+                    <div className="flex bg-gray-100 rounded-lg p-0.5 shrink-0">
+                      <button 
+                        onClick={() => {
+                          const newDate = new Date(currentDate)
+                          if (calendarView === 'month') newDate.setMonth(newDate.getMonth() - 1)
+                          else if (calendarView === 'week') newDate.setDate(newDate.getDate() - 7)
+                          else newDate.setDate(newDate.getDate() - 1)
+                          setCurrentDate(newDate)
+                        }}
+                        className="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition text-gray-600"
+                      >
+                        ←
+                      </button>
+                      <button 
+                        onClick={() => setCurrentDate(new Date())}
+                        className="px-3 py-1.5 text-xs sm:text-sm font-medium hover:bg-white hover:shadow-sm rounded-md transition text-gray-600"
+                      >
+                        今日
+                      </button>
+                      <button 
+                        onClick={() => {
+                          const newDate = new Date(currentDate)
+                          if (calendarView === 'month') newDate.setMonth(newDate.getMonth() + 1)
+                          else if (calendarView === 'week') newDate.setDate(newDate.getDate() + 7)
+                          else newDate.setDate(newDate.getDate() + 1)
+                          setCurrentDate(newDate)
+                        }}
+                        className="p-1.5 hover:bg-white hover:shadow-sm rounded-md transition text-gray-600"
+                      >
+                        →
+                      </button>
+                    </div>
                   </div>
                   
-                  <div className="flex bg-gray-100 rounded-lg p-0.5">
-                    <button 
-                      onClick={() => setCalendarView('month')}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${calendarView === 'month' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                      月
-                    </button>
-                    <button 
-                      onClick={() => setCalendarView('week')}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${calendarView === 'week' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                      週
-                    </button>
-                    <button 
-                      onClick={() => setCalendarView('day')}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${calendarView === 'day' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                      日
-                    </button>
+                  <div className="flex items-center justify-between w-full sm:w-auto gap-2">
+                    <div className="flex bg-gray-100 rounded-lg p-0.5 shrink-0">
+                      <button 
+                        onClick={() => setCalendarView('month')}
+                        className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition ${calendarView === 'month' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                      >
+                        月
+                      </button>
+                      <button 
+                        onClick={() => setCalendarView('week')}
+                        className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition ${calendarView === 'week' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                      >
+                        週
+                      </button>
+                      <button 
+                        onClick={() => setCalendarView('day')}
+                        className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition ${calendarView === 'day' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                      >
+                        日
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2 ml-auto sm:ml-0">
+                      <div className="hidden sm:flex items-center gap-2 text-green-700 font-medium px-3 py-1 bg-green-100 rounded-full text-xs whitespace-nowrap">
+                        <CheckCircle size={12} />
+                        <span>連携中</span>
+                      </div>
+                      
+                      <button 
+                        onClick={() => {
+                          fetchCalendars()
+                          fetchGoogleEvents()
+                        }}
+                        className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition"
+                        title="更新"
+                      >
+                        <RefreshCw size={16} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 text-green-700 font-medium px-3 py-1 bg-green-100 rounded-full text-xs whitespace-nowrap">
-                    <CheckCircle size={12} />
-                    <span>連携中</span>
+                {/* Mobile Calendar Selector (Collapsible or simplified) */}
+                {selectedCalendarId && (
+                  <div className="flex items-center gap-2 w-full">
+                    <select
+                      value={selectedCalendarId}
+                      onChange={(e) => setSelectedCalendarId(e.target.value)}
+                      className="flex-1 text-sm border-gray-300 rounded-md shadow-sm focus:border-primary-500 focus:ring-primary-500 py-1.5"
+                    >
+                      {calendars.map(cal => (
+                        <option key={cal.id} value={cal.id}>{cal.summary}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleSaveCalendarSettings}
+                      disabled={calendarLoading}
+                      className="text-sm text-primary-600 hover:text-primary-700 font-medium whitespace-nowrap px-2"
+                      title="選択したカレンダーをデフォルトとして保存します"
+                    >
+                      保存
+                    </button>
                   </div>
-                  
-                  {selectedCalendarId && (
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={selectedCalendarId}
-                        onChange={(e) => setSelectedCalendarId(e.target.value)}
-                        className="text-sm border-gray-300 rounded-md shadow-sm focus:border-primary-500 focus:ring-primary-500 py-1.5"
-                      >
-                        {calendars.map(cal => (
-                          <option key={cal.id} value={cal.id}>{cal.summary}</option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={handleSaveCalendarSettings}
-                        disabled={calendarLoading}
-                        className="text-sm text-primary-600 hover:text-primary-700 font-medium whitespace-nowrap"
-                        title="選択したカレンダーをデフォルトとして保存します"
-                      >
-                        保存
-                      </button>
-                    </div>
-                  )}
-                  
-                  <button 
-                    onClick={() => {
-                      fetchCalendars()
-                      fetchGoogleEvents()
-                    }}
-                    className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition"
-                    title="更新"
-                  >
-                    <RefreshCw size={16} />
-                  </button>
-                </div>
+                )}
               </div>
 
               {/* Main Content Area */}
@@ -837,39 +847,41 @@ export default function Reservations() {
                   // Calendar Grid View
                   <div className="flex-1 flex flex-col min-h-0">
                     {/* Days Header */}
-                    <div className={`grid ${calendarView === 'day' ? 'grid-cols-1' : 'grid-cols-7'} border-b border-gray-200 bg-gray-50 shrink-0`}>
-                      {(() => {
-                        if (calendarView === 'day') {
-                          const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][currentDate.getDay()]
-                          return (
-                            <div className="py-2 text-center text-xs font-semibold text-gray-700">
-                              {currentDate.getDate()}日 ({dayOfWeek})
-                            </div>
-                          )
-                        }
-                        
-                        // Week or Month view header
-                        const days = ['日', '月', '火', '水', '木', '金', '土']
-                        if (calendarView === 'week') {
-                          const startOfWeek = new Date(currentDate)
-                          startOfWeek.setDate(currentDate.getDate() - currentDate.getDay())
-                          return days.map((day, i) => {
-                            const d = new Date(startOfWeek)
-                            d.setDate(startOfWeek.getDate() + i)
+                    <div className="overflow-x-auto scrollbar-hide">
+                      <div className={`grid ${calendarView === 'day' ? 'grid-cols-1' : 'grid-cols-7'} border-b border-gray-200 bg-gray-50 shrink-0 ${calendarView === 'week' ? 'min-w-[700px]' : ''}`}>
+                        {(() => {
+                          if (calendarView === 'day') {
+                            const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][currentDate.getDay()]
                             return (
-                              <div key={day} className={`py-2 text-center text-xs font-semibold ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-500'}`}>
-                                {d.getDate()} ({day})
+                              <div className="py-2 text-center text-xs font-semibold text-gray-700">
+                                {currentDate.getDate()}日 ({dayOfWeek})
                               </div>
                             )
-                          })
-                        }
-                        
-                        return days.map((day, i) => (
-                          <div key={day} className={`py-2 text-center text-xs font-semibold ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-500'}`}>
-                            {day}
-                          </div>
-                        ))
-                      })()}
+                          }
+                          
+                          // Week or Month view header
+                          const days = ['日', '月', '火', '水', '木', '金', '土']
+                          if (calendarView === 'week') {
+                            const startOfWeek = new Date(currentDate)
+                            startOfWeek.setDate(currentDate.getDate() - currentDate.getDay())
+                            return days.map((day, i) => {
+                              const d = new Date(startOfWeek)
+                              d.setDate(startOfWeek.getDate() + i)
+                              return (
+                                <div key={day} className={`py-2 text-center text-xs font-semibold ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-500'}`}>
+                                  {d.getDate()} ({day})
+                                </div>
+                              )
+                            })
+                          }
+                          
+                          return days.map((day, i) => (
+                            <div key={day} className={`py-2 text-center text-xs font-semibold ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-500'}`}>
+                              {day}
+                            </div>
+                          ))
+                        })()}
+                      </div>
                     </div>
 
                     {/* Calendar Body */}
@@ -938,10 +950,10 @@ export default function Reservations() {
                                       <div>
                                         <span className="font-bold">{new Date(r.start_time).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</span>
                                         {' '}
-                                        {r.customer?.real_name || r.customer?.display_name || 'ゲスト'}
+                                        <span className="hidden sm:inline">{r.customer?.real_name || r.customer?.display_name || 'ゲスト'}</span>
                                       </div>
                                       {(r.menu?.name || r.staff?.name) && (
-                                        <div className="text-[9px] opacity-80 truncate">
+                                        <div className="text-[9px] opacity-80 truncate hidden sm:block">
                                           {r.menu?.name} {r.staff?.name && `(${r.staff.name})`}
                                         </div>
                                       )}
@@ -957,7 +969,7 @@ export default function Reservations() {
                                           : '終日'}
                                       </span>
                                       {' '}
-                                      {e.summary}
+                                      <span className="hidden sm:inline">{e.summary}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -968,12 +980,12 @@ export default function Reservations() {
                       </div>
                     ) : (
                       // Week / Day View (Time Grid)
-                      <div className="flex-1 overflow-y-auto relative bg-white">
-                        <div className="flex min-h-[1440px]"> {/* 24 hours * 60px */}
+                      <div className="flex-1 overflow-y-auto relative bg-white overflow-x-auto">
+                        <div className={`flex min-h-[1440px] ${calendarView === 'week' ? 'min-w-[700px]' : ''}`}> {/* 24 hours * 60px */}
                           {/* Time Labels */}
-                          <div className="w-12 flex-shrink-0 border-r border-gray-200 bg-gray-50">
+                          <div className="w-12 flex-shrink-0 border-r border-gray-200 bg-gray-50 sticky left-0 z-20">
                             {[...Array(24)].map((_, i) => (
-                              <div key={i} className="h-[60px] text-[10px] text-gray-500 text-right pr-2 pt-1 border-b border-gray-100">
+                              <div key={i} className="h-[60px] text-[10px] text-gray-500 text-right pr-2 pt-1 border-b border-gray-100 bg-gray-50">
                                 {i}:00
                               </div>
                             ))}
