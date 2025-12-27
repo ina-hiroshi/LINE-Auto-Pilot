@@ -151,6 +151,7 @@ export default function Dashboard() {
         .from('reservations')
         .select('*', { count: 'exact', head: true })
         .eq('store_id', storeId)
+        .neq('status', 'cancelled')
       
       if (start) resQuery = resQuery.gte('start_time', start)
       if (end) resQuery = resQuery.lte('start_time', end)

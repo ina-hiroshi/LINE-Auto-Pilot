@@ -7,8 +7,11 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
   const { data, error } = await supabase
-    .from('customers')
-    .select('profile_picture_url')
+    .rpc('get_columns', { table_name: 'points' })
+    // If rpc doesn't exist, try a raw query if possible, but supabase-js doesn't support raw easily without rpc.
+    // Let's try to select * limit 1 to see keys
+    .from('points')
+    .select('*')
     .limit(1)
 
   return new Response(
