@@ -324,11 +324,22 @@ export default function Reservations() {
 
           if (minStart < 24 && maxEnd > 0) {
              // Add buffer if needed, or just use exact
+             // Ensure we show at least 0-24 if something is wrong, but here we trust business hours
+             // If reservations exist outside business hours, we should expand the view.
+             // But we don't have reservations loaded yet.
+             // Let's set initial display hours based on business hours, and maybe expand later?
+             // For now, just use business hours.
              setDisplayHours({ start: Math.max(0, minStart), end: Math.min(24, maxEnd) })
+          } else {
+             // Fallback if no valid business hours found
+             setDisplayHours({ start: 0, end: 24 })
           }
         } catch (e) {
           console.error('Error parsing business hours:', e)
+          setDisplayHours({ start: 0, end: 24 })
         }
+      } else {
+         setDisplayHours({ start: 0, end: 24 })
       }
 
       // Fetch Reservations
@@ -343,6 +354,23 @@ export default function Reservations() {
 
       const resData = (resDataRaw ?? []) as Reservation[]
       if (resData.length > 0) {
+        // Check if any reservation is outside display hours and expand if necessary
+        let newStart = displayHours.start
+        let newEnd = displayHours.end
+        
+        // Re-calculate based on actual reservations if they are outside business hours
+        resData.forEach(r => {
+            const startH = new Date(r.start_time).getHours()
+            const endH = new Date(r.end_time).getHours() + (new Date(r.end_time).getMinutes() > 0 ? 1 : 0)
+            
+            if (startH < newStart) newStart = startH
+            if (endH > newEnd) newEnd = endH
+        })
+        
+        if (newStart !== displayHours.start || newEnd !== displayHours.end) {
+             setDisplayHours({ start: Math.max(0, newStart), end: Math.min(24, newEnd) })
+        }
+
         // Fetch Customers for these reservations
         const userIds = Array.from(new Set(resData.map((r: Reservation) => r.line_user_id).filter(Boolean)))
         
@@ -409,13 +437,15 @@ export default function Reservations() {
     if (!selectedReservation) return
     setActionLoading(true)
     try {
-      const { error } = await supabase.functions.invoke('booking', {
+      const { data, error } = await supabase.functions.invoke('booking', {
         body: {
           action: 'cancel_reservation',
           reservation_id: selectedReservation.id
         }
       })
       if (error) throw error
+      if (data?.error) throw new Error(data.error)
+
       setToast({ message: '予約をキャンセルしました', type: 'success' })
       setIsCancelModalOpen(false)
       fetchReservations()

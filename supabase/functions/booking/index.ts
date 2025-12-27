@@ -151,14 +151,18 @@ serve(async (req) => {
 
     const { action, store_id, line_user_id, display_name, profile_picture_url, real_name, furigana, date, time, reservation_id, staff_id, menu_id, memo } = await req.json()
 
-    const { data: storeSettings, error: storeError } = await supabaseClient
-      .from('stores')
-      .select('slot_interval_minutes, capacity_per_slot, business_hours')
-      .eq('id', store_id)
-      .maybeSingle()
-
-    if (storeError) throw storeError
-    if (!storeSettings) throw new Error('Store not found')
+    // Helper to fetch store settings only when needed
+    const getStoreSettings = async (id: string) => {
+      const { data, error } = await supabaseClient
+        .from('stores')
+        .select('slot_interval_minutes, capacity_per_slot, business_hours')
+        .eq('id', id)
+        .maybeSingle()
+      
+      if (error) throw error
+      if (!data) throw new Error('Store not found')
+      return data
+    }
 
     console.log(`[Booking] Action: ${action}, User: ${line_user_id}, Name: ${display_name}, Pic: ${profile_picture_url ? 'Yes' : 'No'}`)
 
@@ -178,7 +182,8 @@ serve(async (req) => {
 
     if (action === 'get_available_slots') {
       if (!store_id || !date) throw new Error('store_id and date are required')
-
+      
+      const storeSettings = await getStoreSettings(store_id)
       const slotInterval = storeSettings?.slot_interval_minutes ?? 60
 
       // Menu-specific duration & capacity override
@@ -391,6 +396,7 @@ serve(async (req) => {
       // Treat input time as JST (+09:00)
       const startDateTime = new Date(`${date}T${time}:00+09:00`)
 
+      const storeSettings = await getStoreSettings(store_id)
       let durationMinutes = storeSettings?.slot_interval_minutes ?? 60
       let menuCapacity: number | null = null
       if (menu_id) {
@@ -514,6 +520,7 @@ serve(async (req) => {
       const startDateTime = new Date(`${date}T${time}:00+09:00`)
 
       // Menu-specific duration & capacity
+      const storeSettings = await getStoreSettings(store_id)
       let durationMinutes = storeSettings?.slot_interval_minutes ?? 60
       let menuCapacity: number | null = null
       if (menu_id) {
