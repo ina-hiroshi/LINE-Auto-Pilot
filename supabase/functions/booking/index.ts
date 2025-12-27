@@ -226,8 +226,12 @@ serve(async (req) => {
       }
       // ----------------------------
 
-      const hours = parseBusinessHours(storeSettings?.business_hours, date)
-      const effectiveHours = hours.length > 0 ? hours : [{ start: '10:00', end: '20:00' }]
+      let effectiveHours: BusinessHourSlot[] = []
+      if (storeSettings?.business_hours) {
+        effectiveHours = parseBusinessHours(storeSettings.business_hours, date)
+      } else {
+        effectiveHours = [{ start: '10:00', end: '20:00' }]
+      }
 
       const slots: { time: string; available: boolean }[] = []
 
@@ -452,7 +456,7 @@ serve(async (req) => {
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
           status: 'confirmed',
-          memo: memo || 'LINE予約(変更)',
+          memo: memo || '',
           staff_id: staff_id || null,
           menu_id: menu_id || null
         })
@@ -464,8 +468,41 @@ serve(async (req) => {
       // --- Google Calendar Create Event ---
       if (googleClient && newReservation) {
         try {
-            const summary = `予約: ${real_name || display_name || 'LINE User'}`
-            const description = `Menu ID: ${menu_id || 'N/A'}\nMemo: ${memo || 'LINE予約(変更)'}`
+            // Fetch Staff Name
+            let staffName = '指定なし'
+            if (staff_id) {
+               const { data: staff } = await supabaseClient.from('staff_members').select('name').eq('id', staff_id).maybeSingle()
+               if (staff) staffName = staff.name
+            }
+
+            // Fetch Menu Name
+            let menuName = '指定なし'
+            let menuPrice = ''
+            if (menu_id) {
+              const { data: menu } = await supabaseClient
+                .from('booking_menus')
+                .select('name, price')
+                .eq('id', menu_id)
+                .maybeSingle()
+              if (menu) {
+                  menuName = menu.name
+                  if (menu.price) menuPrice = `(¥${menu.price.toLocaleString()})`
+              }
+            }
+
+            const summary = `予約: ${real_name || display_name || 'LINE User'} 様`
+            const description = `
+■予約詳細
+------------------
+【お名前】 ${real_name || display_name || 'ゲスト'} 様
+【担当】 ${staffName}
+【メニュー】 ${menuName} ${menuPrice}
+【メモ】
+${memo || 'なし'}
+------------------
+LINE ID: ${line_user_id}
+`.trim()
+
             const eventId = await createGoogleEvent(googleClient, {
                 summary,
                 description,
@@ -577,7 +614,7 @@ serve(async (req) => {
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
           status: 'confirmed',
-          memo: 'LINE予約',
+          memo: memo || '',
           staff_id: staff_id || null,
           menu_id: menu_id || null
         })
@@ -589,8 +626,41 @@ serve(async (req) => {
       // --- Google Calendar Create Event ---
       if (googleClient && newReservation) {
         try {
-            const summary = `予約: ${real_name || display_name || 'LINE User'}`
-            const description = `Menu ID: ${menu_id || 'N/A'}\nMemo: LINE予約`
+            // Fetch Staff Name
+            let staffName = '指定なし'
+            if (staff_id) {
+               const { data: staff } = await supabaseClient.from('staff_members').select('name').eq('id', staff_id).maybeSingle()
+               if (staff) staffName = staff.name
+            }
+
+            // Fetch Menu Name
+            let menuName = '指定なし'
+            let menuPrice = ''
+            if (menu_id) {
+              const { data: menu } = await supabaseClient
+                .from('booking_menus')
+                .select('name, price')
+                .eq('id', menu_id)
+                .maybeSingle()
+              if (menu) {
+                  menuName = menu.name
+                  if (menu.price) menuPrice = `(¥${menu.price.toLocaleString()})`
+              }
+            }
+
+            const summary = `予約: ${real_name || display_name || 'LINE User'} 様`
+            const description = `
+■予約詳細
+------------------
+【お名前】 ${real_name || display_name || 'ゲスト'} 様
+【担当】 ${staffName}
+【メニュー】 ${menuName} ${menuPrice}
+【メモ】
+${memo || 'なし'}
+------------------
+LINE ID: ${line_user_id}
+`.trim()
+
             const eventId = await createGoogleEvent(googleClient, {
                 summary,
                 description,

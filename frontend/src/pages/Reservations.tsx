@@ -55,6 +55,7 @@ const toErrorMessage = (error: unknown): string => {
 
 export default function Reservations() {
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
+  const [listFilter, setListFilter] = useState<'today' | 'week' | 'month' | 'all'>('today')
   const [isGoogleConnected, setIsGoogleConnected] = useState(false)
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [loading, setLoading] = useState(true)
@@ -353,7 +354,10 @@ export default function Reservations() {
       if (resError) throw resError
 
       const resData = (resDataRaw ?? []) as Reservation[]
-      if (resData.length > 0) {
+      
+      if (resData.length === 0) {
+        setReservations([])
+      } else {
         // Check if any reservation is outside display hours and expand if necessary
         let newStart = displayHours.start
         let newEnd = displayHours.end
@@ -412,8 +416,10 @@ export default function Reservations() {
   useEffect(() => {
     if (!storeId) return
 
+    console.log('Setting up realtime subscription for store:', storeId)
+
     const channel = supabase
-      .channel('reservations-realtime')
+      .channel(`reservations-realtime-${storeId}`)
       .on(
         'postgres_changes',
         {
@@ -422,16 +428,21 @@ export default function Reservations() {
           table: 'reservations',
           filter: `store_id=eq.${storeId}`
         },
-        () => {
+        (payload) => {
+          console.log('Realtime update received:', payload)
           fetchReservations()
+          fetchGoogleEvents()
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('Subscription status:', status)
+      })
 
     return () => {
+      console.log('Cleaning up realtime subscription')
       supabase.removeChannel(channel)
     }
-  }, [fetchReservations, storeId])
+  }, [fetchReservations, fetchGoogleEvents, storeId])
 
   const handleCancelReservation = async () => {
     if (!selectedReservation) return
@@ -449,6 +460,7 @@ export default function Reservations() {
       setToast({ message: '予約をキャンセルしました', type: 'success' })
       setIsCancelModalOpen(false)
       fetchReservations()
+      fetchGoogleEvents()
     } catch (error) {
       console.error('Cancel Error:', error)
       setToast({ message: `キャンセルに失敗しました: ${toErrorMessage(error)}`, type: 'error' })
@@ -480,6 +492,7 @@ export default function Reservations() {
       setToast({ message: '予約を変更しました', type: 'success' })
       setIsModifyModalOpen(false)
       fetchReservations()
+      fetchGoogleEvents()
     } catch (error) {
       console.error('Modify Error:', error)
       setToast({ message: `変更に失敗しました: ${toErrorMessage(error)}`, type: 'error' })
@@ -539,28 +552,52 @@ export default function Reservations() {
 
       {viewMode === 'list' ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-4 sm:p-6 border-b border-gray-100">
+          <div className="p-4 sm:p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
             <h2 className="font-bold text-gray-800">予約一覧</h2>
+            <div className="flex bg-gray-100 rounded-lg p-1">
+                <button onClick={() => setListFilter('today')} className={`px-3 py-1 text-xs font-medium rounded-md transition ${listFilter === 'today' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>今日</button>
+                <button onClick={() => setListFilter('week')} className={`px-3 py-1 text-xs font-medium rounded-md transition ${listFilter === 'week' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>今週</button>
+                <button onClick={() => setListFilter('month')} className={`px-3 py-1 text-xs font-medium rounded-md transition ${listFilter === 'month' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>今月</button>
+                <button onClick={() => setListFilter('all')} className={`px-3 py-1 text-xs font-medium rounded-md transition ${listFilter === 'all' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>全期間</button>
+            </div>
           </div>
           <div className="divide-y divide-gray-100">
             {loading ? (
                 <div className="p-8 text-center text-gray-500">読み込み中...</div>
-            ) : reservations.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">予約はありません</div>
             ) : (
-                reservations.map((reservation) => {
-                    const startDate = new Date(reservation.start_time)
-                    const month = startDate.getMonth() + 1
-                    const day = startDate.getDate()
-                    const dayOfWeek = startDate.toLocaleDateString('ja-JP', { weekday: 'short' })
-                    const startTime = startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
-                    const endTime = new Date(reservation.end_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+                (() => {
+                    const filtered = reservations.filter(r => {
+                        if (listFilter === 'all') return true
+                        const d = new Date(r.start_time)
+                        const now = new Date()
+                        if (listFilter === 'today') return d.toDateString() === now.toDateString()
+                        if (listFilter === 'week') {
+                            const start = new Date(now)
+                            start.setDate(now.getDate() - now.getDay())
+                            start.setHours(0,0,0,0)
+                            const end = new Date(start)
+                            end.setDate(start.getDate() + 7)
+                            return d >= start && d < end
+                        }
+                        if (listFilter === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+                        return true
+                    })
 
-                    return (
-                      <div key={reservation.id} 
-                           className="p-2 hover:bg-gray-50 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 cursor-pointer"
-                           onClick={() => openDetailModal(reservation)}
-                      >
+                    if (filtered.length === 0) return <div className="p-8 text-center text-gray-500">予約はありません</div>
+
+                    return filtered.map((reservation) => {
+                        const startDate = new Date(reservation.start_time)
+                        const month = startDate.getMonth() + 1
+                        const day = startDate.getDate()
+                        const dayOfWeek = startDate.toLocaleDateString('ja-JP', { weekday: 'short' })
+                        const startTime = startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+                        const endTime = new Date(reservation.end_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+
+                        return (
+                          <div key={reservation.id} 
+                               className="p-2 hover:bg-gray-50 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 cursor-pointer"
+                               onClick={() => openDetailModal(reservation)}
+                          >
                         <div className="flex items-start sm:items-center gap-2 w-full">
                           <div className="flex flex-col items-center justify-center w-14 h-14 bg-primary-50 rounded-lg text-primary-700 shrink-0">
                             <span className="text-[10px] font-bold uppercase leading-none">{month}月</span>
@@ -664,6 +701,7 @@ export default function Reservations() {
                       </div>
                     )
                 })
+            })()
             )}
           </div>
         </div>
@@ -864,7 +902,11 @@ export default function Reservations() {
                   <div className="flex-1 flex flex-col min-h-0">
                     {/* Days Header */}
                     <div className="overflow-x-auto scrollbar-hide">
-                      <div className={`grid ${calendarView === 'day' ? 'grid-cols-1' : 'grid-cols-7'} border-b border-gray-200 bg-gray-50 shrink-0 ${calendarView === 'week' ? 'min-w-[700px]' : ''}`}>
+                      <div className={`flex ${calendarView === 'week' ? 'min-w-[700px]' : ''}`}>
+                        {(calendarView === 'week' || calendarView === 'day') && (
+                          <div className="w-12 flex-shrink-0 bg-gray-50 border-b border-r border-gray-200"></div>
+                        )}
+                        <div className={`flex-1 grid ${calendarView === 'day' ? 'grid-cols-1' : 'grid-cols-7'} border-b border-gray-200 bg-gray-50 shrink-0`}>
                         {(() => {
                           if (calendarView === 'day') {
                             const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][currentDate.getDay()]
@@ -897,6 +939,7 @@ export default function Reservations() {
                             </div>
                           ))
                         })()}
+                        </div>
                       </div>
                     </div>
 
@@ -1230,15 +1273,15 @@ export default function Reservations() {
                 </div>
               </div>
               
-              {selectedReservation.memo && selectedReservation.memo !== 'Web予約' && selectedReservation.memo !== 'LINE予約' && (
-                <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                  <MessageSquare className="w-5 h-5 text-gray-400 mt-0.5" />
-                  <div>
-                    <div className="font-bold text-gray-700 text-xs mb-1">メモ</div>
-                    <div className="text-gray-900 whitespace-pre-wrap">{selectedReservation.memo}</div>
+              <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                <MessageSquare className="w-5 h-5 text-gray-400 mt-0.5" />
+                <div className="w-full">
+                  <div className="font-bold text-gray-700 text-xs mb-1">メモ (店舗用)</div>
+                  <div className="text-gray-900 whitespace-pre-wrap min-h-[1.5em]">
+                    {(selectedReservation.memo && selectedReservation.memo !== 'LINE予約' && selectedReservation.memo !== 'LINE予約(変更)') ? selectedReservation.memo : <span className="text-gray-400 text-xs">メモはありません</span>}
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           </div>
         )}
