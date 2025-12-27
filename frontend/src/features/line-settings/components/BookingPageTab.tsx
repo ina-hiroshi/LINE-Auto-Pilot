@@ -1,4 +1,4 @@
-import { ExternalLink, Grid, Layout, Palette, Smartphone, Edit, Trash2, User, Save, Loader2, Clock, Users } from 'lucide-react'
+import { ExternalLink, Grid, Layout, Palette, Smartphone, Edit, Trash2, User, Save, Loader2, Clock, Users, Calendar } from 'lucide-react'
 import { useMemo } from 'react'
 import type { FormEvent, RefObject } from 'react'
 import type { BookingSettings, BookingSystemType, Menu, Staff } from '../types'
@@ -73,7 +73,7 @@ export function BookingPageTab({
                 <Clock size={16} /> 枠生成設定
               </h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">スロット刻み</label>
                   <select
@@ -101,6 +101,22 @@ export function BookingPageTab({
                     />
                   </div>
                   <p className="text-xs text-gray-500 mt-1">メニュー個別設定がある場合はそちらを優先します。</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">予約受付期間 (日数)</label>
+                  <div className="flex items-center gap-2">
+                    <Calendar size={16} className="text-gray-500" />
+                    <input
+                      type="number"
+                      min={1}
+                      max={365}
+                      className="w-full border rounded-lg p-2 text-sm"
+                      value={bookingSettings.max_booking_days || 60}
+                      onChange={(e) => onBookingSettingsChange({ ...bookingSettings, max_booking_days: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">今日から何日先まで予約を受け付けるか設定します。</p>
                 </div>
               </div>
             </div>
