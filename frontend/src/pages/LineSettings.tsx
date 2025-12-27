@@ -5,6 +5,7 @@ import { useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ExternalLink, Loader2, MessageSquare, Smartphone } from 'lucide-react'
 import Toast from '../components/Toast'
+import Modal from '../components/Modal'
 import { supabase } from '../lib/supabase'
 import { RICH_MENU_LAYOUTS, AVAILABLE_ICONS } from '../features/line-settings/constants'
 import { TabsNav, type TabKey } from '../features/line-settings/components/TabsNav'
@@ -128,6 +129,7 @@ export default function LineSettings() {
 	const [editingStaffId, setEditingStaffId] = useState<string | null>(null)
 	const [editingMenuId, setEditingMenuId] = useState<string | null>(null)
 	const [previewRefreshKey, setPreviewRefreshKey] = useState(0)
+	const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false)
 
 	// 予約プレビューへ設定をポストする
 	useEffect(() => {
@@ -325,6 +327,29 @@ export default function LineSettings() {
 			setSaving(false)
 		}
 	}, [fetchData])
+
+	const handleGoogleDisconnect = async () => {
+		try {
+			setSaving(true)
+			const {
+				data: { user },
+			} = await supabase.auth.getUser()
+			if (!user) return
+
+			const { error } = await supabase.from('google_calendar_settings').delete().eq('user_id', user.id)
+
+			if (error) throw error
+
+			setGoogleCalendarSettings((prev) => ({ ...prev, connected: false, calendar_id: undefined, updated_at: undefined }))
+			setMessage({ type: 'success', text: 'Google連携を解除しました' })
+			setIsDisconnectModalOpen(false)
+		} catch (error) {
+			console.error('Disconnect Error:', error)
+			setMessage({ type: 'error', text: `連携解除に失敗しました: ${toErrorMessage(error)}` })
+		} finally {
+			setSaving(false)
+		}
+	}
 
 	// URLパラメータのtab/codeを監視
 	useEffect(() => {
@@ -895,6 +920,7 @@ export default function LineSettings() {
 						googleCalendarSettings={googleCalendarSettings}
 						saving={saving}
 						onConnect={handleGoogleConnect}
+						onDisconnect={() => setIsDisconnectModalOpen(true)}
 					/>
 				)}
 
@@ -959,6 +985,17 @@ export default function LineSettings() {
 				onClose={() => setIsMenuModalOpen(false)}
 				onConfirm={handleSubmitMenu}
 				onChange={setMenuFormData}
+			/>
+
+			<Modal
+				isOpen={isDisconnectModalOpen}
+				onClose={() => setIsDisconnectModalOpen(false)}
+				onConfirm={handleGoogleDisconnect}
+				title="連携解除の確認"
+				message="Googleカレンダーとの連携を解除してもよろしいですか？"
+				confirmText="解除する"
+				variant="danger"
+				isLoading={saving}
 			/>
 
 			<DeleteConfirmModal

@@ -69,6 +69,7 @@ export default function Reservations() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [calendarView, setCalendarView] = useState<'month' | 'week' | 'day'>('day')
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [displayHours, setDisplayHours] = useState({ start: 9, end: 22 }) // Default 9:00 - 22:00
 
   // Modal State
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
@@ -82,7 +83,7 @@ export default function Reservations() {
   const [modifyMemo, setModifyMemo] = useState<string>('')
   const [actionLoading, setActionLoading] = useState(false)
 
-  const fetchCalendars = useCallback(async () => {
+  const fetchCalendars = useCallback(async (preselectedId?: string) => {
     try {
       setCalendarLoading(true)
       const { data: { session } } = await supabase.auth.getSession()
@@ -101,7 +102,12 @@ export default function Reservations() {
       const calendarsResult: GoogleCalendar[] = result.calendars || []
       setCalendars(calendarsResult)
       
-      if (!selectedCalendarId) {
+      const targetId = preselectedId || selectedCalendarId
+      const targetExists = calendarsResult.some(c => c.id === targetId)
+
+      if (targetId && targetExists) {
+        if (preselectedId) setSelectedCalendarId(preselectedId)
+      } else {
         const primary = calendarsResult.find((c) => c.primary)
         if (primary) setSelectedCalendarId(primary.id)
       }
@@ -125,8 +131,8 @@ export default function Reservations() {
     
     if (settings) {
       setIsGoogleConnected(true)
-      setSelectedCalendarId(settings.calendar_id)
-      await fetchCalendars()
+      // setSelectedCalendarId(settings.calendar_id) // fetchCalendars内で設定するため削除
+      await fetchCalendars(settings.calendar_id)
     }
   }, [fetchCalendars])
 
@@ -249,15 +255,17 @@ export default function Reservations() {
     fetchGoogleEvents()
   }, [fetchGoogleEvents])
 
-  const handleSaveCalendarSettings = async () => {
+  const handleSaveCalendarSettings = async (newCalendarId?: string) => {
     try {
       setCalendarLoading(true)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      const targetId = newCalendarId || selectedCalendarId
+
       const { error } = await supabase
         .from('google_calendar_settings')
-        .update({ calendar_id: selectedCalendarId })
+        .update({ calendar_id: targetId })
         .eq('user_id', user.id)
 
       if (error) throw error
@@ -279,19 +287,55 @@ export default function Reservations() {
       // Get Store ID
       const { data: stores } = await supabase
         .from('stores')
-        .select('id')
+        .select('id, business_hours')
         .eq('owner_id', user.id)
         .limit(1)
       
-      const currentStoreId = stores?.[0]?.id
-      if (!currentStoreId) return
-      setStoreId(currentStoreId)
+      const currentStore = stores?.[0]
+      if (!currentStore) return
+      setStoreId(currentStore.id)
+
+      // Calculate Display Hours
+      if (currentStore.business_hours) {
+        try {
+          const hours = currentStore.business_hours as Record<string, { start: string; end: string }[]>
+          let minStart = 24
+          let maxEnd = 0
+          
+          Object.values(hours).forEach(slots => {
+            if (Array.isArray(slots)) {
+              slots.forEach(slot => {
+                if (slot.start) {
+                  const h = parseInt(slot.start.split(':')[0], 10)
+                  if (!isNaN(h) && h < minStart) minStart = h
+                }
+                if (slot.end) {
+                  const h = parseInt(slot.end.split(':')[0], 10)
+                  // If end is 20:00, we want to show until 20:00, so maxEnd should be 20.
+                  // If end is 20:30, we probably want to show until 21:00.
+                  const m = parseInt(slot.end.split(':')[1], 10)
+                  let endH = h
+                  if (m > 0) endH += 1
+                  if (!isNaN(endH) && endH > maxEnd) maxEnd = endH
+                }
+              })
+            }
+          })
+
+          if (minStart < 24 && maxEnd > 0) {
+             // Add buffer if needed, or just use exact
+             setDisplayHours({ start: Math.max(0, minStart), end: Math.min(24, maxEnd) })
+          }
+        } catch (e) {
+          console.error('Error parsing business hours:', e)
+        }
+      }
 
       // Fetch Reservations
       const { data: resDataRaw, error: resError } = await supabase
         .from('reservations')
         .select('*, staff:staff_members(name), menu:booking_menus(name, price)')
-        .eq('store_id', currentStoreId)
+        .eq('store_id', currentStore.id)
         .neq('status', 'cancelled') // キャンセル済みを除外
         .order('start_time', { ascending: true })
 
@@ -305,7 +349,7 @@ export default function Reservations() {
         const { data: customers, error: custError } = await supabase
           .from('customers')
           .select('line_user_id, display_name, profile_picture_url, real_name, furigana')
-          .eq('store_id', currentStoreId)
+          .eq('store_id', currentStore.id)
           .in('line_user_id', userIds)
 
         if (custError) throw custError
@@ -684,6 +728,25 @@ export default function Reservations() {
                   </div>
                   
                   <div className="flex items-center justify-between w-full sm:w-auto gap-2">
+                    {/* Calendar Name Display */}
+                    {selectedCalendarId && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-50 rounded-md border border-gray-200">
+                          <div 
+                            className="w-3 h-3 rounded-full border border-gray-200 shadow-sm" 
+                            style={{ backgroundColor: calendars.find(c => c.id === selectedCalendarId)?.backgroundColor || '#ccc' }} 
+                          />
+                          <span className="text-xs sm:text-sm font-bold text-gray-700 truncate max-w-[150px] sm:max-w-[200px]">
+                            {calendars.find(c => c.id === selectedCalendarId)?.summary || 'カレンダー'}
+                          </span>
+                        </div>
+                        <div className="hidden sm:flex items-center gap-2 text-green-700 font-medium px-3 py-1 bg-green-100 rounded-full text-xs whitespace-nowrap">
+                          <CheckCircle size={12} />
+                          <span>連携中</span>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex bg-gray-100 rounded-lg p-0.5 shrink-0">
                       <button 
                         onClick={() => setCalendarView('month')}
@@ -704,49 +767,8 @@ export default function Reservations() {
                         日
                       </button>
                     </div>
-
-                    <div className="flex items-center gap-2 ml-auto sm:ml-0">
-                      <div className="hidden sm:flex items-center gap-2 text-green-700 font-medium px-3 py-1 bg-green-100 rounded-full text-xs whitespace-nowrap">
-                        <CheckCircle size={12} />
-                        <span>連携中</span>
-                      </div>
-                      
-                      <button 
-                        onClick={() => {
-                          fetchCalendars()
-                          fetchGoogleEvents()
-                        }}
-                        className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition"
-                        title="更新"
-                      >
-                        <RefreshCw size={16} />
-                      </button>
-                    </div>
                   </div>
                 </div>
-
-                {/* Mobile Calendar Selector (Collapsible or simplified) */}
-                {selectedCalendarId && (
-                  <div className="flex items-center gap-2 w-full">
-                    <select
-                      value={selectedCalendarId}
-                      onChange={(e) => setSelectedCalendarId(e.target.value)}
-                      className="flex-1 text-sm border-gray-300 rounded-md shadow-sm focus:border-primary-500 focus:ring-primary-500 py-1.5"
-                    >
-                      {calendars.map(cal => (
-                        <option key={cal.id} value={cal.id}>{cal.summary}</option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={handleSaveCalendarSettings}
-                      disabled={calendarLoading}
-                      className="text-sm text-primary-600 hover:text-primary-700 font-medium whitespace-nowrap px-2"
-                      title="選択したカレンダーをデフォルトとして保存します"
-                    >
-                      保存
-                    </button>
-                  </div>
-                )}
               </div>
 
               {/* Main Content Area */}
@@ -945,14 +967,20 @@ export default function Reservations() {
                     ) : (
                       // Week / Day View (Time Grid)
                       <div className="flex-1 overflow-y-auto relative bg-white overflow-x-auto">
-                        <div className={`flex min-h-[1440px] ${calendarView === 'week' ? 'min-w-[700px]' : ''}`}> {/* 24 hours * 60px */}
+                        <div 
+                          className={`flex ${calendarView === 'week' ? 'min-w-[700px]' : ''}`}
+                          style={{ minHeight: `${(displayHours.end - displayHours.start) * 60}px` }}
+                        >
                           {/* Time Labels */}
                           <div className="w-12 flex-shrink-0 border-r border-gray-200 bg-gray-50 sticky left-0 z-20">
-                            {[...Array(24)].map((_, i) => (
-                              <div key={i} className="h-[60px] text-[10px] text-gray-500 text-right pr-2 pt-1 border-b border-gray-100 bg-gray-50">
-                                {i}:00
-                              </div>
-                            ))}
+                            {[...Array(displayHours.end - displayHours.start)].map((_, i) => {
+                              const hour = i + displayHours.start
+                              return (
+                                <div key={hour} className="h-[60px] text-[10px] text-gray-500 text-right pr-2 pt-1 border-b border-gray-100 bg-gray-50">
+                                  {hour}:00
+                                </div>
+                              )
+                            })}
                           </div>
 
                           {/* Grid Columns */}
@@ -992,7 +1020,7 @@ export default function Reservations() {
                                 return (
                                   <div key={colIdx} className="relative h-full">
                                     {/* Hour Lines */}
-                                    {[...Array(24)].map((_, i) => (
+                                    {[...Array(displayHours.end - displayHours.start)].map((_, i) => (
                                       <div key={i} className="h-[60px] border-b border-gray-100"></div>
                                     ))}
 
@@ -1002,13 +1030,16 @@ export default function Reservations() {
                                       const end = new Date(r.end_time)
                                       const startMinutes = start.getHours() * 60 + start.getMinutes()
                                       const duration = (end.getTime() - start.getTime()) / (1000 * 60)
+                                      const top = startMinutes - (displayHours.start * 60)
                                       
+                                      if (top < 0) return null // Skip events before start time (or handle partial)
+
                                       return (
                                         <div
                                           key={r.id}
                                           className="absolute left-1 right-1 bg-primary-100 border-l-4 border-primary-500 text-primary-800 text-xs p-1 rounded overflow-hidden cursor-pointer hover:opacity-90 z-10 flex flex-col"
                                           style={{
-                                            top: `${startMinutes}px`,
+                                            top: `${top}px`,
                                             height: `${Math.max(duration, 20)}px`
                                           }}
                                           onClick={() => openDetailModal(r)}
@@ -1034,13 +1065,16 @@ export default function Reservations() {
                                       const end = e.end.dateTime ? new Date(e.end.dateTime) : new Date(start.getTime() + 60 * 60 * 1000)
                                       const startMinutes = start.getHours() * 60 + start.getMinutes()
                                       const duration = (end.getTime() - start.getTime()) / (1000 * 60)
+                                      const top = startMinutes - (displayHours.start * 60)
+
+                                      if (top < 0) return null
 
                                       return (
                                         <div
                                           key={e.id}
                                           className="absolute left-1 right-1 bg-gray-100 border-l-4 border-gray-400 text-gray-600 text-xs p-1 rounded overflow-hidden z-0 opacity-80"
                                           style={{
-                                            top: `${startMinutes}px`,
+                                            top: `${top}px`,
                                             height: `${Math.max(duration, 20)}px`
                                           }}
                                         >
