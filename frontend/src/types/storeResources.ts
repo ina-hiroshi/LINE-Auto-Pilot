@@ -12,5 +12,6 @@ export type StoreMenu = {
   description?: string | null
   price?: number | null
   duration_minutes?: number | null
+  capacity_per_slot?: number | null
   is_active?: boolean | null
 }

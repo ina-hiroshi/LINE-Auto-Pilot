@@ -20,7 +20,7 @@ export function useStoreResources(storeId: string | null) {
           .order('created_at', { ascending: true }),
         supabase
           .from('booking_menus')
-          .select('id, name, description, price, duration_minutes, is_active')
+          .select('id, name, description, price, duration_minutes, capacity_per_slot, is_active')
           .eq('store_id', storeId)
           .eq('is_active', true)
           .order('created_at', { ascending: true })

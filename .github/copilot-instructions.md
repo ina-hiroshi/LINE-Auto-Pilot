@@ -1,39 +1,48 @@
 ## LINE Auto-Pilot (IToguchi) 向け AI コーディング指針
 
-- **言語**: 会話・コードコメントともに日本語のみ。
-- **技術構成**: React 19 + Vite 7、React Router 7、Tailwind CSS 4、Lucide、Framer Motion。バックエンドは Supabase（Auth/DB/Storage/Realtime）＋ Edge Functions（Deno）。
-- **開発コマンド**: `cd frontend && npm install` → `npm run dev`。ビルドは `npm run build`、Lint は `npm run lint`。Edge Functions デプロイ例: `supabase functions deploy line-webhook --no-verify-jwt`、`supabase functions deploy booking --no-verify-jwt`。
+- **言語**: 会話・コードコメントは日本語のみ。
+- **技術構成**: React 19 + Vite 7 + React Router 7 + Tailwind CSS 4 + Lucide + Framer Motion。バックエンドは Supabase（Auth/DB/Storage/Realtime）＋ Edge Functions（Deno）。
+- **開発コマンド**: `cd frontend && npm install` → `npm run dev`。ビルド `npm run build`、Lint `npm run lint`。Edge Functions デプロイ例: `supabase functions deploy line-webhook --no-verify-jwt` / `supabase functions deploy booking --no-verify-jwt`。
 
-### フロントエンドの約束事
+### ルーティング / 認証
 
-- Supabase クライアントは [frontend/src/lib/supabase.ts](frontend/src/lib/supabase.ts) の `supabase` を使用し、`import { supabase } from '@/lib/supabase'` で統一。
-- 認証と初期化は [frontend/src/App.tsx](frontend/src/App.tsx) が担当。`supabase.auth.onAuthStateChange` でセッションを監視し、`stores` の存在チェック後にルーティングを切り替える（/booking はログイン不要、それ以外はストア未作成で /initial-setup へ）。
-- ログアウト手順は Layout/InitialSetup に合わせて「`localStorage`/`sessionStorage` クリア → `supabase.auth.signOut()` → `/` へリロード」。
-- 予約画面 [frontend/src/pages/Reservations.tsx](frontend/src/pages/Reservations.tsx) は `reservations` テーブルを `store_id` で絞り込み、`customers`/`staff_members`/`booking_menus` を突合。Supabase Realtime channel `reservations-realtime` で即時反映。
-- Google カレンダー連携は同ページから Edge Function `google-auth`/`google-calendar` を呼び出す。redirect_uri は現在ページを利用し、Authorization ヘッダーに `session.access_token` を付与する前提。
-- UI は Tailwind 4 ユーティリティ + `primary(#00c3dc)` トーンを優先。アイコンは Lucide のみ。アニメーションは Framer Motion を適宜使用。
+- 認証と初期化は [frontend/src/App.tsx](frontend/src/App.tsx)。`supabase.auth.onAuthStateChange` でセッション監視し、`stores` の存在チェック後にルートを出し分け。`/booking` は常に公開、それ以外はストア未作成なら `/initial-setup` へリダイレクト。
+- ログアウトは Layout/InitialSetup の流儀に合わせ「`localStorage`/`sessionStorage` クリア → supabase サインアウト → `/` リロード」。
 
-### バックエンド / Edge Functions の要点
+### Supabase 利用規約
 
-- `line-webhook` [supabase/functions/line-webhook/index.ts](supabase/functions/line-webhook/index.ts): `destination`（Bot User ID）で `line_accounts` を特定し、DB から `channel_secret`/`channel_access_token` を取得。Web Crypto API で HMAC-SHA256 署名検証後に自動応答ルール `auto_responses` をスコアリング。応答ログは `customer_logs` へ記録。
-- `booking` [supabase/functions/booking/index.ts](supabase/functions/booking/index.ts): LINE 予約受付・変更・キャンセル。`line_accounts` から `line_account_id` を引き、`customers` を upsert してから `reservations` を作成/更新。キャンセルは status を `cancelled` に更新するだけ。時間は JST (+09:00) 前提で ISO 文字列化。
-- `google-auth` [supabase/functions/google-auth/index.ts](supabase/functions/google-auth/index.ts): GET で認可 URL を返却、POST で code を refresh_token に交換し `google_calendar_settings` に保存。`Authorization` ヘッダーのユーザコンテキストで動く。
-- `google-calendar` [supabase/functions/google-calendar/index.ts](supabase/functions/google-calendar/index.ts): refresh_token を使って access token を更新し、`action` クエリでカレンダー一覧/イベント一覧を返却。
-- Edge Functions はすべて CORS ヘッダーを明示し、OPTIONS も処理。環境変数は `Deno.env.get` で取得。
+- クライアントは [frontend/src/lib/supabase.ts](frontend/src/lib/supabase.ts) の `supabase` を共有し、`import { supabase } from '@/lib/supabase'` で統一。
+- DB 取得は RLS 前提。`stores.owner_id = auth.uid()` を基点に `store_id` / `line_account_id` でスコープ。
+- Edge Functions 呼び出しは `supabase.functions.invoke('booking', { body: { action: ... } })` パターンを踏襲（予約取得/更新/キャンセル、空き枠計算、顧客チェックなど）。
+- Google 連携時は常に Authorization ヘッダーへ `session.access_token` を付与（例: `fetch(.../google-auth|google-calendar, { headers: { Authorization: Bearer }})`）。
 
-### データモデルとマルチテナンシー
+### 予約管理 UI（管理画面）
 
-- RLS 前提。`stores.owner_id = auth.uid()` を起点に、各テーブルは `store_id` または `line_account_id` でスコープ。LINE Webhook では `destination → line_accounts → store_id` でテナントを分岐。
-- 主なテーブル: `stores`（店舗・owner_id）, `profiles`, `line_accounts`（line_user_id で webhook 宛先判定）, `auto_responses`, `reservations`（start/end_time・status・memo・staff/menu FK）, `customers`, `google_calendar_settings`。
+- [frontend/src/pages/Reservations.tsx](frontend/src/pages/Reservations.tsx): `reservations` を `store_id` で絞り、`customers` と突合。`staff_members`/`booking_menus` を外部キーで join 済み。
+- Supabase Realtime channel 名は `reservations-realtime`。`postgres_changes` で `store_id` フィルターし、全イベントで `fetchReservations()` を再実行。
+- Google カレンダー: `google-auth` GET で認可 URL、POST で code 交換し `google_calendar_settings` に保存。`google-calendar` GET で `action=list_calendars|list_events`。`redirect_uri` は現ページ（/reservations）。
 
-### エラーハンドリングとパターン
+### 予約フロー（LIFF 公開画面）
 
-- Supabase エラーは `error instanceof Error ? error.message : (error as any)?.message || '不明なエラー'` 形式でメッセージ化し、Toast/Modal で通知する流儀。
-- API 呼び出し時は Authorization ヘッダーに `session.access_token` を付与する前提。特に Edge Functions の Google 連携はこれが必須。
-- `.maybeSingle()` と `.limit(1)` が混在する。既存実装に合わせて踏襲しつつ、一意性が曖昧な場合は `.limit(1)` を検討。
+- [frontend/src/pages/Booking.tsx](frontend/src/pages/Booking.tsx): LIFF で動く公開予約。`VITE_LIFF_ID` 必須。非 LINE or DEV ではモックユーザで代替。
+- `store_id` は query param 優先、無ければ最初のストアを取得して設定も読み込む（`name`/`liff_template_id`/`liff_theme_color`/`booking_system_type` など）。
+- `booking_system_type` により初期ステップを切替（generic→date, salon→staff_select, restaurant→menu_select）。
+- スタッフ/メニューは [frontend/src/hooks/useStoreResources.ts](frontend/src/hooks/useStoreResources.ts) の `refreshResources()`（`staff_members`/`booking_menus` を is_active で絞り）を利用。
+- 空き枠取得・予約作成/更新/キャンセルは Edge Function `booking` の `action` を切り替えて実行。既存予約がある場合 `existing_reservation` ステップへ遷移。
+- 親ウィンドウ（管理画面）からの設定更新は `window.postMessage` の `UPDATE_SETTINGS` を受信し、UI 状態を即時反映。
 
-### 覚えておくと速いこと
+### LINE Webhook / 自動応答
 
-- ルート構成: `/`=Dashboard, `/reservations`, `/line-settings`, `/auto-responses`, `/customers`, `/dev`, `/booking`（公開）, `/initial-setup`（初期登録）。
-- 画像・アイコンは `frontend/src/assets/`、共通モーダル/トーストは `components/Modal.tsx` / `components/Toast.tsx` を再利用。
-- DB・仕様の全体像は [REQUIREMENTS.md](REQUIREMENTS.md) に集約。必要なフィールドやフローはここを参照。
+- [supabase/functions/line-webhook/index.ts](supabase/functions/line-webhook/index.ts): `destination` で `line_accounts` を特定し、DB から `channel_secret`/`channel_access_token` を取得。Web Crypto API による HMAC-SHA256 検証後、`auto_responses` をスコアリングし、応答ログは `customer_logs` へ保存。
+- [supabase/functions/booking/index.ts](supabase/functions/booking/index.ts): LINE 予約受付・変更・キャンセル API。`line_accounts` から `line_account_id` を引き、`customers` upsert → `reservations` CRUD。キャンセルは status `cancelled` に更新するだけ。時間は JST (+09:00) で ISO 文字列化。
+- Google 連携関数: [supabase/functions/google-auth/index.ts](supabase/functions/google-auth/index.ts) で token 取得保存、[supabase/functions/google-calendar/index.ts](supabase/functions/google-calendar/index.ts) で token 更新とリスト取得。全関数で CORS/OPTIONS を実装。
+
+### デザイン / UI トーン
+
+- Tailwind 4 ユーティリティベースで `primary (#00c3dc)` を軸に配色。アイコンは Lucide のみ。必要に応じて Framer Motion でローディング等に動きを付ける。
+- 共通 UI: モーダル [frontend/src/components/Modal.tsx](frontend/src/components/Modal.tsx)、トースト [frontend/src/components/Toast.tsx](frontend/src/components/Toast.tsx)、LIFF 用モーダル/トーストは `components/liff/` 配下を再利用。
+
+### ナレッジ
+
+- 主要ルート: `/` Dashboard, `/reservations`, `/line-settings`, `/auto-responses`, `/customers`, `/dev`, `/booking`（公開）, `/initial-setup`。
+- 仕様・データモデルの全体像は [REQUIREMENTS.md](REQUIREMENTS.md) を参照。マイグレーションは `supabase/migrations/` を参照してフィールド追加の整合を取る。

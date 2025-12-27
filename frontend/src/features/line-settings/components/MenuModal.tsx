@@ -4,12 +4,12 @@ import type { BookingSystemType, Menu } from '../types'
 interface MenuModalProps {
   isOpen: boolean
   isLoading: boolean
-  formData: Pick<Menu, 'name' | 'description' | 'price' | 'duration_minutes'>
+  formData: Pick<Menu, 'name' | 'description' | 'price' | 'duration_minutes' | 'capacity_per_slot'>
   bookingSystemType: BookingSystemType
   isEditing: boolean
   onClose: () => void
   onConfirm: () => void
-  onChange: (next: Pick<Menu, 'name' | 'description' | 'price' | 'duration_minutes'>) => void
+  onChange: (next: Pick<Menu, 'name' | 'description' | 'price' | 'duration_minutes' | 'capacity_per_slot'>) => void
 }
 
 export function MenuModal({ isOpen, isLoading, formData, bookingSystemType, isEditing, onClose, onConfirm, onChange }: MenuModalProps) {
@@ -74,6 +74,18 @@ export function MenuModal({ isOpen, isLoading, formData, bookingSystemType, isEd
               step="10"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">同時受付上限 (このメニュー)</label>
+          <input
+            type="number"
+            value={formData.capacity_per_slot ?? ''}
+            onChange={(e) => onChange({ ...formData, capacity_per_slot: e.target.value === '' ? null : parseInt(e.target.value, 10) || 0 })}
+            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
+            min="0"
+            placeholder="未設定の場合は店舗の基本上限を使用"
+          />
         </div>
       </div>
     </Modal>

@@ -37,6 +37,9 @@ const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
 	liff_theme_color: '#00c3dc',
 	liff_logo_url: '',
 	booking_system_type: 'generic',
+	slot_interval_minutes: 60,
+	capacity_per_slot: 1,
+	business_hours: null,
 }
 
 const DEFAULT_RICH_MENU_SETTINGS: RichMenuSettings = {
@@ -121,7 +124,7 @@ export default function LineSettings() {
 	const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 	const [deletingItem, setDeletingItem] = useState<DeletingItem | null>(null)
 	const [staffFormData, setStaffFormData] = useState<Pick<Staff, 'name' | 'role' | 'image_url'>>({ name: '', role: '', image_url: '' })
-	const [menuFormData, setMenuFormData] = useState<Pick<Menu, 'name' | 'description' | 'price' | 'duration_minutes'>>({ name: '', description: '', price: 0, duration_minutes: 60 })
+	const [menuFormData, setMenuFormData] = useState<Pick<Menu, 'name' | 'description' | 'price' | 'duration_minutes' | 'capacity_per_slot'>>({ name: '', description: '', price: 0, duration_minutes: 60, capacity_per_slot: null })
 	const [editingStaffId, setEditingStaffId] = useState<string | null>(null)
 	const [editingMenuId, setEditingMenuId] = useState<string | null>(null)
 	const [previewRefreshKey, setPreviewRefreshKey] = useState(0)
@@ -195,6 +198,10 @@ export default function LineSettings() {
 					liff_theme_color: store.liff_theme_color || DEFAULT_BOOKING_SETTINGS.liff_theme_color,
 					liff_logo_url: store.liff_logo_url || DEFAULT_BOOKING_SETTINGS.liff_logo_url,
 					booking_system_type: (store.booking_system_type as BookingSystemType) || DEFAULT_BOOKING_SETTINGS.booking_system_type,
+					slot_interval_minutes: store.slot_interval_minutes || DEFAULT_BOOKING_SETTINGS.slot_interval_minutes,
+					capacity_per_slot: store.capacity_per_slot || DEFAULT_BOOKING_SETTINGS.capacity_per_slot,
+					max_booking_days: store.max_booking_days || 60,
+					business_hours: store.business_hours || DEFAULT_BOOKING_SETTINGS.business_hours,
 				})
 				setRichMenuSettings({
 					template_id: store.rich_menu_template_id || DEFAULT_RICH_MENU_SETTINGS.template_id,
@@ -407,7 +414,7 @@ export default function LineSettings() {
 
 	const handleAddMenu = useCallback(() => {
 		setEditingMenuId(null)
-		setMenuFormData({ name: '', description: '', price: 0, duration_minutes: 60 })
+		setMenuFormData({ name: '', description: '', price: 0, duration_minutes: 60, capacity_per_slot: null })
 		setIsMenuModalOpen(true)
 	}, [])
 
@@ -418,6 +425,7 @@ export default function LineSettings() {
 			description: menu.description || '',
 			price: menu.price || 0,
 			duration_minutes: menu.duration_minutes || 60,
+			capacity_per_slot: menu.capacity_per_slot ?? null,
 		})
 		setIsMenuModalOpen(true)
 	}, [])
@@ -432,6 +440,7 @@ export default function LineSettings() {
 				description: menuFormData.description,
 				price: menuFormData.price,
 				duration_minutes: menuFormData.duration_minutes,
+				capacity_per_slot: menuFormData.capacity_per_slot,
 			}
 			const result = editingMenuId
 				? await base.update(payload).eq('id', editingMenuId).select().single()
@@ -499,6 +508,10 @@ export default function LineSettings() {
 					liff_theme_color: bookingSettings.liff_theme_color,
 					liff_logo_url: bookingSettings.liff_logo_url,
 					booking_system_type: bookingSettings.booking_system_type,
+					slot_interval_minutes: bookingSettings.slot_interval_minutes,
+					capacity_per_slot: bookingSettings.capacity_per_slot,
+					max_booking_days: bookingSettings.max_booking_days,
+					business_hours: bookingSettings.business_hours,
 				})
 				.eq('owner_id', user.id)
 			if (error) throw error
@@ -782,6 +795,7 @@ export default function LineSettings() {
 					address: profileData.address,
 					phone_number: profileData.store_phone_number,
 					industry: profileData.industry,
+					business_hours: bookingSettings.business_hours,
 				})
 				.eq('owner_id', user.id)
 
@@ -794,7 +808,7 @@ export default function LineSettings() {
 		} finally {
 			setSaving(false)
 		}
-	}, [profileData])
+	}, [profileData, bookingSettings.business_hours])
 
 	const handleUpdatePassword = useCallback(async (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault()
@@ -905,8 +919,10 @@ export default function LineSettings() {
 				{activeTab === 'basic' && (
 					<BasicInfoTab
 						profileData={profileData}
+						businessHours={bookingSettings.business_hours}
 						saving={saving}
 						onChange={setProfileData}
+						onChangeBusinessHours={(next) => setBookingSettings((prev) => ({ ...prev, business_hours: next }))}
 						onSubmit={handleUpdateProfile}
 						onPostalSearch={handlePostalCodeSearch}
 					/>

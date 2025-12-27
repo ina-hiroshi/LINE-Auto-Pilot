@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useStoreResources } from '../hooks/useStoreResources'
 import type { StoreMenu, StoreStaff } from '../types/storeResources'
-import { Calendar, User, CheckCircle, Loader2, AlertCircle, Grid, Clock, Edit2, XCircle } from 'lucide-react'
+import { Calendar, User, CheckCircle, Loader2, AlertCircle, Grid, Clock, Edit2, XCircle, Sun, Moon, Sunset } from 'lucide-react'
 import { motion } from 'framer-motion'
 import liff from '@line/liff'
 import LiffModal from '../components/liff/LiffModal'
@@ -34,7 +34,11 @@ export default function Booking() {
     liff_template_id: 'simple',
     liff_theme_color: '#00c3dc',
     liff_logo_url: '',
-    booking_system_type: 'generic'
+    booking_system_type: 'generic',
+    slot_interval_minutes: 60,
+    capacity_per_slot: 1,
+    max_booking_days: 60,
+    business_hours: null as Record<string, { start: string; end: string }[]> | null,
   })
 
   // Salon/Restaurant Data
@@ -105,16 +109,89 @@ export default function Booking() {
   const [existingCustomer, setExistingCustomer] = useState<CustomerInfo | null>(null)
   const [realName, setRealName] = useState('')
   const [furigana, setFurigana] = useState('')
+
+  // Helper to parse business hours (Frontend version for Preview)
+  const getBusinessHoursForDate = useCallback((dateStr: string) => {
+    if (!storeSettings.business_hours) return [{ start: '10:00', end: '20:00' }]
+    
+    try {
+      // Parse YYYY-MM-DD as local date to get correct day of week
+      const [y, m, d] = dateStr.split('-').map(Number)
+      const dateObj = new Date(y, m - 1, d)
+      const dayIndex = dateObj.getDay() // 0=Sun, 1=Mon...
+      const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+      const dayKey = days[dayIndex]
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const hours = (storeSettings.business_hours as any)[dayKey]
+      if (Array.isArray(hours) && hours.length > 0) {
+        return hours.filter((h: { start: string; end: string }) => h.start && h.end)
+      }
+      return [] // Closed
+    } catch (e) {
+      console.error('Error parsing business hours', e)
+      return []
+    }
+  }, [storeSettings.business_hours])
   
   const fetchSlots = useCallback(async () => {
     setLoadingSlots(true)
     setTime('') // Reset selected time
+
+    // PREVIEW MODE: Calculate slots locally based on current settings
+    if (window.self !== window.top || lineUserId === 'PREVIEW_USER') {
+      console.log('Generating preview slots locally...')
+      await new Promise(resolve => setTimeout(resolve, 300)) // Simulate delay
+
+      const businessHours = getBusinessHoursForDate(date)
+      const interval = storeSettings.slot_interval_minutes || 60
+      const generatedSlots: { time: string; available: boolean }[] = []
+
+      businessHours.forEach(slot => {
+        const [startH, startM] = slot.start.split(':').map(Number)
+        const [endH, endM] = slot.end.split(':').map(Number)
+        
+        const [y, m, d] = date.split('-').map(Number)
+        const startTime = new Date(y, m - 1, d)
+        startTime.setHours(startH, startM, 0, 0)
+        
+        const endTime = new Date(y, m - 1, d)
+        endTime.setHours(endH, endM, 0, 0)
+
+        const now = new Date()
+
+        let cursor = new Date(startTime)
+        while (cursor < endTime) {
+          // Calculate slot end time
+          const slotEnd = new Date(cursor.getTime() + interval * 60000)
+          // If slot end exceeds business hours end, don't add it (strict fit)
+          if (slotEnd > endTime) break
+
+          // Skip past slots
+          if (cursor < now) {
+            cursor = slotEnd
+            continue
+          }
+
+          const timeStr = `${String(cursor.getHours()).padStart(2, '0')}:${String(cursor.getMinutes()).padStart(2, '0')}`
+          generatedSlots.push({ time: timeStr, available: true })
+          
+          cursor = slotEnd
+        }
+      })
+
+      setSlots(generatedSlots)
+      setLoadingSlots(false)
+      return
+    }
+
     try {
       const { data, error } = await supabase.functions.invoke('booking', {
         body: {
           action: 'get_available_slots',
           store_id: storeId,
-          date: date
+          date: date,
+          menu_id: selectedMenu?.id || null,
         }
       })
       
@@ -131,7 +208,7 @@ export default function Booking() {
     } finally {
       setLoadingSlots(false)
     }
-  }, [date, storeId])
+  }, [date, storeId, selectedMenu?.id, storeSettings.slot_interval_minutes, getBusinessHoursForDate, lineUserId])
 
   const fetchStore = useCallback(async () => {
     // In production, store_id should be passed via query param ?store_id=...
@@ -140,7 +217,7 @@ export default function Booking() {
 
     if (!targetStoreId) {
         // Fallback: Get first store
-        const { data } = await supabase.from('stores').select('id, name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type').limit(1).maybeSingle()
+        const { data } = await supabase.from('stores').select('id, name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type, slot_interval_minutes, capacity_per_slot, max_booking_days, business_hours').limit(1).maybeSingle()
         targetStoreId = data?.id
         if (data) {
           if (data.name) document.title = data.name
@@ -149,12 +226,16 @@ export default function Booking() {
             liff_template_id: data.liff_template_id || 'simple',
             liff_theme_color: data.liff_theme_color || '#00c3dc',
             liff_logo_url: data.liff_logo_url || '',
-            booking_system_type: data.booking_system_type || 'generic'
+            booking_system_type: data.booking_system_type || 'generic',
+            slot_interval_minutes: data.slot_interval_minutes || 60,
+            capacity_per_slot: data.capacity_per_slot || 1,
+            max_booking_days: data.max_booking_days || 60,
+            business_hours: data.business_hours || null,
           })
         }
     } else {
         // Fetch specific store settings
-        const { data } = await supabase.from('stores').select('name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type').eq('id', targetStoreId).maybeSingle()
+        const { data } = await supabase.from('stores').select('name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type, slot_interval_minutes, capacity_per_slot, max_booking_days, business_hours').eq('id', targetStoreId).maybeSingle()
         if (data) {
           if (data.name) document.title = data.name
           setStoreSettings({
@@ -162,7 +243,11 @@ export default function Booking() {
             liff_template_id: data.liff_template_id || 'simple',
             liff_theme_color: data.liff_theme_color || '#00c3dc',
             liff_logo_url: data.liff_logo_url || '',
-            booking_system_type: data.booking_system_type || 'generic'
+            booking_system_type: data.booking_system_type || 'generic',
+            slot_interval_minutes: data.slot_interval_minutes || 60,
+            capacity_per_slot: data.capacity_per_slot || 1,
+            max_booking_days: data.max_booking_days || 60,
+            business_hours: data.business_hours || null,
           })
         }
     }
@@ -978,12 +1063,40 @@ export default function Booking() {
               <div className="space-y-6">
                 <div>
                   <label className={theme.label}>日付</label>
-                  <input 
-                    type="date" 
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className={theme.input}
-                  />
+                  <div className="flex overflow-x-auto pb-4 gap-3 no-scrollbar -mx-4 px-4">
+                    {Array.from({ length: storeSettings.max_booking_days || 14 }, (_, i) => {
+                      const d = new Date()
+                      d.setDate(d.getDate() + i)
+                      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+                      const dayName = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()]
+                      const isClosed = getBusinessHoursForDate(dateStr).length === 0
+                      const isSelected = date === dateStr
+                      
+                      return (
+                        <button
+                          key={dateStr}
+                          onClick={() => !isClosed && setDate(dateStr)}
+                          disabled={isClosed}
+                          className={`
+                            flex-shrink-0 flex flex-col items-center justify-center w-16 h-20 rounded-xl border-2 transition-all
+                            ${isSelected 
+                              ? 'border-current bg-current text-white shadow-md' 
+                              : isClosed
+                                ? 'bg-gray-100 border-gray-100 text-gray-300 cursor-not-allowed'
+                                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'}
+                          `}
+                          style={isSelected ? { backgroundColor: storeSettings.liff_theme_color, borderColor: storeSettings.liff_theme_color } : {}}
+                        >
+                          <span className="text-[10px] font-bold mb-0.5 opacity-80">{d.getMonth() + 1}月</span>
+                          <span className="text-xs font-bold mb-0.5">{dayName}</span>
+                          <span className="text-lg font-black leading-none">{d.getDate()}</span>
+                          <span className="text-[10px] mt-1 font-bold">
+                            {isClosed ? '×' : '○'}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
                 
                 <div>
@@ -998,25 +1111,34 @@ export default function Booking() {
                       予約可能な枠がありません
                     </div>
                   ) : (
-                    <div className={theme.slotGrid}>
-                      {slots.map((slot) => (
-                        <button
-                          key={slot.time}
-                          onClick={() => slot.available && setTime(slot.time)}
-                          disabled={!slot.available}
-                          className={theme.slotButton(time === slot.time, slot.available)}
-                          style={time === slot.time && storeSettings.liff_template_id === 'simple' ? { backgroundColor: storeSettings.liff_theme_color } : {}}
-                        >
-                          {slot.time}
-                          {!slot.available && (
-                            <span className="absolute top-1 right-1 text-xs opacity-50">×</span>
-                          )}
-                          {slot.available && time !== slot.time && (
-                            <span className="absolute top-1 right-1 text-xs opacity-50">○</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
+                      <div className="max-h-[400px] overflow-y-auto pr-2 -mr-2 scroll-smooth">
+                        <div className={theme.slotGrid}>
+                          {slots.map((slot, index) => {
+                            const h = parseInt(slot.time.split(':')[0], 10)
+                            const prevH = index > 0 ? parseInt(slots[index - 1].time.split(':')[0], 10) : -1
+                            const isFirstOfHour = h !== prevH
+                            
+                            return (
+                              <button
+                                key={slot.time}
+                                id={isFirstOfHour ? `hour-${h}` : undefined}
+                                onClick={() => slot.available && setTime(slot.time)}
+                                disabled={!slot.available}
+                                className={`${theme.slotButton(time === slot.time, slot.available)} ${isFirstOfHour ? 'scroll-mt-4' : ''}`}
+                                style={time === slot.time && storeSettings.liff_template_id === 'simple' ? { backgroundColor: storeSettings.liff_theme_color } : {}}
+                              >
+                                {slot.time}
+                                {!slot.available && (
+                                  <span className="absolute top-1 right-1 text-xs opacity-50">×</span>
+                                )}
+                                {slot.available && time !== slot.time && (
+                                  <span className="absolute top-1 right-1 text-xs opacity-50">○</span>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
                   )}
                 </div>
               </div>

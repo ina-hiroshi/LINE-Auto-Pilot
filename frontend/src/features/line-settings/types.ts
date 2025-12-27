@@ -1,5 +1,8 @@
 export type BookingSystemType = 'generic' | 'salon' | 'restaurant'
 
+export type BusinessHourSlot = { start: string; end: string }
+export type BusinessHours = Partial<Record<'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat', BusinessHourSlot[]>>
+
 export interface Staff {
   id: string
   name: string
@@ -14,6 +17,7 @@ export interface Menu {
   description?: string | null
   price?: number | null
   duration_minutes?: number | null
+  capacity_per_slot?: number | null
   is_active?: boolean | null
 }
 
@@ -29,6 +33,9 @@ export interface BookingSettings {
   liff_theme_color: string
   liff_logo_url: string
   booking_system_type: BookingSystemType
+  slot_interval_minutes: number
+  capacity_per_slot: number
+  business_hours?: BusinessHours | null
 }
 
 export interface RichMenuAction {

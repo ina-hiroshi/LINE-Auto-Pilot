@@ -6,6 +6,138 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+type BusinessHourSlot = { start: string; end: string }
+type BusinessHoursByDay = Partial<Record<'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat', BusinessHourSlot[]>>
+
+const parseBusinessHours = (businessHoursRaw: unknown, targetDate: string): BusinessHourSlot[] => {
+  try {
+    const parsed = (businessHoursRaw ?? {}) as BusinessHoursByDay
+    const day = new Date(`${targetDate}T00:00:00`)
+    const weekdayKey = (['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][day.getDay()] ?? 'mon') as keyof BusinessHoursByDay
+    const slots = parsed?.[weekdayKey]
+    if (!Array.isArray(slots)) return []
+    return slots
+      .map((s) => ({ start: s.start, end: s.end }))
+      .filter((s) => !!s.start && !!s.end)
+  } catch (_e) {
+    return []
+  }
+}
+
+const toJstDate = (date: string, time: string) => new Date(`${date}T${time}:00+09:00`)
+
+const isOverlapping = (startA: Date, endA: Date, startB: Date, endB: Date) => startA < endB && endA > startB
+
+// --- Google Calendar Helpers ---
+
+async function getGoogleCalendarClient(supabaseClient: any, store_id: string) {
+  // 1. Get owner_id from store_id
+  const { data: store } = await supabaseClient.from('stores').select('owner_id').eq('id', store_id).single()
+  if (!store) return null
+
+  // 2. Get settings
+  const { data: settings } = await supabaseClient.from('google_calendar_settings').select('*').eq('user_id', store.owner_id).single()
+  if (!settings || !settings.refresh_token) return null
+
+  // 3. Refresh Token
+  const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
+  const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
+  
+  if (!clientId || !clientSecret) {
+    console.error('Missing Google Client ID/Secret')
+    return null
+  }
+
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: settings.refresh_token,
+        grant_type: 'refresh_token',
+      }),
+  })
+  
+  const tokens = await tokenResponse.json()
+  if (tokens.error) {
+    console.error('Google Token Refresh Error:', tokens)
+    return null
+  }
+
+  return {
+      accessToken: tokens.access_token,
+      calendarId: settings.calendar_id || 'primary'
+  }
+}
+
+async function listGoogleEvents(client: { accessToken: string; calendarId: string }, timeMin: string, timeMax: string) {
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(client.calendarId)}/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`,
+      { headers: { Authorization: `Bearer ${client.accessToken}` } }
+    )
+    const data = await response.json()
+    return data.items || []
+  } catch (e) {
+    console.error('Google List Events Error:', e)
+    return []
+  }
+}
+
+async function createGoogleEvent(client: { accessToken: string; calendarId: string }, eventData: any) {
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(client.calendarId)}/events`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${client.accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(eventData)
+      }
+    )
+    const data = await response.json()
+    return data.id
+  } catch (e) {
+    console.error('Google Create Event Error:', e)
+    return null
+  }
+}
+
+async function deleteGoogleEvent(client: { accessToken: string; calendarId: string }, eventId: string) {
+  try {
+    await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(client.calendarId)}/events/${eventId}`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${client.accessToken}` }
+      }
+    )
+  } catch (e) {
+    console.error('Google Delete Event Error:', e)
+  }
+}
+
+async function updateGoogleEvent(client: { accessToken: string; calendarId: string }, eventId: string, eventData: any) {
+  try {
+    await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(client.calendarId)}/events/${eventId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${client.accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(eventData)
+      }
+    )
+  } catch (e) {
+    console.error('Google Update Event Error:', e)
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -18,6 +150,15 @@ serve(async (req) => {
     )
 
     const { action, store_id, line_user_id, display_name, profile_picture_url, real_name, furigana, date, time, reservation_id, staff_id, menu_id, memo } = await req.json()
+
+    const { data: storeSettings, error: storeError } = await supabaseClient
+      .from('stores')
+      .select('slot_interval_minutes, capacity_per_slot, business_hours')
+      .eq('id', store_id)
+      .maybeSingle()
+
+    if (storeError) throw storeError
+    if (!storeSettings) throw new Error('Store not found')
 
     console.log(`[Booking] Action: ${action}, User: ${line_user_id}, Name: ${display_name}, Pic: ${profile_picture_url ? 'Yes' : 'No'}`)
 
@@ -36,47 +177,97 @@ serve(async (req) => {
     }
 
     if (action === 'get_available_slots') {
-      // 指定された日付の予約を取得
-      const targetDate = date; // YYYY-MM-DD
-      const startOfDay = `${targetDate}T00:00:00`;
-      const endOfDay = `${targetDate}T23:59:59`;
+      if (!store_id || !date) throw new Error('store_id and date are required')
+
+      const slotInterval = storeSettings?.slot_interval_minutes ?? 60
+
+      // Menu-specific duration & capacity override
+      let durationMinutes = slotInterval
+      let menuCapacity: number | null = null
+      if (menu_id) {
+        const { data: menu } = await supabaseClient
+          .from('booking_menus')
+          .select('duration_minutes, capacity_per_slot')
+          .eq('id', menu_id)
+          .maybeSingle()
+        if (menu?.duration_minutes) durationMinutes = menu.duration_minutes
+        if (typeof menu?.capacity_per_slot === 'number') menuCapacity = menu.capacity_per_slot
+      }
+
+      if (!durationMinutes || durationMinutes <= 0) {
+        durationMinutes = slotInterval || 60
+      }
+
+      const capacityLimit = menuCapacity ?? storeSettings?.capacity_per_slot ?? 1
+      const dayStart = toJstDate(date, '00:00').toISOString()
+      const dayEnd = toJstDate(date, '23:59').toISOString()
 
       const { data: reservations, error } = await supabaseClient
         .from('reservations')
         .select('start_time, end_time')
         .eq('store_id', store_id)
-        .gte('start_time', startOfDay)
-        .lte('start_time', endOfDay)
-        .neq('status', 'cancelled'); // キャンセル済みは除外
+        .neq('status', 'cancelled')
+        .lt('start_time', dayEnd)
+        .gt('end_time', dayStart)
 
-      if (error) throw error;
+      if (error) throw error
 
-      // 営業時間を定義 (TODO: 店舗設定から取得するようにする)
-      const openTime = 10; // 10:00
-      const closeTime = 20; // 20:00
-      const interval = 60; // 60分
+      // --- Google Calendar Sync ---
+      const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
+      let googleEvents: { start: { dateTime?: string }; end: { dateTime?: string } }[] = []
+      
+      if (googleClient) {
+        googleEvents = await listGoogleEvents(googleClient, dayStart, dayEnd)
+      }
+      // ----------------------------
 
-      const slots = [];
-      for (let hour = openTime; hour < closeTime; hour++) {
-        const timeStr = `${hour.toString().padStart(2, '0')}:00`;
-        const slotStart = new Date(`${targetDate}T${timeStr}:00`);
-        
-        // 予約済みかどうかチェック
-        // 単純化のため、開始時間が一致する予約があるかで判定
-        const isBooked = reservations.some(r => {
-          const resStart = new Date(r.start_time);
-          return resStart.getTime() === slotStart.getTime();
-        });
+      const hours = parseBusinessHours(storeSettings?.business_hours, date)
+      const effectiveHours = hours.length > 0 ? hours : [{ start: '10:00', end: '20:00' }]
 
-        slots.push({
-          time: timeStr,
-          available: !isBooked
-        });
+      const slots: { time: string; available: boolean }[] = []
+
+      for (const hourRange of effectiveHours) {
+        const rangeStart = toJstDate(date, hourRange.start)
+        const rangeEnd = toJstDate(date, hourRange.end)
+
+        for (let cursor = new Date(rangeStart); cursor < rangeEnd; cursor = new Date(cursor.getTime() + slotInterval * 60000)) {
+          const slotEnd = new Date(cursor.getTime() + durationMinutes * 60000)
+          if (slotEnd > rangeEnd) continue
+
+          // Check Internal Reservations
+          const internalOverlapCount = (reservations || []).filter((r) => {
+            const resStart = new Date(r.start_time)
+            const resEnd = new Date(r.end_time)
+            return isOverlapping(cursor, slotEnd, resStart, resEnd)
+          }).length
+
+          // Check Google Calendar Events
+          const googleOverlapCount = googleEvents.filter((e) => {
+            if (!e.start.dateTime || !e.end.dateTime) return false // Skip all-day events for now or handle them differently
+            const resStart = new Date(e.start.dateTime)
+            const resEnd = new Date(e.end.dateTime)
+            return isOverlapping(cursor, slotEnd, resStart, resEnd)
+          }).length
+
+          // If ANY Google event overlaps, the slot is blocked (assuming Google Calendar events block availability completely)
+          // Or should we treat them as consuming 1 capacity? Usually Google Calendar events mean "busy".
+          // Let's assume Google Calendar event consumes 1 capacity unit, or blocks it entirely?
+          // Requirement says "Google Calendar events are treated as busy slots".
+          // If capacity > 1, maybe we just subtract 1?
+          // For safety, let's assume Google Event blocks 1 slot.
+          
+          const totalOverlap = internalOverlapCount + googleOverlapCount
+          const available = totalOverlap < capacityLimit
+          
+          const hh = cursor.getHours().toString().padStart(2, '0')
+          const mm = cursor.getMinutes().toString().padStart(2, '0')
+          slots.push({ time: `${hh}:${mm}`, available })
+        }
       }
 
       return new Response(JSON.stringify({ slots }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      })
     }
 
     if (action === 'get_active_reservation') {
@@ -98,12 +289,35 @@ serve(async (req) => {
     }
 
     if (action === 'cancel_reservation') {
+        // Fetch reservation to get google_event_id
+        const { data: reservation, error: fetchError } = await supabaseClient
+            .from('reservations')
+            .select('google_event_id, store_id')
+            .eq('id', reservation_id)
+            .single()
+        
+        if (fetchError) throw fetchError
+
         const { error } = await supabaseClient
             .from('reservations')
             .update({ status: 'cancelled' })
             .eq('id', reservation_id)
         
         if (error) throw error
+
+        // --- Google Calendar Delete Event ---
+        if (reservation?.google_event_id) {
+            const googleClient = await getGoogleCalendarClient(supabaseClient, reservation.store_id)
+            if (googleClient) {
+                try {
+                    await deleteGoogleEvent(googleClient, reservation.google_event_id)
+                } catch (gError) {
+                    console.error('Failed to delete Google Calendar event:', gError)
+                }
+            }
+        }
+        // ------------------------------------
+
         return new Response(JSON.stringify({ success: true }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
@@ -111,12 +325,34 @@ serve(async (req) => {
 
     if (action === 'update_reservation') {
       // 1. Cancel old reservation
+      // Fetch old reservation to get google_event_id
+      const { data: oldReservation, error: fetchError } = await supabaseClient
+          .from('reservations')
+          .select('google_event_id, store_id')
+          .eq('id', reservation_id)
+          .single()
+      
+      if (fetchError) throw fetchError
+
       const { error: cancelError } = await supabaseClient
           .from('reservations')
           .update({ status: 'cancelled' })
           .eq('id', reservation_id)
       
       if (cancelError) throw cancelError
+
+      // --- Google Calendar Delete Old Event ---
+      if (oldReservation?.google_event_id) {
+          const googleClient = await getGoogleCalendarClient(supabaseClient, oldReservation.store_id)
+          if (googleClient) {
+              try {
+                  await deleteGoogleEvent(googleClient, oldReservation.google_event_id)
+              } catch (gError) {
+                  console.error('Failed to delete old Google Calendar event:', gError)
+              }
+          }
+      }
+      // ----------------------------------------
 
       // 2. Create new reservation (Same logic as create_reservation)
       // 0. Get line_account_id
@@ -146,9 +382,53 @@ serve(async (req) => {
       // 2. Create Reservation
       // Treat input time as JST (+09:00)
       const startDateTime = new Date(`${date}T${time}:00+09:00`)
-      const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000)
 
-      const { error: resError } = await supabaseClient
+      let durationMinutes = storeSettings?.slot_interval_minutes ?? 60
+      let menuCapacity: number | null = null
+      if (menu_id) {
+        const { data: menu } = await supabaseClient
+          .from('booking_menus')
+          .select('duration_minutes, capacity_per_slot')
+          .eq('id', menu_id)
+          .maybeSingle()
+        if (menu?.duration_minutes) durationMinutes = menu.duration_minutes
+        if (typeof menu?.capacity_per_slot === 'number') menuCapacity = menu.capacity_per_slot
+      }
+      if (!durationMinutes || durationMinutes <= 0) durationMinutes = storeSettings?.slot_interval_minutes ?? 60
+      const capacityLimit = menuCapacity ?? storeSettings?.capacity_per_slot ?? 1
+
+      const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000)
+
+      const { data: overlapReservations, error: overlapError } = await supabaseClient
+        .from('reservations')
+        .select('id')
+        .eq('store_id', store_id)
+        .neq('status', 'cancelled')
+        .lt('start_time', endDateTime.toISOString())
+        .gt('end_time', startDateTime.toISOString())
+      if (overlapError) throw overlapError
+      if ((overlapReservations?.length ?? 0) >= capacityLimit) {
+        throw new Error('この時間帯の予約枠が埋まっています')
+      }
+
+      // --- Google Calendar Check (Double Check) ---
+      const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
+      if (googleClient) {
+        const googleEvents = await listGoogleEvents(googleClient, startDateTime.toISOString(), endDateTime.toISOString())
+        const googleOverlapCount = googleEvents.filter((e) => {
+            if (!e.start.dateTime || !e.end.dateTime) return false
+            const resStart = new Date(e.start.dateTime)
+            const resEnd = new Date(e.end.dateTime)
+            return isOverlapping(startDateTime, endDateTime, resStart, resEnd)
+        }).length
+        
+        if (googleOverlapCount > 0 && capacityLimit <= 1) {
+             throw new Error('この時間帯はGoogleカレンダーの予定と重複しています')
+        }
+      }
+      // --------------------------------------------
+
+      const { data: newReservation, error: resError } = await supabaseClient
         .from('reservations')
         .insert({
           store_id,
@@ -162,8 +442,34 @@ serve(async (req) => {
           staff_id: staff_id || null,
           menu_id: menu_id || null
         })
+        .select()
+        .single()
 
       if (resError) throw resError
+
+      // --- Google Calendar Create Event ---
+      if (googleClient && newReservation) {
+        try {
+            const summary = `予約: ${real_name || display_name || 'LINE User'}`
+            const description = `Menu ID: ${menu_id || 'N/A'}\nMemo: ${memo || 'LINE予約(変更)'}`
+            const eventId = await createGoogleEvent(googleClient, {
+                summary,
+                description,
+                start: { dateTime: startDateTime.toISOString() },
+                end: { dateTime: endDateTime.toISOString() }
+            })
+            
+            if (eventId) {
+                await supabaseClient
+                    .from('reservations')
+                    .update({ google_event_id: eventId })
+                    .eq('id', newReservation.id)
+            }
+        } catch (gError) {
+            console.error('Failed to create Google Calendar event:', gError)
+        }
+      }
+      // ------------------------------------
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -198,9 +504,55 @@ serve(async (req) => {
       // 2. Create Reservation
       // Treat input time as JST (+09:00)
       const startDateTime = new Date(`${date}T${time}:00+09:00`)
-      const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000)
 
-      const { error: resError } = await supabaseClient
+      // Menu-specific duration & capacity
+      let durationMinutes = storeSettings?.slot_interval_minutes ?? 60
+      let menuCapacity: number | null = null
+      if (menu_id) {
+        const { data: menu } = await supabaseClient
+          .from('booking_menus')
+          .select('duration_minutes, capacity_per_slot')
+          .eq('id', menu_id)
+          .maybeSingle()
+        if (menu?.duration_minutes) durationMinutes = menu.duration_minutes
+        if (typeof menu?.capacity_per_slot === 'number') menuCapacity = menu.capacity_per_slot
+      }
+      if (!durationMinutes || durationMinutes <= 0) durationMinutes = storeSettings?.slot_interval_minutes ?? 60
+      const capacityLimit = menuCapacity ?? storeSettings?.capacity_per_slot ?? 1
+
+      const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000)
+
+      // Capacity check (overlap)
+      const { data: overlapReservations, error: overlapError } = await supabaseClient
+        .from('reservations')
+        .select('id')
+        .eq('store_id', store_id)
+        .neq('status', 'cancelled')
+        .lt('start_time', endDateTime.toISOString())
+        .gt('end_time', startDateTime.toISOString())
+      if (overlapError) throw overlapError
+      if ((overlapReservations?.length ?? 0) >= capacityLimit) {
+        throw new Error('この時間帯の予約枠が埋まっています')
+      }
+
+      // --- Google Calendar Check (Double Check) ---
+      const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
+      if (googleClient) {
+        const googleEvents = await listGoogleEvents(googleClient, startDateTime.toISOString(), endDateTime.toISOString())
+        const googleOverlapCount = googleEvents.filter((e) => {
+            if (!e.start.dateTime || !e.end.dateTime) return false
+            const resStart = new Date(e.start.dateTime)
+            const resEnd = new Date(e.end.dateTime)
+            return isOverlapping(startDateTime, endDateTime, resStart, resEnd)
+        }).length
+        
+        if (googleOverlapCount > 0 && capacityLimit <= 1) {
+             throw new Error('この時間帯はGoogleカレンダーの予定と重複しています')
+        }
+      }
+      // --------------------------------------------
+
+      const { data: newReservation, error: resError } = await supabaseClient
         .from('reservations')
         .insert({
           store_id,
@@ -214,8 +566,34 @@ serve(async (req) => {
           staff_id: staff_id || null,
           menu_id: menu_id || null
         })
+        .select()
+        .single()
 
       if (resError) throw resError
+
+      // --- Google Calendar Create Event ---
+      if (googleClient && newReservation) {
+        try {
+            const summary = `予約: ${real_name || display_name || 'LINE User'}`
+            const description = `Menu ID: ${menu_id || 'N/A'}\nMemo: LINE予約`
+            const eventId = await createGoogleEvent(googleClient, {
+                summary,
+                description,
+                start: { dateTime: startDateTime.toISOString() },
+                end: { dateTime: endDateTime.toISOString() }
+            })
+            
+            if (eventId) {
+                await supabaseClient
+                    .from('reservations')
+                    .update({ google_event_id: eventId })
+                    .eq('id', newReservation.id)
+            }
+        } catch (gError) {
+            console.error('Failed to create Google Calendar event:', gError)
+        }
+      }
+      // ------------------------------------
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

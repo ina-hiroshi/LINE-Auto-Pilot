@@ -1,4 +1,4 @@
-import { ExternalLink, Grid, Layout, Palette, Smartphone, Edit, Trash2, User, Save, Loader2 } from 'lucide-react'
+import { ExternalLink, Grid, Layout, Palette, Smartphone, Edit, Trash2, User, Save, Loader2, Clock, Users } from 'lucide-react'
 import { useMemo } from 'react'
 import type { FormEvent, RefObject } from 'react'
 import type { BookingSettings, BookingSystemType, Menu, Staff } from '../types'
@@ -35,6 +35,8 @@ const TEMPLATE_OPTIONS = [
   { id: 'dark', name: 'ダーク', color: 'bg-slate-800 text-white border-slate-700' }
 ]
 
+const SLOT_OPTIONS = [15, 30, 60]
+
 export function BookingPageTab({
   storeId,
   bookingSettings,
@@ -65,6 +67,44 @@ export function BookingPageTab({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* 左カラム：設定 */}
           <div className="space-y-8">
+            {/* 枠設定（スロット刻み/同時枠） */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                <Clock size={16} /> 枠生成設定
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">スロット刻み</label>
+                  <select
+                    className="w-full border rounded-lg p-2 text-sm"
+                    value={bookingSettings.slot_interval_minutes}
+                    onChange={(e) => onBookingSettingsChange({ ...bookingSettings, slot_interval_minutes: parseInt(e.target.value, 10) || 15 })}
+                  >
+                    {SLOT_OPTIONS.map((m) => (
+                      <option key={m} value={m}>{m}分</option>
+                    ))}
+                    <option value={120}>120分</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">基本同時受付上限</label>
+                  <div className="flex items-center gap-2">
+                    <Users size={16} className="text-gray-500" />
+                    <input
+                      type="number"
+                      min={1}
+                      className="w-full border rounded-lg p-2 text-sm"
+                      value={bookingSettings.capacity_per_slot}
+                      onChange={(e) => onBookingSettingsChange({ ...bookingSettings, capacity_per_slot: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">メニュー個別設定がある場合はそちらを優先します。</p>
+                </div>
+              </div>
+            </div>
+
             {/* 予約システムタイプ */}
             <div>
               <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
