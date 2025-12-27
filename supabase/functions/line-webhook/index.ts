@@ -1,6 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+type LineTextMessage = { type: 'text'; text: string }
+type LineMessage = LineTextMessage
+type LineEvent = {
+  type: string
+  message?: { type: string; text?: string }
+  replyToken?: string
+  source?: { userId?: string }
+}
+
 console.log("LINE Webhook Function Initialized")
 
 // Helper to verify LINE signature using Web Crypto API
@@ -23,7 +32,7 @@ async function verifySignature(channelSecret: string, body: string, signature: s
 }
 
 // Helper to reply message using fetch
-async function replyMessage(accessToken: string, replyToken: string, messages: any[]) {
+async function replyMessage(accessToken: string, replyToken: string, messages: LineMessage[]) {
   const response = await fetch('https://api.line.me/v2/bot/message/reply', {
     method: 'POST',
     headers: {
@@ -73,7 +82,7 @@ serve(async (req: Request) => {
     const body = await req.text()
     
     // Parse body to get destination (Bot User ID) to find the correct channel secret
-    const jsonBody = JSON.parse(body)
+    const jsonBody = JSON.parse(body) as { destination?: string; events?: LineEvent[] }
     const destination = jsonBody.destination
     const events = jsonBody.events || []
 
@@ -165,10 +174,15 @@ serve(async (req: Request) => {
 
     // Process Events
     for (const event of events) {
-      if (event.type === 'message' && event.message.type === 'text') {
+      if (event.type === 'message' && event.message?.type === 'text') {
         const replyToken = event.replyToken
-        const text = event.message.text
-        const userId = event.source.userId
+        const text = event.message?.text
+        const userId = event.source?.userId
+
+        if (!replyToken || !text || !userId) {
+          console.warn('Missing reply token, text, or user id in event payload:', event)
+          continue
+        }
         
         console.log(`Received message: ${text} from ${userId}`)
 

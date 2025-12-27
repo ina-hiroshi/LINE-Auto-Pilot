@@ -115,9 +115,13 @@ serve(async (req) => {
       status: 400,
     })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Edge Function Error:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
+    const errorMessage = error instanceof Error
+      ? error.message
+      : (error as { message?: string })?.message ?? 'Unknown error'
+
+    return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
     })

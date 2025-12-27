@@ -1,24 +1,25 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useStoreResources } from '../hooks/useStoreResources'
+import type { StoreMenu, StoreStaff } from '../types/storeResources'
 import { Calendar, User, CheckCircle, Loader2, AlertCircle, Grid, Clock, Edit2, XCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import liff from '@line/liff'
 import LiffModal from '../components/liff/LiffModal'
 import LiffToast from '../components/liff/LiffToast'
 
-interface Staff {
-  id: string
-  name: string
-  role?: string
-  image_url?: string
+interface CustomerInfo {
+	real_name?: string | null
+	furigana?: string | null
 }
 
-interface Menu {
-  id: string
-  name: string
-  description?: string
-  price?: number
-  duration_minutes?: number
+interface ReservationSummary {
+	id: string
+	start_time: string
+	end_time?: string | null
+	status?: string | null
+  staff?: StoreStaff | null
+  menu?: StoreMenu | null
 }
 
 export default function Booking() {
@@ -26,11 +27,20 @@ export default function Booking() {
   const [errorMsg, setErrorMsg] = useState('')
   const [checkingUser, setCheckingUser] = useState(false)
   
+  // Store Data
+  const [storeId, setStoreId] = useState<string | null>(null)
+  const [storeSettings, setStoreSettings] = useState({
+    name: '',
+    liff_template_id: 'simple',
+    liff_theme_color: '#00c3dc',
+    liff_logo_url: '',
+    booking_system_type: 'generic'
+  })
+
   // Salon/Restaurant Data
-  const [staffList, setStaffList] = useState<Staff[]>([])
-  const [menuList, setMenuList] = useState<Menu[]>([])
-  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null)
-  const [selectedMenu, setSelectedMenu] = useState<Menu | null>(null)
+  const { staffList, menuList, setStaffList, setMenuList } = useStoreResources(storeId)
+  const [selectedStaff, setSelectedStaff] = useState<StoreStaff | null>(null)
+  const [selectedMenu, setSelectedMenu] = useState<StoreMenu | null>(null)
   
   // UI State
   const [modalConfig, setModalConfig] = useState<{
@@ -85,50 +95,18 @@ export default function Booking() {
   const [slots, setSlots] = useState<{ time: string; available: boolean }[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [activeReservations, setActiveReservations] = useState<any[]>([])
+  const [activeReservations, setActiveReservations] = useState<ReservationSummary[]>([])
   const [modifyingReservationId, setModifyingReservationId] = useState<string | null>(null)
   
   // User Data
   const [lineUserId, setLineUserId] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [pictureUrl, setPictureUrl] = useState('')
-  const [existingCustomer, setExistingCustomer] = useState<any>(null)
+  const [existingCustomer, setExistingCustomer] = useState<CustomerInfo | null>(null)
   const [realName, setRealName] = useState('')
   const [furigana, setFurigana] = useState('')
   
-  // Store Data
-  const [storeId, setStoreId] = useState<string | null>(null)
-  const [storeSettings, setStoreSettings] = useState({
-    name: '',
-    liff_template_id: 'simple',
-    liff_theme_color: '#00c3dc',
-    liff_logo_url: '',
-    booking_system_type: 'generic'
-  })
-
-  useEffect(() => {
-    initializeLiff()
-  }, [])
-
-  // Set default date to today (Local Time)
-  useEffect(() => {
-    if (!date) {
-      const now = new Date()
-      const year = now.getFullYear()
-      const month = String(now.getMonth() + 1).padStart(2, '0')
-      const day = String(now.getDate()).padStart(2, '0')
-      setDate(`${year}-${month}-${day}`)
-    }
-  }, [])
-
-  // Fetch slots when date or storeId changes
-  useEffect(() => {
-    if (storeId && date) {
-      fetchSlots()
-    }
-  }, [storeId, date])
-
-  const fetchSlots = async () => {
+  const fetchSlots = useCallback(async () => {
     setLoadingSlots(true)
     setTime('') // Reset selected time
     try {
@@ -153,9 +131,51 @@ export default function Booking() {
     } finally {
       setLoadingSlots(false)
     }
-  }
+  }, [date, storeId])
 
-  const initializeLiff = async () => {
+  const fetchStore = useCallback(async () => {
+    // In production, store_id should be passed via query param ?store_id=...
+    const params = new URLSearchParams(window.location.search)
+    let targetStoreId = params.get('store_id')
+
+    if (!targetStoreId) {
+        // Fallback: Get first store
+        const { data } = await supabase.from('stores').select('id, name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type').limit(1).maybeSingle()
+        targetStoreId = data?.id
+        if (data) {
+          if (data.name) document.title = data.name
+          setStoreSettings({
+            name: data.name || '',
+            liff_template_id: data.liff_template_id || 'simple',
+            liff_theme_color: data.liff_theme_color || '#00c3dc',
+            liff_logo_url: data.liff_logo_url || '',
+            booking_system_type: data.booking_system_type || 'generic'
+          })
+        }
+    } else {
+        // Fetch specific store settings
+        const { data } = await supabase.from('stores').select('name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type').eq('id', targetStoreId).maybeSingle()
+        if (data) {
+          if (data.name) document.title = data.name
+          setStoreSettings({
+            name: data.name || '',
+            liff_template_id: data.liff_template_id || 'simple',
+            liff_theme_color: data.liff_theme_color || '#00c3dc',
+            liff_logo_url: data.liff_logo_url || '',
+            booking_system_type: data.booking_system_type || 'generic'
+          })
+        }
+    }
+
+    if (targetStoreId) {
+      setStoreId(targetStoreId)
+    } else {
+        setStep('error')
+        setErrorMsg('店舗情報が見つかりませんでした。')
+    }
+  }, [])
+
+  const initializeLiff = useCallback(async () => {
     // Preview Mode Check (iframe)
     if (window.self !== window.top) {
       console.log('Running in Preview Mode (iframe)')
@@ -201,68 +221,29 @@ export default function Booking() {
         setErrorMsg(`エラーが発生しました: ${msg}`)
       }
     }
-  }
-
-  const fetchStore = async () => {
-    // In production, store_id should be passed via query param ?store_id=...
-    const params = new URLSearchParams(window.location.search)
-    let targetStoreId = params.get('store_id')
-
-    if (!targetStoreId) {
-        // Fallback: Get first store
-        const { data } = await supabase.from('stores').select('id, name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type').limit(1).maybeSingle()
-        targetStoreId = data?.id
-        if (data) {
-          if (data.name) document.title = data.name
-          setStoreSettings({
-            name: data.name || '',
-            liff_template_id: data.liff_template_id || 'simple',
-            liff_theme_color: data.liff_theme_color || '#00c3dc',
-            liff_logo_url: data.liff_logo_url || '',
-            booking_system_type: data.booking_system_type || 'generic'
-          })
-        }
-    } else {
-        // Fetch specific store settings
-        const { data } = await supabase.from('stores').select('name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type').eq('id', targetStoreId).maybeSingle()
-        if (data) {
-          if (data.name) document.title = data.name
-          setStoreSettings({
-            name: data.name || '',
-            liff_template_id: data.liff_template_id || 'simple',
-            liff_theme_color: data.liff_theme_color || '#00c3dc',
-            liff_logo_url: data.liff_logo_url || '',
-            booking_system_type: data.booking_system_type || 'generic'
-          })
-        }
-    }
-
-    if (targetStoreId) {
-        setStoreId(targetStoreId)
-        // Fetch Staff & Menus if needed
-        const { data: staff } = await supabase.from('staff_members').select('*').eq('store_id', targetStoreId).eq('is_active', true).order('created_at')
-        if (staff) setStaffList(staff)
-
-        const { data: menus } = await supabase.from('booking_menus').select('*').eq('store_id', targetStoreId).eq('is_active', true).order('created_at')
-        if (menus) setMenuList(menus)
-    } else {
-        setStep('error')
-        setErrorMsg('店舗情報が見つかりませんでした。')
-    }
-  }
+  }, [fetchStore])
 
   useEffect(() => {
-    if (storeId && lineUserId) {
-      // Initial step is loading or date, but we want to check reservation first.
-      // If no reservation found, checkReservation will do nothing to step (it stays at 'loading' or we should set it to 'date' if not found)
-      // Let's modify checkReservation to handle "not found" case to set step to 'date'
-      const init = async () => {
-        await checkCustomer()
-        await checkReservation()
-      }
-      init()
+    initializeLiff()
+  }, [initializeLiff])
+
+  // Set default date to today (Local Time)
+  useEffect(() => {
+    if (!date) {
+      const now = new Date()
+      const year = now.getFullYear()
+      const month = String(now.getMonth() + 1).padStart(2, '0')
+      const day = String(now.getDate()).padStart(2, '0')
+      setDate(`${year}-${month}-${day}`)
     }
-  }, [storeId, lineUserId])
+  }, [date])
+
+  // Fetch slots when date or storeId changes
+  useEffect(() => {
+    if (storeId && date) {
+      fetchSlots()
+    }
+  }, [storeId, date, fetchSlots])
 
   // Listen for settings updates from parent window (LineSettings.tsx)
   useEffect(() => {
@@ -303,7 +284,7 @@ export default function Booking() {
   }, [])
 
 
-  const checkCustomer = async () => {
+  const checkCustomer = useCallback(async () => {
     setCheckingUser(true)
     try {
       const { data, error } = await supabase.functions.invoke('booking', {
@@ -317,7 +298,7 @@ export default function Booking() {
       if (error) throw error
       
       if (data?.customer) {
-        setExistingCustomer(data.customer)
+        setExistingCustomer(data.customer as CustomerInfo)
         if (data.customer.real_name) setRealName(data.customer.real_name)
         if (data.customer.furigana) setFurigana(data.customer.furigana)
       } else {
@@ -330,9 +311,9 @@ export default function Booking() {
     } finally {
       setCheckingUser(false)
     }
-  }
+  }, [lineUserId, storeId])
 
-  const checkReservation = async () => {
+  const checkReservation = useCallback(async () => {
     try {
       const { data, error } = await supabase.functions.invoke('booking', {
         body: {
@@ -345,7 +326,7 @@ export default function Booking() {
       if (error) throw error
       
       if (data?.reservations && data.reservations.length > 0) {
-        setActiveReservations(data.reservations)
+        setActiveReservations(data.reservations as ReservationSummary[])
         setStep('existing_reservation')
       } else {
         // Determine initial step based on booking system type
@@ -368,7 +349,17 @@ export default function Booking() {
         setStep('date')
       }
     }
-  }
+  }, [lineUserId, storeId, storeSettings.booking_system_type])
+
+  useEffect(() => {
+    if (storeId && lineUserId) {
+      const init = async () => {
+        await checkCustomer()
+        await checkReservation()
+      }
+      init()
+    }
+  }, [checkCustomer, checkReservation, lineUserId, storeId])
 
   const handleCancelReservation = async (reservationId: string) => {
     showModal(
@@ -477,9 +468,9 @@ export default function Booking() {
 
       setStep('complete')
       setModifyingReservationId(null) // Reset modification state
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Booking failed:', error)
-      const errorMessage = error?.message || JSON.stringify(error) || '不明なエラー'
+      const errorMessage = error instanceof Error ? error.message : String(error)
       showToast(`予約に失敗しました。\n詳細: ${errorMessage}`, 'error')
     } finally {
       setLoading(false)
@@ -529,8 +520,8 @@ export default function Booking() {
               ? 'border-[#44403C] bg-[#44403C]/10' 
               : 'border-[#E7E5E4] bg-white hover:border-[#D6D3D1]'}
           `,
-          selectableItemText: (_selected: boolean) => 'text-[#44403C]',
-          selectableItemSubText: (_selected: boolean) => 'text-[#78716C]',
+          selectableItemText: (selected: boolean) => (selected ? 'text-[#44403C]' : 'text-[#44403C]'),
+          selectableItemSubText: (selected: boolean) => (selected ? 'text-[#78716C]' : 'text-[#78716C]'),
           infoBox: 'p-6 bg-[#FAFAF9] border border-[#E7E5E4] text-[#57534E]',
           actionButtonPrimary: 'flex items-center justify-center gap-1 px-3 py-2 bg-[#44403C] text-[#F5F5F4] text-xs uppercase tracking-wider rounded-sm hover:bg-[#292524] transition-colors',
           actionButtonSecondary: 'flex items-center justify-center gap-1 px-3 py-2 bg-transparent border border-[#D6D3D1] text-[#78716C] text-xs uppercase tracking-wider rounded-sm hover:bg-[#F5F5F4] transition-colors',
@@ -572,8 +563,8 @@ export default function Booking() {
               ? 'border-current bg-opacity-10' 
               : 'border-gray-100 bg-white hover:border-gray-200'}
           `,
-          selectableItemText: (_selected: boolean) => 'text-gray-800',
-          selectableItemSubText: (_selected: boolean) => 'text-gray-500',
+          selectableItemText: (selected: boolean) => (selected ? 'text-gray-800' : 'text-gray-800'),
+          selectableItemSubText: (selected: boolean) => (selected ? 'text-gray-500' : 'text-gray-500'),
           infoBox: 'p-5 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200',
           actionButtonPrimary: 'flex items-center justify-center gap-1 px-4 py-2 text-white font-bold rounded-full shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all text-xs',
           actionButtonSecondary: 'flex items-center justify-center gap-1 px-4 py-2 bg-white text-gray-500 font-bold rounded-full border-2 border-gray-100 hover:bg-gray-50 transition-all text-xs',
@@ -659,8 +650,8 @@ export default function Booking() {
               ? 'border-current bg-opacity-10' 
               : 'border-gray-100 bg-white hover:border-gray-200'}
           `,
-          selectableItemText: (_selected: boolean) => 'text-gray-800',
-          selectableItemSubText: (_selected: boolean) => 'text-gray-500',
+          selectableItemText: (selected: boolean) => (selected ? 'text-gray-800' : 'text-gray-800'),
+          selectableItemSubText: (selected: boolean) => (selected ? 'text-gray-500' : 'text-gray-500'),
           infoBox: 'p-4 bg-gray-50 border border-gray-100 rounded-lg',
           actionButtonPrimary: 'flex items-center justify-center gap-1 px-3 py-2 text-white font-bold rounded-lg shadow-sm hover:opacity-90 transition-opacity text-xs',
           actionButtonSecondary: 'flex items-center justify-center gap-1 px-3 py-2 bg-white text-gray-600 border border-gray-200 font-bold rounded-lg hover:bg-gray-50 transition-colors text-xs',
@@ -748,20 +739,20 @@ export default function Booking() {
                     </div>
                     
                     {/* 担当者表示 */}
-                    {(res as any).staff?.name && (
+                    {res.staff?.name && (
                       <div className="flex justify-between border-b border-current pb-2 border-opacity-20 mb-2">
                         <span className="opacity-70">担当</span>
-                        <span className="font-bold text-right">{(res as any).staff.name}</span>
+                        <span className="font-bold text-right">{res.staff.name}</span>
                       </div>
                     )}
 
                     {/* メニュー表示 */}
-                    {(res as any).menu?.name && (
+                    {res.menu?.name && (
                       <div className="flex justify-between border-b border-current pb-2 border-opacity-20 mb-2">
                         <span className="opacity-70 whitespace-nowrap">メニュー</span>
                         <span className="font-bold text-right">
-                          {(res as any).menu.name}
-                          {(res as any).menu.price ? ` (¥${(res as any).menu.price.toLocaleString()})` : ''}
+                          {res.menu.name}
+                          {res.menu.price ? ` (¥${res.menu.price.toLocaleString()})` : ''}
                         </span>
                       </div>
                     )}
@@ -770,7 +761,7 @@ export default function Booking() {
                       <div className="flex gap-2">
                         <button 
                           onClick={() => handleModifyStart(res.id)}
-                          className={(theme as any).actionButtonPrimary || "text-xs text-blue-500 underline hover:text-blue-700"}
+                          className={theme.actionButtonPrimary}
                           style={storeSettings.liff_template_id === 'simple' ? { backgroundColor: storeSettings.liff_theme_color } : {}}
                         >
                           <Edit2 size={14} />
@@ -781,7 +772,7 @@ export default function Booking() {
                             e.stopPropagation()
                             handleCancelReservation(res.id)
                           }}
-                          className={(theme as any).actionButtonSecondary || "text-xs text-red-500 underline hover:text-red-700"}
+                          className={theme.actionButtonSecondary}
                         >
                           <XCircle size={14} />
                           予約をキャンセル
@@ -830,7 +821,7 @@ export default function Booking() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-4">
-                    {staffList.map((staff) => (
+                    {staffList.map((staff: StoreStaff) => (
                       <button
                         key={staff.id}
                         onClick={() => {
@@ -885,7 +876,7 @@ export default function Booking() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {menuList.map((menu) => (
+                    {menuList.map((menu: StoreMenu) => (
                       <button
                         key={menu.id}
                         onClick={() => {

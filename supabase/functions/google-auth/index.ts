@@ -132,9 +132,13 @@ serve(async (req) => {
 
     return new Response('Method Not Allowed', { status: 405, headers: corsHeaders })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Edge Function Error:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
+    const errorMessage = error instanceof Error
+      ? error.message
+      : (error as { message?: string })?.message ?? 'Unknown error'
+
+    return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
     })

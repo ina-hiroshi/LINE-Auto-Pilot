@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Users, Calendar, AlertCircle, Bot, User, MessageSquare } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import Modal from '../components/Modal'
@@ -59,35 +59,7 @@ export default function Dashboard() {
     type: 'success'
   })
 
-  useEffect(() => {
-    fetchDashboardData()
-
-    // Real-time subscription for logs
-    const channel = supabase
-      .channel('dashboard-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'customer_logs' },
-        () => {
-          fetchDashboardData()
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [timeRange]) // Re-fetch when timeRange changes
-
-  useEffect(() => {
-    if (filterStatus === 'all') {
-      setFilteredLogs(allLogs.slice(0, 20))
-    } else {
-      setFilteredLogs(allLogs.filter(log => log.status === filterStatus).slice(0, 20))
-    }
-  }, [filterStatus, allLogs])
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -200,7 +172,35 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [timeRange])
+
+  useEffect(() => {
+    fetchDashboardData()
+
+    // Real-time subscription for logs
+    const channel = supabase
+      .channel('dashboard-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'customer_logs' },
+        () => {
+          fetchDashboardData()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchDashboardData]) // Re-fetch when fetchDashboardData changes
+
+  useEffect(() => {
+    if (filterStatus === 'all') {
+      setFilteredLogs(allLogs.slice(0, 20))
+    } else {
+      setFilteredLogs(allLogs.filter(log => log.status === filterStatus).slice(0, 20))
+    }
+  }, [filterStatus, allLogs])
 
   const getTimeRangeLabel = () => {
       switch(timeRange) {

@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Calendar, Clock, User, CheckCircle, AlertCircle, Loader2, RefreshCw, Lock, Edit2, XCircle, FileText, MessageSquare } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useStoreResources } from '../hooks/useStoreResources'
+import type { StoreMenu, StoreStaff } from '../types/storeResources'
 import Toast from '../components/Toast'
 import Modal from '../components/Modal'
 
@@ -22,22 +24,10 @@ type Reservation = {
   }
   menu?: {
     name: string
+    price?: number | null
   }
   staff_id?: string
   menu_id?: string
-}
-
-type Staff = {
-  id: string
-  name: string
-  is_active: boolean
-}
-
-type Menu = {
-  id: string
-  name: string
-  price: number | null
-  is_active: boolean
 }
 
 type GoogleCalendar = {
@@ -55,12 +45,21 @@ type GoogleEvent = {
   htmlLink: string
 }
 
+const toErrorMessage = (error: unknown): string => {
+	if (error instanceof Error) return error.message
+	if (typeof error === 'object' && error && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
+		return (error as { message: string }).message
+	}
+	return String(error)
+}
+
 export default function Reservations() {
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
   const [isGoogleConnected, setIsGoogleConnected] = useState(false)
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [loading, setLoading] = useState(true)
   const [storeId, setStoreId] = useState<string | null>(null)
+  const { staffList, menuList } = useStoreResources(storeId)
   
   // Google Calendar State
   const [calendars, setCalendars] = useState<GoogleCalendar[]>([])
@@ -81,22 +80,261 @@ export default function Reservations() {
   const [modifyStaffId, setModifyStaffId] = useState<string>('')
   const [modifyMenuId, setModifyMenuId] = useState<string>('')
   const [modifyMemo, setModifyMemo] = useState<string>('')
-  const [staffList, setStaffList] = useState<Staff[]>([])
-  const [menuList, setMenuList] = useState<Menu[]>([])
   const [actionLoading, setActionLoading] = useState(false)
+
+  const fetchCalendars = useCallback(async () => {
+    try {
+      setCalendarLoading(true)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=list_calendars`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
+      
+      const result = await response.json()
+      if (result.error) throw new Error(result.error)
+
+      const calendarsResult: GoogleCalendar[] = result.calendars || []
+      setCalendars(calendarsResult)
+      
+      if (!selectedCalendarId) {
+        const primary = calendarsResult.find((c) => c.primary)
+        if (primary) setSelectedCalendarId(primary.id)
+      }
+    } catch (error) {
+      console.error('Fetch Calendars Error:', error)
+      setToast({ message: 'カレンダー一覧の取得に失敗しました', type: 'error' })
+    } finally {
+      setCalendarLoading(false)
+    }
+  }, [selectedCalendarId])
+
+  const checkGoogleConnection = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data: settings } = await supabase
+      .from('google_calendar_settings')
+      .select('calendar_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    
+    if (settings) {
+      setIsGoogleConnected(true)
+      setSelectedCalendarId(settings.calendar_id)
+      await fetchCalendars()
+    }
+  }, [fetchCalendars])
+
+  const handleGoogleConnect = async () => {
+    try {
+      setCalendarLoading(true)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const redirectUri = window.location.origin + '/reservations'
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-auth?redirect_uri=${encodeURIComponent(redirectUri)}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
+      
+      const { url, error } = await response.json()
+      if (error) throw new Error(error)
+      
+      window.location.href = url
+    } catch (error) {
+      console.error('Google Connect Error:', error)
+      setToast({ message: 'Google連携の開始に失敗しました', type: 'error' })
+    } finally {
+      setCalendarLoading(false)
+    }
+  }
+
+  const handleGoogleCallback = useCallback(async (code: string) => {
+    try {
+      setCalendarLoading(true)
+      
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const redirectUri = window.location.origin + '/reservations'
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-auth`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ code, redirect_uri: redirectUri })
+      })
+      
+      const result = await response.json()
+      if (result.error) throw new Error(result.error)
+      
+      setIsGoogleConnected(true)
+      setToast({ message: 'Googleカレンダーと連携しました', type: 'success' })
+      
+      await fetchCalendars()
+    } catch (error) {
+      console.error('Google Callback Error:', error)
+      setToast({ message: `Google連携に失敗しました: ${toErrorMessage(error)}`, type: 'error' })
+    } finally {
+      setCalendarLoading(false)
+    }
+  }, [fetchCalendars])
+
+  const fetchGoogleEvents = useCallback(async () => {
+    if (!isGoogleConnected || !selectedCalendarId || viewMode !== 'calendar') return
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      let startDate = new Date(currentDate)
+      let endDate = new Date(currentDate)
+
+      if (calendarView === 'month') {
+        const year = currentDate.getFullYear()
+        const month = currentDate.getMonth()
+        const firstDay = new Date(year, month, 1)
+        const lastDay = new Date(year, month + 1, 0)
+        
+        startDate = new Date(firstDay)
+        startDate.setDate(startDate.getDate() - startDate.getDay())
+        
+        endDate = new Date(lastDay)
+        endDate.setDate(endDate.getDate() + (6 - endDate.getDay()))
+      } else if (calendarView === 'week') {
+        const day = currentDate.getDay()
+        const diff = currentDate.getDate() - day
+        startDate = new Date(currentDate)
+        startDate.setDate(diff)
+        
+        endDate = new Date(startDate)
+        endDate.setDate(startDate.getDate() + 6)
+      } else {
+        startDate = new Date(currentDate)
+        endDate = new Date(currentDate)
+      }
+      
+      startDate.setHours(0, 0, 0, 0)
+      endDate.setHours(23, 59, 59, 999)
+
+      const timeMin = startDate.toISOString()
+      const timeMax = endDate.toISOString()
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=list_events&calendar_id=${encodeURIComponent(selectedCalendarId)}&timeMin=${timeMin}&timeMax=${timeMax}`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
+      
+      const result = await response.json()
+      if (result.error) throw new Error(result.error)
+      
+      setGoogleEvents(result.events || [])
+    } catch (error) {
+      console.error('Fetch Google Events Error:', error)
+    }
+  }, [calendarView, currentDate, isGoogleConnected, selectedCalendarId, viewMode])
+
+  useEffect(() => {
+    fetchGoogleEvents()
+  }, [fetchGoogleEvents])
+
+  const handleSaveCalendarSettings = async () => {
+    try {
+      setCalendarLoading(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { error } = await supabase
+        .from('google_calendar_settings')
+        .update({ calendar_id: selectedCalendarId })
+        .eq('user_id', user.id)
+
+      if (error) throw error
+
+      setToast({ message: 'カレンダー設定を保存しました', type: 'success' })
+    } catch (error) {
+      console.error('Save Settings Error:', error)
+      setToast({ message: `設定の保存に失敗しました: ${toErrorMessage(error)}`, type: 'error' })
+    } finally {
+      setCalendarLoading(false)
+    }
+  }
+
+  const fetchReservations = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Get Store ID
+      const { data: stores } = await supabase
+        .from('stores')
+        .select('id')
+        .eq('owner_id', user.id)
+        .limit(1)
+      
+      const currentStoreId = stores?.[0]?.id
+      if (!currentStoreId) return
+      setStoreId(currentStoreId)
+
+      // Fetch Reservations
+      const { data: resDataRaw, error: resError } = await supabase
+        .from('reservations')
+        .select('*, staff:staff_members(name), menu:booking_menus(name, price)')
+        .eq('store_id', currentStoreId)
+        .neq('status', 'cancelled') // キャンセル済みを除外
+        .order('start_time', { ascending: true })
+
+      if (resError) throw resError
+
+      const resData = (resDataRaw ?? []) as Reservation[]
+      if (resData.length > 0) {
+        // Fetch Customers for these reservations
+        const userIds = Array.from(new Set(resData.map((r: Reservation) => r.line_user_id).filter(Boolean)))
+        
+        const { data: customers, error: custError } = await supabase
+          .from('customers')
+          .select('line_user_id, display_name, profile_picture_url, real_name, furigana')
+          .eq('store_id', currentStoreId)
+          .in('line_user_id', userIds)
+
+        if (custError) throw custError
+
+        // Merge data
+        const merged = resData.map((r: Reservation) => ({
+          ...r,
+          customer: customers?.find((c: { line_user_id: string }) => c.line_user_id === r.line_user_id)
+        }))
+        setReservations(merged)
+      }
+    } catch (error) {
+      console.error('Error fetching reservations:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     fetchReservations()
     checkGoogleConnection()
-    
-    // Handle Google OAuth Callback
+
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
     if (code) {
       handleGoogleCallback(code)
       window.history.replaceState({}, '', window.location.pathname)
     }
-  }, [])
+  }, [checkGoogleConnection, fetchReservations, handleGoogleCallback])
 
   // Realtime Subscription
   useEffect(() => {
@@ -121,281 +359,7 @@ export default function Reservations() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [storeId])
-
-  useEffect(() => {
-    if (!storeId) return
-    
-    const fetchStoreData = async () => {
-      const { data: staff } = await supabase
-        .from('staff_members')
-        .select('id, name, is_active')
-        .eq('store_id', storeId)
-        .eq('is_active', true)
-        .order('created_at', { ascending: true })
-      
-      if (staff) setStaffList(staff)
-
-      const { data: menus } = await supabase
-        .from('booking_menus')
-        .select('id, name, price, is_active')
-        .eq('store_id', storeId)
-        .eq('is_active', true)
-        .order('created_at', { ascending: true })
-      
-      if (menus) setMenuList(menus)
-    }
-
-    fetchStoreData()
-  }, [storeId])
-
-  const checkGoogleConnection = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const { data: settings } = await supabase
-      .from('google_calendar_settings')
-      .select('calendar_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    
-    if (settings) {
-      setIsGoogleConnected(true)
-      setSelectedCalendarId(settings.calendar_id)
-      // Fetch calendars to populate the dropdown
-      fetchCalendars()
-    }
-  }
-
-  const handleGoogleConnect = async () => {
-    try {
-      setCalendarLoading(true)
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-
-      // Use current page as redirect URI
-      const redirectUri = window.location.origin + '/reservations'
-      
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-auth?redirect_uri=${encodeURIComponent(redirectUri)}`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
-      })
-      
-      const { url, error } = await response.json()
-      if (error) throw new Error(error)
-      
-      window.location.href = url
-    } catch (error: any) {
-      console.error('Google Connect Error:', error)
-      setToast({ message: 'Google連携の開始に失敗しました', type: 'error' })
-    } finally {
-      setCalendarLoading(false)
-    }
-  }
-
-  const handleGoogleCallback = async (code: string) => {
-    try {
-      setCalendarLoading(true)
-      
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-
-      // Use current page as redirect URI (must match the one used in GET)
-      const redirectUri = window.location.origin + '/reservations'
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-auth`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ code, redirect_uri: redirectUri })
-      })
-      
-      const result = await response.json()
-      if (result.error) throw new Error(result.error)
-      
-      setIsGoogleConnected(true)
-      setToast({ message: 'Googleカレンダーと連携しました', type: 'success' })
-      
-      // Automatically fetch calendars after connection
-      await fetchCalendars()
-    } catch (error: any) {
-      console.error('Google Callback Error:', error)
-      setToast({ message: 'Google連携に失敗しました: ' + error.message, type: 'error' })
-    } finally {
-      setCalendarLoading(false)
-    }
-  }
-
-  const fetchCalendars = async () => {
-    try {
-      setCalendarLoading(true)
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=list_calendars`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
-      })
-      
-      const result = await response.json()
-      if (result.error) throw new Error(result.error)
-      
-      setCalendars(result.calendars || [])
-      
-      // If no calendar selected yet, select primary
-      if (!selectedCalendarId) {
-        const primary = result.calendars.find((c: any) => c.primary)
-        if (primary) setSelectedCalendarId(primary.id)
-      }
-    } catch (error: any) {
-      console.error('Fetch Calendars Error:', error)
-      setToast({ message: 'カレンダー一覧の取得に失敗しました', type: 'error' })
-    } finally {
-      setCalendarLoading(false)
-    }
-  }
-
-  const fetchGoogleEvents = async () => {
-    if (!isGoogleConnected || !selectedCalendarId || viewMode !== 'calendar') return
-    
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-
-      // Calculate start and end based on view mode
-      let startDate = new Date(currentDate)
-      let endDate = new Date(currentDate)
-
-      if (calendarView === 'month') {
-        const year = currentDate.getFullYear()
-        const month = currentDate.getMonth()
-        const firstDay = new Date(year, month, 1)
-        const lastDay = new Date(year, month + 1, 0)
-        
-        startDate = new Date(firstDay)
-        startDate.setDate(startDate.getDate() - startDate.getDay()) // Start from Sunday
-        
-        endDate = new Date(lastDay)
-        endDate.setDate(endDate.getDate() + (6 - endDate.getDay())) // End on Saturday
-      } else if (calendarView === 'week') {
-        const day = currentDate.getDay()
-        const diff = currentDate.getDate() - day
-        startDate = new Date(currentDate)
-        startDate.setDate(diff)
-        
-        endDate = new Date(startDate)
-        endDate.setDate(startDate.getDate() + 6)
-      } else {
-        // Day view
-        startDate = new Date(currentDate)
-        endDate = new Date(currentDate)
-      }
-      
-      // Add buffer just in case
-      startDate.setHours(0, 0, 0, 0)
-      endDate.setHours(23, 59, 59, 999)
-
-      const timeMin = startDate.toISOString()
-      const timeMax = endDate.toISOString()
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=list_events&calendar_id=${encodeURIComponent(selectedCalendarId)}&timeMin=${timeMin}&timeMax=${timeMax}`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
-      })
-      
-      const result = await response.json()
-      if (result.error) throw new Error(result.error)
-      
-      setGoogleEvents(result.events || [])
-    } catch (error) {
-      console.error('Fetch Google Events Error:', error)
-    }
-  }
-
-  useEffect(() => {
-    fetchGoogleEvents()
-  }, [currentDate, selectedCalendarId, isGoogleConnected, viewMode, calendarView])
-
-  const handleSaveCalendarSettings = async () => {
-    try {
-      setCalendarLoading(true)
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { error } = await supabase
-        .from('google_calendar_settings')
-        .update({ calendar_id: selectedCalendarId })
-        .eq('user_id', user.id)
-
-      if (error) throw error
-
-      setToast({ message: 'カレンダー設定を保存しました', type: 'success' })
-    } catch (error: any) {
-      console.error('Save Settings Error:', error)
-      setToast({ message: '設定の保存に失敗しました', type: 'error' })
-    } finally {
-      setCalendarLoading(false)
-    }
-  }
-
-  const fetchReservations = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      // Get Store ID
-      const { data: stores } = await supabase
-        .from('stores')
-        .select('id')
-        .eq('owner_id', user.id)
-        .limit(1)
-      
-      const currentStoreId = stores?.[0]?.id
-      if (!currentStoreId) return
-      setStoreId(currentStoreId)
-
-      // Fetch Reservations
-      const { data: resData, error: resError } = await supabase
-        .from('reservations')
-        .select('*, staff:staff_members(name), menu:booking_menus(name, price)')
-        .eq('store_id', currentStoreId)
-        .neq('status', 'cancelled') // キャンセル済みを除外
-        .order('start_time', { ascending: true })
-
-      if (resError) throw resError
-
-      if (resData) {
-        // Fetch Customers for these reservations
-        const userIds = Array.from(new Set(resData.map(r => r.line_user_id).filter(Boolean)))
-        
-        const { data: customers, error: custError } = await supabase
-          .from('customers')
-          .select('line_user_id, display_name, profile_picture_url, real_name, furigana')
-          .eq('store_id', currentStoreId)
-          .in('line_user_id', userIds)
-
-        if (custError) throw custError
-
-        // Merge data
-        const merged = resData.map(r => ({
-          ...r,
-          customer: customers?.find(c => c.line_user_id === r.line_user_id)
-        }))
-        setReservations(merged)
-      }
-    } catch (error) {
-      console.error('Error fetching reservations:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [fetchReservations, storeId])
 
   const handleCancelReservation = async () => {
     if (!selectedReservation) return
@@ -411,9 +375,9 @@ export default function Reservations() {
       setToast({ message: '予約をキャンセルしました', type: 'success' })
       setIsCancelModalOpen(false)
       fetchReservations()
-    } catch (error: any) {
+    } catch (error) {
       console.error('Cancel Error:', error)
-      setToast({ message: 'キャンセルに失敗しました', type: 'error' })
+      setToast({ message: `キャンセルに失敗しました: ${toErrorMessage(error)}`, type: 'error' })
     } finally {
       setActionLoading(false)
     }
@@ -442,9 +406,9 @@ export default function Reservations() {
       setToast({ message: '予約を変更しました', type: 'success' })
       setIsModifyModalOpen(false)
       fetchReservations()
-    } catch (error: any) {
+    } catch (error) {
       console.error('Modify Error:', error)
-      setToast({ message: '変更に失敗しました', type: 'error' })
+      setToast({ message: `変更に失敗しました: ${toErrorMessage(error)}`, type: 'error' })
     } finally {
       setActionLoading(false)
     }
@@ -539,7 +503,7 @@ export default function Reservations() {
                                 reservation.status === 'cancelled' ? 'bg-red-100 text-red-700' :
                                 'bg-green-100 text-green-700'
                               }`}>
-                                {reservation.status === 'cancelled' ? 'キャンセル' : (reservation.memo === 'Web予約' ? 'LINE予約' : reservation.memo || 'LINE予約')}
+                                {reservation.status === 'cancelled' ? 'キャンセル' : 'LINE予約'}
                               </span>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-1">
@@ -593,7 +557,7 @@ export default function Reservations() {
                                             <span className="text-xs whitespace-nowrap">担当: <span className="font-medium text-gray-800">{reservation.staff.name}</span></span>
                                         )}
                                         {reservation.menu?.name && (
-                                            <span className="text-xs">メニュー: <span className="font-medium text-gray-800">{reservation.menu.name} {(reservation.menu as any).price ? `(¥${(reservation.menu as any).price.toLocaleString()})` : ''}</span></span>
+                                          <span className="text-xs">メニュー: <span className="font-medium text-gray-800">{reservation.menu.name} {reservation.menu.price ? `(¥${reservation.menu.price.toLocaleString()})` : ''}</span></span>
                                         )}
                                     </div>
                                 )}
@@ -1163,7 +1127,7 @@ export default function Reservations() {
               <span className={`px-2 py-1 text-xs font-bold rounded-full ${
                 selectedReservation.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
               }`}>
-                {selectedReservation.status === 'cancelled' ? 'キャンセル' : (selectedReservation.memo === 'Web予約' ? 'LINE予約' : selectedReservation.memo || 'LINE予約')}
+                {selectedReservation.status === 'cancelled' ? 'キャンセル' : 'LINE予約'}
               </span>
             </div>
 
@@ -1197,7 +1161,7 @@ export default function Reservations() {
                   <div className="font-bold text-gray-700 text-xs mb-1">メニュー</div>
                   <div className="text-gray-900 font-medium">
                     {selectedReservation.menu?.name || '指定なし'}
-                    {selectedReservation.menu && (selectedReservation.menu as any).price && ` (¥${(selectedReservation.menu as any).price.toLocaleString()})`}
+                    {selectedReservation.menu?.price && ` (¥${selectedReservation.menu.price.toLocaleString()})`}
                   </div>
                 </div>
               </div>
@@ -1265,7 +1229,7 @@ export default function Reservations() {
                 className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
               >
                 <option value="">指定なし</option>
-                {staffList.map(staff => (
+                {staffList.map((staff: StoreStaff) => (
                   <option key={staff.id} value={staff.id}>{staff.name}</option>
                 ))}
               </select>
@@ -1281,7 +1245,7 @@ export default function Reservations() {
                 className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
               >
                 <option value="">指定なし</option>
-                {menuList.map(menu => (
+                {menuList.map((menu: StoreMenu) => (
                   <option key={menu.id} value={menu.id}>
                     {menu.name} {menu.price ? `(¥${menu.price.toLocaleString()})` : ''}
                   </option>

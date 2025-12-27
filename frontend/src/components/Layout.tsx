@@ -5,10 +5,18 @@ import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User, C
 import Modal from './Modal'
 import iconImage from '../assets/icon.png'
 
+type ProfileSummary = {
+	full_name: string | null
+}
+
+type StoreSummary = {
+	name: string | null
+}
+
 export default function Layout() {
   const location = useLocation()
-  const [profile, setProfile] = useState<any>(null)
-  const [store, setStore] = useState<any>(null)
+  const [profile, setProfile] = useState<ProfileSummary | null>(null)
+  const [store, setStore] = useState<StoreSummary | null>(null)
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
 
   useEffect(() => {
