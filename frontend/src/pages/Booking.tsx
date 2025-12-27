@@ -454,7 +454,7 @@ export default function Booking() {
         hideModal()
         setLoading(true)
         try {
-          const { error } = await supabase.functions.invoke('booking', {
+          const { data, error } = await supabase.functions.invoke('booking', {
             body: {
               action: 'cancel_reservation',
               reservation_id: reservationId
@@ -462,6 +462,7 @@ export default function Booking() {
           })
 
           if (error) throw error
+          if (data?.error) throw new Error(data.error)
 
           const updated = activeReservations.filter(r => r.id !== reservationId)
           setActiveReservations(updated)

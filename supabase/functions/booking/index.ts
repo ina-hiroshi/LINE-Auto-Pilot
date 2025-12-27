@@ -259,8 +259,13 @@ serve(async (req) => {
           const totalOverlap = internalOverlapCount + googleOverlapCount
           const available = totalOverlap < capacityLimit
           
-          const hh = cursor.getHours().toString().padStart(2, '0')
-          const mm = cursor.getMinutes().toString().padStart(2, '0')
+          // Convert to JST for display (Shift UTC+9)
+          // cursor is a Date object representing the correct absolute time.
+          // getHours() returns UTC hour in Deno Deploy.
+          // We want the hour in JST.
+          const jstDate = new Date(cursor.getTime() + 9 * 60 * 60 * 1000)
+          const hh = jstDate.getUTCHours().toString().padStart(2, '0')
+          const mm = jstDate.getUTCMinutes().toString().padStart(2, '0')
           slots.push({ time: `${hh}:${mm}`, available })
         }
       }
@@ -289,6 +294,9 @@ serve(async (req) => {
     }
 
     if (action === 'cancel_reservation') {
+        if (!reservation_id) throw new Error('Reservation ID is required')
+        console.log(`[Booking] Cancelling reservation: ${reservation_id}`)
+
         // Fetch reservation to get google_event_id
         const { data: reservation, error: fetchError } = await supabaseClient
             .from('reservations')
