@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Calendar, Clock, User, CheckCircle, AlertCircle, Loader2, RefreshCw, Lock, Edit2, XCircle, FileText, MessageSquare } from 'lucide-react'
+import { Calendar, Clock, User, CheckCircle, AlertCircle, Loader2, Lock, Edit2, XCircle, FileText, MessageSquare } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useStoreResources } from '../hooks/useStoreResources'
 import type { StoreMenu, StoreStaff } from '../types/storeResources'
@@ -820,7 +820,7 @@ export default function Reservations() {
                           ))}
                         </div>
                         <button
-                          onClick={handleSaveCalendarSettings}
+                          onClick={() => handleSaveCalendarSettings()}
                           disabled={calendarLoading || !selectedCalendarId}
                           className="w-full py-3 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition shadow-lg shadow-primary-200 disabled:opacity-50 disabled:shadow-none"
                         >

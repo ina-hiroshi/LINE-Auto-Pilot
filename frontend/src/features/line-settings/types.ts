@@ -35,6 +35,7 @@ export interface BookingSettings {
   booking_system_type: BookingSystemType
   slot_interval_minutes: number
   capacity_per_slot: number
+  max_booking_days?: number
   business_hours?: BusinessHours | null
 }
 
