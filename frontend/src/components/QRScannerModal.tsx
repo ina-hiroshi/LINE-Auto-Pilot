@@ -14,7 +14,7 @@ export default function QRScannerModal({ isOpen, onClose, onScan }: QRScannerMod
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const requestRef = useRef<number>()
+  const requestRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (!isOpen) {
