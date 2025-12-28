@@ -69,6 +69,8 @@ export default function MemberCardLIFF() {
         }
 
         const updateSettingsFromStore = (storeData: any) => {
+          console.log('Raw store data:', storeData)
+          
           let cardSettings = storeData.membership_card_settings
           if (typeof cardSettings === 'string') {
             try {
@@ -78,7 +80,9 @@ export default function MemberCardLIFF() {
               cardSettings = {}
             }
           }
+          // Ensure cardSettings is an object
           cardSettings = cardSettings || {}
+          console.log('Parsed card settings:', cardSettings)
 
           const rankSettings = storeData.membership_rank_settings || [
             { name: 'Bronze', threshold: 0 },
@@ -97,7 +101,7 @@ export default function MemberCardLIFF() {
           }
 
           // Ensure stamp_config values are properly typed
-          const stampConfig = cardSettings.stamp_config || { total_slots: 20, goal_reward: '特典チケット' }
+          const stampConfig = cardSettings.stamp_config || {}
           const safeStampConfig = {
             total_slots: Number(stampConfig.total_slots) || 20,
             goal_reward: stampConfig.goal_reward || '特典チケット'
