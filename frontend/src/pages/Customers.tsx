@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { Loader2, User, Search, Edit2, Save, History, MessageSquare, ChevronRight, Gift, CreditCard } from 'lucide-react'
 import Modal from '../components/Modal'
@@ -29,11 +30,13 @@ type ReservationHistory = {
 }
 
 export default function Customers() {
+  const [searchParams] = useSearchParams()
   const [customers, setCustomers] = useState<CustomerData[]>([])
   const [filteredCustomers, setFilteredCustomers] = useState<CustomerData[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [storeId, setStoreId] = useState<string | null>(null)
+  const [storeSettings, setStoreSettings] = useState<any>(null)
 
   // Modal State
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerData | null>(null)
@@ -87,6 +90,20 @@ export default function Customers() {
     }
   }, [storeId])
 
+  // Handle QR Code Scan (Open Customer Detail)
+  useEffect(() => {
+    const customerId = searchParams.get('customer_id')
+    if (customerId && customers.length > 0) {
+      const target = customers.find(c => c.line_user_id === customerId || c.id === customerId)
+      if (target) {
+        // Only open if not already open or different customer
+        if (!selectedCustomer || selectedCustomer.id !== target.id) {
+          handleCustomerClick(target)
+        }
+      }
+    }
+  }, [customers, searchParams])
+
   useEffect(() => {
     if (!searchQuery) {
       setFilteredCustomers(customers)
@@ -109,13 +126,14 @@ export default function Customers() {
       // Get Store ID
       const { data: stores } = await supabase
         .from('stores')
-        .select('id')
+        .select('id, membership_card_settings')
         .eq('owner_id', user.id)
         .limit(1)
       
-      const storeId = stores?.[0]?.id
-      if (!storeId) return
-      setStoreId(storeId)
+      const store = stores?.[0]
+      if (!store) return
+      setStoreId(store.id)
+      setStoreSettings(store.membership_card_settings)
 
       // 1. Fetch Customers
       const { data: customersData, error: custError } = await supabase
@@ -257,9 +275,28 @@ export default function Customers() {
     setSaving(true)
     try {
       const currentPoints = selectedCustomer.points
-      const newBalance = pointOperation.type === 'add' 
+      let newBalance = pointOperation.type === 'add' 
         ? currentPoints + amount 
         : Math.max(0, currentPoints - amount)
+
+      // Stamp Card Logic: Auto Reset on Full
+      if (storeSettings?.card_type === 'stamp' && pointOperation.type === 'add') {
+        const maxSlots = storeSettings.stamp_config?.total_slots || 20
+        if (newBalance >= maxSlots) {
+          const completedCount = Math.floor(newBalance / maxSlots)
+          newBalance = newBalance % maxSlots
+          
+          // Log completion
+          await supabase.from('customer_logs').insert({
+            store_id: storeId,
+            line_user_id: selectedCustomer.line_user_id,
+            action_type: 'stamp_complete',
+            details: { count: completedCount, reward: storeSettings.stamp_config?.goal_reward }
+          })
+          
+          setToast({ isVisible: true, message: `スタンプカードが満了しました！`, type: 'success' })
+        }
+      }
 
       // Upsert points table
       const { error } = await supabase
@@ -273,7 +310,10 @@ export default function Customers() {
 
       if (error) throw error
 
-      setToast({ isVisible: true, message: 'ポイントを更新しました', type: 'success' })
+      if (storeSettings?.card_type !== 'stamp' || pointOperation.type !== 'add' || newBalance !== 0) {
+        setToast({ isVisible: true, message: 'ポイントを更新しました', type: 'success' })
+      }
+      
       fetchCustomers()
       setSelectedCustomer(prev => prev ? ({ ...prev, points: newBalance }) : null)
       setPointOperation({ amount: '', type: 'add' })
@@ -428,8 +468,22 @@ export default function Customers() {
                 )}
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-900">{selectedCustomer.display_name || 'ゲスト'}</h3>
-                <p className="text-sm text-gray-500">LINE ID: {selectedCustomer.line_user_id}</p>
+                <h3 className="text-lg font-bold text-gray-900">
+                  {selectedCustomer.real_name ? (
+                    <div className="flex flex-col">
+                      <span>{selectedCustomer.real_name}</span>
+                      {selectedCustomer.furigana && (
+                        <span className="text-xs text-gray-500 font-normal">{selectedCustomer.furigana}</span>
+                      )}
+                    </div>
+                  ) : (
+                    selectedCustomer.display_name || 'ゲスト'
+                  )}
+                </h3>
+                {selectedCustomer.real_name && selectedCustomer.display_name && (
+                  <p className="text-xs text-gray-500 mt-0.5">LINE: {selectedCustomer.display_name}</p>
+                )}
+                <p className="text-xs text-gray-400 mt-0.5">ID: {selectedCustomer.line_user_id.substring(0, 8)}...</p>
                 <div className="mt-1 flex gap-2">
                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
                         selectedCustomer.status === 'VIP' 
@@ -443,6 +497,121 @@ export default function Customers() {
             </div>
 
             <div className="flex flex-col gap-8">
+              {/* Points & History */}
+              <div className="space-y-6">
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                  <h4 className="text-sm font-bold text-gray-900 mb-3">
+                    {storeSettings?.card_type === 'stamp' ? 'スタンプカード管理' : 'ポイント管理'}
+                  </h4>
+                  <div className="flex items-baseline gap-2 mb-4">
+                    <span className="text-3xl font-bold text-primary-600">{selectedCustomer.points.toLocaleString()}</span>
+                    <span className="text-sm text-gray-500">
+                      {storeSettings?.card_type === 'stamp' ? '個' : 'pt'}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {/* Operation Type Tabs */}
+                    <div className="flex p-1 bg-gray-200 rounded-lg">
+                      <button
+                        onClick={() => setPointOperation(prev => ({ ...prev, type: 'add' }))}
+                        className={`flex-1 py-2 text-xs font-bold rounded-md flex items-center justify-center gap-2 transition-all ${
+                          pointOperation.type === 'add' 
+                            ? 'bg-white text-primary-700 shadow-sm' 
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        <Gift className="w-4 h-4" />
+                        {storeSettings?.card_type === 'stamp' ? 'スタンプ押印' : '付与する'}
+                      </button>
+                      <button
+                        onClick={() => setPointOperation(prev => ({ ...prev, type: 'use' }))}
+                        className={`flex-1 py-2 text-xs font-bold rounded-md flex items-center justify-center gap-2 transition-all ${
+                          pointOperation.type === 'use' 
+                            ? 'bg-white text-red-600 shadow-sm' 
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        <CreditCard className="w-4 h-4" />
+                        {storeSettings?.card_type === 'stamp' ? '特典交換' : '利用する'}
+                      </button>
+                    </div>
+
+                    {/* Input Area */}
+                    <div className="bg-white p-3 rounded-lg border border-gray-200">
+                      <label className="block text-xs font-medium text-gray-500 mb-2">
+                        {pointOperation.type === 'add' 
+                          ? (storeSettings?.card_type === 'stamp' ? '押印するスタンプ数' : '付与するポイント数')
+                          : (storeSettings?.card_type === 'stamp' ? '消費するスタンプ数' : '利用するポイント数')}
+                      </label>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="number"
+                            value={pointOperation.amount}
+                            onChange={(e) => setPointOperation(prev => ({ ...prev, amount: e.target.value }))}
+                            className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-md text-sm focus:ring-primary-500 focus:border-primary-500"
+                            placeholder="0"
+                            min="1"
+                          />
+                          <span className="absolute right-3 top-2.5 text-xs text-gray-400">
+                            {storeSettings?.card_type === 'stamp' ? '個' : 'pt'}
+                          </span>
+                        </div>
+                        <button
+                          onClick={handleUpdatePoints}
+                          disabled={!pointOperation.amount || saving}
+                          className={`px-4 py-2 rounded-md text-white text-sm font-bold shadow-sm transition-colors ${
+                            pointOperation.type === 'add' 
+                              ? 'bg-primary-600 hover:bg-primary-700' 
+                              : 'bg-red-500 hover:bg-red-600'
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          実行
+                        </button>
+                      </div>
+                      <p className="mt-2 text-[10px] text-gray-400">
+                        {pointOperation.type === 'add' 
+                          ? (storeSettings?.card_type === 'stamp' ? '※ 来店ごとにスタンプを押印します' : '※ 来店時やキャンペーン等でポイントを付与します')
+                          : (storeSettings?.card_type === 'stamp' ? '※ スタンプカード満了時に特典と交換します' : '※ 特典交換などでポイントを消費します')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                    <History className="w-4 h-4 text-gray-400" />
+                    最近の来店履歴
+                  </h4>
+                  <div className="space-y-2">
+                    {historyLoading ? (
+                      <div className="text-center py-4 text-gray-400 text-xs">読み込み中...</div>
+                    ) : reservationHistory.length === 0 ? (
+                      <div className="text-center py-4 text-gray-400 text-xs bg-gray-50 rounded-lg">履歴はありません</div>
+                    ) : (
+                      reservationHistory.map(h => (
+                        <div key={h.id} className="text-xs p-2 bg-white border border-gray-100 rounded hover:bg-gray-50">
+                          <div className="flex justify-between mb-1">
+                            <span className="font-bold text-gray-700">
+                              {new Date(h.start_time).toLocaleDateString('ja-JP')}
+                            </span>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                              h.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                            }`}>
+                              {h.status === 'cancelled' ? 'キャンセル' : '来店'}
+                            </span>
+                          </div>
+                          <div className="text-gray-500 truncate">
+                            {h.menu_name || 'メニュー未定'} {h.staff_name && `(${h.staff_name})`}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Basic Info & Notes */}
               <div className="space-y-6">
                 <div>
@@ -486,113 +655,6 @@ export default function Customers() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-primary-500 focus:border-primary-500"
                     placeholder="特記事項や好みなどを入力..."
                   />
-                </div>
-              </div>
-
-              {/* Points & History */}
-              <div className="space-y-6">
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                  <h4 className="text-sm font-bold text-gray-900 mb-3">ポイント管理</h4>
-                  <div className="flex items-baseline gap-2 mb-4">
-                    <span className="text-3xl font-bold text-primary-600">{selectedCustomer.points.toLocaleString()}</span>
-                    <span className="text-sm text-gray-500">pt</span>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    {/* Operation Type Tabs */}
-                    <div className="flex p-1 bg-gray-200 rounded-lg">
-                      <button
-                        onClick={() => setPointOperation(prev => ({ ...prev, type: 'add' }))}
-                        className={`flex-1 py-2 text-xs font-bold rounded-md flex items-center justify-center gap-2 transition-all ${
-                          pointOperation.type === 'add' 
-                            ? 'bg-white text-primary-700 shadow-sm' 
-                            : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                      >
-                        <Gift className="w-4 h-4" />
-                        付与する
-                      </button>
-                      <button
-                        onClick={() => setPointOperation(prev => ({ ...prev, type: 'use' }))}
-                        className={`flex-1 py-2 text-xs font-bold rounded-md flex items-center justify-center gap-2 transition-all ${
-                          pointOperation.type === 'use' 
-                            ? 'bg-white text-red-600 shadow-sm' 
-                            : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                      >
-                        <CreditCard className="w-4 h-4" />
-                        利用する
-                      </button>
-                    </div>
-
-                    {/* Input Area */}
-                    <div className="bg-white p-3 rounded-lg border border-gray-200">
-                      <label className="block text-xs font-medium text-gray-500 mb-2">
-                        {pointOperation.type === 'add' ? '付与するポイント数' : '利用するポイント数'}
-                      </label>
-                      <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <input
-                            type="number"
-                            value={pointOperation.amount}
-                            onChange={(e) => setPointOperation(prev => ({ ...prev, amount: e.target.value }))}
-                            className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-md text-sm focus:ring-primary-500 focus:border-primary-500"
-                            placeholder="0"
-                            min="1"
-                          />
-                          <span className="absolute right-3 top-2.5 text-xs text-gray-400">pt</span>
-                        </div>
-                        <button
-                          onClick={handleUpdatePoints}
-                          disabled={!pointOperation.amount || saving}
-                          className={`px-4 py-2 rounded-md text-white text-sm font-bold shadow-sm transition-colors ${
-                            pointOperation.type === 'add' 
-                              ? 'bg-primary-600 hover:bg-primary-700' 
-                              : 'bg-red-500 hover:bg-red-600'
-                          } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        >
-                          実行
-                        </button>
-                      </div>
-                      <p className="mt-2 text-[10px] text-gray-400">
-                        {pointOperation.type === 'add' 
-                          ? '※ 来店時やキャンペーン等でポイントを付与します' 
-                          : '※ 特典交換などでポイントを消費します'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                    <History className="w-4 h-4 text-gray-400" />
-                    最近の来店履歴
-                  </h4>
-                  <div className="space-y-2">
-                    {historyLoading ? (
-                      <div className="text-center py-4 text-gray-400 text-xs">読み込み中...</div>
-                    ) : reservationHistory.length === 0 ? (
-                      <div className="text-center py-4 text-gray-400 text-xs bg-gray-50 rounded-lg">履歴はありません</div>
-                    ) : (
-                      reservationHistory.map(h => (
-                        <div key={h.id} className="text-xs p-2 bg-white border border-gray-100 rounded hover:bg-gray-50">
-                          <div className="flex justify-between mb-1">
-                            <span className="font-bold text-gray-700">
-                              {new Date(h.start_time).toLocaleDateString('ja-JP')}
-                            </span>
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] ${
-                              h.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                            }`}>
-                              {h.status === 'cancelled' ? 'キャンセル' : '来店'}
-                            </span>
-                          </div>
-                          <div className="text-gray-500 truncate">
-                            {h.menu_name || 'メニュー未定'} {h.staff_name && `(${h.staff_name})`}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
                 </div>
               </div>
             </div>

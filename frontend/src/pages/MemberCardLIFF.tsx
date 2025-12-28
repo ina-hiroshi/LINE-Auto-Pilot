@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Loader2, CreditCard, AlertCircle } from 'lucide-react'
+import { Loader2, CreditCard, AlertCircle, Stamp } from 'lucide-react'
 import liff from '@line/liff'
 import { motion } from 'framer-motion'
 
@@ -10,11 +10,22 @@ type CardSettings = {
   color: string
   logo_url: string | null
   template_id: string
+  card_type: 'point' | 'stamp'
+  name_display: 'real_kanji' | 'real_romaji' | 'line_name'
+  show_icon: boolean
+  show_member_no: boolean
+  show_rank: boolean
+  stamp_config: {
+    total_slots: number
+    goal_reward: string
+  }
+  rank_settings: { name: string, threshold: number }[]
 }
 
 type CustomerInfo = {
   line_user_id: string
   display_name: string
+  real_name: string | null
   points: number
   rank: string
   member_no: string
@@ -45,7 +56,7 @@ export default function MemberCardLIFF() {
         // 2. Fetch Store Settings
         const { data: store, error: storeError } = await supabase
           .from('stores')
-          .select('name, membership_card_title, membership_card_color, membership_card_logo_url, membership_card_template_id')
+          .select('name, membership_card_title, membership_card_color, membership_card_logo_url, membership_card_template_id, membership_card_settings, membership_rank_settings')
           .eq('id', storeId)
           .single()
 
@@ -56,11 +67,25 @@ export default function MemberCardLIFF() {
           document.title = `${store.name} - 会員証`
         }
 
+        const cardSettings = store.membership_card_settings as any || {}
+        const rankSettings = store.membership_rank_settings as any || [
+          { name: 'Bronze', threshold: 0 },
+          { name: 'Silver', threshold: 100 },
+          { name: 'Gold', threshold: 500 }
+        ]
+
         setSettings({
           title: store.membership_card_title || "MEMBER'S CARD",
           color: store.membership_card_color || '#000000',
           logo_url: store.membership_card_logo_url,
-          template_id: store.membership_card_template_id || 'simple'
+          template_id: store.membership_card_template_id || 'simple',
+          card_type: cardSettings.card_type || 'point',
+          name_display: cardSettings.name_display || 'line_name',
+          show_icon: cardSettings.show_icon ?? true,
+          show_member_no: cardSettings.show_member_no ?? true,
+          show_rank: cardSettings.show_rank ?? true,
+          stamp_config: cardSettings.stamp_config || { total_slots: 20, goal_reward: '特典チケット' },
+          rank_settings: rankSettings
         })
 
         // 3. Fetch Customer Data
@@ -77,6 +102,14 @@ export default function MemberCardLIFF() {
            }
         }
 
+        // Fetch Real Name from Customers table
+        const { data: customerData } = await supabase
+          .from('customers')
+          .select('real_name')
+          .eq('store_id', storeId)
+          .eq('line_user_id', userId)
+          .maybeSingle()
+
         // Fetch Points
         const { data: pointsData } = await supabase
           .from('points')
@@ -89,15 +122,16 @@ export default function MemberCardLIFF() {
         
         // Calculate Rank
         const getRank = (p: number) => {
-          if (p >= 1000) return 'Platinum'
-          if (p >= 500) return 'Gold'
-          if (p >= 100) return 'Silver'
-          return 'Bronze'
+          // Sort ranks by threshold desc
+          const sortedRanks = [...rankSettings].sort((a: any, b: any) => b.threshold - a.threshold)
+          const rank = sortedRanks.find((r: any) => p >= r.threshold)
+          return rank ? rank.name : sortedRanks[sortedRanks.length - 1].name
         }
 
         setCustomer({
           line_user_id: userId,
           display_name: displayName,
+          real_name: customerData?.real_name || null,
           points: currentPoints,
           rank: getRank(currentPoints),
           member_no: userId.substring(0, 8).toUpperCase()
@@ -181,9 +215,10 @@ export default function MemberCardLIFF() {
   }
 
   const getCardBackground = () => {
-    if (settings.template_id === 'simple') return { backgroundColor: settings.color } // This was actually wrong in my previous revert plan, simple uses color for top bar only now. Wait, simple uses bg-white.
-    // Let's check the previous code for simple. Simple was white bg.
-    // Pop was white bg.
+    // Match Preview logic: Simple uses white bg with colored top bar
+    if (settings.template_id === 'pop' || settings.template_id === 'elegant') {
+      return { backgroundColor: '#FFFFFF' }
+    }
     return {} 
   }
 
@@ -222,61 +257,129 @@ export default function MemberCardLIFF() {
               <h3 className={`font-bold text-lg tracking-wider ${settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
                 {settings.title}
               </h3>
-              <div className={`p-2 rounded-lg backdrop-blur-sm ${
-                settings.template_id === 'simple' ? 'bg-gray-50' : 
-                settings.template_id === 'elegant' ? 'bg-[#F5F5F0]' :
-                settings.template_id === 'pop' ? 'bg-primary-100 text-primary-600' :
-                'bg-slate-800 text-slate-400'
-              }`}>
-                {settings.logo_url ? (
-                  <img src={settings.logo_url} alt="Logo" className="w-6 h-6 object-contain" />
-                ) : (
-                  <CreditCard className={`w-6 h-6 ${
-                    settings.template_id === 'simple' ? 'text-gray-400' :
-                    settings.template_id === 'elegant' ? 'text-[#44403C]' :
-                    settings.template_id === 'pop' ? 'text-primary-600' :
-                    'text-slate-400'
-                  }`} />
-                )}
-              </div>
+              {settings.show_icon && (
+                <div className={`p-2 rounded-lg backdrop-blur-sm ${
+                  settings.template_id === 'simple' ? 'bg-gray-50' : 
+                  settings.template_id === 'elegant' ? 'bg-[#F5F5F0]' :
+                  settings.template_id === 'pop' ? 'bg-primary-100 text-primary-600' :
+                  'bg-slate-800 text-slate-400'
+                }`}>
+                  {settings.logo_url ? (
+                    <img src={settings.logo_url} alt="Logo" className="w-6 h-6 object-contain" />
+                  ) : (
+                    <CreditCard className={`w-6 h-6 ${
+                      settings.template_id === 'simple' ? 'text-gray-400' :
+                      settings.template_id === 'elegant' ? 'text-[#44403C]' :
+                      settings.template_id === 'pop' ? 'text-primary-600' :
+                      'text-slate-400'
+                    }`} />
+                  )}
+                </div>
+              )}
             </div>
             
-            <div className="space-y-4">
-              <div className="flex justify-between items-end">
-                <div>
-                  <p className={`text-xs mb-1 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>MEMBER NAME</p>
-                  <p className={`font-medium tracking-wide ${settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
-                    {customer.display_name}
-                  </p>
+            {settings.card_type === 'stamp' ? (
+              <div className="flex-1 flex flex-col justify-between py-1">
+                <div 
+                  className={`grid ${settings.stamp_config.total_slots > 20 ? 'gap-0.5' : 'gap-1'} ${settings.stamp_config.total_slots <= 10 ? 'px-12' : ''}`}
+                  style={{
+                    gridTemplateColumns: `repeat(${
+                      settings.stamp_config.total_slots <= 10 ? 5 :
+                      settings.stamp_config.total_slots <= 20 ? 10 :
+                      settings.stamp_config.total_slots <= 30 ? 12 :
+                      settings.stamp_config.total_slots <= 40 ? 14 : 17
+                    }, minmax(0, 1fr))`
+                  }}
+                >
+                  {Array.from({ length: settings.stamp_config.total_slots }).map((_, i) => (
+                    <div key={i} className={`aspect-square rounded-full border flex items-center justify-center ${
+                      settings.stamp_config.total_slots > 30 ? 'text-[6px]' : 'text-[8px]'
+                    } ${
+                      i < customer.points 
+                        ? (settings.template_id === 'pop' ? 'border-primary-500 text-primary-500 bg-primary-50' : 'border-current opacity-80') 
+                        : (settings.template_id === 'dark' ? 'border-slate-700 text-slate-700' : 'border-gray-200 text-gray-300')
+                    }`}>
+                      {i < customer.points ? <Stamp className={settings.stamp_config.total_slots > 30 ? "w-2 h-2" : "w-2.5 h-2.5"} /> : i + 1}
+                    </div>
+                  ))}
                 </div>
-                <div className="text-right">
-                  <p className={`text-xs mb-1 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>POINTS</p>
-                  <p className={`text-2xl font-bold ${settings.template_id === 'pop' ? 'text-primary-600' : settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
-                    {customer.points.toLocaleString()} pt
-                  </p>
+                
+                <div className="space-y-0.5 mt-auto">
+                  <div className={`text-right text-[10px] ${settings.template_id === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                    あと {Math.max(0, settings.stamp_config.total_slots - customer.points)} 個で {settings.stamp_config.goal_reward}
+                  </div>
+
+                  <div className="flex justify-between items-end border-t pt-1 border-dashed border-gray-300/30">
+                    <div>
+                      <p className={`text-[8px] mb-0.5 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>MEMBER NAME</p>
+                      <p className={`font-medium text-xs tracking-wide ${settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
+                        {settings.name_display === 'real_kanji' && customer.real_name ? customer.real_name : 
+                         settings.name_display === 'real_romaji' && customer.real_name ? customer.real_name : 
+                         customer.display_name}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {(settings.show_member_no || settings.show_rank) && (
+                    <div className={`flex justify-between text-[8px] ${
+                      settings.template_id === 'simple' ? 'text-gray-400' :
+                      settings.template_id === 'elegant' ? 'text-[#44403C]/60' :
+                      settings.template_id === 'pop' ? 'text-gray-500' :
+                      'text-slate-500'
+                    }`}>
+                      {settings.show_member_no && <span>No. {customer.member_no}</span>}
+                      {settings.show_rank && <span>Rank: {customer.rank}</span>}
+                    </div>
+                  )}
                 </div>
               </div>
-              
-              <div className={`pt-2 border-t flex justify-between text-xs ${
-                settings.template_id === 'simple' ? 'border-gray-100 text-gray-400' :
-                settings.template_id === 'elegant' ? 'border-[#E7E5E4]' :
-                settings.template_id === 'pop' ? 'border-gray-100 text-gray-500' :
-                'border-slate-700 text-slate-500'
-              }`}>
-                <span>No. {customer.member_no}</span>
-                <span>Rank: {customer.rank}</span>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex justify-between items-end">
+                  <div>
+                    <p className={`text-xs mb-1 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>MEMBER NAME</p>
+                    <p className={`font-medium tracking-wide ${settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
+                      {settings.name_display === 'real_kanji' && customer.real_name ? customer.real_name : 
+                       settings.name_display === 'real_romaji' && customer.real_name ? customer.real_name : 
+                       customer.display_name}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-xs mb-1 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>POINTS</p>
+                    <p className={`text-2xl font-bold ${settings.template_id === 'pop' ? 'text-primary-600' : settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
+                      {customer.points.toLocaleString()} pt
+                    </p>
+                  </div>
+                </div>
+                
+                {(settings.show_member_no || settings.show_rank) && (
+                  <div className={`pt-2 border-t flex justify-between text-xs ${
+                    settings.template_id === 'simple' ? 'border-gray-100 text-gray-400' :
+                    settings.template_id === 'elegant' ? 'border-[#E7E5E4]' :
+                    settings.template_id === 'pop' ? 'border-gray-100 text-gray-500' :
+                    'border-slate-700 text-slate-500'
+                  }`}>
+                    {settings.show_member_no && <span>No. {customer.member_no}</span>}
+                    {settings.show_rank && <span>Rank: {customer.rank}</span>}
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Barcode / QR Code Area (Placeholder) */}
+        {/* QR Code Area */}
         <div className="bg-white p-6 rounded-xl shadow-sm text-center space-y-4">
-          <p className="text-sm text-gray-500">会員バーコード</p>
-          <div className="h-16 bg-gray-100 rounded flex items-center justify-center text-xs text-gray-400 tracking-widest">
-            ||| || ||| || |||| ||| || || |||
+          <p className="text-sm text-gray-500">会員QRコード</p>
+          <div className="flex justify-center">
+            <img 
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${window.location.origin}/customers?customer_id=${customer.line_user_id}`)}`}
+              alt="Member QR Code"
+              className="w-32 h-32"
+            />
           </div>
           <p className="text-xs text-gray-400">{customer.member_no}</p>
+          <p className="text-[10px] text-gray-300">スタッフに提示してください</p>
         </div>
 
       </motion.div>

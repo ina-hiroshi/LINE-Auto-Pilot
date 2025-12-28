@@ -1,20 +1,55 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import { Loader2, CreditCard, Save, Layout, Palette, Lock } from 'lucide-react'
+import { Loader2, CreditCard, Save, Layout, Palette, Lock, Settings, Award, Stamp, Trash2 } from 'lucide-react'
 import Toast from '../components/Toast'
+
+type CardType = 'point' | 'stamp'
+type NameDisplay = 'real_kanji' | 'real_romaji' | 'line_name'
+
+type StampConfig = {
+  total_slots: number
+  goal_reward: string
+}
+
+type RankSetting = {
+  name: string
+  threshold: number
+}
 
 type MembershipCardSettings = {
   title: string
   color: string
   logo_url: string | null
   template_id: string
+  // New fields
+  card_type: CardType
+  name_display: NameDisplay
+  show_icon: boolean
+  show_member_no: boolean
+  show_rank: boolean
+  stamp_config: StampConfig
+  rank_settings: RankSetting[]
 }
 
 const DEFAULT_SETTINGS: MembershipCardSettings = {
   title: "MEMBER'S CARD",
   color: '#ffffff',
   logo_url: null,
-  template_id: 'simple'
+  template_id: 'simple',
+  card_type: 'point',
+  name_display: 'line_name',
+  show_icon: true,
+  show_member_no: true,
+  show_rank: true,
+  stamp_config: {
+    total_slots: 20,
+    goal_reward: '特典チケット'
+  },
+  rank_settings: [
+    { name: 'Bronze', threshold: 0 },
+    { name: 'Silver', threshold: 100 },
+    { name: 'Gold', threshold: 500 }
+  ]
 }
 
 const TEMPLATE_OPTIONS = [
@@ -30,6 +65,7 @@ export default function MembershipCard() {
   const [settings, setSettings] = useState<MembershipCardSettings>(DEFAULT_SETTINGS)
   const [storeId, setStoreId] = useState<string | null>(null)
   const [isPro, setIsPro] = useState(false)
+  const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'rank'>('design')
   const [toast, setToast] = useState<{ isVisible: boolean; message: string; type: 'success' | 'error' }>({
     isVisible: false,
     message: '',
@@ -52,17 +88,29 @@ export default function MembershipCard() {
 
       const { data: store } = await supabase
         .from('stores')
-        .select('id, membership_card_title, membership_card_color, membership_card_logo_url, membership_card_template_id')
+        .select('id, membership_card_title, membership_card_color, membership_card_logo_url, membership_card_template_id, membership_card_settings, membership_rank_settings')
         .eq('owner_id', user.id)
         .single()
 
       if (store) {
         setStoreId(store.id)
+        
+        // Merge JSON settings
+        const cardSettings = store.membership_card_settings as any || {}
+        const rankSettings = store.membership_rank_settings as any || DEFAULT_SETTINGS.rank_settings
+
         setSettings({
           title: store.membership_card_title || DEFAULT_SETTINGS.title,
           color: store.membership_card_color || DEFAULT_SETTINGS.color,
           logo_url: store.membership_card_logo_url || DEFAULT_SETTINGS.logo_url,
-          template_id: store.membership_card_template_id || DEFAULT_SETTINGS.template_id
+          template_id: store.membership_card_template_id || DEFAULT_SETTINGS.template_id,
+          card_type: cardSettings.card_type || DEFAULT_SETTINGS.card_type,
+          name_display: cardSettings.name_display || DEFAULT_SETTINGS.name_display,
+          show_icon: cardSettings.show_icon ?? DEFAULT_SETTINGS.show_icon,
+          show_member_no: cardSettings.show_member_no ?? DEFAULT_SETTINGS.show_member_no,
+          show_rank: cardSettings.show_rank ?? DEFAULT_SETTINGS.show_rank,
+          stamp_config: cardSettings.stamp_config || DEFAULT_SETTINGS.stamp_config,
+          rank_settings: rankSettings
         })
       }
     } catch (error) {
@@ -86,7 +134,16 @@ export default function MembershipCard() {
           membership_card_title: settings.title,
           membership_card_color: settings.color,
           membership_card_logo_url: settings.logo_url,
-          membership_card_template_id: settings.template_id
+          membership_card_template_id: settings.template_id,
+          membership_card_settings: {
+            card_type: settings.card_type,
+            name_display: settings.name_display,
+            show_icon: settings.show_icon,
+            show_member_no: settings.show_member_no,
+            show_rank: settings.show_rank,
+            stamp_config: settings.stamp_config
+          },
+          membership_rank_settings: settings.rank_settings
         })
         .eq('id', storeId)
 
@@ -119,107 +176,306 @@ export default function MembershipCard() {
       
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">デジタル会員証</h1>
-        <p className="text-gray-500">LINE上で表示される会員証のデザインを設定します。</p>
+        <p className="text-gray-500">LINE上で表示される会員証のデザインと機能を設定します。</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 border-b border-gray-200 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('design')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === 'design' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Palette className="w-4 h-4 inline-block mr-2" />
+          デザイン
+        </button>
+        <button
+          onClick={() => setActiveTab('settings')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === 'settings' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Settings className="w-4 h-4 inline-block mr-2" />
+          表示・機能設定
+        </button>
+        <button
+          onClick={() => setActiveTab('rank')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === 'rank' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Award className="w-4 h-4 inline-block mr-2" />
+          ランク設定
+        </button>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Settings Form */}
           <div className="space-y-8">
-            {/* Template Selection */}
-            <div>
-              <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
-                <Palette size={16} /> デザインテーマ
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
-                {TEMPLATE_OPTIONS.map((template) => (
-                  <label
-                    key={template.id}
-                    className={`
-                      relative cursor-pointer rounded-lg border-2 p-4 transition-all flex flex-col items-center justify-center gap-2 h-24
-                      ${settings.template_id === template.id
-                        ? 'border-primary-500 ring-2 ring-primary-100'
-                        : 'border-gray-200 hover:border-gray-300'}
-                      ${template.color}
-                    `}
-                  >
-                    <input
-                      type="radio"
-                      name="card_template"
-                      value={template.id}
-                      checked={settings.template_id === template.id}
-                      onChange={(e) => setSettings(prev => ({ ...prev, template_id: e.target.value }))}
-                      className="sr-only"
-                    />
-                    <div className="text-center text-sm font-medium">{template.name}</div>
-                    {settings.template_id === template.id && (
-                      <div className="absolute top-2 right-2 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center">
-                        <div className="w-2 h-2 bg-white rounded-full" />
-                      </div>
-                    )}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                カードタイトル
-              </label>
-              <input
-                type="text"
-                value={settings.title}
-                onChange={(e) => setSettings(prev => ({ ...prev, title: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="MEMBER'S CARD"
-              />
-            </div>
-
-            {/* Pro Features Section */}
-            <div className="border-t pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                  <Lock size={16} /> カスタマイズ
-                </h3>
-                <span className="text-xs font-bold px-2 py-1 bg-gradient-to-r from-amber-200 to-yellow-400 text-yellow-900 rounded-full">
-                  Proプラン機能
-                </span>
-              </div>
-
-              <div className="space-y-6">
+            {activeTab === 'design' && (
+              <>
+                {/* Template Selection */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    カードカラー
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      value={settings.color}
-                      onChange={(e) => setSettings(prev => ({ ...prev, color: e.target.value }))}
-                      disabled={!isPro}
-                      className={`h-10 w-20 p-1 border border-gray-300 rounded-md ${!isPro ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                    />
-                    <span className="text-sm text-gray-500">{settings.color}</span>
+                  <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
+                    <Palette size={16} /> デザインテーマ
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {TEMPLATE_OPTIONS.map((template) => (
+                      <label
+                        key={template.id}
+                        className={`
+                          relative cursor-pointer rounded-lg border-2 p-4 transition-all flex flex-col items-center justify-center gap-2 h-24
+                          ${settings.template_id === template.id
+                            ? 'border-primary-500 ring-2 ring-primary-100'
+                            : 'border-gray-200 hover:border-gray-300'}
+                          ${template.color}
+                        `}
+                      >
+                        <input
+                          type="radio"
+                          name="card_template"
+                          value={template.id}
+                          checked={settings.template_id === template.id}
+                          onChange={(e) => setSettings(prev => ({ ...prev, template_id: e.target.value }))}
+                          className="sr-only"
+                        />
+                        <div className="text-center text-sm font-medium">{template.name}</div>
+                        {settings.template_id === template.id && (
+                          <div className="absolute top-2 right-2 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center">
+                            <div className="w-2 h-2 bg-white rounded-full" />
+                          </div>
+                        )}
+                      </label>
+                    ))}
                   </div>
-                  {!isPro && <p className="text-xs text-gray-400 mt-1">※ カラー変更はProプラン限定機能です</p>}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    ロゴ・背景画像 URL
+                    カードタイトル
                   </label>
                   <input
                     type="text"
-                    value={settings.logo_url || ''}
-                    onChange={(e) => setSettings(prev => ({ ...prev, logo_url: e.target.value }))}
-                    disabled={!isPro}
-                    placeholder="https://example.com/logo.png"
-                    className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 ${!isPro ? 'bg-gray-50 opacity-50 cursor-not-allowed' : ''}`}
+                    value={settings.title}
+                    onChange={(e) => setSettings(prev => ({ ...prev, title: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="MEMBER'S CARD"
                   />
-                  {!isPro && <p className="text-xs text-gray-400 mt-1">※ 画像設定はProプラン限定機能です</p>}
+                </div>
+
+                {/* Pro Features Section */}
+                <div className="border-t pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                      <Lock size={16} /> カスタマイズ
+                    </h3>
+                    <span className="text-xs font-bold px-2 py-1 bg-gradient-to-r from-amber-200 to-yellow-400 text-yellow-900 rounded-full">
+                      Proプラン機能
+                    </span>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        カードカラー
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          value={settings.color}
+                          onChange={(e) => setSettings(prev => ({ ...prev, color: e.target.value }))}
+                          disabled={!isPro}
+                          className={`h-10 w-20 p-1 border border-gray-300 rounded-md ${!isPro ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        />
+                        <span className="text-sm text-gray-500">{settings.color}</span>
+                      </div>
+                      {!isPro && <p className="text-xs text-gray-400 mt-1">※ カラー変更はProプラン限定機能です</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        ロゴ・背景画像 URL
+                      </label>
+                      <input
+                        type="text"
+                        value={settings.logo_url || ''}
+                        onChange={(e) => setSettings(prev => ({ ...prev, logo_url: e.target.value }))}
+                        disabled={!isPro}
+                        placeholder="https://example.com/logo.png"
+                        className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 ${!isPro ? 'bg-gray-50 opacity-50 cursor-not-allowed' : ''}`}
+                      />
+                      {!isPro && <p className="text-xs text-gray-400 mt-1">※ 画像設定はProプラン限定機能です</p>}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'settings' && (
+              <div className="space-y-6">
+                {/* Card Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">カードタイプ</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      onClick={() => setSettings(prev => ({ ...prev, card_type: 'point' }))}
+                      className={`p-4 border rounded-lg flex flex-col items-center gap-2 transition-all ${
+                        settings.card_type === 'point' ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-100' : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <CreditCard className="w-6 h-6" />
+                      <span className="font-bold">ポイントカード</span>
+                    </button>
+                    <button
+                      onClick={() => setSettings(prev => ({ ...prev, card_type: 'stamp' }))}
+                      className={`p-4 border rounded-lg flex flex-col items-center gap-2 transition-all ${
+                        settings.card_type === 'stamp' ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-100' : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Stamp className="w-6 h-6" />
+                      <span className="font-bold">スタンプカード</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Stamp Config (Only if stamp) */}
+                {settings.card_type === 'stamp' && (
+                  <div className="bg-gray-50 p-4 rounded-lg space-y-4 border border-gray-200">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">スタンプ個数</label>
+                      <select
+                        value={settings.stamp_config.total_slots}
+                        onChange={(e) => setSettings(prev => ({ ...prev, stamp_config: { ...prev.stamp_config, total_slots: Number(e.target.value) } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      >
+                        <option value={10}>10個</option>
+                        <option value={20}>20個</option>
+                        <option value={30}>30個</option>
+                        <option value={40}>40個</option>
+                        <option value={50}>50個</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">ゴール特典名</label>
+                      <input
+                        type="text"
+                        value={settings.stamp_config.goal_reward}
+                        onChange={(e) => setSettings(prev => ({ ...prev, stamp_config: { ...prev.stamp_config, goal_reward: e.target.value } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        placeholder="例: 500円OFFクーポン"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Display Settings */}
+                <div className="space-y-4 border-t pt-4">
+                  <h3 className="text-sm font-bold text-gray-700">表示設定</h3>
+                  
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">名前の表示形式</label>
+                    <select
+                      value={settings.name_display}
+                      onChange={(e) => setSettings(prev => ({ ...prev, name_display: e.target.value as NameDisplay }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    >
+                      <option value="line_name">LINE名</option>
+                      <option value="real_kanji">本名 (漢字)</option>
+                      <option value="real_romaji">本名 (ローマ字)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.show_icon}
+                        onChange={(e) => setSettings(prev => ({ ...prev, show_icon: e.target.checked }))}
+                        className="rounded text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-gray-700">LINEアイコンを表示</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.show_member_no}
+                        onChange={(e) => setSettings(prev => ({ ...prev, show_member_no: e.target.checked }))}
+                        className="rounded text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-gray-700">会員Noを表示</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.show_rank}
+                        onChange={(e) => setSettings(prev => ({ ...prev, show_rank: e.target.checked }))}
+                        className="rounded text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-gray-700">会員ランクを表示</span>
+                    </label>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
+
+            {activeTab === 'rank' && (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-500">
+                  累計獲得ポイントに応じた会員ランクを設定します。
+                </p>
+                {settings.rank_settings.map((rank, index) => (
+                  <div key={index} className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">ランク名</label>
+                      <input
+                        type="text"
+                        value={rank.name}
+                        onChange={(e) => {
+                          const newRanks = [...settings.rank_settings]
+                          newRanks[index].name = e.target.value
+                          setSettings(prev => ({ ...prev, rank_settings: newRanks }))
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      />
+                    </div>
+                    <div className="w-24">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">必要pt</label>
+                      <input
+                        type="number"
+                        value={rank.threshold}
+                        onChange={(e) => {
+                          const newRanks = [...settings.rank_settings]
+                          newRanks[index].threshold = Number(e.target.value)
+                          setSettings(prev => ({ ...prev, rank_settings: newRanks }))
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      />
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newRanks = settings.rank_settings.filter((_, i) => i !== index)
+                        setSettings(prev => ({ ...prev, rank_settings: newRanks }))
+                      }}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                      title="削除"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => setSettings(prev => ({
+                    ...prev,
+                    rank_settings: [...prev.rank_settings, { name: 'New Rank', threshold: 0 }]
+                  }))}
+                  className="w-full py-2 border-2 border-dashed border-gray-300 rounded-md text-gray-500 hover:border-primary-500 hover:text-primary-500"
+                >
+                  + ランクを追加
+                </button>
+              </div>
+            )}
 
             <div className="pt-4 lg:hidden">
               <button
@@ -281,43 +537,110 @@ export default function MembershipCard() {
                   <h3 className={`font-bold text-lg tracking-wider ${settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
                     {settings.title}
                   </h3>
-                  <div className={`p-2 rounded-lg backdrop-blur-sm ${
-                    settings.template_id === 'simple' ? 'bg-gray-50' : 
-                    settings.template_id === 'elegant' ? 'bg-[#F5F5F0]' :
-                    settings.template_id === 'pop' ? 'bg-primary-100 text-primary-600' :
-                    'bg-slate-800 text-slate-400'
-                  }`}>
-                    <CreditCard className={`w-6 h-6 ${
-                      settings.template_id === 'simple' ? 'text-gray-400' :
-                      settings.template_id === 'elegant' ? 'text-[#44403C]' :
-                      settings.template_id === 'pop' ? 'text-primary-600' :
-                      'text-slate-400'
-                    }`} />
-                  </div>
+                  {settings.show_icon && (
+                    <div className={`p-2 rounded-lg backdrop-blur-sm ${
+                      settings.template_id === 'simple' ? 'bg-gray-50' : 
+                      settings.template_id === 'elegant' ? 'bg-[#F5F5F0]' :
+                      settings.template_id === 'pop' ? 'bg-primary-100 text-primary-600' :
+                      'bg-slate-800 text-slate-400'
+                    }`}>
+                      {settings.logo_url ? (
+                        <img src={settings.logo_url} alt="Logo" className="w-6 h-6 object-contain" />
+                      ) : (
+                        <CreditCard className={`w-6 h-6 ${
+                          settings.template_id === 'simple' ? 'text-gray-400' :
+                          settings.template_id === 'elegant' ? 'text-[#44403C]' :
+                          settings.template_id === 'pop' ? 'text-primary-600' :
+                          'text-slate-400'
+                        }`} />
+                      )}
+                    </div>
+                  )}
                 </div>
                 
-                <div className="space-y-4">
-                  <div className="flex justify-between items-end">
-                    <div>
-                      <p className={`text-xs mb-1 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>MEMBER NAME</p>
-                      <p className={`font-medium tracking-wide ${settings.template_id === 'elegant' ? 'font-serif' : ''}`}>TARO YAMADA</p>
+                {settings.card_type === 'stamp' ? (
+                  <div className="flex-1 flex flex-col justify-between py-1">
+                    <div 
+                      className={`grid ${settings.stamp_config.total_slots > 20 ? 'gap-0.5' : 'gap-1'} ${settings.stamp_config.total_slots <= 10 ? 'px-12' : ''}`}
+                      style={{
+                        gridTemplateColumns: `repeat(${
+                          settings.stamp_config.total_slots <= 10 ? 5 :
+                          settings.stamp_config.total_slots <= 20 ? 10 :
+                          settings.stamp_config.total_slots <= 30 ? 12 :
+                          settings.stamp_config.total_slots <= 40 ? 14 : 17
+                        }, minmax(0, 1fr))`
+                      }}
+                    >
+                      {Array.from({ length: settings.stamp_config.total_slots }).map((_, i) => (
+                        <div key={i} className={`aspect-square rounded-full border flex items-center justify-center ${
+                          settings.stamp_config.total_slots > 30 ? 'text-[6px]' : 'text-[8px]'
+                        } ${
+                          i < 3 
+                            ? (settings.template_id === 'pop' ? 'border-primary-500 text-primary-500 bg-primary-50' : 'border-current opacity-80') 
+                            : (settings.template_id === 'dark' ? 'border-slate-700 text-slate-700' : 'border-gray-200 text-gray-300')
+                        }`}>
+                          {i < 3 ? <Stamp className={settings.stamp_config.total_slots > 30 ? "w-2 h-2" : "w-2.5 h-2.5"} /> : i + 1}
+                        </div>
+                      ))}
                     </div>
-                    <div className="text-right">
-                      <p className={`text-xs mb-1 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>POINTS</p>
-                      <p className={`text-2xl font-bold ${settings.template_id === 'pop' ? 'text-primary-600' : settings.template_id === 'elegant' ? 'font-serif' : ''}`}>1,250 pt</p>
+                    
+                    <div className="space-y-0.5 mt-auto">
+                      <div className={`text-right text-[10px] ${settings.template_id === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                        あと {settings.stamp_config.total_slots - 3} 個で {settings.stamp_config.goal_reward}
+                      </div>
+
+                      <div className="flex justify-between items-end border-t pt-1 border-dashed border-gray-300/30">
+                        <div>
+                          <p className={`text-[8px] mb-0.5 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>MEMBER NAME</p>
+                          <p className={`font-medium text-xs tracking-wide ${settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
+                            {settings.name_display === 'real_kanji' ? '山田 太郎' : 
+                             settings.name_display === 'real_romaji' ? 'TARO YAMADA' : 'LINE User'}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {(settings.show_member_no || settings.show_rank) && (
+                        <div className={`flex justify-between text-[8px] ${
+                          settings.template_id === 'simple' ? 'text-gray-400' :
+                          settings.template_id === 'elegant' ? 'text-[#44403C]/60' :
+                          settings.template_id === 'pop' ? 'text-gray-500' :
+                          'text-slate-500'
+                        }`}>
+                          {settings.show_member_no && <span>No. 00000001</span>}
+                          {settings.show_rank && <span>Rank: Gold</span>}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  
-                  <div className={`pt-2 border-t flex justify-between text-xs ${
-                    settings.template_id === 'simple' ? 'border-gray-100 text-gray-400' :
-                    settings.template_id === 'elegant' ? 'border-[#E7E5E4]' :
-                    settings.template_id === 'pop' ? 'border-gray-100 text-gray-500' :
-                    'border-slate-700 text-slate-500'
-                  }`}>
-                    <span>No. 00000001</span>
-                    <span>Rank: Gold</span>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <p className={`text-xs mb-1 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>MEMBER NAME</p>
+                        <p className={`font-medium tracking-wide ${settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
+                          {settings.name_display === 'real_kanji' ? '山田 太郎' : 
+                           settings.name_display === 'real_romaji' ? 'TARO YAMADA' : 'LINE User'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-xs mb-1 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>POINTS</p>
+                        <p className={`text-2xl font-bold ${settings.template_id === 'pop' ? 'text-primary-600' : settings.template_id === 'elegant' ? 'font-serif' : ''}`}>1,250 pt</p>
+                      </div>
+                    </div>
+                    
+                    {(settings.show_member_no || settings.show_rank) && (
+                      <div className={`pt-2 border-t flex justify-between text-xs ${
+                        settings.template_id === 'simple' ? 'border-gray-100 text-gray-400' :
+                        settings.template_id === 'elegant' ? 'border-[#E7E5E4]' :
+                        settings.template_id === 'pop' ? 'border-gray-100 text-gray-500' :
+                        'border-slate-700 text-slate-500'
+                      }`}>
+                        {settings.show_member_no && <span>No. 00000001</span>}
+                        {settings.show_rank && <span>Rank: Gold</span>}
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
