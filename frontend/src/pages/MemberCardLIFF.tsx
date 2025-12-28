@@ -246,7 +246,7 @@ export default function MemberCardLIFF() {
   }
 
   const getCardStyle = () => {
-    const base = "w-full aspect-[1.586/1] rounded-xl shadow-xl p-6 relative overflow-hidden transition-all duration-300"
+    const base = "w-full max-w-sm aspect-[1.586/1] rounded-xl shadow-xl p-6 relative overflow-hidden transition-all duration-300"
     switch (settings.template_id) {
       case 'simple': return `${base} text-gray-800 border border-gray-100 bg-white`
       case 'elegant': return `${base} text-[#44403C] border border-[#E7E5E4] bg-white`
