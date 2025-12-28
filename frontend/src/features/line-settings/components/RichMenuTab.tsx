@@ -10,7 +10,7 @@ interface RichMenuTabProps {
   saving: boolean
   onChangeSettings: (next: RichMenuSettings) => void
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
-  previewRef?: RefObject<HTMLDivElement>
+  previewRef?: any
 }
 
 export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubmit, previewRef }: RichMenuTabProps) {
