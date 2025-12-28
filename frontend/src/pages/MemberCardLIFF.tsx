@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Loader2, CreditCard, AlertCircle, Stamp } from 'lucide-react'
+import { Loader2, AlertCircle, Stamp } from 'lucide-react'
 import liff from '@line/liff'
 import { motion } from 'framer-motion'
 
