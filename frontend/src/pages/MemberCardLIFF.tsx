@@ -148,23 +148,37 @@ export default function MemberCardLIFF() {
             if (error) throw error
 
             if (data) {
+              console.log('Fetched Data:', data)
               const newUserId = data.lineProfile?.userId || userId
               const newPoints = data.points?.balance || 0
               
               // Calculate Rank
-              const getRank = (p: number) => {
-                const sortedRanks = [...rankSettingsRef.current].sort((a: any, b: any) => b.threshold - a.threshold)
-                const rank = sortedRanks.find((r: any) => p >= r.threshold)
-                return rank ? rank.name : sortedRanks[sortedRanks.length - 1].name
-              }
+              const currentRanks = rankSettingsRef.current.length > 0 ? rankSettingsRef.current : [
+                { name: 'Bronze', threshold: 0 },
+                { name: 'Silver', threshold: 100 },
+                { name: 'Gold', threshold: 500 }
+              ]
+              
+              const sortedRanks = [...currentRanks].sort((a: any, b: any) => b.threshold - a.threshold)
+              const rankObj = sortedRanks.find((r: any) => newPoints >= r.threshold)
+              const rankName = rankObj ? rankObj.name : sortedRanks[sortedRanks.length - 1].name
+
+              const memberNo = newUserId.substring(0, 8).toUpperCase()
+
+              console.log('Calculated Customer Data:', {
+                line_user_id: newUserId,
+                points: newPoints,
+                rank: rankName,
+                member_no: memberNo
+              })
 
               setCustomer({
                 line_user_id: newUserId,
                 display_name: data.lineProfile?.displayName || displayName,
                 real_name: data.customer?.real_name || null,
                 points: newPoints,
-                rank: getRank(newPoints),
-                member_no: newUserId.substring(0, 8).toUpperCase()
+                rank: rankName,
+                member_no: memberNo
               })
             }
           } catch (e) {
@@ -179,18 +193,21 @@ export default function MemberCardLIFF() {
           console.log('No access token available, using mock/guest data')
           
           // Calculate Rank for mock
-          const getRank = (p: number) => {
-            const sortedRanks = [...rankSettingsRef.current].sort((a: any, b: any) => b.threshold - a.threshold)
-            const rank = sortedRanks.find((r: any) => p >= r.threshold)
-            return rank ? rank.name : sortedRanks[sortedRanks.length - 1].name
-          }
-
+          const currentRanks = rankSettingsRef.current.length > 0 ? rankSettingsRef.current : [
+            { name: 'Bronze', threshold: 0 },
+            { name: 'Silver', threshold: 100 },
+            { name: 'Gold', threshold: 500 }
+          ]
+          const sortedRanks = [...currentRanks].sort((a: any, b: any) => b.threshold - a.threshold)
+          const rankObj = sortedRanks.find((r: any) => currentPoints >= r.threshold)
+          const rankName = rankObj ? rankObj.name : sortedRanks[sortedRanks.length - 1].name
+          
           setCustomer({
             line_user_id: userId,
             display_name: displayName,
             real_name: realName,
             points: currentPoints,
-            rank: getRank(currentPoints),
+            rank: rankName,
             member_no: userId.substring(0, 8).toUpperCase()
           })
         }
@@ -269,7 +286,7 @@ export default function MemberCardLIFF() {
   }
 
   const getCardStyle = () => {
-    const base = "w-full max-w-sm aspect-[1.586/1] rounded-xl shadow-xl p-6 relative overflow-hidden transition-all duration-300"
+    const base = "w-full max-w-sm aspect-[1.586/1] rounded-xl shadow-xl p-5 relative overflow-hidden transition-all duration-300"
     switch (settings.template_id) {
       case 'simple': return `${base} text-gray-800 border border-gray-100 bg-white`
       case 'elegant': return `${base} text-[#44403C] border border-[#E7E5E4] bg-white`
@@ -335,31 +352,29 @@ export default function MemberCardLIFF() {
             </div>
             
             {settings.card_type === 'stamp' ? (
-              <div className="flex-1 flex flex-col py-1">
-                <div className="flex-1 flex items-center justify-center">
-                  <div 
-                    className={`w-full grid ${settings.stamp_config.total_slots > 20 ? 'gap-0.5' : 'gap-1'} ${settings.stamp_config.total_slots <= 10 ? 'px-8' : ''}`}
-                    style={{
-                      gridTemplateColumns: `repeat(${
-                        settings.stamp_config.total_slots <= 10 ? 5 :
-                        settings.stamp_config.total_slots <= 20 ? 10 :
-                        settings.stamp_config.total_slots <= 30 ? 12 :
-                        settings.stamp_config.total_slots <= 40 ? 14 : 17
-                      }, minmax(0, 1fr))`
-                    }}
-                  >
-                    {Array.from({ length: settings.stamp_config.total_slots }).map((_, i) => (
-                      <div key={i} className={`aspect-square rounded-full border flex items-center justify-center ${
-                        settings.stamp_config.total_slots > 30 ? 'text-[6px]' : 'text-[8px]'
-                      } ${
-                        i < customer.points 
-                          ? (settings.template_id === 'pop' ? 'border-primary-500 text-primary-500 bg-primary-50' : 'border-current opacity-80') 
-                          : (settings.template_id === 'dark' ? 'border-slate-700 text-slate-700' : 'border-gray-200 text-gray-300')
-                      }`}>
-                        {i < customer.points ? <Stamp className={settings.stamp_config.total_slots > 30 ? "w-2 h-2" : "w-2.5 h-2.5"} /> : i + 1}
-                      </div>
-                    ))}
-                  </div>
+              <div className="flex-1 flex flex-col justify-between py-1">
+                <div 
+                  className={`grid ${settings.stamp_config.total_slots > 20 ? 'gap-0.5' : 'gap-1'} ${settings.stamp_config.total_slots <= 10 ? 'px-8' : ''}`}
+                  style={{
+                    gridTemplateColumns: `repeat(${
+                      settings.stamp_config.total_slots <= 10 ? 5 :
+                      settings.stamp_config.total_slots <= 20 ? 10 :
+                      settings.stamp_config.total_slots <= 30 ? 12 :
+                      settings.stamp_config.total_slots <= 40 ? 14 : 17
+                    }, minmax(0, 1fr))`
+                  }}
+                >
+                  {Array.from({ length: settings.stamp_config.total_slots }).map((_, i) => (
+                    <div key={i} className={`aspect-square rounded-full border flex items-center justify-center ${
+                      settings.stamp_config.total_slots > 30 ? 'text-[6px]' : 'text-[8px]'
+                    } ${
+                      i < customer.points 
+                        ? (settings.template_id === 'pop' ? 'border-primary-500 text-primary-500 bg-primary-50' : 'border-current opacity-80') 
+                        : (settings.template_id === 'dark' ? 'border-slate-700 text-slate-700' : 'border-gray-200 text-gray-300')
+                    }`}>
+                      {i < customer.points ? <Stamp className={settings.stamp_config.total_slots > 30 ? "w-2 h-2" : "w-2.5 h-2.5"} /> : i + 1}
+                    </div>
+                  ))}
                 </div>
                 
                 <div className="space-y-0.5 mt-auto">
@@ -379,11 +394,11 @@ export default function MemberCardLIFF() {
                   </div>
                   
                   {(settings.show_member_no || settings.show_rank) && (
-                    <div className={`flex justify-between text-[10px] mt-1 ${
-                      settings.template_id === 'simple' ? 'text-gray-400' :
-                      settings.template_id === 'elegant' ? 'text-[#44403C]/60' :
-                      settings.template_id === 'pop' ? 'text-gray-500' :
-                      'text-slate-500'
+                    <div className={`flex justify-between text-[10px] mt-1 flex-shrink-0 ${
+                      settings.template_id === 'simple' ? 'text-gray-500' :
+                      settings.template_id === 'elegant' ? 'text-[#44403C]/80' :
+                      settings.template_id === 'pop' ? 'text-gray-600' :
+                      'text-slate-400'
                     }`}>
                       {settings.show_member_no && <span>No. {customer.member_no}</span>}
                       {settings.show_rank && <span>Rank: {customer.rank}</span>}

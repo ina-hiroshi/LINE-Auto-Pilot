@@ -505,7 +505,7 @@ export default function MembershipCard() {
           }`}>
             <div 
               className={`
-                w-full max-w-sm aspect-[1.586/1] rounded-xl shadow-xl p-6 relative overflow-hidden transition-all duration-300
+                w-full max-w-sm aspect-[1.586/1] rounded-xl shadow-xl p-5 relative overflow-hidden transition-all duration-300
                 ${settings.template_id === 'simple' ? 'text-gray-800 bg-white border border-gray-100' : 
                   settings.template_id === 'elegant' ? 'text-[#44403C] border border-[#E7E5E4]' :
                   settings.template_id === 'pop' ? 'text-gray-800 bg-white border-2 border-white' :
@@ -554,31 +554,29 @@ export default function MembershipCard() {
                 </div>
                 
                 {settings.card_type === 'stamp' ? (
-                  <div className="flex-1 flex flex-col py-1">
-                    <div className="flex-1 flex items-center justify-center">
-                      <div 
-                        className={`w-full grid ${settings.stamp_config.total_slots > 20 ? 'gap-0.5' : 'gap-1'} ${settings.stamp_config.total_slots <= 10 ? 'px-8' : ''}`}
-                        style={{
-                          gridTemplateColumns: `repeat(${
-                            settings.stamp_config.total_slots <= 10 ? 5 :
-                            settings.stamp_config.total_slots <= 20 ? 10 :
-                            settings.stamp_config.total_slots <= 30 ? 12 :
-                            settings.stamp_config.total_slots <= 40 ? 14 : 17
-                          }, minmax(0, 1fr))`
-                        }}
-                      >
-                        {Array.from({ length: settings.stamp_config.total_slots }).map((_, i) => (
-                          <div key={i} className={`aspect-square rounded-full border flex items-center justify-center ${
-                            settings.stamp_config.total_slots > 30 ? 'text-[6px]' : 'text-[8px]'
-                          } ${
-                            i < 3 
-                              ? (settings.template_id === 'pop' ? 'border-primary-500 text-primary-500 bg-primary-50' : 'border-current opacity-80') 
-                              : (settings.template_id === 'dark' ? 'border-slate-700 text-slate-700' : 'border-gray-200 text-gray-300')
-                          }`}>
-                            {i < 3 ? <Stamp className={settings.stamp_config.total_slots > 30 ? "w-2 h-2" : "w-2.5 h-2.5"} /> : i + 1}
-                          </div>
-                        ))}
-                      </div>
+                  <div className="flex-1 flex flex-col justify-between py-1">
+                    <div 
+                      className={`grid ${settings.stamp_config.total_slots > 20 ? 'gap-0.5' : 'gap-1'} ${settings.stamp_config.total_slots <= 10 ? 'px-8' : ''}`}
+                      style={{
+                        gridTemplateColumns: `repeat(${
+                          settings.stamp_config.total_slots <= 10 ? 5 :
+                          settings.stamp_config.total_slots <= 20 ? 10 :
+                          settings.stamp_config.total_slots <= 30 ? 12 :
+                          settings.stamp_config.total_slots <= 40 ? 14 : 17
+                        }, minmax(0, 1fr))`
+                      }}
+                    >
+                      {Array.from({ length: settings.stamp_config.total_slots }).map((_, i) => (
+                        <div key={i} className={`aspect-square rounded-full border flex items-center justify-center ${
+                          settings.stamp_config.total_slots > 30 ? 'text-[6px]' : 'text-[8px]'
+                        } ${
+                          i < 3 
+                            ? (settings.template_id === 'pop' ? 'border-primary-500 text-primary-500 bg-primary-50' : 'border-current opacity-80') 
+                            : (settings.template_id === 'dark' ? 'border-slate-700 text-slate-700' : 'border-gray-200 text-gray-300')
+                        }`}>
+                          {i < 3 ? <Stamp className={settings.stamp_config.total_slots > 30 ? "w-2 h-2" : "w-2.5 h-2.5"} /> : i + 1}
+                        </div>
+                      ))}
                     </div>
                     
                     <div className="space-y-0.5 mt-auto">
@@ -597,11 +595,11 @@ export default function MembershipCard() {
                       </div>
                       
                       {(settings.show_member_no || settings.show_rank) && (
-                        <div className={`flex justify-between text-[8px] ${
-                          settings.template_id === 'simple' ? 'text-gray-400' :
-                          settings.template_id === 'elegant' ? 'text-[#44403C]/60' :
-                          settings.template_id === 'pop' ? 'text-gray-500' :
-                          'text-slate-500'
+                        <div className={`flex justify-between text-[10px] mt-1 flex-shrink-0 ${
+                          settings.template_id === 'simple' ? 'text-gray-500' :
+                          settings.template_id === 'elegant' ? 'text-[#44403C]/80' :
+                          settings.template_id === 'pop' ? 'text-gray-600' :
+                          'text-slate-400'
                         }`}>
                           {settings.show_member_no && <span>No. 00000001</span>}
                           {settings.show_rank && <span>Rank: Gold</span>}
