@@ -88,6 +88,14 @@ export default function MemberCardLIFF() {
           
           rankSettingsRef.current = rankSettings
 
+          // Helper for boolean values
+          const getBool = (val: any, def: boolean) => {
+            if (val === undefined || val === null) return def
+            if (val === true || val === 'true') return true
+            if (val === false || val === 'false') return false
+            return def
+          }
+
           // Ensure stamp_config values are properly typed
           const stampConfig = cardSettings.stamp_config || { total_slots: 20, goal_reward: '特典チケット' }
           const safeStampConfig = {
@@ -102,9 +110,9 @@ export default function MemberCardLIFF() {
             template_id: storeData.membership_card_template_id || 'simple',
             card_type: cardSettings.card_type || 'point',
             name_display: cardSettings.name_display || 'line_name',
-            show_icon: cardSettings.show_icon ?? true,
-            show_member_no: cardSettings.show_member_no ?? true,
-            show_rank: cardSettings.show_rank ?? true,
+            show_icon: getBool(cardSettings.show_icon, true),
+            show_member_no: getBool(cardSettings.show_member_no, true),
+            show_rank: getBool(cardSettings.show_rank, true),
             stamp_config: safeStampConfig,
             rank_settings: rankSettings
           })
