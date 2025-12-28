@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useStoreResources } from '../hooks/useStoreResources'
 import type { StoreMenu, StoreStaff } from '../types/storeResources'
@@ -25,7 +25,6 @@ interface ReservationSummary {
 
 export default function Booking() {
   const navigate = useNavigate()
-  const location = useLocation()
   const [step, setStep] = useState<'loading' | 'error' | 'staff_select' | 'menu_select' | 'date' | 'info' | 'confirm' | 'complete' | 'existing_reservation'>('loading')
   const [errorMsg, setErrorMsg] = useState('')
   const [checkingUser, setCheckingUser] = useState(false)
