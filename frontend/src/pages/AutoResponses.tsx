@@ -26,6 +26,7 @@ type AiSettings = {
 type KnowledgeDoc = {
   id: string
   file_name: string
+  file_path: string
   file_size: number
   file_type: string
   is_active: boolean
@@ -50,7 +51,7 @@ const ChatPreview = ({
   setInput: (s: string) => void;
   loading: boolean;
   onSend: () => void;
-  scrollRef: React.RefObject<HTMLDivElement>;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
   onRefresh: () => void;
 }) => {
   return (
@@ -473,7 +474,7 @@ export default function AutoResponses() {
       setUrlInput('');
       fetchData();
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding URL:', error);
       setToast({ isVisible: true, message: 'URLからの追加に失敗しました: ' + (error.message || 'Unknown error'), type: 'error' });
     } finally {
