@@ -129,7 +129,7 @@ serve(async (req) => {
               bounds: area.bounds,
               action: {
                 type: 'uri',
-                uri: `https://liff.line.me/${liffId}/member-card?store_id=${store_id}`,
+                uri: `https://liff.line.me/${liffId}?page=member-card&store_id=${store_id}`,
                 label: userAction.label || '会員証'
               }
             }
