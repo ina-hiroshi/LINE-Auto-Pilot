@@ -228,10 +228,32 @@ serve(async (req) => {
     // Use custom image or placeholder
     let imageUrl = generated_image_url || store.rich_menu_custom_image_url
     if (!imageUrl) {
-      // Fallback to a placeholder service
-      // Using a solid color based on theme?
-      // Simple: Gray background
-      imageUrl = `https://placehold.co/${width}x${height}/eeeeee/aaaaaa.png?text=Menu`
+      // Fallback to a placeholder service based on theme
+      const templateId = store.rich_menu_template_id || 'simple'
+      let bgColor = 'eeeeee'
+      let textColor = 'aaaaaa'
+
+      switch (templateId) {
+        case 'elegant':
+          bgColor = 'F5F5F0'
+          textColor = '5D4037'
+          break
+        case 'pop':
+          bgColor = '00c3dc' // Primary color
+          textColor = 'ffffff'
+          break
+        case 'dark':
+          bgColor = '1e293b' // Slate 800
+          textColor = 'ffffff'
+          break
+        case 'simple':
+        default:
+          bgColor = 'eeeeee'
+          textColor = 'aaaaaa'
+          break
+      }
+
+      imageUrl = `https://placehold.co/${width}x${height}/${bgColor}/${textColor}.png?text=Menu`
     }
 
     const imageRes = await fetch(imageUrl)

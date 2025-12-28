@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react'
+import type { FormEvent, RefObject } from 'react'
 import { useMemo, useState } from 'react'
 import { ExternalLink, Image as ImageIcon, Layout, MessageSquare, MousePointerClick, Palette, Smartphone } from 'lucide-react'
 import { Save, Loader2 } from 'lucide-react'
@@ -10,9 +10,10 @@ interface RichMenuTabProps {
   saving: boolean
   onChangeSettings: (next: RichMenuSettings) => void
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
+  previewRef?: RefObject<HTMLDivElement>
 }
 
-export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubmit }: RichMenuTabProps) {
+export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubmit, previewRef }: RichMenuTabProps) {
   const [openIconSelector, setOpenIconSelector] = useState<number | null>(null)
 
   const layout = useMemo(() => RICH_MENU_LAYOUTS.find((l) => l.id === richMenuSettings.layout_id) || RICH_MENU_LAYOUTS[0], [richMenuSettings.layout_id])
@@ -271,7 +272,10 @@ export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubm
                     <span>メニュー ▲</span>
                     <span>キーボード</span>
                   </div>
-                  <div className={`w-full relative ${richMenuSettings.layout_id.startsWith('compact') ? 'aspect-[3/1]' : 'aspect-[1.5/1]'}`}>
+                  <div 
+                    ref={previewRef}
+                    className={`w-full relative ${richMenuSettings.layout_id.startsWith('compact') ? 'aspect-[3/1]' : 'aspect-[1.5/1]'}`}
+                  >
                     {/* Custom Image Background if set */}
                     {richMenuSettings.custom_image_url ? (
                       <img

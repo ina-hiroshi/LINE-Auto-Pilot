@@ -294,6 +294,7 @@ export default function Dashboard() {
         confirmText="送信"
         isLoading={sendingReply}
         variant="emerald"
+        showDefaultButtons={true}
         footerContent={quotaInfo && (
             <div className="text-[10px] text-gray-500 space-y-0.5">
                 <p>プランごとの無料メッセージ上限:</p>

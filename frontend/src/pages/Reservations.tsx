@@ -1197,6 +1197,7 @@ export default function Reservations() {
         title="予約詳細"
         confirmText="変更する"
         cancelText="閉じる"
+        showDefaultButtons={true}
         footerContent={
           <button
             onClick={() => {

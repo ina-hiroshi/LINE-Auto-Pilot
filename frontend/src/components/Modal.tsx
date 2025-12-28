@@ -12,6 +12,7 @@ interface ModalProps {
   variant?: 'primary' | 'danger' | 'emerald';
   isLoading?: boolean;
   footerContent?: React.ReactNode;
+  showDefaultButtons?: boolean;
 }
 
 export default function Modal({
@@ -26,6 +27,7 @@ export default function Modal({
   variant = 'primary',
   isLoading = false,
   footerContent,
+  showDefaultButtons = false,
 }: ModalProps) {
   if (!isOpen) return null;
 
@@ -34,6 +36,8 @@ export default function Modal({
     : variant === 'emerald'
     ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
     : 'bg-primary-600 hover:bg-primary-700 text-white';
+
+  const shouldShowButtons = !footerContent || showDefaultButtons;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -45,9 +49,13 @@ export default function Modal({
           {children ? children : <p className="text-gray-600">{message}</p>}
         </div>
         <div className={`flex flex-col sm:flex-row items-stretch sm:items-center ${footerContent ? 'justify-between' : 'justify-end'} gap-4 p-4 bg-gray-50 shrink-0 border-t`}>
-          {footerContent ? (
-            <div className="w-full">{footerContent}</div>
-          ) : (
+          {footerContent && (
+            <div className={showDefaultButtons ? "w-full sm:w-auto mr-auto" : "w-full"}>
+              {footerContent}
+            </div>
+          )}
+          
+          {shouldShowButtons && (
             <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
               <button
                 onClick={onClose}

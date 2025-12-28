@@ -1,6 +1,7 @@
-import { Save, Loader2, Store as StoreIcon, User, Clock, Copy, Split, ArrowUpLeftFromSquare } from 'lucide-react'
+import { Save, Loader2, Store as StoreIcon, User } from 'lucide-react'
 import type { FormEvent } from 'react'
 import type { BusinessHours, ProfileData } from '../types'
+import { BusinessHoursEditor } from './BusinessHoursEditor'
 
 interface BasicInfoTabProps {
   profileData: ProfileData
@@ -11,16 +12,6 @@ interface BasicInfoTabProps {
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
   onPostalSearch: () => void
 }
-
-const DAYS: { key: keyof BusinessHours; label: string }[] = [
-  { key: 'mon', label: '月' },
-  { key: 'tue', label: '火' },
-  { key: 'wed', label: '水' },
-  { key: 'thu', label: '木' },
-  { key: 'fri', label: '金' },
-  { key: 'sat', label: '土' },
-  { key: 'sun', label: '日' },
-]
 
 export function BasicInfoTab({ profileData, businessHours, saving, onChange, onChangeBusinessHours, onSubmit, onPostalSearch }: BasicInfoTabProps) {
   return (
@@ -131,130 +122,11 @@ export function BasicInfoTab({ profileData, businessHours, saving, onChange, onC
           </div>
         </div>
 
-        <div className="border-t pt-5 mt-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <Clock className="text-primary-600" size={18} />
-            <h3 className="text-sm font-bold text-gray-800">営業時間（曜日別）</h3>
-          </div>
-
-          {/* 一括適用ツールバー */}
-          <div className="flex flex-wrap gap-1.5 text-[11px]">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border rounded-md hover:bg-gray-50"
-              onClick={() => {
-                const base = { start: '10:00', end: '20:00' }
-                const next: BusinessHours = {}
-                DAYS.forEach((d) => {
-                  next[d.key] = [{ ...base }]
-                })
-                onChangeBusinessHours(next)
-              }}
-            >
-              <Copy size={14} /> 全曜日10:00-20:00
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border rounded-md hover:bg-gray-50"
-              onClick={() => {
-                const base = businessHours?.mon?.[0] || { start: '10:00', end: '20:00' }
-                const next: BusinessHours = { ...businessHours }
-                DAYS.forEach((d) => {
-                  next[d.key] = [{ ...base }]
-                })
-                onChangeBusinessHours(next)
-              }}
-            >
-              <Copy size={14} /> 月曜を全曜日へコピー
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border rounded-md hover:bg-gray-50"
-              onClick={() => {
-                const weekday = businessHours?.mon?.[0] || { start: '10:00', end: '19:00' }
-                const weekend = businessHours?.sat?.[0] || { start: '10:00', end: '18:00' }
-                const next: BusinessHours = { ...businessHours }
-                ;(['mon','tue','wed','thu','fri'] as const).forEach((k) => {
-                  next[k] = [{ ...weekday }]
-                })
-                ;(['sat','sun'] as const).forEach((k) => {
-                  next[k] = [{ ...weekend }]
-                })
-                onChangeBusinessHours(next)
-              }}
-            >
-              <Split size={14} /> 平日/土日で一括
-            </button>
-          </div>
-
-          <div className="rounded-lg border p-2 bg-gray-50 space-y-1">
-            {DAYS.map((d, idx) => {
-              const slots = (businessHours?.[d.key] || []) as { start: string; end: string }[]
-              const defaultSlot = { start: '10:00', end: '20:00' }
-              const slot = slots[0] || defaultSlot
-              const enabled = slots.length > 0 || !businessHours
-              return (
-                <div key={d.key} className="grid grid-cols-[30px,1fr,78px] items-center gap-1.5 text-[13px]">
-                  <label className="font-medium text-gray-700 text-center leading-tight">{d.label}</label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="time"
-                      value={slot.start}
-                      disabled={!enabled}
-                      onChange={(e) => {
-                        const next = { ...(businessHours || {}) }
-                        next[d.key] = [{ start: e.target.value, end: slot.end }]
-                        onChangeBusinessHours(next)
-                      }}
-                      className="w-24 border rounded px-2 py-1 text-xs"
-                    />
-                    <span className="text-gray-500">-</span>
-                    <input
-                      type="time"
-                      value={slot.end}
-                      disabled={!enabled}
-                      onChange={(e) => {
-                        const next = { ...(businessHours || {}) }
-                        next[d.key] = [{ start: slot.start, end: e.target.value }]
-                        onChangeBusinessHours(next)
-                      }}
-                      className="w-24 border rounded px-2 py-1 text-xs"
-                    />
-                  </div>
-                  <div className="flex justify-end items-center gap-1">
-                    <button
-                      type="button"
-                      className={`h-7 px-2 rounded border text-xs ${enabled ? 'bg-white text-gray-700' : 'bg-gray-100 text-gray-500'}`}
-                      onClick={() => {
-                        const next = { ...(businessHours || {}) }
-                        next[d.key] = enabled ? [] : [{ start: slot.start || defaultSlot.start, end: slot.end || defaultSlot.end }]
-                        onChangeBusinessHours(next)
-                      }}
-                    >
-                      {enabled ? '営業中' : '休業'}
-                    </button>
-                    {idx > 0 && (
-                      <button
-                        type="button"
-                        aria-label="前の曜日をコピー"
-                        className="h-7 w-7 grid place-items-center rounded border bg-white text-primary-700 hover:text-primary-600"
-                        onClick={() => {
-                          const prevKey = DAYS[idx - 1].key
-                          const prevSlot = businessHours?.[prevKey]?.[0] || slot || defaultSlot
-                          const next = { ...(businessHours || {}) }
-                          next[d.key] = [{ ...prevSlot }]
-                          onChangeBusinessHours(next)
-                        }}
-                      >
-                        <ArrowUpLeftFromSquare size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-            <p className="text-xs text-gray-500 mt-1">未入力の曜日はデフォルト（10:00-20:00）を使用します。</p>
-          </div>
+        <div className="border-t pt-5 mt-5">
+          <BusinessHoursEditor
+            businessHours={businessHours}
+            onChange={(next) => onChangeBusinessHours(next)}
+          />
         </div>
 
         <div className="flex justify-end pt-4">
