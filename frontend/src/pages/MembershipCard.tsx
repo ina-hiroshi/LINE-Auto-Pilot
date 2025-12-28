@@ -179,7 +179,7 @@ export default function MembershipCard() {
         <p className="text-gray-500">LINE上で表示される会員証のデザインと機能を設定します。</p>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
         {/* Tabs & Action Header */}
         <div className="flex items-end justify-between mb-6 border-b border-gray-200">
           <div className="flex gap-2 overflow-x-auto">
@@ -191,7 +191,7 @@ export default function MembershipCard() {
               }`}
             >
               <Palette size={16} />
-              デザイン設定
+              <span className="hidden sm:inline">デザイン設定</span>
             </button>
             <button
               type="button"
@@ -201,7 +201,7 @@ export default function MembershipCard() {
               }`}
             >
               <Settings size={16} />
-              表示設定
+              <span className="hidden sm:inline">表示設定</span>
             </button>
             <button
               type="button"
@@ -211,7 +211,7 @@ export default function MembershipCard() {
               }`}
             >
               <Award size={16} />
-              ランク設定
+              <span className="hidden sm:inline">ランク設定</span>
             </button>
           </div>
 
@@ -498,16 +498,7 @@ export default function MembershipCard() {
               </div>
             )}
 
-            <div className="pt-4 lg:hidden">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center justify-center gap-2 w-full px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 transition-colors"
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                保存する
-              </button>
-            </div>
+
           </div>
 
           {/* Preview */}

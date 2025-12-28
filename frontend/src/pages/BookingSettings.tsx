@@ -285,7 +285,7 @@ export default function BookingSettingsPage() {
         <p className="text-gray-500">営業時間、メニュー、スタッフなどの予約受付設定を行います。</p>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
         <BookingPageTab
           storeId={storeId}
           bookingSettings={bookingSettings}

@@ -29,30 +29,30 @@ export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubm
   return (
     <form onSubmit={onSubmit}>
       <div className="flex items-end justify-between mb-6 border-b border-gray-200">
-        <div className="flex">
+        <div className="flex gap-2 overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveTab('design')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'design'
                 ? 'border-primary-500 text-primary-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
             <Palette size={16} />
-            デザイン設定
+            <span className="hidden sm:inline">デザイン設定</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('actions')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'actions'
                 ? 'border-primary-500 text-primary-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
             <MousePointerClick size={16} />
-            アクション設定
+            <span className="hidden sm:inline">アクション設定</span>
           </button>
         </div>
 

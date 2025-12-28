@@ -67,32 +67,32 @@ export function BookingPageTab({
           <button
             type="button"
             onClick={() => setActiveTab('basic')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'basic' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            <Settings className="w-4 h-4 inline-block mr-2" />
-            基本設定
+            <Settings className="w-4 h-4" />
+            <span className="hidden sm:inline">基本設定</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('items')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'items' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            <List className="w-4 h-4 inline-block mr-2" />
-            メニュー・スタッフ
+            <List className="w-4 h-4" />
+            <span className="hidden sm:inline">メニュー・スタッフ</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('design')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'design' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            <Palette className="w-4 h-4 inline-block mr-2" />
-            デザイン設定
+            <Palette className="w-4 h-4" />
+            <span className="hidden sm:inline">デザイン設定</span>
           </button>
         </div>
 
@@ -424,7 +424,7 @@ export function BookingPageTab({
           </div>
 
           {/* 右カラム：プレビュー */}
-          <div className="hidden lg:block sticky top-8 h-fit">
+          <div className="lg:sticky lg:top-8 h-fit mt-8 lg:mt-0">
             <div className="mb-4">
               <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
                 <Smartphone size={16} /> プレビュー

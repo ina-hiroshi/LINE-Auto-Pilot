@@ -54,7 +54,6 @@ export default function Layout() {
     { path: '/membership-card', label: 'デジタル会員証', icon: <CreditCard size={20} /> },
     { path: '/rich-menu', label: 'リッチメニュー', icon: <Grid size={20} /> },
     { path: '/booking-settings', label: '予約ページ', icon: <Clock size={20} /> },
-    { path: '/line-settings', label: 'LINE連携', icon: <Smartphone size={20} /> },
     { path: '/dev', label: '開発', icon: <Code size={20} /> },
   ]
 
@@ -214,14 +213,14 @@ export default function Layout() {
               <Link
                 key={item.path}
                 to={item.path!}
-                className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${
+                className={`flex flex-col items-center justify-center w-full h-full space-y-0.5 transition-colors ${
                   isItemActive
                     ? 'text-white bg-white/10' 
                     : 'text-primary-100 hover:text-white hover:bg-white/5'
                 }`}
               >
                 {item.icon}
-                <span className="text-[10px] font-bold">{item.label}</span>
+                <span className="text-[6px] font-bold leading-none">{item.label}</span>
               </Link>
             )
           })}

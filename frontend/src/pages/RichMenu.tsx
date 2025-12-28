@@ -297,7 +297,7 @@ export default function RichMenu() {
         <p className="text-gray-500">トーク画面下部に表示されるメニューを設定します。</p>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
         <RichMenuTab
           richMenuSettings={richMenuSettings}
           onChangeSettings={setRichMenuSettings}
