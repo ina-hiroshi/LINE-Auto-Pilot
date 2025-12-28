@@ -45,11 +45,16 @@ export default function MemberCardLIFF() {
         // 2. Fetch Store Settings
         const { data: store, error: storeError } = await supabase
           .from('stores')
-          .select('membership_card_title, membership_card_color, membership_card_logo_url, membership_card_template_id')
+          .select('name, membership_card_title, membership_card_color, membership_card_logo_url, membership_card_template_id')
           .eq('id', storeId)
           .single()
 
         if (storeError) throw storeError
+
+        // Set Document Title
+        if (store.name) {
+          document.title = `${store.name} - 会員証`
+        }
 
         setSettings({
           title: store.membership_card_title || "MEMBER'S CARD",
@@ -58,32 +63,71 @@ export default function MemberCardLIFF() {
           template_id: store.membership_card_template_id || 'simple'
         })
 
-        // 3. Fetch Customer Data (Mock for now if not logged in via LIFF)
-        // In production, use liff.getProfile() -> line_user_id -> fetch from DB
-        
-        // Mock Data
-        setCustomer({
-          line_user_id: 'mock_user',
-          display_name: 'ゲスト様',
-          points: 0,
-          rank: 'Bronze',
-          member_no: '00000000'
-        })
+        // 3. Fetch Customer Data
+        let userId = 'mock_user'
+        let displayName = 'ゲスト様'
 
-        // Try to get real user if LIFF is available
         if (liff.isInClient() || liff.isLoggedIn()) {
            try {
              const profile = await liff.getProfile()
-             // Fetch points from DB based on profile.userId and storeId
-             // const { data: customerData } = await supabase...
-             setCustomer(prev => ({
-               ...prev!,
-               line_user_id: profile.userId,
-               display_name: profile.displayName
-             }))
+             userId = profile.userId
+             displayName = profile.displayName
            } catch (e) {
              console.error('LIFF profile error:', e)
            }
+        }
+
+        // Fetch Points
+        const { data: pointsData } = await supabase
+          .from('points')
+          .select('balance')
+          .eq('store_id', storeId)
+          .eq('line_user_id', userId)
+          .maybeSingle()
+        
+        const currentPoints = pointsData?.balance || 0
+        
+        // Calculate Rank
+        const getRank = (p: number) => {
+          if (p >= 1000) return 'Platinum'
+          if (p >= 500) return 'Gold'
+          if (p >= 100) return 'Silver'
+          return 'Bronze'
+        }
+
+        setCustomer({
+          line_user_id: userId,
+          display_name: displayName,
+          points: currentPoints,
+          rank: getRank(currentPoints),
+          member_no: userId.substring(0, 8).toUpperCase()
+        })
+
+        // 4. Realtime Subscription
+        const channel = supabase
+          .channel(`points-${userId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'points',
+              filter: `line_user_id=eq.${userId}`
+            },
+            (payload) => {
+              console.log('Points updated:', payload)
+              const newBalance = (payload.new as { balance: number }).balance
+              setCustomer(prev => prev ? ({
+                ...prev,
+                points: newBalance,
+                rank: getRank(newBalance)
+              }) : null)
+            }
+          )
+          .subscribe()
+
+        return () => {
+          supabase.removeChannel(channel)
         }
 
       } catch (err) {
