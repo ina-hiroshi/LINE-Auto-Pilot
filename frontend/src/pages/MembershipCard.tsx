@@ -179,43 +179,102 @@ export default function MembershipCard() {
         <p className="text-gray-500">LINE上で表示される会員証のデザインと機能を設定します。</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-gray-200 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('design')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === 'design' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Palette className="w-4 h-4 inline-block mr-2" />
-          デザイン
-        </button>
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === 'settings' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Settings className="w-4 h-4 inline-block mr-2" />
-          表示・機能設定
-        </button>
-        <button
-          onClick={() => setActiveTab('rank')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === 'rank' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Award className="w-4 h-4 inline-block mr-2" />
-          ランク設定
-        </button>
-      </div>
-
       <div className="bg-white rounded-lg shadow p-6">
+        {/* Tabs & Action Header */}
+        <div className="flex items-end justify-between mb-6 border-b border-gray-200">
+          <div className="flex gap-2 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setActiveTab('design')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                activeTab === 'design' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Palette size={16} />
+              デザイン設定
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('settings')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                activeTab === 'settings' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Settings size={16} />
+              表示設定
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('rank')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                activeTab === 'rank' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Award size={16} />
+              ランク設定
+            </button>
+          </div>
+
+          <div className="mb-2 flex-shrink-0">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
+              {saving ? '保存中...' : '設定を保存'}
+            </button>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Settings Form */}
           <div className="space-y-8">
             {activeTab === 'design' && (
               <>
+                {/* Card Type */}
+                <div className="mb-8">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">カードタイプ</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      onClick={() => setSettings(prev => ({ ...prev, card_type: 'point' }))}
+                      className={`p-4 border rounded-lg flex flex-col items-center gap-2 transition-all ${
+                        settings.card_type === 'point' ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-100' : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <CreditCard className="w-6 h-6" />
+                      <span className="font-bold">ポイントカード</span>
+                    </button>
+                    <button
+                      onClick={() => setSettings(prev => ({ ...prev, card_type: 'stamp' }))}
+                      className={`p-4 border rounded-lg flex flex-col items-center gap-2 transition-all ${
+                        settings.card_type === 'stamp' ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-100' : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Stamp className="w-6 h-6" />
+                      <span className="font-bold">スタンプカード</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Stamp Config (Only if stamp) */}
+                {settings.card_type === 'stamp' && (
+                  <div className="mb-8">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">スタンプ個数</label>
+                    <select
+                      value={settings.stamp_config.total_slots}
+                      onChange={(e) => setSettings(prev => ({ ...prev, stamp_config: { ...prev.stamp_config, total_slots: Number(e.target.value) } }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value={10}>10個</option>
+                      <option value={20}>20個</option>
+                      <option value={30}>30個</option>
+                      <option value={40}>40個</option>
+                      <option value={50}>50個</option>
+                    </select>
+                  </div>
+                )}
+
                 {/* Template Selection */}
                 <div>
                   <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
@@ -302,64 +361,8 @@ export default function MembershipCard() {
 
             {activeTab === 'settings' && (
               <div className="space-y-6">
-                {/* Card Type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">カードタイプ</label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      onClick={() => setSettings(prev => ({ ...prev, card_type: 'point' }))}
-                      className={`p-4 border rounded-lg flex flex-col items-center gap-2 transition-all ${
-                        settings.card_type === 'point' ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-100' : 'border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      <CreditCard className="w-6 h-6" />
-                      <span className="font-bold">ポイントカード</span>
-                    </button>
-                    <button
-                      onClick={() => setSettings(prev => ({ ...prev, card_type: 'stamp' }))}
-                      className={`p-4 border rounded-lg flex flex-col items-center gap-2 transition-all ${
-                        settings.card_type === 'stamp' ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-100' : 'border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      <Stamp className="w-6 h-6" />
-                      <span className="font-bold">スタンプカード</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Stamp Config (Only if stamp) */}
-                {settings.card_type === 'stamp' && (
-                  <div className="bg-gray-50 p-4 rounded-lg space-y-4 border border-gray-200">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">スタンプ個数</label>
-                      <select
-                        value={settings.stamp_config.total_slots}
-                        onChange={(e) => setSettings(prev => ({ ...prev, stamp_config: { ...prev.stamp_config, total_slots: Number(e.target.value) } }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      >
-                        <option value={10}>10個</option>
-                        <option value={20}>20個</option>
-                        <option value={30}>30個</option>
-                        <option value={40}>40個</option>
-                        <option value={50}>50個</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">ゴール特典名</label>
-                      <input
-                        type="text"
-                        value={settings.stamp_config.goal_reward}
-                        onChange={(e) => setSettings(prev => ({ ...prev, stamp_config: { ...prev.stamp_config, goal_reward: e.target.value } }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        placeholder="例: 500円OFFクーポン"
-                      />
-                    </div>
-                  </div>
-                )}
-
                 {/* Display Settings */}
-                <div className="space-y-4 border-t pt-4">
-                  <h3 className="text-sm font-bold text-gray-700">表示設定</h3>
+                <div className="space-y-4">
 
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">
@@ -386,6 +389,20 @@ export default function MembershipCard() {
                       <option value="real_romaji">本名 (ローマ字)</option>
                     </select>
                   </div>
+
+                  {/* Goal Reward Name (Only if stamp) */}
+                  {settings.card_type === 'stamp' && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">ゴール特典名</label>
+                      <input
+                        type="text"
+                        value={settings.stamp_config.goal_reward}
+                        onChange={(e) => setSettings(prev => ({ ...prev, stamp_config: { ...prev.stamp_config, goal_reward: e.target.value } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        placeholder="例: 500円OFFクーポン"
+                      />
+                    </div>
+                  )}
 
                   <div className="space-y-4">
                     <div className="flex items-center gap-4">
@@ -644,18 +661,7 @@ export default function MembershipCard() {
           </p>
         </div>
       </div>
-
-      <div className="flex justify-end pt-6 mt-6 border-t hidden lg:flex">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 bg-primary-600 text-white px-6 py-2.5 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
-        >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={18} />}
-          {saving ? '保存中...' : '設定を保存'}
-        </button>
-      </div>
     </div>
-  </div>
+    </div>
   )
 }

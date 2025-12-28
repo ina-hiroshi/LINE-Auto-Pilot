@@ -12,7 +12,6 @@ import type {
 	GoogleCalendarSettings,
 	LineSettingsState,
 	ProfileData,
-	BusinessHours,
 } from '../features/line-settings/types'
 
 // ---- 初期値定義 ----
@@ -67,7 +66,6 @@ export default function LineSettings() {
 	const [googleCalendarSettings, setGoogleCalendarSettings] = useState<GoogleCalendarSettings>(DEFAULT_GOOGLE_SETTINGS)
 	const [lineSettings, setLineSettings] = useState<LineSettingsState>(DEFAULT_LINE_SETTINGS)
 	const [profileData, setProfileData] = useState<ProfileData>(DEFAULT_PROFILE_DATA)
-	const [businessHours, setBusinessHours] = useState<BusinessHours | null>(null)
 	const [passwordData, setPasswordData] = useState(DEFAULT_PASSWORD_DATA)
 	const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false)
 
@@ -120,7 +118,6 @@ export default function LineSettings() {
 			const store = stores && stores.length > 0 ? stores[0] : null
 			if (store) {
 				setStoreId(store.id)
-				setBusinessHours(store.business_hours)
 			}
 
 			// Line Account
@@ -298,7 +295,6 @@ export default function LineSettings() {
 						address: profileData.address,
 						phone_number: profileData.store_phone_number,
 						industry: profileData.industry,
-						business_hours: businessHours,
 						updated_at: new Date().toISOString(),
 					})
 					.eq('id', storeId)
@@ -315,7 +311,7 @@ export default function LineSettings() {
 		} finally {
 			setSaving(false)
 		}
-	}, [storeId, profileData, businessHours])
+	}, [storeId, profileData])
 
 	const handleUpdatePassword = useCallback(async () => {
 		if (passwordData.newPassword !== passwordData.confirmPassword) {
@@ -465,9 +461,7 @@ export default function LineSettings() {
 				{activeTab === 'basic_info' && (
 					<BasicInfoTab
 						profileData={profileData}
-						businessHours={businessHours}
 						onChange={setProfileData}
-						onChangeBusinessHours={setBusinessHours}
 						onSubmit={(e) => { e.preventDefault(); handleSaveProfile(); }}
 						saving={saving}
 						onPostalSearch={handlePostalCodeSearch}

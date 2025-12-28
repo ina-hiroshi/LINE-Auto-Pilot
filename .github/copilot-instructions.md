@@ -7,36 +7,40 @@
 
 ### アーキテクチャ・データフロー
 
-- **認証**: [frontend/src/App.tsx](frontend/src/App.tsx) で `supabase.auth.onAuthStateChange` を監視。`/booking` は公開ルート、それ以外は `stores` 未作成なら `/initial-setup` へ誘導。
+- **認証**: [frontend/src/App.tsx](frontend/src/App.tsx) で `supabase.auth.onAuthStateChange` を監視。
+  - **公開/LIFF**: `/booking`, `/member-card` は認証不要。
+  - **管理画面**: 認証必須。`stores` 未作成なら `/initial-setup` へ誘導。
 - **データアクセス**:
-  - クライアント: `import { supabase } from '@/lib/supabase'` を使用。RLS により `stores.owner_id = auth.uid()` で自動フィルタリング。
-  - サーバーサイド: Edge Functions は `supabase-js` を使用。`booking` 関数などは `service_role` キーが必要な場合あり（管理者権限での操作）。
-- **状態管理**: グローバルステートは最小限。基本は React Query や `useEffect` + Supabase Realtime でサーバー状態と同期。
+  - クライアント: `import { supabase } from "@/lib/supabase"` を使用。RLS により `stores.owner_id = auth.uid()` で自動フィルタリング。
+  - サーバーサイド: Edge Functions は `supabase-js` を使用。`service_role` キーが必要な操作（LINE Webhook 等）はサーバー側で完結させる。
+- **状態管理**:
+  - グローバルステートは最小限。`useEffect` + `useState` でデータ取得。
+  - リアルタイム更新は `supabase.channel` で `postgres_changes` を監視し、DB の変更を即座に UI に反映。
 
 ### Edge Functions (API)
 
-`supabase.functions.invoke('function-name', { body: { ... } })` で呼び出し。
+`supabase.functions.invoke("function-name", { body: { ... } })` で呼び出し。
 
-- **booking**: 予約システムの核。`action` パラメータで分岐。
-  - `check_customer`: 顧客存在確認
-  - `get_active_reservation`: 有効な予約取得
-  - `get_available_slots`: 空き枠計算
-  - `create_reservation` / `update_reservation` / `cancel_reservation`: 予約操作
-- **line-webhook**: LINE からのイベント受信。署名検証 → 自動応答判定 → `customer_logs` 保存。
-- **manual-reply**: 管理画面からの手動返信。`messageLogId`, `replyText`, `userId` を受け取り LINE Messaging API を叩く。
-- **apply-rich-menu**: リッチメニューの生成・適用。`store_id`, `generated_image_url`, `liff_id` を使用。
-- **google-auth / google-calendar**: Google 連携用。OAuth フローとカレンダー同期。
+- **booking**: 予約システムの核。`check_customer`, `get_available_slots`, `create_reservation` 等のアクションを処理。
+- **line-webhook**: LINE Messaging API からのイベント受信。署名検証 → 自動応答/ログ保存。
+- **manual-reply**: 管理画面からの手動返信。
+- **apply-rich-menu**: リッチメニューの生成・適用。
+- **google-auth / google-calendar**: Google カレンダー連携（OAuth, 同期）。
+- **get-liff-customer**: LIFF アプリでの顧客情報取得。
+- **get-line-bot-info / get-line-quota**: LINE 公式アカウント情報の取得。
 
 ### フロントエンド実装規約
 
-- **コンポーネント**: `frontend/src/components` (共通), `frontend/src/features` (機能別), `frontend/src/pages` (ページ)。
+- **ディレクトリ構成**:
+  - `pages/`: ルーティングに対応するページコンポーネント。
+    - 管理画面: `Dashboard`, `Reservations`, `MembershipCard` 等。
+    - LIFF/公開: `Booking`, `MemberCardLIFF`。
+  - `components/`: 再利用可能な UI 部品。
+  - `features/`: 機能単位のロジック（例: `line-settings`）。
 - **スタイリング**: Tailwind CSS 4。色は `primary (#00c3dc)` を基調。アイコンは `lucide-react`。
-- **予約管理 (Reservations.tsx)**:
-  - `reservations-realtime` チャンネルで `postgres_changes` を監視し、予約変更を即座に反映。
-  - 外部キー結合 (`staff_members`, `booking_menus`, `customers`) 済みのデータを扱う。
-- **LIFF 予約 (Booking.tsx)**:
-  - `booking_system_type` (generic/salon/restaurant) に応じてステップを動的に切り替え。
-  - `window.postMessage` で親ウィンドウ（管理画面プレビュー）からの設定変更を即時反映。
+- **会員証・ポイント機能**:
+  - `MembershipCard.tsx` (管理画面) と `MemberCardLIFF.tsx` (ユーザー画面) で構成。
+  - 設定は `stores` テーブルの JSON カラム (`membership_card_settings`, `membership_rank_settings`) に保存。
 
 ### テスト・検証 (REGRESSION_CHECKLIST 準拠)
 
@@ -45,6 +49,7 @@
 2. **リアルタイム性**: 管理画面を開いた状態で予約が入った際、リロードなしで反映されるか。
 3. **LINE 連携**: Webhook が 200 を返し、自動応答またはログ保存が行われるか。
 4. **Google 連携**: 認可フローが完了し、カレンダー設定が保存されるか。
+5. **会員証**: デザイン設定の変更が LIFF 画面に即座に反映されるか。
 
 ### 関連ファイル
 

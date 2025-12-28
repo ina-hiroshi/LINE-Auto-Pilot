@@ -1,19 +1,16 @@
 import { Save, Loader2, Store as StoreIcon, User } from 'lucide-react'
 import type { FormEvent } from 'react'
-import type { BusinessHours, ProfileData } from '../types'
-import { BusinessHoursEditor } from './BusinessHoursEditor'
+import type { ProfileData } from '../types'
 
 interface BasicInfoTabProps {
   profileData: ProfileData
-  businessHours: BusinessHours | null | undefined
   saving: boolean
   onChange: (next: ProfileData) => void
-  onChangeBusinessHours: (next: BusinessHours | null) => void
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
   onPostalSearch: () => void
 }
 
-export function BasicInfoTab({ profileData, businessHours, saving, onChange, onChangeBusinessHours, onSubmit, onPostalSearch }: BasicInfoTabProps) {
+export function BasicInfoTab({ profileData, saving, onChange, onSubmit, onPostalSearch }: BasicInfoTabProps) {
   return (
     <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
       <div className="flex items-center gap-2 mb-6 pb-2 border-b">
@@ -120,13 +117,6 @@ export function BasicInfoTab({ profileData, businessHours, saving, onChange, onC
               />
             </div>
           </div>
-        </div>
-
-        <div className="border-t pt-5 mt-5">
-          <BusinessHoursEditor
-            businessHours={businessHours}
-            onChange={(next) => onChangeBusinessHours(next)}
-          />
         </div>
 
         <div className="flex justify-end pt-4">
