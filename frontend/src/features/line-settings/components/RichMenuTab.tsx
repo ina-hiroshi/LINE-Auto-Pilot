@@ -25,12 +25,7 @@ export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubm
   }
 
   return (
-    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-      <div className="flex items-center gap-2 mb-6 pb-2 border-b">
-        <Grid className="text-primary-600" size={24} />
-        <h2 className="text-xl font-bold text-gray-800">リッチメニュー設定</h2>
-      </div>
-
+    <>
       <form onSubmit={onSubmit} className="space-y-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="space-y-8">
@@ -198,7 +193,14 @@ export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubm
                                       key={iconItem.id}
                                       type="button"
                                       onClick={() => {
-                                        updateAction(slotNum, (prev) => ({ ...prev, icon: iconItem.id }))
+                                        updateAction(slotNum, (prev) => {
+                                          const updates: Partial<RichMenuAction> = { icon: iconItem.id }
+                                          if (iconItem.id === 'credit-card') {
+                                            updates.label = '会員証'
+                                            updates.url = '' // URLは自動生成されるため空にする
+                                          }
+                                          return { ...prev, ...updates }
+                                        })
                                         setOpenIconSelector(null)
                                       }}
                                       className={`flex flex-col items-center justify-center p-2 rounded hover:bg-gray-100 ${action.icon === iconItem.id ? 'bg-primary-50 text-primary-600' : 'text-gray-600'}`}
@@ -213,16 +215,23 @@ export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubm
                             )}
                           </div>
                         </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">URL</label>
-                          <input
-                            type="text"
-                            value={action.url}
-                            onChange={(e) => updateAction(slotNum, (prev) => ({ ...prev, url: e.target.value }))}
-                            className="w-full p-1.5 border rounded text-sm"
-                            placeholder="https://..."
-                          />
-                        </div>
+                        {action.icon !== 'credit-card' && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">URL</label>
+                            <input
+                              type="text"
+                              value={action.url}
+                              onChange={(e) => updateAction(slotNum, (prev) => ({ ...prev, url: e.target.value }))}
+                              className="w-full p-1.5 border rounded text-sm"
+                              placeholder="https://..."
+                            />
+                          </div>
+                        )}
+                        {action.icon === 'credit-card' && (
+                          <div className="p-2 bg-blue-50 text-blue-700 text-xs rounded border border-blue-100">
+                            会員証のURLは自動的に設定されます
+                          </div>
+                        )}
                       </div>
                     </div>
                   )
@@ -372,6 +381,6 @@ export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubm
           </button>
         </div>
       </form>
-    </section>
+    </>
   )
 }

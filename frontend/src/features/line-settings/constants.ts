@@ -6,7 +6,7 @@ export const AVAILABLE_ICONS = [
   { id: 'map-pin', icon: MapPin, label: 'Map' },
   { id: 'phone', icon: Phone, label: 'Phone' },
   { id: 'ticket', icon: Ticket, label: 'Coupon' },
-  { id: 'credit-card', icon: CreditCard, label: 'Card' },
+  { id: 'credit-card', icon: CreditCard, label: '会員証' },
   { id: 'twitter', icon: Twitter, label: 'X (Twitter)' },
   { id: 'facebook', icon: Facebook, label: 'Facebook' },
   { id: 'youtube', icon: Youtube, label: 'YouTube' },

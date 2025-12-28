@@ -58,11 +58,7 @@ export function BookingPageTab({
   const bookingUrl = useMemo(() => `/booking${storeId ? `?store_id=${storeId}` : ''}`, [storeId])
 
   return (
-    <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-      <div className="flex items-center gap-2 mb-6 pb-2 border-b">
-        <Smartphone className="text-primary-600" size={24} />
-        <h2 className="text-xl font-bold text-gray-800">予約ページ設定</h2>
-      </div>
+    <>
       <form onSubmit={onSubmitBookingSettings} className="space-y-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* 左カラム：設定 */}
@@ -401,6 +397,6 @@ export function BookingPageTab({
           </button>
         </div>
       </form>
-    </section>
+    </>
   )
 }

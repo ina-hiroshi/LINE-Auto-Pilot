@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User, Code, Calendar } from 'lucide-react'
+import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User, Code, Calendar, CreditCard, Grid, Clock, Smartphone } from 'lucide-react'
 import Modal from './Modal'
 import iconImage from '../assets/icon.png'
 
@@ -48,9 +48,13 @@ export default function Layout() {
   
   const navItems = [
     { path: '/', label: 'ダッシュボード', icon: <LayoutDashboard size={20} /> },
-    { path: '/reservations', label: '予約確認', icon: <Calendar size={20} /> },
-    { path: '/auto-responses', label: '自動応答', icon: <MessageSquare size={20} /> },
+    { path: '/reservations', label: '予約管理', icon: <Calendar size={20} /> },
     { path: '/customers', label: '顧客一覧', icon: <Users size={20} /> },
+    { path: '/auto-responses', label: '自動応答', icon: <MessageSquare size={20} /> },
+    { path: '/membership-card', label: 'デジタル会員証', icon: <CreditCard size={20} /> },
+    { path: '/rich-menu', label: 'リッチメニュー', icon: <Grid size={20} /> },
+    { path: '/booking-settings', label: '予約ページ', icon: <Clock size={20} /> },
+    { path: '/line-settings', label: 'LINE連携', icon: <Smartphone size={20} /> },
     { path: '/dev', label: '開発', icon: <Code size={20} /> },
   ]
 

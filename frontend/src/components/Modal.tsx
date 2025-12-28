@@ -3,7 +3,7 @@ import React from 'react';
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm?: () => void;
   title: string;
   message?: string;
   children?: React.ReactNode;
@@ -58,7 +58,7 @@ export default function Modal({
               </button>
               <button
                 onClick={() => {
-                  onConfirm();
+                  onConfirm?.();
                 }}
                 disabled={isLoading}
                 className={`flex-1 sm:flex-none px-4 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${confirmButtonClass}`}

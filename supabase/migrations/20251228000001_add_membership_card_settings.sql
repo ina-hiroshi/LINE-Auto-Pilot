@@ -1,0 +1,4 @@
+ALTER TABLE stores
+ADD COLUMN IF NOT EXISTS membership_card_title TEXT DEFAULT 'MEMBER''S CARD',
+ADD COLUMN IF NOT EXISTS membership_card_color TEXT DEFAULT '#000000',
+ADD COLUMN IF NOT EXISTS membership_card_logo_url TEXT;

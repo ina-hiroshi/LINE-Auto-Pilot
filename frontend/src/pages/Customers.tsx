@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { Loader2, User, Search, Edit2, Save, X, Plus, Minus, History, MessageSquare, ChevronRight, Gift, CreditCard } from 'lucide-react'
+import { Loader2, User, Search, Edit2, Save, History, MessageSquare, ChevronRight, Gift, CreditCard } from 'lucide-react'
 import Modal from '../components/Modal'
 import Toast from '../components/Toast'
 
@@ -194,6 +194,7 @@ export default function Customers() {
 
       if (error) throw error
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const history: ReservationHistory[] = data.map((r: any) => ({
         id: r.id,
         start_time: r.start_time,
@@ -394,7 +395,6 @@ export default function Customers() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title="顧客詳細"
-        maxWidth="2xl"
         footerContent={
           <div className="flex justify-end gap-3 w-full">
             <button

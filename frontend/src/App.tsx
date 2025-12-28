@@ -8,11 +8,16 @@ import Dashboard from './pages/Dashboard'
 import LineSettings from './pages/LineSettings'
 import AutoResponses from './pages/AutoResponses'
 import Customers from './pages/Customers'
+import MembershipCard from './pages/MembershipCard'
+import RichMenu from './pages/RichMenu'
+import BookingSettings from './pages/BookingSettings'
 import Reservations from './pages/Reservations'
 import TopPage from './pages/TopPage'
 import InitialSetup from './pages/InitialSetup'
 import DevSandbox from './pages/DevSandbox'
 import Booking from './pages/Booking'
+
+import MemberCardLIFF from './pages/MemberCardLIFF'
 
 import type { Session } from '@supabase/supabase-js'
 
@@ -138,6 +143,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/booking" element={<Booking />} />
+        <Route path="/member-card" element={<MemberCardLIFF />} />
         {!session ? (
           <Route path="*" element={<TopPage />} />
         ) : hasStore === null ? (
@@ -166,6 +172,9 @@ function App() {
             <Route path="/line-settings" element={<LineSettings />} />
             <Route path="/auto-responses" element={<AutoResponses />} />
             <Route path="/customers" element={<Customers />} />
+            <Route path="/membership-card" element={<MembershipCard />} />
+            <Route path="/rich-menu" element={<RichMenu />} />
+            <Route path="/booking-settings" element={<BookingSettings />} />
             <Route path="/dev" element={<DevSandbox />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

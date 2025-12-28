@@ -121,13 +121,39 @@ serve(async (req) => {
       const slotNum = area.slot
       const userAction = actions[slotNum]
       
-      if (userAction && userAction.url) {
-        return {
-          bounds: area.bounds,
-          action: {
-            type: 'uri',
-            uri: userAction.url,
-            label: userAction.label || 'Link'
+      if (userAction) {
+        // Special handling for Member Card
+        if (userAction.icon === 'credit-card') {
+          if (liffId) {
+            return {
+              bounds: area.bounds,
+              action: {
+                type: 'uri',
+                uri: `https://liff.line.me/${liffId}/member-card?store_id=${store_id}`,
+                label: userAction.label || '会員証'
+              }
+            }
+          } else {
+            console.warn('LIFF ID not found for Member Card action')
+            return {
+              bounds: area.bounds,
+              action: {
+                type: 'message',
+                text: '会員証機能は現在準備中です',
+                label: userAction.label || '会員証'
+              }
+            }
+          }
+        }
+
+        if (userAction.url) {
+          return {
+            bounds: area.bounds,
+            action: {
+              type: 'uri',
+              uri: userAction.url,
+              label: userAction.label || 'Link'
+            }
           }
         }
       }
