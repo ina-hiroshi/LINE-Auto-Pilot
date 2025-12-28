@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { verifyLineToken } from '../_shared/line-auth.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,20 +24,15 @@ serve(async (req) => {
       throw new Error('Missing access token or store ID')
     }
 
+    // 0. Fetch Channel ID from store settings
+    const { data: lineAccount } = await supabaseClient
+      .from('line_accounts')
+      .select('channel_id')
+      .eq('store_id', storeId)
+      .maybeSingle()
+
     // 1. Verify Access Token & Get User Profile from LINE
-    const profileResponse = await fetch('https://api.line.me/v2/profile', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      }
-    })
-
-    if (!profileResponse.ok) {
-      const errorText = await profileResponse.text()
-      console.error('LINE Profile Error:', errorText)
-      throw new Error('Failed to verify LINE access token')
-    }
-
-    const profile = await profileResponse.json()
+    const profile = await verifyLineToken(accessToken, lineAccount?.channel_id)
     const lineUserId = profile.userId
 
     // 2. Fetch Customer Data (Securely using Service Role)

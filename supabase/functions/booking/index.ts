@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { verifyLineToken } from '../_shared/line-auth.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -149,7 +150,43 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { action, store_id, line_user_id, display_name, profile_picture_url, real_name, furigana, date, time, reservation_id, staff_id, menu_id, memo } = await req.json()
+    const { accessToken, action, store_id, line_user_id: requestLineUserId, display_name, profile_picture_url, real_name, furigana, date, time, reservation_id, staff_id, menu_id, memo } = await req.json()
+
+    // --- Security: Verify Access Token ---
+    let line_user_id = requestLineUserId;
+    let verifiedUserId: string | null = null;
+
+    if (accessToken) {
+      try {
+        // Fetch Channel ID if store_id is available
+        let expectedChannelId: string | undefined;
+        if (store_id) {
+          const { data: lineAccount } = await supabaseClient
+            .from('line_accounts')
+            .select('channel_id')
+            .eq('store_id', store_id)
+            .maybeSingle()
+          if (lineAccount?.channel_id) {
+            expectedChannelId = lineAccount.channel_id
+          }
+        }
+
+        const profile = await verifyLineToken(accessToken, expectedChannelId);
+        verifiedUserId = profile.userId;
+        // Securely overwrite the user ID with the verified one
+        line_user_id = verifiedUserId;
+      } catch (e) {
+        console.error('Token verification failed:', e);
+        // If token is invalid, we treat it as unauthenticated
+      }
+    }
+
+    // Enforce Authentication for sensitive actions
+    const sensitiveActions = ['check_customer', 'create_reservation', 'get_active_reservation', 'cancel_reservation', 'update_reservation'];
+    if (sensitiveActions.includes(action) && !verifiedUserId) {
+      throw new Error('Unauthorized: Valid Access Token is required for this action');
+    }
+    // -------------------------------------
 
     // Helper to fetch store settings only when needed
     const getStoreSettings = async (id: string) => {
@@ -309,11 +346,15 @@ serve(async (req) => {
         // Fetch reservation to get google_event_id
         const { data: reservation, error: fetchError } = await supabaseClient
             .from('reservations')
-            .select('google_event_id, store_id')
+            .select('google_event_id, store_id, line_user_id')
             .eq('id', reservation_id)
             .single()
         
         if (fetchError) throw fetchError
+
+        if (reservation.line_user_id !== line_user_id) {
+          throw new Error('Unauthorized: You can only cancel your own reservations')
+        }
 
         const { error } = await supabaseClient
             .from('reservations')
@@ -345,11 +386,15 @@ serve(async (req) => {
       // Fetch old reservation to get google_event_id
       const { data: oldReservation, error: fetchError } = await supabaseClient
           .from('reservations')
-          .select('google_event_id, store_id')
+          .select('google_event_id, store_id, line_user_id')
           .eq('id', reservation_id)
           .single()
       
       if (fetchError) throw fetchError
+
+      if (oldReservation.line_user_id !== line_user_id) {
+        throw new Error('Unauthorized: You can only update your own reservations')
+      }
 
       const { error: cancelError } = await supabaseClient
           .from('reservations')
