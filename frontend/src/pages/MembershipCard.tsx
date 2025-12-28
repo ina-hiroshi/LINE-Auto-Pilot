@@ -252,19 +252,6 @@ export default function MembershipCard() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    カードタイトル
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.title}
-                    onChange={(e) => setSettings(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    placeholder="MEMBER'S CARD"
-                  />
-                </div>
-
                 {/* Pro Features Section */}
                 <div className="border-t pt-6">
                   <div className="flex items-center justify-between mb-4">
@@ -373,6 +360,19 @@ export default function MembershipCard() {
                 {/* Display Settings */}
                 <div className="space-y-4 border-t pt-4">
                   <h3 className="text-sm font-bold text-gray-700">表示設定</h3>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                      カードタイトル
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.title}
+                      onChange={(e) => setSettings(prev => ({ ...prev, title: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="MEMBER'S CARD"
+                    />
+                  </div>
                   
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">名前の表示形式</label>
@@ -608,7 +608,7 @@ export default function MembershipCard() {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="flex-1 flex flex-col justify-end space-y-4 pb-2">
                     <div className="flex justify-between items-end">
                       <div>
                         <p className={`text-xs mb-1 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>MEMBER NAME</p>

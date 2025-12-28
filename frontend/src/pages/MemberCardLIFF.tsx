@@ -409,7 +409,7 @@ export default function MemberCardLIFF() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="flex-1 flex flex-col justify-end space-y-4 pb-2">
                 <div className="flex justify-between items-end">
                   <div>
                     <p className={`text-xs mb-1 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>MEMBER NAME</p>
