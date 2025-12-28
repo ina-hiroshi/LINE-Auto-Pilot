@@ -670,13 +670,13 @@ export default function AutoResponses() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-8">
+    <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6 md:space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 flex items-center gap-2">
             自動応答設定
           </h1>
-          <p className="text-gray-500 mt-1">
+          <p className="text-sm md:text-base text-gray-500 mt-1">
             LINE公式アカウントの自動応答ルールとAIアシスタントの設定を行います。
           </p>
         </div>
@@ -684,41 +684,44 @@ export default function AutoResponses() {
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-h-[600px]">
         {/* Tabs */}
-        <div className="flex items-center gap-1 border-b border-gray-200 px-6 pt-4">
+        <div className="flex items-center gap-1 border-b border-gray-200 px-2 md:px-6 pt-2 md:pt-4">
           <button
             onClick={() => setActiveTab('keyword')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            className={`flex-1 md:flex-none justify-center md:justify-start px-2 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
               activeTab === 'keyword'
                 ? 'border-primary-500 text-primary-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
+            title="キーワード応答"
           >
-            <MessageSquare size={18} />
-            キーワード応答
+            <MessageSquare size={20} />
+            <span className="hidden md:inline">キーワード応答</span>
           </button>
           <button
             onClick={() => setActiveTab('ai_settings')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            className={`flex-1 md:flex-none justify-center md:justify-start px-2 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
               activeTab === 'ai_settings'
                 ? 'border-primary-500 text-primary-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
+            title="AI基本設定"
           >
-            <Settings size={18} />
-            AI基本設定
-            {!isPro && <span className="flex items-center gap-1 bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded border border-gray-200"><Lock size={10} /> Pro</span>}
+            <Settings size={20} />
+            <span className="hidden md:inline">AI基本設定</span>
+            {!isPro && <span className="hidden md:flex items-center gap-1 bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded border border-gray-200"><Lock size={10} /> Pro</span>}
           </button>
           <button
             onClick={() => setActiveTab('knowledge')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            className={`flex-1 md:flex-none justify-center md:justify-start px-2 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
               activeTab === 'knowledge'
                 ? 'border-primary-500 text-primary-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
+            title="ナレッジベース"
           >
-            <BookOpen size={18} />
-            ナレッジベース
-            {!isPro && <span className="flex items-center gap-1 bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded border border-gray-200"><Lock size={10} /> Pro</span>}
+            <BookOpen size={20} />
+            <span className="hidden md:inline">ナレッジベース</span>
+            {!isPro && <span className="hidden md:flex items-center gap-1 bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded border border-gray-200"><Lock size={10} /> Pro</span>}
           </button>
         </div>
 
@@ -729,9 +732,9 @@ export default function AutoResponses() {
           {activeTab === 'keyword' && (
             <div className="flex flex-col h-full">
               {/* Toolbar */}
-              <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white">
-                <div className="flex items-center gap-4 flex-1">
-                  <div className="relative w-64">
+              <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white">
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-4 flex-1 w-full">
+                  <div className="relative w-full md:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                     <input
                       type="text"
@@ -759,7 +762,7 @@ export default function AutoResponses() {
                 <button
                   onClick={handleCreateRule}
                   disabled={!isPro && rules.length >= 10}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors shadow-sm text-sm font-medium ${
+                  className={`w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors shadow-sm text-sm font-medium ${
                     !isPro && rules.length >= 10
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : 'bg-primary-600 text-white hover:bg-primary-700'
@@ -782,9 +785,9 @@ export default function AutoResponses() {
                     {filteredRules.map((rule) => (
                       <div
                         key={rule.id}
-                        className="group p-4 hover:bg-gray-50 transition-colors flex items-start gap-4"
+                        className="group p-3 md:p-4 hover:bg-gray-50 transition-colors flex items-start gap-3 md:gap-4"
                       >
-                        <div className="pt-1 flex flex-col items-center gap-1 min-w-[60px]">
+                        <div className="pt-1 flex flex-col items-center gap-1 min-w-[50px] md:min-w-[60px]">
                            <label className="relative inline-flex items-center cursor-pointer">
                             <input
                               type="checkbox"
@@ -798,22 +801,22 @@ export default function AutoResponses() {
                             {rule.isActive ? '有効' : '無効'}
                           </span>
                         </div>
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-3">
-                            <h3 className="font-bold text-gray-900">{rule.mainKeyword}</h3>
+                        <div className="flex-1 space-y-1 md:space-y-2 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                            <h3 className="font-bold text-gray-900 text-sm md:text-base truncate">{rule.mainKeyword}</h3>
                             {rule.subKeywords.length > 0 && (
                               <div className="flex items-center gap-1 text-xs text-gray-500">
                                 <Tag size={12} />
-                                {rule.subKeywords.join(', ')}
+                                <span className="truncate max-w-[150px]">{rule.subKeywords.join(', ')}</span>
                               </div>
                             )}
                           </div>
-                          <p className="text-sm text-gray-600 line-clamp-2 whitespace-pre-wrap">
+                          <p className="text-xs md:text-sm text-gray-600 line-clamp-2 whitespace-pre-wrap break-words">
                             {rule.response}
                           </p>
                         </div>
                         
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex flex-col md:flex-row items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() => handleEditRule(rule)}
                             className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
