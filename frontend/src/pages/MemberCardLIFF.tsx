@@ -201,7 +201,7 @@ export default function MemberCardLIFF() {
           const myUserId = profile?.userId
 
           if (myUserId) {
-            const channel = supabase.channel(`points:${storeId}`)
+            supabase.channel(`points:${storeId}`)
               .on('broadcast', { event: 'update' }, (payload) => {
                 if (payload.payload?.line_user_id === myUserId) {
                   console.log('Received point update signal, refetching...')
@@ -209,40 +209,10 @@ export default function MemberCardLIFF() {
                 }
               })
               .subscribe()
-
-            // Cleanup is handled by useEffect unmount, but we need to store the channel if we want to remove it specifically
-            // For now, supabase.channel handles duplicates well, but ideally we should return a cleanup function
-            // However, this is inside an async function inside useEffect.
-            // We can't easily return the cleanup from here to the useEffect cleanup.
-            // But since this runs once on mount (due to empty dependency array or storeId change), it's okay.
-            // Ideally, we should move the subscription logic outside 'init' or use a ref to store the channel.
           }
         }
 
-        // 4. Realtime Subscription
-        const pointsChannel = supabase
-          .channel(`points-${userId}`)
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'points',
-              filter: `line_user_id=eq.${userId}`
-            },
-            (payload) => {
-              console.log('Points updated:', payload)
-              const newBalance = (payload.new as { balance: number }).balance
-              setCustomer(prev => prev ? ({
-                ...prev,
-                points: newBalance,
-                rank: getRank(newBalance)
-              }) : null)
-            }
-          )
-          .subscribe()
-
-        const storeChannel = supabase
+        supabase
           .channel(`store-settings-${storeId}`)
           .on(
             'postgres_changes',
@@ -258,11 +228,6 @@ export default function MemberCardLIFF() {
             }
           )
           .subscribe()
-
-        return () => {
-          supabase.removeChannel(pointsChannel)
-          supabase.removeChannel(storeChannel)
-        }
 
       } catch (err) {
         console.error(err)
