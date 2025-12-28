@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { Loader2, CreditCard, AlertCircle, Stamp } from 'lucide-react'
@@ -37,6 +37,7 @@ export default function MemberCardLIFF() {
   const [error, setError] = useState<string | null>(null)
   const [settings, setSettings] = useState<CardSettings | null>(null)
   const [customer, setCustomer] = useState<CustomerInfo | null>(null)
+  const rankSettingsRef = useRef<any[]>([])
   
   // Store ID from query param
   const storeId = searchParams.get('store_id')
@@ -67,26 +68,49 @@ export default function MemberCardLIFF() {
           document.title = `${store.name} - 会員証`
         }
 
-        const cardSettings = store.membership_card_settings as any || {}
-        const rankSettings = store.membership_rank_settings as any || [
-          { name: 'Bronze', threshold: 0 },
-          { name: 'Silver', threshold: 100 },
-          { name: 'Gold', threshold: 500 }
-        ]
+        const updateSettingsFromStore = (storeData: any) => {
+          let cardSettings = storeData.membership_card_settings
+          if (typeof cardSettings === 'string') {
+            try {
+              cardSettings = JSON.parse(cardSettings)
+            } catch (e) {
+              console.error('Failed to parse card settings', e)
+              cardSettings = {}
+            }
+          }
+          cardSettings = cardSettings || {}
 
-        setSettings({
-          title: store.membership_card_title || "MEMBER'S CARD",
-          color: store.membership_card_color || '#000000',
-          logo_url: store.membership_card_logo_url,
-          template_id: store.membership_card_template_id || 'simple',
-          card_type: cardSettings.card_type || 'point',
-          name_display: cardSettings.name_display || 'line_name',
-          show_icon: cardSettings.show_icon ?? true,
-          show_member_no: cardSettings.show_member_no ?? true,
-          show_rank: cardSettings.show_rank ?? true,
-          stamp_config: cardSettings.stamp_config || { total_slots: 20, goal_reward: '特典チケット' },
-          rank_settings: rankSettings
-        })
+          const rankSettings = storeData.membership_rank_settings || [
+            { name: 'Bronze', threshold: 0 },
+            { name: 'Silver', threshold: 100 },
+            { name: 'Gold', threshold: 500 }
+          ]
+          
+          rankSettingsRef.current = rankSettings
+
+          // Ensure stamp_config values are properly typed
+          const stampConfig = cardSettings.stamp_config || { total_slots: 20, goal_reward: '特典チケット' }
+          const safeStampConfig = {
+            total_slots: Number(stampConfig.total_slots) || 20,
+            goal_reward: stampConfig.goal_reward || '特典チケット'
+          }
+
+          setSettings({
+            title: storeData.membership_card_title || "MEMBER'S CARD",
+            color: storeData.membership_card_color || '#000000',
+            logo_url: storeData.membership_card_logo_url,
+            template_id: storeData.membership_card_template_id || 'simple',
+            card_type: cardSettings.card_type || 'point',
+            name_display: cardSettings.name_display || 'line_name',
+            show_icon: cardSettings.show_icon ?? true,
+            show_member_no: cardSettings.show_member_no ?? true,
+            show_rank: cardSettings.show_rank ?? true,
+            stamp_config: safeStampConfig,
+            rank_settings: rankSettings
+          })
+        }
+
+        updateSettingsFromStore(store)
 
         // 3. Fetch Customer Data
         let userId = 'mock_user'
@@ -123,7 +147,7 @@ export default function MemberCardLIFF() {
         // Calculate Rank
         const getRank = (p: number) => {
           // Sort ranks by threshold desc
-          const sortedRanks = [...rankSettings].sort((a: any, b: any) => b.threshold - a.threshold)
+          const sortedRanks = [...rankSettingsRef.current].sort((a: any, b: any) => b.threshold - a.threshold)
           const rank = sortedRanks.find((r: any) => p >= r.threshold)
           return rank ? rank.name : sortedRanks[sortedRanks.length - 1].name
         }
@@ -138,7 +162,7 @@ export default function MemberCardLIFF() {
         })
 
         // 4. Realtime Subscription
-        const channel = supabase
+        const pointsChannel = supabase
           .channel(`points-${userId}`)
           .on(
             'postgres_changes',
@@ -160,8 +184,26 @@ export default function MemberCardLIFF() {
           )
           .subscribe()
 
+        const storeChannel = supabase
+          .channel(`store-settings-${storeId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'stores',
+              filter: `id=eq.${storeId}`
+            },
+            (payload) => {
+              console.log('Store settings updated:', payload)
+              updateSettingsFromStore(payload.new)
+            }
+          )
+          .subscribe()
+
         return () => {
-          supabase.removeChannel(channel)
+          supabase.removeChannel(pointsChannel)
+          supabase.removeChannel(storeChannel)
         }
 
       } catch (err) {
@@ -227,7 +269,7 @@ export default function MemberCardLIFF() {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md space-y-6"
+        className="w-full max-w-sm space-y-6"
       >
         {/* Card Component */}
         <div className={getCardStyle()} style={getCardBackground()}>
