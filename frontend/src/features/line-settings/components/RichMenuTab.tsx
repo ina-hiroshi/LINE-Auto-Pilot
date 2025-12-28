@@ -1,4 +1,4 @@
-import type { FormEvent, RefObject } from 'react'
+import type { FormEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { ExternalLink, Image as ImageIcon, Layout, MessageSquare, MousePointerClick, Palette, Smartphone } from 'lucide-react'
 import { Save, Loader2 } from 'lucide-react'
