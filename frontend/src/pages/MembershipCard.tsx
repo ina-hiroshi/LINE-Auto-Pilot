@@ -387,34 +387,38 @@ export default function MembershipCard() {
                     </select>
                   </div>
 
-                  <div className="space-y-3">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={settings.show_icon}
-                        onChange={(e) => setSettings(prev => ({ ...prev, show_icon: e.target.checked }))}
-                        className="rounded text-primary-600 focus:ring-primary-500"
-                      />
-                      <span className="text-sm text-gray-700">LINEアイコンを表示</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={settings.show_member_no}
-                        onChange={(e) => setSettings(prev => ({ ...prev, show_member_no: e.target.checked }))}
-                        className="rounded text-primary-600 focus:ring-primary-500"
-                      />
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
                       <span className="text-sm text-gray-700">会員Noを表示</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={settings.show_rank}
-                        onChange={(e) => setSettings(prev => ({ ...prev, show_rank: e.target.checked }))}
-                        className="rounded text-primary-600 focus:ring-primary-500"
-                      />
+                      <button
+                        onClick={() => setSettings(prev => ({ ...prev, show_member_no: !prev.show_member_no }))}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                          settings.show_member_no ? 'bg-primary-600' : 'bg-gray-200'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            settings.show_member_no ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-4">
                       <span className="text-sm text-gray-700">会員ランクを表示</span>
-                    </label>
+                      <button
+                        onClick={() => setSettings(prev => ({ ...prev, show_rank: !prev.show_rank }))}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                          settings.show_rank ? 'bg-primary-600' : 'bg-gray-200'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            settings.show_rank ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -537,23 +541,14 @@ export default function MembershipCard() {
                   <h3 className={`font-bold text-lg tracking-wider ${settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
                     {settings.title}
                   </h3>
-                  {settings.show_icon && (
+                  {isPro && settings.logo_url && (
                     <div className={`p-2 rounded-lg backdrop-blur-sm ${
                       settings.template_id === 'simple' ? 'bg-gray-50' : 
                       settings.template_id === 'elegant' ? 'bg-[#F5F5F0]' :
                       settings.template_id === 'pop' ? 'bg-primary-100 text-primary-600' :
                       'bg-slate-800 text-slate-400'
                     }`}>
-                      {settings.logo_url ? (
-                        <img src={settings.logo_url} alt="Logo" className="w-6 h-6 object-contain" />
-                      ) : (
-                        <CreditCard className={`w-6 h-6 ${
-                          settings.template_id === 'simple' ? 'text-gray-400' :
-                          settings.template_id === 'elegant' ? 'text-[#44403C]' :
-                          settings.template_id === 'pop' ? 'text-primary-600' :
-                          'text-slate-400'
-                        }`} />
-                      )}
+                      <img src={settings.logo_url} alt="Logo" className="w-6 h-6 object-contain" />
                     </div>
                   )}
                 </div>

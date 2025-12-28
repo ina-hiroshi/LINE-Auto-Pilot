@@ -322,23 +322,14 @@ export default function MemberCardLIFF() {
               <h3 className={`font-bold text-lg tracking-wider ${settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
                 {settings.title}
               </h3>
-              {settings.show_icon && (
+              {settings.logo_url && (
                 <div className={`p-2 rounded-lg backdrop-blur-sm ${
                   settings.template_id === 'simple' ? 'bg-gray-50' : 
                   settings.template_id === 'elegant' ? 'bg-[#F5F5F0]' :
                   settings.template_id === 'pop' ? 'bg-primary-100 text-primary-600' :
                   'bg-slate-800 text-slate-400'
                 }`}>
-                  {settings.logo_url ? (
-                    <img src={settings.logo_url} alt="Logo" className="w-6 h-6 object-contain" />
-                  ) : (
-                    <CreditCard className={`w-6 h-6 ${
-                      settings.template_id === 'simple' ? 'text-gray-400' :
-                      settings.template_id === 'elegant' ? 'text-[#44403C]' :
-                      settings.template_id === 'pop' ? 'text-primary-600' :
-                      'text-slate-400'
-                    }`} />
-                  )}
+                  <img src={settings.logo_url} alt="Logo" className="w-6 h-6 object-contain" />
                 </div>
               )}
             </div>
@@ -346,7 +337,7 @@ export default function MemberCardLIFF() {
             {settings.card_type === 'stamp' ? (
               <div className="flex-1 flex flex-col justify-between py-1">
                 <div 
-                  className={`grid ${settings.stamp_config.total_slots > 20 ? 'gap-0.5' : 'gap-1'} ${settings.stamp_config.total_slots <= 10 ? 'px-12' : ''}`}
+                  className={`grid ${settings.stamp_config.total_slots > 20 ? 'gap-0.5' : 'gap-1'} ${settings.stamp_config.total_slots <= 10 ? 'px-8' : ''}`}
                   style={{
                     gridTemplateColumns: `repeat(${
                       settings.stamp_config.total_slots <= 10 ? 5 :
@@ -386,7 +377,7 @@ export default function MemberCardLIFF() {
                   </div>
                   
                   {(settings.show_member_no || settings.show_rank) && (
-                    <div className={`flex justify-between text-[8px] ${
+                    <div className={`flex justify-between text-[10px] mt-1 ${
                       settings.template_id === 'simple' ? 'text-gray-400' :
                       settings.template_id === 'elegant' ? 'text-[#44403C]/60' :
                       settings.template_id === 'pop' ? 'text-gray-500' :
