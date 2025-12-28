@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Loader2, User, Search, Edit2, Save, History, MessageSquare, ChevronRight, Gift, CreditCard } from 'lucide-react'
+import { Loader2, User, Search, Edit2, Save, History, MessageSquare, ChevronRight, Gift, CreditCard, QrCode } from 'lucide-react'
 import Modal from '../components/Modal'
 import Toast from '../components/Toast'
+import QRScannerModal from '../components/QRScannerModal'
 
 type Customer = {
   id: string
@@ -36,6 +37,7 @@ export default function Customers() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [storeId, setStoreId] = useState<string | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [storeSettings, setStoreSettings] = useState<any>(null)
 
   // Modal State
@@ -50,6 +52,7 @@ export default function Customers() {
   const [reservationHistory, setReservationHistory] = useState<ReservationHistory[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false)
 
   // Toast State
   const [toast, setToast] = useState<{ isVisible: boolean; message: string; type: 'success' | 'error' }>({
@@ -102,6 +105,7 @@ export default function Customers() {
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customers, searchParams])
 
   useEffect(() => {
@@ -139,7 +143,7 @@ export default function Customers() {
       const { data: customersData, error: custError } = await supabase
         .from('customers')
         .select('*')
-        .eq('store_id', storeId)
+        .eq('store_id', store.id)
 
       if (custError) throw custError
       if (!customersData) return
@@ -148,7 +152,7 @@ export default function Customers() {
       const { data: pointsData, error: pointsError } = await supabase
         .from('points')
         .select('line_user_id, balance')
-        .eq('store_id', storeId)
+        .eq('store_id', store.id)
 
       if (pointsError) throw pointsError
 
@@ -156,7 +160,7 @@ export default function Customers() {
       const { data: reservationsData, error: resError } = await supabase
         .from('reservations')
         .select('line_user_id, start_time')
-        .eq('store_id', storeId)
+        .eq('store_id', store.id)
         .lt('start_time', new Date().toISOString()) // Past reservations
         .neq('status', 'cancelled')
         .order('start_time', { ascending: false })
@@ -324,6 +328,33 @@ export default function Customers() {
       setSaving(false)
     }
   }
+const handleScan = (data: string) => {
+    try {
+      // Parse URL to get customer_id
+      // Expected format: https://.../customers?customer_id=...
+      const url = new URL(data)
+      const customerId = url.searchParams.get('customer_id')
+      
+      if (customerId) {
+        const target = customers.find(c => c.line_user_id === customerId || c.id === customerId)
+        if (target) {
+          setIsQRScannerOpen(false)
+          handleCustomerClick(target)
+          setToast({ isVisible: true, message: '会員証を読み取りました', type: 'success' })
+        } else {
+          setToast({ isVisible: true, message: '該当する顧客が見つかりません', type: 'error' })
+          setIsQRScannerOpen(false)
+        }
+      } else {
+        setToast({ isVisible: true, message: '無効なQRコードです', type: 'error' })
+        setIsQRScannerOpen(false)
+      }
+    } catch (e) {
+      console.error('QR Parse Error:', e)
+      setToast({ isVisible: true, message: 'QRコードの読み取りに失敗しました', type: 'error' })
+      setIsQRScannerOpen(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -344,17 +375,26 @@ export default function Customers() {
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h1 className="text-2xl font-bold text-gray-900">顧客一覧</h1>
-        <div className="relative w-full sm:w-64">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
+        <div className="flex gap-3 w-full sm:w-auto">
+          <button
+            onClick={() => setIsQRScannerOpen(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors shadow-sm whitespace-nowrap"
+          >
+            <QrCode className="w-4 h-4" />
+            <span className="text-sm font-bold">会員証読取</span>
+          </button>
+          <div className="relative w-full sm:w-64">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+              placeholder="名前で検索..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-          <input
-            type="text"
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            placeholder="名前で検索..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
         </div>
       </div>
 
@@ -431,6 +471,13 @@ export default function Customers() {
       </div>
 
       {/* Customer Detail Modal */}
+      {/* QR Scanner Modal */}
+      <QRScannerModal
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+        onScan={handleScan}
+      />
+
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -467,24 +514,21 @@ export default function Customers() {
                   </div>
                 )}
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">
+              <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-1 items-center">
+                <div className="font-bold text-gray-900 text-lg leading-tight truncate">
                   {selectedCustomer.real_name ? (
-                    <div className="flex flex-col">
+                    <div className="flex items-baseline gap-2">
                       <span>{selectedCustomer.real_name}</span>
                       {selectedCustomer.furigana && (
-                        <span className="text-xs text-gray-500 font-normal">{selectedCustomer.furigana}</span>
+                        <span className="text-xs text-gray-500 font-normal truncate">{selectedCustomer.furigana}</span>
                       )}
                     </div>
                   ) : (
                     selectedCustomer.display_name || 'ゲスト'
                   )}
-                </h3>
-                {selectedCustomer.real_name && selectedCustomer.display_name && (
-                  <p className="text-xs text-gray-500 mt-0.5">LINE: {selectedCustomer.display_name}</p>
-                )}
-                <p className="text-xs text-gray-400 mt-0.5">ID: {selectedCustomer.line_user_id.substring(0, 8)}...</p>
-                <div className="mt-1 flex gap-2">
+                </div>
+
+                <div className="flex justify-end">
                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
                         selectedCustomer.status === 'VIP' 
                           ? 'bg-yellow-100 text-yellow-800' 
@@ -492,6 +536,18 @@ export default function Customers() {
                       }`}>
                         {selectedCustomer.status === 'VIP' ? 'VIP' : '会員'}
                    </span>
+                </div>
+
+                <div className="text-xs text-gray-500 truncate">
+                  {selectedCustomer.real_name && selectedCustomer.display_name ? (
+                    `LINE: ${selectedCustomer.display_name}`
+                  ) : (
+                    <span className="opacity-0">-</span>
+                  )}
+                </div>
+
+                <div className="text-xs text-gray-400 text-right font-mono">
+                  ID: {selectedCustomer.line_user_id.substring(0, 8)}
                 </div>
               </div>
             </div>
