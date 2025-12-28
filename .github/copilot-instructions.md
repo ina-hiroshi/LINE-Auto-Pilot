@@ -2,47 +2,52 @@
 
 - **言語**: 会話・コードコメントは日本語のみ。
 - **技術構成**: React 19 + Vite 7 + React Router 7 + Tailwind CSS 4 + Lucide + Framer Motion。バックエンドは Supabase（Auth/DB/Storage/Realtime）＋ Edge Functions（Deno）。
-- **開発コマンド**: `cd frontend && npm install` → `npm run dev`。ビルド `npm run build`、Lint `npm run lint`。Edge Functions デプロイ例: `supabase functions deploy line-webhook --no-verify-jwt` / `supabase functions deploy booking --no-verify-jwt`。
+- **開発コマンド**: `cd frontend && npm install` → `npm run dev`。ビルド `npm run build`、Lint `npm run lint`。
+- **デプロイ**: `supabase functions deploy [function-name] --no-verify-jwt`。
 
-### ルーティング / 認証
+### アーキテクチャ・データフロー
 
-- 認証と初期化は [frontend/src/App.tsx](frontend/src/App.tsx)。`supabase.auth.onAuthStateChange` でセッション監視し、`stores` の存在チェック後にルートを出し分け。`/booking` は常に公開、それ以外はストア未作成なら `/initial-setup` へリダイレクト。
-- ログアウトは Layout/InitialSetup の流儀に合わせ「`localStorage`/`sessionStorage` クリア → supabase サインアウト → `/` リロード」。
+- **認証**: [frontend/src/App.tsx](frontend/src/App.tsx) で `supabase.auth.onAuthStateChange` を監視。`/booking` は公開ルート、それ以外は `stores` 未作成なら `/initial-setup` へ誘導。
+- **データアクセス**:
+  - クライアント: `import { supabase } from '@/lib/supabase'` を使用。RLS により `stores.owner_id = auth.uid()` で自動フィルタリング。
+  - サーバーサイド: Edge Functions は `supabase-js` を使用。`booking` 関数などは `service_role` キーが必要な場合あり（管理者権限での操作）。
+- **状態管理**: グローバルステートは最小限。基本は React Query や `useEffect` + Supabase Realtime でサーバー状態と同期。
 
-### Supabase 利用規約
+### Edge Functions (API)
 
-- クライアントは [frontend/src/lib/supabase.ts](frontend/src/lib/supabase.ts) の `supabase` を共有し、`import { supabase } from '@/lib/supabase'` で統一。
-- DB 取得は RLS 前提。`stores.owner_id = auth.uid()` を基点に `store_id` / `line_account_id` でスコープ。
-- Edge Functions 呼び出しは `supabase.functions.invoke('booking', { body: { action: ... } })` パターンを踏襲（予約取得/更新/キャンセル、空き枠計算、顧客チェックなど）。
-- Google 連携時は常に Authorization ヘッダーへ `session.access_token` を付与（例: `fetch(.../google-auth|google-calendar, { headers: { Authorization: Bearer }})`）。
+`supabase.functions.invoke('function-name', { body: { ... } })` で呼び出し。
 
-### 予約管理 UI（管理画面）
+- **booking**: 予約システムの核。`action` パラメータで分岐。
+  - `check_customer`: 顧客存在確認
+  - `get_active_reservation`: 有効な予約取得
+  - `get_available_slots`: 空き枠計算
+  - `create_reservation` / `update_reservation` / `cancel_reservation`: 予約操作
+- **line-webhook**: LINE からのイベント受信。署名検証 → 自動応答判定 → `customer_logs` 保存。
+- **manual-reply**: 管理画面からの手動返信。`messageLogId`, `replyText`, `userId` を受け取り LINE Messaging API を叩く。
+- **apply-rich-menu**: リッチメニューの生成・適用。`store_id`, `generated_image_url`, `liff_id` を使用。
+- **google-auth / google-calendar**: Google 連携用。OAuth フローとカレンダー同期。
 
-- [frontend/src/pages/Reservations.tsx](frontend/src/pages/Reservations.tsx): `reservations` を `store_id` で絞り、`customers` と突合。`staff_members`/`booking_menus` を外部キーで join 済み。
-- Supabase Realtime channel 名は `reservations-realtime`。`postgres_changes` で `store_id` フィルターし、全イベントで `fetchReservations()` を再実行。
-- Google カレンダー: `google-auth` GET で認可 URL、POST で code 交換し `google_calendar_settings` に保存。`google-calendar` GET で `action=list_calendars|list_events`。`redirect_uri` は現ページ（/reservations）。
+### フロントエンド実装規約
 
-### 予約フロー（LIFF 公開画面）
+- **コンポーネント**: `frontend/src/components` (共通), `frontend/src/features` (機能別), `frontend/src/pages` (ページ)。
+- **スタイリング**: Tailwind CSS 4。色は `primary (#00c3dc)` を基調。アイコンは `lucide-react`。
+- **予約管理 (Reservations.tsx)**:
+  - `reservations-realtime` チャンネルで `postgres_changes` を監視し、予約変更を即座に反映。
+  - 外部キー結合 (`staff_members`, `booking_menus`, `customers`) 済みのデータを扱う。
+- **LIFF 予約 (Booking.tsx)**:
+  - `booking_system_type` (generic/salon/restaurant) に応じてステップを動的に切り替え。
+  - `window.postMessage` で親ウィンドウ（管理画面プレビュー）からの設定変更を即時反映。
 
-- [frontend/src/pages/Booking.tsx](frontend/src/pages/Booking.tsx): LIFF で動く公開予約。`VITE_LIFF_ID` 必須。非 LINE or DEV ではモックユーザで代替。
-- `store_id` は query param 優先、無ければ最初のストアを取得して設定も読み込む（`name`/`liff_template_id`/`liff_theme_color`/`booking_system_type` など）。
-- `booking_system_type` により初期ステップを切替（generic→date, salon→staff_select, restaurant→menu_select）。
-- スタッフ/メニューは [frontend/src/hooks/useStoreResources.ts](frontend/src/hooks/useStoreResources.ts) の `refreshResources()`（`staff_members`/`booking_menus` を is_active で絞り）を利用。
-- 空き枠取得・予約作成/更新/キャンセルは Edge Function `booking` の `action` を切り替えて実行。既存予約がある場合 `existing_reservation` ステップへ遷移。
-- 親ウィンドウ（管理画面）からの設定更新は `window.postMessage` の `UPDATE_SETTINGS` を受信し、UI 状態を即時反映。
+### テスト・検証 (REGRESSION_CHECKLIST 準拠)
 
-### LINE Webhook / 自動応答
+変更時は以下を意識して実装・検証する：
+1. **予約導線**: ログイン → 設定取得 → 枠取得 → 予約確定 まで通るか。
+2. **リアルタイム性**: 管理画面を開いた状態で予約が入った際、リロードなしで反映されるか。
+3. **LINE 連携**: Webhook が 200 を返し、自動応答またはログ保存が行われるか。
+4. **Google 連携**: 認可フローが完了し、カレンダー設定が保存されるか。
 
-- [supabase/functions/line-webhook/index.ts](supabase/functions/line-webhook/index.ts): `destination` で `line_accounts` を特定し、DB から `channel_secret`/`channel_access_token` を取得。Web Crypto API による HMAC-SHA256 検証後、`auto_responses` をスコアリングし、応答ログは `customer_logs` へ保存。
-- [supabase/functions/booking/index.ts](supabase/functions/booking/index.ts): LINE 予約受付・変更・キャンセル API。`line_accounts` から `line_account_id` を引き、`customers` upsert → `reservations` CRUD。キャンセルは status `cancelled` に更新するだけ。時間は JST (+09:00) で ISO 文字列化。
-- Google 連携関数: [supabase/functions/google-auth/index.ts](supabase/functions/google-auth/index.ts) で token 取得保存、[supabase/functions/google-calendar/index.ts](supabase/functions/google-calendar/index.ts) で token 更新とリスト取得。全関数で CORS/OPTIONS を実装。
+### 関連ファイル
 
-### デザイン / UI トーン
-
-- Tailwind 4 ユーティリティベースで `primary (#00c3dc)` を軸に配色。アイコンは Lucide のみ。必要に応じて Framer Motion でローディング等に動きを付ける。
-- 共通 UI: モーダル [frontend/src/components/Modal.tsx](frontend/src/components/Modal.tsx)、トースト [frontend/src/components/Toast.tsx](frontend/src/components/Toast.tsx)、LIFF 用モーダル/トーストは `components/liff/` 配下を再利用。
-
-### ナレッジ
-
-- 主要ルート: `/` Dashboard, `/reservations`, `/line-settings`, `/auto-responses`, `/customers`, `/dev`, `/booking`（公開）, `/initial-setup`。
-- 仕様・データモデルの全体像は [REQUIREMENTS.md](REQUIREMENTS.md) を参照。マイグレーションは `supabase/migrations/` を参照してフィールド追加の整合を取る。
+- 仕様詳細: [REQUIREMENTS.md](REQUIREMENTS.md)
+- テスト項目: [REGRESSION_CHECKLIST.md](REGRESSION_CHECKLIST.md)
+- DB 定義: `supabase/migrations/`

@@ -505,7 +505,7 @@ export default function MembershipCard() {
           }`}>
             <div 
               className={`
-                w-full max-w-sm aspect-[1.586/1] rounded-xl shadow-xl p-5 relative overflow-hidden transition-all duration-300
+                w-full max-w-sm min-h-[220px] rounded-xl shadow-xl p-4 relative overflow-hidden transition-all duration-300 flex flex-col
                 ${settings.template_id === 'simple' ? 'text-gray-800 bg-white border border-gray-100' : 
                   settings.template_id === 'elegant' ? 'text-[#44403C] border border-[#E7E5E4]' :
                   settings.template_id === 'pop' ? 'text-gray-800 bg-white border-2 border-white' :
