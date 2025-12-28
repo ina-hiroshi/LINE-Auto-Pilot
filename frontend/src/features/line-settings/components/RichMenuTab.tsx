@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react'
 import { useMemo, useState } from 'react'
-import { ExternalLink, Grid, Image as ImageIcon, Layout, MessageSquare, MousePointerClick, Palette, Smartphone } from 'lucide-react'
+import { ExternalLink, Image as ImageIcon, Layout, MessageSquare, MousePointerClick, Palette, Smartphone } from 'lucide-react'
 import { Save, Loader2 } from 'lucide-react'
 import { AVAILABLE_ICONS, RICH_MENU_LAYOUTS } from '../constants'
 import type { RichMenuAction, RichMenuSettings } from '../types'
