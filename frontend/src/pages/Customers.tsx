@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { Loader2, User, Search, Edit2, Save, X, Plus, Minus, History, MessageSquare } from 'lucide-react'
+import { Loader2, User, Search, Edit2, Save, X, Plus, Minus, History, MessageSquare, ChevronRight, Gift, CreditCard } from 'lucide-react'
 import Modal from '../components/Modal'
 import Toast from '../components/Toast'
 
@@ -378,6 +378,9 @@ export default function Customers() {
                         {customer.status === 'VIP' ? 'VIP' : '会員'}
                       </span>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-gray-400">
+                      <ChevronRight className="w-5 h-5 inline-block" />
+                    </td>
                   </tr>
                 ))
               )}
@@ -439,8 +442,8 @@ export default function Customers() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Left Column: Basic Info & Notes */}
+            <div className="flex flex-col gap-8">
+              {/* Basic Info & Notes */}
               <div className="space-y-6">
                 <div>
                   <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
@@ -486,46 +489,76 @@ export default function Customers() {
                 </div>
               </div>
 
-              {/* Right Column: Points & History */}
+              {/* Points & History */}
               <div className="space-y-6">
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
                   <h4 className="text-sm font-bold text-gray-900 mb-3">ポイント管理</h4>
                   <div className="flex items-baseline gap-2 mb-4">
-                    <span className="text-2xl font-bold text-primary-600">{selectedCustomer.points.toLocaleString()}</span>
+                    <span className="text-3xl font-bold text-primary-600">{selectedCustomer.points.toLocaleString()}</span>
                     <span className="text-sm text-gray-500">pt</span>
                   </div>
                   
-                  <div className="space-y-3">
-                    <div className="flex gap-2">
+                  <div className="space-y-4">
+                    {/* Operation Type Tabs */}
+                    <div className="flex p-1 bg-gray-200 rounded-lg">
                       <button
                         onClick={() => setPointOperation(prev => ({ ...prev, type: 'add' }))}
-                        className={`flex-1 py-1.5 text-xs font-medium rounded-md border ${pointOperation.type === 'add' ? 'bg-primary-50 border-primary-200 text-primary-700' : 'bg-white border-gray-200 text-gray-600'}`}
+                        className={`flex-1 py-2 text-xs font-bold rounded-md flex items-center justify-center gap-2 transition-all ${
+                          pointOperation.type === 'add' 
+                            ? 'bg-white text-primary-700 shadow-sm' 
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
                       >
+                        <Gift className="w-4 h-4" />
                         付与する
                       </button>
                       <button
                         onClick={() => setPointOperation(prev => ({ ...prev, type: 'use' }))}
-                        className={`flex-1 py-1.5 text-xs font-medium rounded-md border ${pointOperation.type === 'use' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-200 text-gray-600'}`}
+                        className={`flex-1 py-2 text-xs font-bold rounded-md flex items-center justify-center gap-2 transition-all ${
+                          pointOperation.type === 'use' 
+                            ? 'bg-white text-red-600 shadow-sm' 
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
                       >
+                        <CreditCard className="w-4 h-4" />
                         利用する
                       </button>
                     </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="number"
-                        value={pointOperation.amount}
-                        onChange={(e) => setPointOperation(prev => ({ ...prev, amount: e.target.value }))}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
-                        placeholder="ポイント数"
-                        min="1"
-                      />
-                      <button
-                        onClick={handleUpdatePoints}
-                        disabled={!pointOperation.amount || saving}
-                        className={`px-4 py-2 rounded-md text-white text-sm font-bold ${pointOperation.type === 'add' ? 'bg-primary-600 hover:bg-primary-700' : 'bg-red-500 hover:bg-red-600'} disabled:opacity-50`}
-                      >
-                        実行
-                      </button>
+
+                    {/* Input Area */}
+                    <div className="bg-white p-3 rounded-lg border border-gray-200">
+                      <label className="block text-xs font-medium text-gray-500 mb-2">
+                        {pointOperation.type === 'add' ? '付与するポイント数' : '利用するポイント数'}
+                      </label>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="number"
+                            value={pointOperation.amount}
+                            onChange={(e) => setPointOperation(prev => ({ ...prev, amount: e.target.value }))}
+                            className="w-full pl-3 pr-8 py-2 border border-gray-300 rounded-md text-sm focus:ring-primary-500 focus:border-primary-500"
+                            placeholder="0"
+                            min="1"
+                          />
+                          <span className="absolute right-3 top-2.5 text-xs text-gray-400">pt</span>
+                        </div>
+                        <button
+                          onClick={handleUpdatePoints}
+                          disabled={!pointOperation.amount || saving}
+                          className={`px-4 py-2 rounded-md text-white text-sm font-bold shadow-sm transition-colors ${
+                            pointOperation.type === 'add' 
+                              ? 'bg-primary-600 hover:bg-primary-700' 
+                              : 'bg-red-500 hover:bg-red-600'
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          実行
+                        </button>
+                      </div>
+                      <p className="mt-2 text-[10px] text-gray-400">
+                        {pointOperation.type === 'add' 
+                          ? '※ 来店時やキャンペーン等でポイントを付与します' 
+                          : '※ 特典交換などでポイントを消費します'}
+                      </p>
                     </div>
                   </div>
                 </div>
