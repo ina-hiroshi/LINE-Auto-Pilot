@@ -314,6 +314,13 @@ export default function Customers() {
 
       if (error) throw error
 
+      // Broadcast update to LIFF clients
+      await supabase.channel(`points:${storeId}`).send({
+        type: 'broadcast',
+        event: 'update',
+        payload: { line_user_id: selectedCustomer.line_user_id }
+      })
+
       if (storeSettings?.card_type !== 'stamp' || pointOperation.type !== 'add' || newBalance !== 0) {
         setToast({ isVisible: true, message: 'ポイントを更新しました', type: 'success' })
       }

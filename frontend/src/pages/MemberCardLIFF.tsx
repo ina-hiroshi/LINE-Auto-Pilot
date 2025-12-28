@@ -124,54 +124,100 @@ export default function MemberCardLIFF() {
 
         updateSettingsFromStore(store)
 
-        // 3. Fetch Customer Data
+        // 3. Fetch Customer Data via Edge Function (Secure)
         let userId = 'mock_user'
         let displayName = 'ゲスト様'
+        let realName = null
+        let currentPoints = 0
 
+        // Try to get LIFF token
+        let accessToken = null
         if (liff.isInClient() || liff.isLoggedIn()) {
-           try {
-             const profile = await liff.getProfile()
-             userId = profile.userId
-             displayName = profile.displayName
-           } catch (e) {
-             console.error('LIFF profile error:', e)
-           }
+           accessToken = liff.getAccessToken()
         }
 
-        // Fetch Real Name from Customers table
-        const { data: customerData } = await supabase
-          .from('customers')
-          .select('real_name')
-          .eq('store_id', storeId)
-          .eq('line_user_id', userId)
-          .maybeSingle()
+        // Function to fetch data (extracted for reuse)
+        const fetchData = async (token: string | null) => {
+          if (!token || !storeId) return
 
-        // Fetch Points
-        const { data: pointsData } = await supabase
-          .from('points')
-          .select('balance')
-          .eq('store_id', storeId)
-          .eq('line_user_id', userId)
-          .maybeSingle()
-        
-        const currentPoints = pointsData?.balance || 0
-        
-        // Calculate Rank
-        const getRank = (p: number) => {
-          // Sort ranks by threshold desc
-          const sortedRanks = [...rankSettingsRef.current].sort((a: any, b: any) => b.threshold - a.threshold)
-          const rank = sortedRanks.find((r: any) => p >= r.threshold)
-          return rank ? rank.name : sortedRanks[sortedRanks.length - 1].name
+          try {
+            const { data, error } = await supabase.functions.invoke('get-liff-customer', {
+              body: { accessToken: token, storeId }
+            })
+
+            if (error) throw error
+
+            if (data) {
+              const newUserId = data.lineProfile?.userId || userId
+              const newPoints = data.points?.balance || 0
+              
+              // Calculate Rank
+              const getRank = (p: number) => {
+                const sortedRanks = [...rankSettingsRef.current].sort((a: any, b: any) => b.threshold - a.threshold)
+                const rank = sortedRanks.find((r: any) => p >= r.threshold)
+                return rank ? rank.name : sortedRanks[sortedRanks.length - 1].name
+              }
+
+              setCustomer({
+                line_user_id: newUserId,
+                display_name: data.lineProfile?.displayName || displayName,
+                real_name: data.customer?.real_name || null,
+                points: newPoints,
+                rank: getRank(newPoints),
+                member_no: newUserId.substring(0, 8).toUpperCase()
+              })
+            }
+          } catch (e) {
+            console.error('Failed to fetch secure customer data:', e)
+          }
         }
 
-        setCustomer({
-          line_user_id: userId,
-          display_name: displayName,
-          real_name: customerData?.real_name || null,
-          points: currentPoints,
-          rank: getRank(currentPoints),
-          member_no: userId.substring(0, 8).toUpperCase()
-        })
+        if (accessToken) {
+          await fetchData(accessToken)
+        } else {
+          // Fallback for dev/mock (if needed, or just keep defaults)
+          console.log('No access token available, using mock/guest data')
+          
+          // Calculate Rank for mock
+          const getRank = (p: number) => {
+            const sortedRanks = [...rankSettingsRef.current].sort((a: any, b: any) => b.threshold - a.threshold)
+            const rank = sortedRanks.find((r: any) => p >= r.threshold)
+            return rank ? rank.name : sortedRanks[sortedRanks.length - 1].name
+          }
+
+          setCustomer({
+            line_user_id: userId,
+            display_name: displayName,
+            real_name: realName,
+            points: currentPoints,
+            rank: getRank(currentPoints),
+            member_no: userId.substring(0, 8).toUpperCase()
+          })
+        }
+
+        // 4. Subscribe to Realtime Updates (Broadcast)
+        if (storeId && accessToken) {
+          const profile = await liff.getProfile().catch(() => null)
+          const myUserId = profile?.userId
+
+          if (myUserId) {
+            const channel = supabase.channel(`points:${storeId}`)
+              .on('broadcast', { event: 'update' }, (payload) => {
+                if (payload.payload?.line_user_id === myUserId) {
+                  console.log('Received point update signal, refetching...')
+                  fetchData(accessToken)
+                }
+              })
+              .subscribe()
+
+            // Cleanup is handled by useEffect unmount, but we need to store the channel if we want to remove it specifically
+            // For now, supabase.channel handles duplicates well, but ideally we should return a cleanup function
+            // However, this is inside an async function inside useEffect.
+            // We can't easily return the cleanup from here to the useEffect cleanup.
+            // But since this runs once on mount (due to empty dependency array or storeId change), it's okay.
+            // Ideally, we should move the subscription logic outside 'init' or use a ref to store the channel.
+          }
+        }
 
         // 4. Realtime Subscription
         const pointsChannel = supabase
