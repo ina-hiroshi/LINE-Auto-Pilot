@@ -233,8 +233,17 @@ export default function Booking() {
           if (data.name) document.title = data.name
           
           // Check Plan
-          const { data: plan } = await supabase.rpc('get_store_plan', { p_store_id: data.id })
-          const isPro = plan === 'pro'
+          let isPro = false
+          try {
+            const { data: plan, error: planError } = await supabase.rpc('get_store_plan', { p_store_id: data.id })
+            if (planError) {
+              console.error('Failed to check plan:', planError)
+            } else {
+              isPro = plan === 'pro'
+            }
+          } catch (e) {
+            console.error('Error checking plan:', e)
+          }
 
           setStoreSettings({
             name: data.name || '',
@@ -255,8 +264,17 @@ export default function Booking() {
           if (data.name) document.title = data.name
 
           // Check Plan
-          const { data: plan } = await supabase.rpc('get_store_plan', { p_store_id: targetStoreId })
-          const isPro = plan === 'pro'
+          let isPro = false
+          try {
+            const { data: plan, error: planError } = await supabase.rpc('get_store_plan', { p_store_id: targetStoreId })
+            if (planError) {
+              console.error('Failed to check plan:', planError)
+            } else {
+              isPro = plan === 'pro'
+            }
+          } catch (e) {
+            console.error('Error checking plan:', e)
+          }
 
           setStoreSettings({
             name: data.name || '',
