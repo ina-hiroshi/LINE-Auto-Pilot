@@ -245,7 +245,7 @@ export default function MemberCardLIFF() {
             },
             (payload) => {
               console.log('Store settings updated:', payload)
-              updateSettingsFromStore(payload.new)
+              updateSettingsFromStore(payload.new, isPro)
             }
           )
           .subscribe()

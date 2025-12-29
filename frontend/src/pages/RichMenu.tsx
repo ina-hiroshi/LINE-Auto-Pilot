@@ -8,7 +8,6 @@ import { RichMenuTab } from '../features/line-settings/components/RichMenuTab'
 import type { RichMenuSettings, RichMenuAction } from '../features/line-settings/types'
 import { AVAILABLE_ICONS, RICH_MENU_LAYOUTS } from '../features/line-settings/constants'
 import { usePlan } from '../hooks/usePlan'
-import { DESIGN_THEMES } from '../constants/designThemes'
 
 const DEFAULT_RICH_MENU_SETTINGS: RichMenuSettings = {
   template_id: 'simple',

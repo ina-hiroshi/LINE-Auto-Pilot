@@ -56,7 +56,7 @@ const DEFAULT_SETTINGS: MembershipCardSettings = {
 }
 
 export default function MembershipCard() {
-  const { isPro, loading: planLoading } = usePlan()
+  const { isPro } = usePlan()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState<MembershipCardSettings>(DEFAULT_SETTINGS)
