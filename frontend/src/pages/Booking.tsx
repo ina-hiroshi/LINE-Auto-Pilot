@@ -231,11 +231,16 @@ export default function Booking() {
         targetStoreId = data?.id
         if (data) {
           if (data.name) document.title = data.name
+          
+          // Check Plan
+          const { data: plan } = await supabase.rpc('get_store_plan', { p_store_id: data.id })
+          const isPro = plan === 'pro'
+
           setStoreSettings({
             name: data.name || '',
-            liff_template_id: data.liff_template_id || 'simple',
-            liff_theme_color: data.liff_theme_color || '#00c3dc',
-            liff_logo_url: data.liff_logo_url || '',
+            liff_template_id: isPro ? (data.liff_template_id || 'simple') : 'simple',
+            liff_theme_color: isPro ? (data.liff_theme_color || '#00c3dc') : '#00c3dc',
+            liff_logo_url: isPro ? (data.liff_logo_url || '') : '',
             booking_system_type: data.booking_system_type || 'generic',
             slot_interval_minutes: data.slot_interval_minutes || 60,
             capacity_per_slot: data.capacity_per_slot || 1,
@@ -248,11 +253,16 @@ export default function Booking() {
         const { data } = await supabase.from('stores').select('name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type, slot_interval_minutes, capacity_per_slot, max_booking_days, business_hours').eq('id', targetStoreId).maybeSingle()
         if (data) {
           if (data.name) document.title = data.name
+
+          // Check Plan
+          const { data: plan } = await supabase.rpc('get_store_plan', { p_store_id: targetStoreId })
+          const isPro = plan === 'pro'
+
           setStoreSettings({
             name: data.name || '',
-            liff_template_id: data.liff_template_id || 'simple',
-            liff_theme_color: data.liff_theme_color || '#00c3dc',
-            liff_logo_url: data.liff_logo_url || '',
+            liff_template_id: isPro ? (data.liff_template_id || 'simple') : 'simple',
+            liff_theme_color: isPro ? (data.liff_theme_color || '#00c3dc') : '#00c3dc',
+            liff_logo_url: isPro ? (data.liff_logo_url || '') : '',
             booking_system_type: data.booking_system_type || 'generic',
             slot_interval_minutes: data.slot_interval_minutes || 60,
             capacity_per_slot: data.capacity_per_slot || 1,

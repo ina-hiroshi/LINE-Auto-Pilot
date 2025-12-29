@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, X, Save, MessageSquare, Tag, Loader2, Upload, FileText, Settings, BookOpen, Search, Crown, Lock, Smartphone, RefreshCw, Send, Link as LinkIcon } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, MessageSquare, Tag, Loader2, Upload, FileText, Settings, BookOpen, Search, Crown, Smartphone, RefreshCw, Send, Link as LinkIcon } from 'lucide-react';
+import ProBadge from '../components/ProBadge';
 import { supabase } from '../lib/supabase';
 import { extractTextFromFile, extractTextFromPdfBuffer } from '../lib/fileParser';
 import Modal from '../components/Modal';
@@ -169,6 +170,7 @@ export default function AutoResponses() {
   });
   const [documents, setDocuments] = useState<KnowledgeDoc[]>([]);
   const [savingAi, setSavingAi] = useState(false);
+  const [deleteDocModal, setDeleteDocModal] = useState<{ isOpen: boolean; docId: string | null }>({ isOpen: false, docId: null });
 
   // --- Test Chat State ---
   const [testChatMessages, setTestChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
@@ -184,6 +186,15 @@ export default function AutoResponses() {
 
   useEffect(() => {
     fetchData();
+
+    const handleProfileUpdate = () => {
+      fetchData();
+    };
+
+    window.addEventListener('profile-updated', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('profile-updated', handleProfileUpdate);
+    };
   }, []);
 
   const fetchData = async () => {
@@ -602,14 +613,18 @@ export default function AutoResponses() {
     }
   };
 
-  const handleDeleteDoc = async (docId: string) => {
-    if (!confirm('この資料を削除してもよろしいですか？')) return;
+  const handleDeleteDoc = (docId: string) => {
+    setDeleteDocModal({ isOpen: true, docId });
+  };
+
+  const confirmDeleteDoc = async () => {
+    if (!deleteDocModal.docId) return;
 
     try {
       const { error } = await supabase
         .from('knowledge_base')
         .delete()
-        .eq('id', docId);
+        .eq('id', deleteDocModal.docId);
 
       if (error) throw error;
 
@@ -618,6 +633,8 @@ export default function AutoResponses() {
     } catch (error) {
       console.error('Error deleting doc:', error);
       setToast({ isVisible: true, message: '削除に失敗しました', type: 'error' });
+    } finally {
+      setDeleteDocModal({ isOpen: false, docId: null });
     }
   };
 
@@ -708,7 +725,7 @@ export default function AutoResponses() {
           >
             <Settings size={20} />
             <span className="hidden md:inline">AI基本設定</span>
-            {!isPro && <span className="hidden md:flex items-center gap-1 bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded border border-gray-200"><Lock size={10} /> Pro</span>}
+            {!isPro && <ProBadge className="hidden md:inline-flex" />}
           </button>
           <button
             onClick={() => setActiveTab('knowledge')}
@@ -717,11 +734,11 @@ export default function AutoResponses() {
                 ? 'border-primary-500 text-primary-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
-            title="ナレッジベース"
+            title="AI学習データ"
           >
             <BookOpen size={20} />
-            <span className="hidden md:inline">ナレッジベース</span>
-            {!isPro && <span className="hidden md:flex items-center gap-1 bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded border border-gray-200"><Lock size={10} /> Pro</span>}
+            <span className="hidden md:inline">AI学習データ</span>
+            {!isPro && <ProBadge className="hidden md:inline-flex" />}
           </button>
         </div>
 
@@ -986,7 +1003,7 @@ export default function AutoResponses() {
                     </div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2 text-center">Proプラン限定機能</h3>
                     <p className="text-gray-600 mb-6">
-                      ナレッジベース機能を使用するにはProプランへのアップグレードが必要です。<br />
+                      AI学習データ機能を使用するにはProプランへのアップグレードが必要です。<br />
                       店舗独自の資料をAIに学習させ、より正確な回答を実現します。
                     </p>
                     <div className="text-center">
@@ -1051,7 +1068,7 @@ export default function AutoResponses() {
                       </button>
                     </div>
                     <p className="text-xs text-gray-500 mt-2">
-                      WebページやPDFのURLを入力して、その内容をナレッジベースに追加します。
+                      WebページやPDFのURLを入力して、その内容をAI学習データに追加します。
                     </p>
                   </div>
 
@@ -1280,6 +1297,36 @@ export default function AutoResponses() {
         <div className="space-y-4">
           <p className="text-gray-600">
             この自動応答ルールを削除してもよろしいですか？<br />
+            この操作は取り消せません。
+          </p>
+        </div>
+      </Modal>
+
+      {/* Delete Document Confirmation Modal */}
+      <Modal
+        isOpen={deleteDocModal.isOpen}
+        onClose={() => setDeleteDocModal({ isOpen: false, docId: null })}
+        title="資料を削除"
+        footerContent={
+          <div className="flex justify-end gap-3 w-full">
+            <button
+              onClick={() => setDeleteDocModal({ isOpen: false, docId: null })}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium"
+            >
+              閉じる
+            </button>
+            <button
+              onClick={confirmDeleteDoc}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium shadow-sm"
+            >
+              削除する
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            この資料を削除してもよろしいですか？<br />
             この操作は取り消せません。
           </p>
         </div>

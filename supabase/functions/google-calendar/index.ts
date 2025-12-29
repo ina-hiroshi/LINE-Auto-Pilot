@@ -110,6 +110,94 @@ serve(async (req) => {
       })
     }
 
+    if (action === 'watch') {
+      const calendarId = url.searchParams.get('calendar_id') || 'primary'
+      const channelId = crypto.randomUUID()
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+      const webhookUrl = `${supabaseUrl}/functions/v1/google-calendar-webhook`
+
+      console.log(`Starting watch for calendar: ${calendarId}, webhook: ${webhookUrl}`)
+
+      const watchResponse = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/watch`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            id: channelId,
+            type: 'web_hook',
+            address: webhookUrl,
+          })
+        }
+      )
+
+      const watchData = await watchResponse.json()
+
+      if (watchData.error) {
+        console.error('Google Watch Error:', watchData)
+        throw new Error(`Google Watch Error: ${watchData.error.message}`)
+      }
+
+      // Save channel info to DB
+      const { error: updateError } = await supabaseClient
+        .from('google_calendar_settings')
+        .update({
+          calendar_id: calendarId,
+          channel_id: watchData.id,
+          resource_id: watchData.resourceId,
+          expiration: watchData.expiration,
+          sync_token: null // Reset sync token on new watch
+        })
+        .eq('user_id', user.id)
+
+      if (updateError) {
+        throw new Error(`Database Error: ${updateError.message}`)
+      }
+
+      return new Response(JSON.stringify({ success: true, data: watchData }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (action === 'disconnect') {
+      // 1. Stop Watch if exists
+      if (settings.channel_id && settings.resource_id) {
+        try {
+          await fetch('https://www.googleapis.com/calendar/v3/channels/stop', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              id: settings.channel_id,
+              resourceId: settings.resource_id
+            })
+          })
+          console.log('Google Watch Stopped')
+        } catch (e) {
+          console.error('Failed to stop watch (ignoring):', e)
+        }
+      }
+
+      // 2. Delete Settings
+      const { error: deleteError } = await supabaseClient
+        .from('google_calendar_settings')
+        .delete()
+        .eq('user_id', user.id)
+
+      if (deleteError) {
+        throw new Error(`Database Error: ${deleteError.message}`)
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     return new Response(JSON.stringify({ error: 'Invalid action' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,

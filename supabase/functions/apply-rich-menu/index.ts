@@ -36,6 +36,17 @@ serve(async (req) => {
       throw new Error('Store not found')
     }
 
+    // 1.5 Check Plan
+    let isPro = false
+    if (store.owner_id) {
+      const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('plan')
+        .eq('id', store.owner_id)
+        .single()
+      isPro = profile?.plan === 'pro'
+    }
+
     // 2. Fetch LINE Account Settings
     const { data: lineAccount, error: lineError } = await supabaseClient
       .from('line_accounts')
@@ -49,7 +60,14 @@ serve(async (req) => {
 
     const channelAccessToken = lineAccount.channel_access_token
     const botId = lineAccount.bot_id
-    const layoutId = store.rich_menu_layout_id || 'large_4'
+    let layoutId = store.rich_menu_layout_id || 'large_4'
+
+    // Enforce Free Plan Limits
+    if (!isPro && layoutId !== 'large_4') {
+      console.log('Downgrading layout to large_4 for Free plan')
+      layoutId = 'large_4'
+    }
+
     const actions = store.rich_menu_actions || {}
     const liffId = liff_id || Deno.env.get('LIFF_ID')
     console.log('Using LIFF ID:', liffId)

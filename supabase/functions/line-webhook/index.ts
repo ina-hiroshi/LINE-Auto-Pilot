@@ -67,6 +67,26 @@ async function getProfile(accessToken: string, userId: string): Promise<{ displa
   }
 }
 
+// Helper to start loading animation
+async function startLoadingAnimation(accessToken: string, userId: string) {
+  try {
+    await fetch('https://api.line.me/v2/bot/chat/loading/start', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({
+        chatId: userId,
+        loadingSeconds: 20 // Display for up to 20 seconds
+      })
+    })
+  } catch (e) {
+    console.error('Error starting loading animation:', e)
+    // Do not throw error to continue processing
+  }
+}
+
 // Helper to generate AI response using Gemini API
 async function generateAIResponse(apiKey: string, message: string, settings: any, storeId: string, supabase: any): Promise<string> {
   try {
@@ -85,9 +105,24 @@ async function generateAIResponse(apiKey: string, message: string, settings: any
 
     // 2. Construct System Prompt
     let systemPrompt = `あなたはLINE公式アカウントのAIアシスタントです。
-以下の「店舗情報（ナレッジベース）」に基づいて、ユーザーの質問に答えてください。
-ナレッジベースに情報がない場合は、正直に「わかりません」と答えるか、店舗への問い合わせを促してください。
+以下の「店舗情報（AI学習データ）」に基づいて、ユーザーの質問に答えてください。
+AI学習データに情報がない場合は、正直に「わかりません」と答えるか、店舗への問い合わせを促してください。
 嘘の情報は絶対に答えないでください。
+
+【重要：回答不可時の対応】
+情報が不足していて回答できない場合は、「AI学習データ」「ナレッジベース」「データベース」「システム」といった内部用語は使わず、
+「申し訳ありませんが、その件については担当者が確認して返信いたします。少々お待ちください。」のように、
+担当者からの手動返信を待つよう促すメッセージを返してください。
+
+【重要：エスカレーション判断】
+もし、ユーザーの質問に対してAI学習データの情報だけでは回答できない場合、または「担当者に確認します」といった対応が必要な場合は、
+回答の最後に必ず [MANUAL_REPLY_NEEDED] というタグをつけてください。
+このタグはシステムが検知して、ステータスを「要対応」に変更するために使用します。
+
+【重要：フォーマット】
+LINEのメッセージとして返信するため、Markdown記法（**太字**、# 見出し、- リストなど）は使用しないでください。
+プレーンテキストのみで読みやすく整形してください。
+箇条書きをする場合は、記号（・や数字）を使って手動で整形してください。
 
 口調: ${settings.tone === 'friendly' ? 'フレンドリー、親しみやすい' : '丁寧、フォーマル'}
 `;
@@ -97,7 +132,7 @@ async function generateAIResponse(apiKey: string, message: string, settings: any
     }
 
     if (context) {
-      systemPrompt += `\n\n[店舗情報（ナレッジベース）]\n${context}`;
+      systemPrompt += `\n\n[店舗情報（AI学習データ）]\n${context}`;
     }
 
     // 3. Call Gemini API
@@ -283,8 +318,17 @@ serve(async (req: Request) => {
                         // Fallback
                         if (isAiEnabled && geminiApiKey) {
                             console.log('Fallback to AI')
+                            // Start loading animation
+                            await startLoadingAnimation(channelAccessToken, userId)
+                            
                             replyText = await generateAIResponse(geminiApiKey, text, aiSettings, storeId, supabase)
                             status = 'ai_replied'
+
+                            // Check for manual reply needed tag
+                            if (replyText.includes('[MANUAL_REPLY_NEEDED]')) {
+                                status = 'manual_reply_needed'
+                                replyText = replyText.replace('[MANUAL_REPLY_NEEDED]', '').trim()
+                            }
                         } else {
                             // Manual Reply Needed
                             replyText = "お問い合わせありがとうございます。\n担当者が確認次第、返信させていただきます。\n今しばらくお待ちください。"

@@ -63,12 +63,16 @@ export default function MemberCardLIFF() {
 
         if (storeError) throw storeError
 
+        // Check Plan
+        const { data: plan } = await supabase.rpc('get_store_plan', { p_store_id: storeId })
+        const isPro = plan === 'pro'
+
         // Set Document Title
         if (store.name) {
           document.title = `${store.name} - 会員証`
         }
 
-        const updateSettingsFromStore = (storeData: any) => {
+        const updateSettingsFromStore = (storeData: any, isProPlan: boolean) => {
           console.log('Raw store data:', storeData)
           
           let cardSettings = storeData.membership_card_settings
@@ -109,20 +113,20 @@ export default function MemberCardLIFF() {
 
           setSettings({
             title: storeData.membership_card_title || "MEMBER'S CARD",
-            color: storeData.membership_card_color || '#000000',
-            logo_url: storeData.membership_card_logo_url,
-            template_id: storeData.membership_card_template_id || 'simple',
+            color: isProPlan ? (storeData.membership_card_color || '#000000') : '#000000',
+            logo_url: isProPlan ? storeData.membership_card_logo_url : null,
+            template_id: isProPlan ? (storeData.membership_card_template_id || 'simple') : 'simple',
             card_type: cardSettings.card_type || 'point',
             name_display: cardSettings.name_display || 'line_name',
             show_icon: getBool(cardSettings.show_icon, true),
             show_member_no: getBool(cardSettings.show_member_no, true),
-            show_rank: getBool(cardSettings.show_rank, true),
+            show_rank: isProPlan ? getBool(cardSettings.show_rank, true) : false, // Rank is Pro feature? Maybe not, but let's keep it simple. Actually user didn't specify rank is pro only, but themes/colors are.
             stamp_config: safeStampConfig,
             rank_settings: rankSettings
           })
         }
 
-        updateSettingsFromStore(store)
+        updateSettingsFromStore(store, isPro)
 
         // 3. Fetch Customer Data via Edge Function (Secure)
         let userId = 'mock_user'

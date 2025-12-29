@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Calendar, Clock, User, CheckCircle, AlertCircle, Loader2, Lock, Edit2, XCircle, FileText, MessageSquare } from 'lucide-react'
+import { Calendar, Clock, User, CheckCircle, AlertCircle, Loader2, Edit2, XCircle, FileText, MessageSquare } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useStoreResources } from '../hooks/useStoreResources'
 import type { StoreMenu, StoreStaff } from '../types/storeResources'
 import Toast from '../components/Toast'
 import Modal from '../components/Modal'
+import ProLockOverlay from '../components/ProLockOverlay'
+import ProBadge from '../components/ProBadge'
 
 type Reservation = {
   id: string
@@ -55,7 +57,7 @@ const toErrorMessage = (error: unknown): string => {
 
 export default function Reservations() {
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
-  const [listFilter, setListFilter] = useState<'today' | 'week' | 'month' | 'all'>('today')
+  const [listFilter, setListFilter] = useState<'today' | 'week' | 'month' | 'all'>('all')
   const [isGoogleConnected, setIsGoogleConnected] = useState(false)
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [loading, setLoading] = useState(true)
@@ -83,6 +85,7 @@ export default function Reservations() {
   const [modifyMenuId, setModifyMenuId] = useState<string>('')
   const [modifyMemo, setModifyMemo] = useState<string>('')
   const [actionLoading, setActionLoading] = useState(false)
+  const [isPro, setIsPro] = useState(false)
 
   const fetchCalendars = useCallback(async (preselectedId?: string) => {
     try {
@@ -198,7 +201,7 @@ export default function Reservations() {
   }, [fetchCalendars])
 
   const fetchGoogleEvents = useCallback(async () => {
-    if (!isGoogleConnected || !selectedCalendarId || viewMode !== 'calendar') return
+    if (!isGoogleConnected || !selectedCalendarId || viewMode !== 'calendar' || !isPro) return
     
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -250,7 +253,7 @@ export default function Reservations() {
     } catch (error) {
       console.error('Fetch Google Events Error:', error)
     }
-  }, [calendarView, currentDate, isGoogleConnected, selectedCalendarId, viewMode])
+  }, [calendarView, currentDate, isGoogleConnected, selectedCalendarId, viewMode, isPro])
 
   useEffect(() => {
     fetchGoogleEvents()
@@ -259,22 +262,68 @@ export default function Reservations() {
   const handleSaveCalendarSettings = async (newCalendarId?: string) => {
     try {
       setCalendarLoading(true)
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
 
       const targetId = newCalendarId || selectedCalendarId
 
+      // 1. Update DB
       const { error } = await supabase
         .from('google_calendar_settings')
         .update({ calendar_id: targetId })
-        .eq('user_id', user.id)
+        .eq('user_id', session.user.id)
 
       if (error) throw error
 
-      setToast({ message: 'カレンダー設定を保存しました', type: 'success' })
+      // 2. Start Watch (Webhook)
+      const watchResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=watch&calendar_id=${encodeURIComponent(targetId)}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
+      
+      const watchResult = await watchResponse.json()
+      if (watchResult.error) {
+        console.error('Watch Start Error:', watchResult.error)
+        throw new Error(`同期の開始に失敗しました: ${watchResult.error}`)
+      }
+
+      setToast({ message: 'カレンダー設定を保存し、同期を開始しました', type: 'success' })
     } catch (error) {
       console.error('Save Settings Error:', error)
       setToast({ message: `設定の保存に失敗しました: ${toErrorMessage(error)}`, type: 'error' })
+    } finally {
+      setCalendarLoading(false)
+    }
+  }
+
+  const handleDisconnect = async () => {
+    if (!window.confirm('Googleカレンダーとの連携を解除しますか？\n解除すると、Googleカレンダーの予定は予約一覧に表示されなくなります。')) return
+
+    try {
+      setCalendarLoading(true)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=disconnect`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
+      
+      const result = await response.json()
+      if (result.error) throw new Error(result.error)
+      
+      setIsGoogleConnected(false)
+      setCalendars([])
+      setSelectedCalendarId('')
+      setGoogleEvents([])
+      setToast({ message: '連携を解除しました', type: 'success' })
+    } catch (error) {
+      console.error('Disconnect Error:', error)
+      setToast({ message: `連携解除に失敗しました: ${toErrorMessage(error)}`, type: 'error' })
     } finally {
       setCalendarLoading(false)
     }
@@ -292,11 +341,23 @@ export default function Reservations() {
         .eq('owner_id', user.id)
         .limit(1)
       
+      // Get Profile for Plan
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('plan')
+        .eq('id', user.id)
+        .single()
+      
+      setIsPro(profile?.plan === 'pro' || profile?.plan === 'executive')
+      
       const currentStore = stores?.[0]
       if (!currentStore) return
       setStoreId(currentStore.id)
 
       // Calculate Display Hours
+      let currentStart = 0
+      let currentEnd = 24
+
       if (currentStore.business_hours) {
         try {
           const hours = currentStore.business_hours as Record<string, { start: string; end: string }[]>
@@ -324,24 +385,15 @@ export default function Reservations() {
           })
 
           if (minStart < 24 && maxEnd > 0) {
-             // Add buffer if needed, or just use exact
-             // Ensure we show at least 0-24 if something is wrong, but here we trust business hours
-             // If reservations exist outside business hours, we should expand the view.
-             // But we don't have reservations loaded yet.
-             // Let's set initial display hours based on business hours, and maybe expand later?
-             // For now, just use business hours.
-             setDisplayHours({ start: Math.max(0, minStart), end: Math.min(24, maxEnd) })
-          } else {
-             // Fallback if no valid business hours found
-             setDisplayHours({ start: 0, end: 24 })
+             currentStart = Math.max(0, minStart)
+             currentEnd = Math.min(24, maxEnd)
           }
         } catch (e) {
           console.error('Error parsing business hours:', e)
-          setDisplayHours({ start: 0, end: 24 })
         }
-      } else {
-         setDisplayHours({ start: 0, end: 24 })
       }
+      
+      setDisplayHours({ start: currentStart, end: currentEnd })
 
       // Fetch Reservations
       const { data: resDataRaw, error: resError } = await supabase
@@ -359,8 +411,8 @@ export default function Reservations() {
         setReservations([])
       } else {
         // Check if any reservation is outside display hours and expand if necessary
-        let newStart = displayHours.start
-        let newEnd = displayHours.end
+        let newStart = currentStart
+        let newEnd = currentEnd
         
         // Re-calculate based on actual reservations if they are outside business hours
         resData.forEach(r => {
@@ -371,7 +423,7 @@ export default function Reservations() {
             if (endH > newEnd) newEnd = endH
         })
         
-        if (newStart !== displayHours.start || newEnd !== displayHours.end) {
+        if (newStart !== currentStart || newEnd !== currentEnd) {
              setDisplayHours({ start: Math.max(0, newStart), end: Math.min(24, newEnd) })
         }
 
@@ -541,9 +593,10 @@ export default function Reservations() {
                 setViewMode('calendar')
                 if (isGoogleConnected && !calendars.length) fetchCalendars()
               }}
-              className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition ${viewMode === 'calendar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition flex items-center justify-center gap-1 ${viewMode === 'calendar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
             >
               カレンダー
+              {!isPro && <ProBadge />}
             </button>
           </div>
           <button className="bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 shadow-sm whitespace-nowrap">+ 予約登録</button>
@@ -555,10 +608,10 @@ export default function Reservations() {
           <div className="p-4 sm:p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
             <h2 className="font-bold text-gray-800">予約一覧</h2>
             <div className="flex bg-gray-100 rounded-lg p-1">
-                <button onClick={() => setListFilter('today')} className={`px-3 py-1 text-xs font-medium rounded-md transition ${listFilter === 'today' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>今日</button>
-                <button onClick={() => setListFilter('week')} className={`px-3 py-1 text-xs font-medium rounded-md transition ${listFilter === 'week' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>今週</button>
-                <button onClick={() => setListFilter('month')} className={`px-3 py-1 text-xs font-medium rounded-md transition ${listFilter === 'month' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>今月</button>
                 <button onClick={() => setListFilter('all')} className={`px-3 py-1 text-xs font-medium rounded-md transition ${listFilter === 'all' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>全期間</button>
+                <button onClick={() => setListFilter('month')} className={`px-3 py-1 text-xs font-medium rounded-md transition ${listFilter === 'month' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>今月</button>
+                <button onClick={() => setListFilter('week')} className={`px-3 py-1 text-xs font-medium rounded-md transition ${listFilter === 'week' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>今週</button>
+                <button onClick={() => setListFilter('today')} className={`px-3 py-1 text-xs font-medium rounded-md transition ${listFilter === 'today' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>今日</button>
             </div>
           </div>
           <div className="divide-y divide-gray-100">
@@ -706,7 +759,18 @@ export default function Reservations() {
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden min-h-[600px]">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden min-h-[600px] relative">
+          {!isPro && (
+            <ProLockOverlay 
+              title="Googleカレンダー連携" 
+              description={
+                <>
+                  Googleカレンダー連携機能を使用するには、Proプランへのアップグレードが必要です。<br />
+                  予約の自動同期やダブルブッキング防止機能が利用可能になります。
+                </>
+              }
+            />
+          )}
           {!isGoogleConnected ? (
             <div className="flex flex-col items-center justify-center h-full p-8 text-center relative overflow-hidden">
               {/* Background Decoration */}
@@ -715,11 +779,11 @@ export default function Reservations() {
               <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-yellow-100 rounded-full blur-3xl opacity-50"></div>
 
               <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 max-w-md w-full relative">
-                <div className="absolute -top-3 -right-3">
-                  <span className="text-xs font-bold px-3 py-1.5 bg-gradient-to-r from-amber-200 to-yellow-400 text-yellow-900 rounded-full shadow-sm flex items-center gap-1">
-                    <Lock size={12} /> Proプラン機能
-                  </span>
-                </div>
+                {!isPro && (
+                  <div className="absolute -top-3 -right-3">
+                    <ProBadge />
+                  </div>
+                )}
 
                 <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
                   <Calendar size={40} />
@@ -734,8 +798,8 @@ export default function Reservations() {
                 
                 <button 
                   onClick={handleGoogleConnect}
-                  disabled={calendarLoading}
-                  className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 text-gray-700 px-6 py-4 rounded-xl hover:bg-gray-50 transition font-bold shadow-sm hover:shadow-md group"
+                  disabled={calendarLoading || !isPro}
+                  className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 text-gray-700 px-6 py-4 rounded-xl hover:bg-gray-50 transition font-bold shadow-sm hover:shadow-md group disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {calendarLoading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -808,10 +872,18 @@ export default function Reservations() {
                             {calendars.find(c => c.id === selectedCalendarId)?.summary || 'カレンダー'}
                           </span>
                         </div>
-                        <div className="hidden sm:flex items-center gap-2 text-green-700 font-medium px-3 py-1 bg-green-100 rounded-full text-xs whitespace-nowrap">
+                        <div className="hidden sm:flex items-center gap-2 text-green-700 font-medium px-3 py-1 bg-green-100 rounded-full text-xs whitespace-nowrap border border-green-200">
                           <CheckCircle size={12} />
                           <span>連携中</span>
                         </div>
+                        <button
+                          onClick={handleDisconnect}
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 transition-colors shadow-sm"
+                          title="連携を解除"
+                        >
+                          <XCircle size={14} />
+                          <span>解除</span>
+                        </button>
                       </div>
                     )}
 

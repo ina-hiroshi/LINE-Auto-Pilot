@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react'
 import type { FormEvent, RefObject } from 'react'
 import type { BookingSettings, BookingSystemType, Menu, Staff } from '../types'
 import { BusinessHoursEditor } from './BusinessHoursEditor'
+import { DESIGN_THEMES } from '../../../constants/designThemes'
+import ProBadge from '../../../components/ProBadge'
 
 interface BookingPageTabProps {
   storeId: string | null
@@ -21,19 +23,13 @@ interface BookingPageTabProps {
   onEditMenu: (menu: Menu) => void
   onDeleteMenu: (id: string) => void
   onRefreshPreview: () => void
+  isPro: boolean
 }
 
 const BOOKING_SYSTEM_TYPES: { id: BookingSystemType; name: string; desc: string }[] = [
   { id: 'generic', name: '標準 (日時のみ)', desc: 'シンプルな日時選択' },
   { id: 'salon', name: 'サロン・美容室', desc: '担当者・メニュー選択' },
   { id: 'restaurant', name: '飲食店', desc: '人数・コース選択' }
-]
-
-const TEMPLATE_OPTIONS = [
-  { id: 'simple', name: 'シンプル', color: 'bg-gray-50 border-gray-200' },
-  { id: 'elegant', name: 'エレガント', color: 'bg-[#F5F5F0] border-[#E0E0D0]' },
-  { id: 'pop', name: 'ポップ', color: 'bg-primary-50 border-primary-200' },
-  { id: 'dark', name: 'ダーク', color: 'bg-slate-800 text-white border-slate-700' }
 ]
 
 const SLOT_OPTIONS = [15, 30, 60]
@@ -55,6 +51,7 @@ export function BookingPageTab({
   onDeleteMenu,
   onRefreshPreview,
   iframeRef,
+  isPro,
 }: BookingPageTabProps) {
   const [activeTab, setActiveTab] = useState<'basic' | 'items' | 'design'>('basic')
   const bookingUrl = useMemo(() => `/booking${storeId ? `?store_id=${storeId}` : ''}`, [storeId])
@@ -346,33 +343,44 @@ export function BookingPageTab({
                       <Palette size={16} /> デザインテーマ
                     </h3>
                     <div className="grid grid-cols-2 gap-3">
-                      {TEMPLATE_OPTIONS.map((t) => (
-                        <label
-                          key={t.id}
-                          className={`
-                            relative cursor-pointer rounded-lg border-2 p-4 transition-all flex flex-col items-center justify-center gap-2 h-24
-                            ${bookingSettings.liff_template_id === t.id 
-                              ? 'border-primary-500 ring-2 ring-primary-100' 
-                              : 'border-gray-200 hover:border-gray-300'}
-                            ${t.color}
-                          `}
-                        >
-                          <input
-                            type="radio"
-                            name="liff_template"
-                            value={t.id}
-                            checked={bookingSettings.liff_template_id === t.id}
-                            onChange={(e) => onBookingSettingsChange({ ...bookingSettings, liff_template_id: e.target.value })}
-                            className="sr-only"
-                          />
-                          <div className="text-center text-sm font-medium">{t.name}</div>
-                          {bookingSettings.liff_template_id === t.id && (
-                            <div className="absolute top-2 right-2 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center">
-                              <div className="w-2 h-2 bg-white rounded-full" />
-                            </div>
-                          )}
-                        </label>
-                      ))}
+                      {DESIGN_THEMES.map((t) => {
+                        const isLocked = !isPro && t.isPro
+                        return (
+                          <div key={t.id} className="relative">
+                            <label
+                              className={`
+                                relative rounded-lg border-2 p-4 transition-all flex flex-col items-center justify-center gap-2 h-24 w-full
+                                ${bookingSettings.liff_template_id === t.id 
+                                  ? 'border-primary-500 ring-2 ring-primary-100' 
+                                  : 'border-gray-200'}
+                                ${isLocked ? 'opacity-60 cursor-not-allowed bg-gray-50' : 'cursor-pointer hover:border-gray-300'}
+                                ${!isLocked ? t.color : ''}
+                              `}
+                            >
+                              <input
+                                type="radio"
+                                name="liff_template"
+                                value={t.id}
+                                checked={bookingSettings.liff_template_id === t.id}
+                                onChange={(e) => onBookingSettingsChange({ ...bookingSettings, liff_template_id: e.target.value })}
+                                className="sr-only"
+                                disabled={isLocked}
+                              />
+                              <div className="text-center text-sm font-medium">{t.name}</div>
+                              {bookingSettings.liff_template_id === t.id && (
+                                <div className="absolute top-2 right-2 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center">
+                                  <div className="w-2 h-2 bg-white rounded-full" />
+                                </div>
+                              )}
+                              {isLocked && (
+                                <div className="absolute top-2 right-2">
+                                  <ProBadge />
+                                </div>
+                              )}
+                            </label>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
 
@@ -380,22 +388,22 @@ export function BookingPageTab({
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <label className="block text-xs font-semibold text-gray-600">テーマカラー</label>
-                        <span className="text-[10px] font-bold px-2 py-0.5 bg-gradient-to-r from-amber-200 to-yellow-400 text-yellow-900 rounded-full">
-                          Proプラン機能
-                        </span>
+                        {!isPro && <ProBadge />}
                       </div>
                       <div className="flex items-center gap-3">
                         <input
                           type="color"
                           value={bookingSettings.liff_theme_color}
                           onChange={(e) => onBookingSettingsChange({ ...bookingSettings, liff_theme_color: e.target.value })}
-                          className="w-10 h-10 rounded cursor-pointer border-0 p-0"
+                          className={`w-10 h-10 rounded border-0 p-0 ${!isPro ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                          disabled={!isPro}
                         />
                         <input
                           type="text"
                           value={bookingSettings.liff_theme_color}
                           onChange={(e) => onBookingSettingsChange({ ...bookingSettings, liff_theme_color: e.target.value })}
-                          className="border rounded px-3 py-2 text-sm w-32 font-mono"
+                          className={`border rounded px-3 py-2 text-sm w-32 font-mono ${!isPro ? 'bg-gray-50 opacity-50 cursor-not-allowed' : ''}`}
+                          disabled={!isPro}
                         />
                       </div>
                     </div>
@@ -403,16 +411,15 @@ export function BookingPageTab({
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <label className="block text-xs font-semibold text-gray-600">ロゴ画像URL</label>
-                        <span className="text-[10px] font-bold px-2 py-0.5 bg-gradient-to-r from-amber-200 to-yellow-400 text-yellow-900 rounded-full">
-                          Proプラン機能
-                        </span>
+                        {!isPro && <ProBadge />}
                       </div>
                       <input
                         type="url"
                         placeholder="https://example.com/logo.png"
-                        className="w-full border rounded-lg p-2 text-sm"
+                        className={`w-full border rounded-lg p-2 text-sm ${!isPro ? 'bg-gray-50 opacity-50 cursor-not-allowed' : ''}`}
                         value={bookingSettings.liff_logo_url}
                         onChange={(e) => onBookingSettingsChange({ ...bookingSettings, liff_logo_url: e.target.value })}
+                        disabled={!isPro}
                       />
                       <p className="text-xs text-gray-500 mt-1">ヘッダーに表示されるロゴ画像のURLを入力してください。</p>
                     </div>

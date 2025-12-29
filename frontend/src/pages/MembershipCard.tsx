@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import { Loader2, CreditCard, Save, Layout, Palette, Lock, Settings, Award, Stamp, Trash2 } from 'lucide-react'
+import { Loader2, CreditCard, Save, Layout, Palette, Settings, Award, Stamp, Trash2 } from 'lucide-react'
+import ProBadge from '../components/ProBadge'
 import Toast from '../components/Toast'
+import { usePlan } from '../hooks/usePlan'
+import { DESIGN_THEMES } from '../constants/designThemes'
 
 type CardType = 'point' | 'stamp'
 type NameDisplay = 'real_kanji' | 'real_romaji' | 'line_name'
@@ -52,19 +55,12 @@ const DEFAULT_SETTINGS: MembershipCardSettings = {
   ]
 }
 
-const TEMPLATE_OPTIONS = [
-  { id: 'simple', name: 'シンプル', color: 'bg-gray-50 border-gray-200' },
-  { id: 'elegant', name: 'エレガント', color: 'bg-[#F5F5F0] border-[#E0E0D0]' },
-  { id: 'pop', name: 'ポップ', color: 'bg-primary-50 border-primary-200' },
-  { id: 'dark', name: 'ダーク', color: 'bg-slate-800 text-white border-slate-700' }
-]
-
 export default function MembershipCard() {
+  const { isPro, loading: planLoading } = usePlan()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState<MembershipCardSettings>(DEFAULT_SETTINGS)
   const [storeId, setStoreId] = useState<string | null>(null)
-  const [isPro, setIsPro] = useState(false)
   const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'rank'>('design')
   const [toast, setToast] = useState<{ isVisible: boolean; message: string; type: 'success' | 'error' }>({
     isVisible: false,
@@ -76,15 +72,6 @@ export default function MembershipCard() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-
-      // Fetch Profile for Plan
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('plan')
-        .eq('id', user.id)
-        .single()
-      
-      setIsPro(profile?.plan === 'pro')
 
       const { data: store } = await supabase
         .from('stores')
@@ -122,6 +109,15 @@ export default function MembershipCard() {
 
   useEffect(() => {
     fetchSettings()
+
+    const handleProfileUpdate = () => {
+      fetchSettings()
+    }
+
+    window.addEventListener('profile-updated', handleProfileUpdate)
+    return () => {
+      window.removeEventListener('profile-updated', handleProfileUpdate)
+    }
   }, [fetchSettings])
 
   const handleSave = async () => {
@@ -281,33 +277,44 @@ export default function MembershipCard() {
                     <Palette size={16} /> デザインテーマ
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
-                    {TEMPLATE_OPTIONS.map((template) => (
-                      <label
-                        key={template.id}
-                        className={`
-                          relative cursor-pointer rounded-lg border-2 p-4 transition-all flex flex-col items-center justify-center gap-2 h-24
-                          ${settings.template_id === template.id
-                            ? 'border-primary-500 ring-2 ring-primary-100'
-                            : 'border-gray-200 hover:border-gray-300'}
-                          ${template.color}
-                        `}
-                      >
-                        <input
-                          type="radio"
-                          name="card_template"
-                          value={template.id}
-                          checked={settings.template_id === template.id}
-                          onChange={(e) => setSettings(prev => ({ ...prev, template_id: e.target.value }))}
-                          className="sr-only"
-                        />
-                        <div className="text-center text-sm font-medium">{template.name}</div>
-                        {settings.template_id === template.id && (
-                          <div className="absolute top-2 right-2 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center">
-                            <div className="w-2 h-2 bg-white rounded-full" />
-                          </div>
-                        )}
-                      </label>
-                    ))}
+                    {DESIGN_THEMES.map((template) => {
+                      const isLocked = !isPro && template.isPro
+                      return (
+                        <div key={template.id} className="relative">
+                          <label
+                            className={`
+                              relative rounded-lg border-2 p-4 transition-all flex flex-col items-center justify-center gap-2 h-24 w-full
+                              ${settings.template_id === template.id
+                                ? 'border-primary-500 ring-2 ring-primary-100'
+                                : 'border-gray-200'}
+                              ${isLocked ? 'opacity-60 cursor-not-allowed bg-gray-50' : 'cursor-pointer hover:border-gray-300'}
+                              ${!isLocked ? template.color : ''}
+                            `}
+                          >
+                            <input
+                              type="radio"
+                              name="template"
+                              value={template.id}
+                              checked={settings.template_id === template.id}
+                              onChange={(e) => setSettings(prev => ({ ...prev, template_id: e.target.value }))}
+                              className="sr-only"
+                              disabled={isLocked}
+                            />
+                            <span className="font-bold text-sm">{template.name}</span>
+                            {settings.template_id === template.id && (
+                              <div className="absolute top-2 right-2 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center">
+                                <div className="w-2 h-2 bg-white rounded-full" />
+                              </div>
+                            )}
+                            {isLocked && (
+                              <div className="absolute top-2 right-2">
+                                <ProBadge />
+                              </div>
+                            )}
+                          </label>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
 
@@ -315,11 +322,9 @@ export default function MembershipCard() {
                 <div className="border-t pt-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                      <Lock size={16} /> カスタマイズ
+                      カスタマイズ
                     </h3>
-                    <span className="text-xs font-bold px-2 py-1 bg-gradient-to-r from-amber-200 to-yellow-400 text-yellow-900 rounded-full">
-                      Proプラン機能
-                    </span>
+                    {!isPro && <ProBadge />}
                   </div>
 
                   <div className="space-y-6">
@@ -332,12 +337,11 @@ export default function MembershipCard() {
                           type="color"
                           value={settings.color}
                           onChange={(e) => setSettings(prev => ({ ...prev, color: e.target.value }))}
-                          disabled={!isPro}
                           className={`h-10 w-20 p-1 border border-gray-300 rounded-md ${!isPro ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                          disabled={!isPro}
                         />
                         <span className="text-sm text-gray-500">{settings.color}</span>
                       </div>
-                      {!isPro && <p className="text-xs text-gray-400 mt-1">※ カラー変更はProプラン限定機能です</p>}
                     </div>
 
                     <div>
@@ -348,11 +352,10 @@ export default function MembershipCard() {
                         type="text"
                         value={settings.logo_url || ''}
                         onChange={(e) => setSettings(prev => ({ ...prev, logo_url: e.target.value }))}
-                        disabled={!isPro}
                         placeholder="https://example.com/logo.png"
                         className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 ${!isPro ? 'bg-gray-50 opacity-50 cursor-not-allowed' : ''}`}
+                        disabled={!isPro}
                       />
-                      {!isPro && <p className="text-xs text-gray-400 mt-1">※ 画像設定はProプラン限定機能です</p>}
                     </div>
                   </div>
                 </div>
@@ -442,59 +445,66 @@ export default function MembershipCard() {
             )}
 
             {activeTab === 'rank' && (
-              <div className="space-y-4">
-                <p className="text-sm text-gray-500">
-                  累計獲得ポイントに応じた会員ランクを設定します。
-                </p>
-                {settings.rank_settings.map((rank, index) => (
-                  <div key={index} className="flex gap-2 items-end">
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-gray-500 mb-1">ランク名</label>
-                      <input
-                        type="text"
-                        value={rank.name}
-                        onChange={(e) => {
-                          const newRanks = [...settings.rank_settings]
-                          newRanks[index].name = e.target.value
-                          setSettings(prev => ({ ...prev, rank_settings: newRanks }))
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      />
-                    </div>
-                    <div className="w-24">
-                      <label className="block text-xs font-medium text-gray-500 mb-1">必要pt</label>
-                      <input
-                        type="number"
-                        value={rank.threshold}
-                        onChange={(e) => {
-                          const newRanks = [...settings.rank_settings]
-                          newRanks[index].threshold = Number(e.target.value)
-                          setSettings(prev => ({ ...prev, rank_settings: newRanks }))
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      />
-                    </div>
-                    <button
-                      onClick={() => {
-                        const newRanks = settings.rank_settings.filter((_, i) => i !== index)
-                        setSettings(prev => ({ ...prev, rank_settings: newRanks }))
-                      }}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                      title="削除"
-                    >
-                      <Trash2 size={18} />
-                    </button>
+              <div className={`relative ${!isPro ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                {!isPro && (
+                  <div className="mb-4 flex justify-end">
+                    <ProBadge />
                   </div>
-                ))}
-                <button
-                  onClick={() => setSettings(prev => ({
-                    ...prev,
-                    rank_settings: [...prev.rank_settings, { name: 'New Rank', threshold: 0 }]
-                  }))}
-                  className="w-full py-2 border-2 border-dashed border-gray-300 rounded-md text-gray-500 hover:border-primary-500 hover:text-primary-500"
-                >
-                  + ランクを追加
-                </button>
+                )}
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-500">
+                    累計獲得ポイントに応じた会員ランクを設定します。
+                  </p>
+                  {settings.rank_settings.map((rank, index) => (
+                    <div key={index} className="flex gap-2 items-end">
+                      <div className="flex-1">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">ランク名</label>
+                        <input
+                          type="text"
+                          value={rank.name}
+                          onChange={(e) => {
+                            const newRanks = [...settings.rank_settings]
+                            newRanks[index].name = e.target.value
+                            setSettings(prev => ({ ...prev, rank_settings: newRanks }))
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        />
+                      </div>
+                      <div className="w-24">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">必要pt</label>
+                        <input
+                          type="number"
+                          value={rank.threshold}
+                          onChange={(e) => {
+                            const newRanks = [...settings.rank_settings]
+                            newRanks[index].threshold = Number(e.target.value)
+                            setSettings(prev => ({ ...prev, rank_settings: newRanks }))
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        />
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newRanks = settings.rank_settings.filter((_, i) => i !== index)
+                          setSettings(prev => ({ ...prev, rank_settings: newRanks }))
+                        }}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                        title="削除"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setSettings(prev => ({
+                      ...prev,
+                      rank_settings: [...prev.rank_settings, { name: 'New Rank', threshold: 0 }]
+                    }))}
+                    className="w-full py-2 border-2 border-dashed border-gray-300 rounded-md text-gray-500 hover:border-primary-500 hover:text-primary-500"
+                  >
+                    + ランクを追加
+                  </button>
+                </div>
               </div>
             )}
 
@@ -507,9 +517,10 @@ export default function MembershipCard() {
               <Layout size={16} /> プレビュー
             </h3>
             <div className={`flex justify-center p-8 rounded-lg transition-colors duration-300 ${
-            settings.template_id === 'dark' ? 'bg-slate-950' : 
+            settings.template_id === 'dark' || settings.template_id === 'luxury' ? 'bg-slate-950' : 
             settings.template_id === 'elegant' ? 'bg-[#F5F5F0]' :
-            settings.template_id === 'pop' ? 'bg-primary-50' : 'bg-gray-100'
+            settings.template_id === 'pop' ? 'bg-primary-50' : 
+            settings.template_id === 'natural' ? 'bg-stone-100' : 'bg-gray-100'
           }`}>
             <div 
               className={`
@@ -517,11 +528,14 @@ export default function MembershipCard() {
                 ${settings.template_id === 'simple' ? 'text-gray-800 bg-white border border-gray-100' : 
                   settings.template_id === 'elegant' ? 'text-[#44403C] border border-[#E7E5E4]' :
                   settings.template_id === 'pop' ? 'text-gray-800 bg-white border-2 border-white' :
+                  settings.template_id === 'luxury' ? 'text-amber-100 bg-stone-900 border border-amber-900' :
+                  settings.template_id === 'natural' ? 'text-stone-700 bg-[#FAF9F6] border border-stone-200' :
                   'text-slate-200 bg-slate-900 border border-slate-700'}
               `}
               style={{ 
                 backgroundColor: settings.template_id === 'pop' ? '#FFFFFF' : 
-                               settings.template_id === 'elegant' ? '#FFFFFF' : undefined
+                               settings.template_id === 'elegant' ? '#FFFFFF' : 
+                               settings.template_id === 'natural' ? '#FAF9F6' : undefined
               }}
             >
               {/* Background Accents based on Template */}
@@ -543,6 +557,19 @@ export default function MembershipCard() {
                   <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-bl from-slate-800/50 to-transparent"></div>
                 </>
               )}
+              {settings.template_id === 'luxury' && (
+                <>
+                  <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(251,191,36,0.05)_50%,transparent_75%,transparent_100%)] bg-[length:20px_20px]"></div>
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-700 via-amber-400 to-amber-700"></div>
+                  <div className="absolute bottom-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl"></div>
+                </>
+              )}
+              {settings.template_id === 'natural' && (
+                <>
+                  <div className="absolute top-0 left-0 w-full h-full opacity-10" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' viewBox=\'0 0 20 20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'%239C92AC\' fill-opacity=\'0.4\' fill-rule=\'evenodd\'%3E%3Ccircle cx=\'3\' cy=\'3\' r=\'3\'/%3E%3Ccircle cx=\'13\' cy=\'13\' r=\'3\'/%3E%3C/g%3E%3C/svg%3E")' }}></div>
+                  <div className="absolute -top-4 -right-4 w-24 h-24 bg-green-100 rounded-full opacity-50"></div>
+                </>
+              )}
 
               <div className="relative z-10 flex flex-col h-full justify-between">
                 <div className="flex justify-between items-start">
@@ -554,6 +581,8 @@ export default function MembershipCard() {
                       settings.template_id === 'simple' ? 'bg-gray-50' : 
                       settings.template_id === 'elegant' ? 'bg-[#F5F5F0]' :
                       settings.template_id === 'pop' ? 'bg-primary-100 text-primary-600' :
+                      settings.template_id === 'luxury' ? 'bg-stone-800 text-amber-400' :
+                      settings.template_id === 'natural' ? 'bg-stone-100 text-stone-600' :
                       'bg-slate-800 text-slate-400'
                     }`}>
                       <img src={settings.logo_url} alt="Logo" className="w-6 h-6 object-contain" />
@@ -579,8 +608,11 @@ export default function MembershipCard() {
                           settings.stamp_config.total_slots > 30 ? 'text-[6px]' : 'text-[8px]'
                         } ${
                           i < 3 
-                            ? (settings.template_id === 'pop' ? 'border-primary-500 text-primary-500 bg-primary-50' : 'border-current opacity-80') 
-                            : (settings.template_id === 'dark' ? 'border-slate-700 text-slate-700' : 'border-gray-200 text-gray-300')
+                            ? (settings.template_id === 'pop' ? 'border-primary-500 text-primary-500 bg-primary-50' : 
+                               settings.template_id === 'luxury' ? 'border-amber-500 text-amber-500 bg-amber-900/30' :
+                               settings.template_id === 'natural' ? 'border-green-600 text-green-600 bg-green-50' :
+                               'border-current opacity-80') 
+                            : (settings.template_id === 'dark' || settings.template_id === 'luxury' ? 'border-slate-700 text-slate-700' : 'border-gray-200 text-gray-300')
                         }`}>
                           {i < 3 ? <Stamp className={settings.stamp_config.total_slots > 30 ? "w-2 h-2" : "w-2.5 h-2.5"} /> : i + 1}
                         </div>
@@ -588,7 +620,7 @@ export default function MembershipCard() {
                     </div>
                     
                     <div className="space-y-0.5 mt-auto">
-                      <div className={`text-right text-[10px] ${settings.template_id === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                      <div className={`text-right text-[10px] ${settings.template_id === 'dark' || settings.template_id === 'luxury' ? 'text-slate-400' : 'text-gray-500'}`}>
                         あと {settings.stamp_config.total_slots - 3} 個で {settings.stamp_config.goal_reward}
                       </div>
 
@@ -607,6 +639,7 @@ export default function MembershipCard() {
                           settings.template_id === 'simple' ? 'text-gray-500' :
                           settings.template_id === 'elegant' ? 'text-[#44403C]/80' :
                           settings.template_id === 'pop' ? 'text-gray-600' :
+                          settings.template_id === 'natural' ? 'text-stone-500' :
                           'text-slate-400'
                         }`}>
                           {settings.show_member_no && <span>No. 00000001</span>}
@@ -636,6 +669,7 @@ export default function MembershipCard() {
                         settings.template_id === 'simple' ? 'border-gray-100 text-gray-400' :
                         settings.template_id === 'elegant' ? 'border-[#E7E5E4]' :
                         settings.template_id === 'pop' ? 'border-gray-100 text-gray-500' :
+                        settings.template_id === 'natural' ? 'border-stone-200 text-stone-500' :
                         'border-slate-700 text-slate-500'
                       }`}>
                         {settings.show_member_no && <span>No. 00000001</span>}

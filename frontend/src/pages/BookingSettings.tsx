@@ -8,6 +8,7 @@ import { StaffModal } from '../features/line-settings/components/StaffModal'
 import { MenuModal } from '../features/line-settings/components/MenuModal'
 import { DeleteConfirmModal } from '../features/line-settings/components/DeleteConfirmModal'
 import type { BookingSettings, BookingSystemType, Staff, Menu, DeletingItem } from '../features/line-settings/types'
+import { usePlan } from '../hooks/usePlan'
 
 const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   liff_template_id: 'simple',
@@ -20,6 +21,7 @@ const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
 }
 
 export default function BookingSettingsPage() {
+  const { isPro } = usePlan()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [storeId, setStoreId] = useState<string | null>(null)
@@ -303,6 +305,7 @@ export default function BookingSettingsPage() {
           iframeRef={iframeRef}
           previewRefreshKey={previewRefreshKey}
           onRefreshPreview={() => setPreviewRefreshKey(prev => prev + 1)}
+          isPro={isPro}
         />
       </div>
 

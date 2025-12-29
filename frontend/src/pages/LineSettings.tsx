@@ -1,15 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import Toast from '../components/Toast'
-import Modal from '../components/Modal'
 import { supabase } from '../lib/supabase'
 import { ConnectionTab } from '../features/line-settings/components/ConnectionTab'
 import { GuideTab } from '../features/line-settings/components/GuideTab'
 import { BasicInfoTab } from '../features/line-settings/components/BasicInfoTab'
 import { PasswordTab } from '../features/line-settings/components/PasswordTab'
-import { CalendarTab } from '../features/line-settings/components/CalendarTab'
 import type {
-	GoogleCalendarSettings,
 	LineSettingsState,
 	ProfileData,
 } from '../features/line-settings/types'
@@ -33,10 +30,6 @@ const DEFAULT_LINE_SETTINGS: LineSettingsState = {
 	bot_id: '',
 }
 
-const DEFAULT_GOOGLE_SETTINGS: GoogleCalendarSettings = {
-	connected: false,
-}
-
 const DEFAULT_PASSWORD_DATA = {
 	newPassword: '',
 	confirmPassword: '',
@@ -57,17 +50,15 @@ const toErrorMessage = (error: unknown): string => {
 export default function LineSettings() {
 // const location = useLocation()
 
-	const [activeTab, setActiveTab] = useState<'connection' | 'guide' | 'basic_info' | 'password' | 'calendar'>('connection')
+	const [activeTab, setActiveTab] = useState<'connection' | 'guide' | 'basic_info' | 'password'>('connection')
 	const [loading, setLoading] = useState(true)
 	const [saving, setSaving] = useState(false)
 	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
 	const [storeId, setStoreId] = useState<string | null>(null)
-	const [googleCalendarSettings, setGoogleCalendarSettings] = useState<GoogleCalendarSettings>(DEFAULT_GOOGLE_SETTINGS)
 	const [lineSettings, setLineSettings] = useState<LineSettingsState>(DEFAULT_LINE_SETTINGS)
 	const [profileData, setProfileData] = useState<ProfileData>(DEFAULT_PROFILE_DATA)
 	const [passwordData, setPasswordData] = useState(DEFAULT_PASSWORD_DATA)
-	const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false)
 
 	const fetchData = useCallback(async () => {
 		setLoading(true)
@@ -84,30 +75,13 @@ export default function LineSettings() {
 				return
 			}
 
-			// Googleカレンダー設定
-			const { data: calendarSettings } = await supabase
-				.from('google_calendar_settings')
-				.select('*')
-				.eq('user_id', user.id)
-				.maybeSingle()
-
-			if (calendarSettings) {
-				setGoogleCalendarSettings({
-					connected: true,
-					calendar_id: calendarSettings.calendar_id,
-					updated_at: calendarSettings.updated_at,
-				})
-			} else {
-				setGoogleCalendarSettings(DEFAULT_GOOGLE_SETTINGS)
-			}
-
 			// Profile
 			const { data: profile } = await supabase
 				.from('profiles')
 				.select('*')
 				.eq('id', user.id)
 				.single()
-
+			
 			// Store
 			const { data: stores } = await supabase
 				.from('stores')
@@ -157,57 +131,6 @@ export default function LineSettings() {
 			}
 		} finally {
 			setLoading(false)
-		}
-	}, [])
-
-	const handleGoogleConnect = useCallback(async () => {
-		setSaving(true)
-		try {
-			const { data: { session } } = await supabase.auth.getSession()
-			if (!session) return
-
-			const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-auth`, {
-				method: 'GET',
-				headers: {
-					Authorization: `Bearer ${session.access_token}`,
-				},
-			})
-
-			const { url, error } = (await response.json()) as { url?: string; error?: string }
-			if (error) throw new Error(error)
-
-			if (url) window.location.href = url
-		} catch (error) {
-			console.error('Google Connect Error:', error)
-			setMessage({ type: 'error', text: `Google連携の開始に失敗しました: ${toErrorMessage(error)}` })
-		} finally {
-			setSaving(false)
-		}
-	}, [])
-
-	const handleGoogleDisconnect = useCallback(async () => {
-		setSaving(true)
-		try {
-			const { data: { session } } = await supabase.auth.getSession()
-			if (!session) return
-
-			const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-auth`, {
-				method: 'DELETE',
-				headers: {
-					Authorization: `Bearer ${session.access_token}`,
-				},
-			})
-
-			if (!response.ok) throw new Error('Disconnect failed')
-
-			setGoogleCalendarSettings(DEFAULT_GOOGLE_SETTINGS)
-			setMessage({ type: 'success', text: 'Googleカレンダー連携を解除しました' })
-			setIsDisconnectModalOpen(false)
-		} catch (error) {
-			console.error('Google Disconnect Error:', error)
-			setMessage({ type: 'error', text: `連携解除に失敗しました: ${toErrorMessage(error)}` })
-		} finally {
-			setSaving(false)
 		}
 	}, [])
 
@@ -397,16 +320,6 @@ export default function LineSettings() {
 					LINE連携
 				</button>
 				<button
-					onClick={() => setActiveTab('calendar')}
-					className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-						activeTab === 'calendar'
-							? 'border-primary-500 text-primary-600'
-							: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-					}`}
-				>
-					Googleカレンダー
-				</button>
-				<button
 					onClick={() => setActiveTab('basic_info')}
 					className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
 						activeTab === 'basic_info'
@@ -449,15 +362,6 @@ export default function LineSettings() {
 					/>
 				)}
 
-				{activeTab === 'calendar' && (
-					<CalendarTab
-						googleCalendarSettings={googleCalendarSettings}
-						onConnect={handleGoogleConnect}
-						onDisconnect={() => setIsDisconnectModalOpen(true)}
-						saving={saving}
-					/>
-				)}
-
 				{activeTab === 'basic_info' && (
 					<BasicInfoTab
 						profileData={profileData}
@@ -487,17 +391,6 @@ export default function LineSettings() {
 					/>
 				)}
 			</div>
-
-			<Modal
-				isOpen={isDisconnectModalOpen}
-				onClose={() => setIsDisconnectModalOpen(false)}
-				onConfirm={handleGoogleDisconnect}
-				title="連携解除の確認"
-				message="Googleカレンダーとの連携を解除してもよろしいですか？"
-				confirmText="解除する"
-				variant="danger"
-				isLoading={saving}
-			/>
 		</div>
 	)
 }

@@ -7,6 +7,8 @@ import Toast from '../components/Toast'
 import { RichMenuTab } from '../features/line-settings/components/RichMenuTab'
 import type { RichMenuSettings, RichMenuAction } from '../features/line-settings/types'
 import { AVAILABLE_ICONS, RICH_MENU_LAYOUTS } from '../features/line-settings/constants'
+import { usePlan } from '../hooks/usePlan'
+import { DESIGN_THEMES } from '../constants/designThemes'
 
 const DEFAULT_RICH_MENU_SETTINGS: RichMenuSettings = {
   template_id: 'simple',
@@ -16,6 +18,7 @@ const DEFAULT_RICH_MENU_SETTINGS: RichMenuSettings = {
 }
 
 export default function RichMenu() {
+  const { isPro } = usePlan()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [storeId, setStoreId] = useState<string | null>(null)
@@ -96,7 +99,9 @@ export default function RichMenu() {
           simple: { bg: '#e5e7eb', slot: '#ffffff', text: '#1f2937' },
           elegant: { bg: '#D4C4B7', slot: '#F5F5F0', text: '#5D4037' },
           pop: { bg: '#00B8A9', slot: '#f0fdfa', text: '#0f766e' },
-          dark: { bg: '#334155', slot: '#1e293b', text: '#ffffff' }
+          dark: { bg: '#334155', slot: '#1e293b', text: '#ffffff' },
+          luxury: { bg: '#1c1917', slot: '#292524', text: '#fcd34d' },
+          natural: { bg: '#f5f5f4', slot: '#ffffff', text: '#57534e' }
         }
         const theme = colors[richMenuSettings.template_id as keyof typeof colors] || colors.simple
         
@@ -304,6 +309,7 @@ export default function RichMenu() {
           onSubmit={handleSave}
           saving={saving}
           previewRef={previewRef}
+          isPro={isPro}
         />
       </div>
     </div>

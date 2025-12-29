@@ -4,6 +4,8 @@ import { ExternalLink, Image as ImageIcon, Layout, MessageSquare, MousePointerCl
 import { Save, Loader2 } from 'lucide-react'
 import { AVAILABLE_ICONS, RICH_MENU_LAYOUTS } from '../constants'
 import type { RichMenuAction, RichMenuSettings } from '../types'
+import { DESIGN_THEMES } from '../../../constants/designThemes'
+import ProBadge from '../../../components/ProBadge'
 
 interface RichMenuTabProps {
   richMenuSettings: RichMenuSettings
@@ -11,9 +13,10 @@ interface RichMenuTabProps {
   onChangeSettings: (next: RichMenuSettings) => void
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
   previewRef?: any
+  isPro: boolean
 }
 
-export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubmit, previewRef }: RichMenuTabProps) {
+export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubmit, previewRef, isPro }: RichMenuTabProps) {
   const [activeTab, setActiveTab] = useState<'design' | 'actions'>('design')
   const [openIconSelector, setOpenIconSelector] = useState<number | null>(null)
 
@@ -79,32 +82,43 @@ export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubm
                     <Layout size={16} /> レイアウト
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
-                    {RICH_MENU_LAYOUTS.map((item) => (
-                      <label
-                        key={item.id}
-                        className={`
-                          relative cursor-pointer rounded-lg border-2 p-4 transition-all flex flex-col items-center justify-center gap-2 h-24
-                          ${richMenuSettings.layout_id === item.id
-                            ? 'border-primary-500 ring-2 ring-primary-100 bg-primary-50'
-                            : 'border-gray-200 hover:border-gray-300 bg-gray-50'}
-                        `}
-                      >
-                        <input
-                          type="radio"
-                          name="rm_layout"
-                          value={item.id}
-                          checked={richMenuSettings.layout_id === item.id}
-                          onChange={(e) => onChangeSettings({ ...richMenuSettings, layout_id: e.target.value })}
-                          className="sr-only"
-                        />
-                        <div className="text-center text-sm font-medium">{item.name}</div>
-                        {richMenuSettings.layout_id === item.id && (
-                          <div className="absolute top-2 right-2 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center">
-                            <div className="w-2 h-2 bg-white rounded-full" />
-                          </div>
-                        )}
-                      </label>
-                    ))}
+                    {RICH_MENU_LAYOUTS.map((item) => {
+                      const isLocked = !isPro && item.id !== 'large_4'
+                      return (
+                        <div key={item.id} className="relative">
+                          <label
+                            className={`
+                              relative rounded-lg border-2 p-4 transition-all flex flex-col items-center justify-center gap-2 h-24 w-full
+                              ${richMenuSettings.layout_id === item.id
+                                ? 'border-primary-500 ring-2 ring-primary-100 bg-primary-50'
+                                : 'border-gray-200'}
+                              ${isLocked ? 'opacity-60 cursor-not-allowed bg-gray-50' : 'cursor-pointer hover:border-gray-300 hover:bg-gray-50'}
+                            `}
+                          >
+                            <input
+                              type="radio"
+                              name="rm_layout"
+                              value={item.id}
+                              checked={richMenuSettings.layout_id === item.id}
+                              onChange={(e) => onChangeSettings({ ...richMenuSettings, layout_id: e.target.value })}
+                              className="sr-only"
+                              disabled={isLocked}
+                            />
+                            <div className="text-center text-sm font-medium">{item.name}</div>
+                            {richMenuSettings.layout_id === item.id && (
+                              <div className="absolute top-2 right-2 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center">
+                                <div className="w-2 h-2 bg-white rounded-full" />
+                              </div>
+                            )}
+                            {isLocked && (
+                              <div className="absolute top-2 right-2">
+                                <ProBadge />
+                              </div>
+                            )}
+                          </label>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
 
@@ -114,38 +128,44 @@ export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubm
                     <Palette size={16} /> デザインテーマ
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
-                    {[
-                      { id: 'simple', name: 'シンプル', color: 'bg-gray-50 border-gray-200' },
-                      { id: 'elegant', name: 'エレガント', color: 'bg-[#F5F5F0] border-[#E0E0D0]' },
-                      { id: 'pop', name: 'ポップ', color: 'bg-primary-50 border-primary-200' },
-                      { id: 'dark', name: 'ダーク', color: 'bg-slate-800 text-white border-slate-700' },
-                    ].map((template) => (
-                      <label
-                        key={template.id}
-                        className={`
-                          relative cursor-pointer rounded-lg border-2 p-4 transition-all flex flex-col items-center justify-center gap-2 h-24
-                          ${richMenuSettings.template_id === template.id
-                            ? 'border-primary-500 ring-2 ring-primary-100'
-                            : 'border-gray-200 hover:border-gray-300'}
-                          ${template.color}
-                        `}
-                      >
-                        <input
-                          type="radio"
-                          name="rm_template"
-                          value={template.id}
-                          checked={richMenuSettings.template_id === template.id}
-                          onChange={(e) => onChangeSettings({ ...richMenuSettings, template_id: e.target.value })}
-                          className="sr-only"
-                        />
-                        <div className="text-center text-sm font-medium">{template.name}</div>
-                        {richMenuSettings.template_id === template.id && (
-                          <div className="absolute top-2 right-2 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center">
-                            <div className="w-2 h-2 bg-white rounded-full" />
-                          </div>
-                        )}
-                      </label>
-                    ))}
+                    {DESIGN_THEMES.map((template) => {
+                      const isLocked = !isPro && template.isPro
+                      return (
+                        <div key={template.id} className="relative">
+                          <label
+                            className={`
+                              relative rounded-lg border-2 p-4 transition-all flex flex-col items-center justify-center gap-2 h-24 w-full
+                              ${richMenuSettings.template_id === template.id
+                                ? 'border-primary-500 ring-2 ring-primary-100'
+                                : 'border-gray-200'}
+                              ${isLocked ? 'opacity-60 cursor-not-allowed bg-gray-50' : 'cursor-pointer hover:border-gray-300'}
+                              ${!isLocked ? template.color : ''}
+                            `}
+                          >
+                            <input
+                              type="radio"
+                              name="rm_template"
+                              value={template.id}
+                              checked={richMenuSettings.template_id === template.id}
+                              onChange={(e) => onChangeSettings({ ...richMenuSettings, template_id: e.target.value })}
+                              className="sr-only"
+                              disabled={isLocked}
+                            />
+                            <div className="text-center text-sm font-medium">{template.name}</div>
+                            {richMenuSettings.template_id === template.id && (
+                              <div className="absolute top-2 right-2 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center">
+                                <div className="w-2 h-2 bg-white rounded-full" />
+                              </div>
+                            )}
+                            {isLocked && (
+                              <div className="absolute top-2 right-2">
+                                <ProBadge />
+                              </div>
+                            )}
+                          </label>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
 
@@ -155,9 +175,7 @@ export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubm
                     <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
                       <ImageIcon size={16} /> 背景画像カスタマイズ
                     </h3>
-                    <span className="text-xs font-bold px-2 py-1 bg-gradient-to-r from-amber-200 to-yellow-400 text-yellow-900 rounded-full">
-                      Proプラン機能
-                    </span>
+                    {!isPro && <ProBadge />}
                   </div>
 
                   <div>
@@ -167,7 +185,8 @@ export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubm
                       value={richMenuSettings.custom_image_url}
                       onChange={(e) => onChangeSettings({ ...richMenuSettings, custom_image_url: e.target.value })}
                       placeholder="https://example.com/richmenu.png"
-                      className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
+                      className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none ${!isPro ? 'bg-gray-50 opacity-50 cursor-not-allowed' : ''}`}
+                      disabled={!isPro}
                     />
                     <p className="text-xs text-gray-500 mt-1">※未設定の場合はシステム標準の画像が使用されます</p>
                   </div>

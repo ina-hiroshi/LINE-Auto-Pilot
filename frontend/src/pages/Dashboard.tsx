@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Users, Calendar, AlertCircle, Bot, User, MessageSquare } from 'lucide-react'
+import { useCallback, useEffect, useState, useRef } from 'react'
+import { Users, Calendar, AlertCircle, Bot, User, MessageSquare, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import Modal from '../components/Modal'
 import Toast from '../components/Toast'
+import ProBadge from '../components/ProBadge'
 
 type DashboardStats = {
   manualReplyNeeded: number
   todayReservations: number
   todayAutoResponses: number
+  todayAiResponses: number
   totalFriends: number
   totalLogs: number
 }
@@ -18,7 +20,7 @@ type LogEntry = {
   line_user_id: string
   message_content: string
   reply_content: string | null
-  status: 'auto_replied' | 'ai_replied' | 'manual_reply_needed' | 'manual_replied'
+  status: 'auto_replied' | 'ai_replied' | 'manual_reply_needed' | 'manual_replied' | 'resolved'
   display_name?: string
   profile_picture_url?: string
 }
@@ -27,7 +29,8 @@ const STATUS_LABELS = {
   auto_replied: '自動応答',
   ai_replied: 'AI応答',
   manual_reply_needed: '要対応',
-  manual_replied: '手動返信'
+  manual_replied: '手動返信',
+  resolved: '対応済'
 }
 
 export default function Dashboard() {
@@ -35,14 +38,16 @@ export default function Dashboard() {
     manualReplyNeeded: 0,
     todayReservations: 0,
     todayAutoResponses: 0,
+    todayAiResponses: 0,
     totalFriends: 0,
     totalLogs: 0
   })
+  const [isProPlan, setIsProPlan] = useState(false) // Default to Free Plan, updated by quota check
   const [allLogs, setAllLogs] = useState<LogEntry[]>([])
   const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [filterStatus, setFilterStatus] = useState<'all' | 'auto_replied' | 'ai_replied' | 'manual_reply_needed' | 'manual_replied'>('all')
-  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'all'>('today')
+  const [filterStatus, setFilterStatus] = useState<'all' | 'auto_replied' | 'ai_replied' | 'manual_reply_needed' | 'manual_replied' | 'resolved'>('all')
+  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'all'>('all')
   const [storeId, setStoreId] = useState<string | null>(null)
 
   // Reply Modal State
@@ -51,6 +56,25 @@ export default function Dashboard() {
   const [replyText, setReplyText] = useState('')
   const [sendingReply, setSendingReply] = useState(false)
   const [quotaInfo, setQuotaInfo] = useState<{ type: string, limit?: number, totalUsage: number, basicId?: string } | null>(null)
+  const [chatHistory, setChatHistory] = useState<LogEntry[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (replyModalOpen && scrollRef.current && chatHistory.length > 0) {
+        // Use setTimeout to ensure DOM is updated
+        setTimeout(() => {
+            if (selectedLog) {
+                const targetElement = document.getElementById(`msg-${selectedLog.id}`)
+                if (targetElement) {
+                    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    return
+                }
+            }
+            scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+        }, 100)
+    }
+  }, [replyModalOpen, chatHistory, selectedLog])
 
   // Toast State
   const [toast, setToast] = useState<{ isVisible: boolean; message: string; type: 'success' | 'error' }>({
@@ -63,6 +87,15 @@ export default function Dashboard() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+
+      // Get Profile for Plan
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('plan')
+        .eq('id', user.id)
+        .single()
+      
+      setIsProPlan(profile?.plan === 'pro' || profile?.plan === 'executive')
 
       // Get Store ID
       const { data: stores } = await supabase
@@ -136,11 +169,13 @@ export default function Dashboard() {
         // Calculate Stats
         const manualNeeded = logs.filter(l => l.status === 'manual_reply_needed').length
         const autoResponses = logs.filter(l => l.status === 'auto_replied').length
+        const aiResponses = logs.filter(l => l.status === 'ai_replied').length
 
         setStats(prev => ({
           ...prev,
           manualReplyNeeded: manualNeeded,
           todayAutoResponses: autoResponses,
+          todayAiResponses: aiResponses,
           totalLogs: logs.length
         }))
         setAllLogs(logs as LogEntry[])
@@ -178,12 +213,42 @@ export default function Dashboard() {
   useEffect(() => {
     fetchDashboardData()
 
-    // Real-time subscription for logs
+    const handleProfileUpdate = () => {
+      fetchDashboardData()
+    }
+
+    window.addEventListener('profile-updated', handleProfileUpdate)
+    return () => {
+      window.removeEventListener('profile-updated', handleProfileUpdate)
+    }
+  }, [fetchDashboardData])
+
+  useEffect(() => {
+    if (!storeId) return
+
+    // Real-time subscription for logs and reservations
     const channel = supabase
       .channel('dashboard-realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'customer_logs' },
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'customer_logs',
+          filter: `store_id=eq.${storeId}`
+        },
+        () => {
+          fetchDashboardData()
+        }
+      )
+      .on(
+        'postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'reservations',
+          filter: `store_id=eq.${storeId}`
+        },
         () => {
           fetchDashboardData()
         }
@@ -193,7 +258,7 @@ export default function Dashboard() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [fetchDashboardData]) // Re-fetch when fetchDashboardData changes
+  }, [storeId, fetchDashboardData])
 
   useEffect(() => {
     if (filterStatus === 'all') {
@@ -229,10 +294,33 @@ export default function Dashboard() {
     }
   }, [replyModalOpen, storeId])
 
+  const fetchChatHistory = async (userId: string) => {
+    if (!storeId) return
+    setHistoryLoading(true)
+    try {
+      const { data } = await supabase
+        .from('customer_logs')
+        .select('*')
+        .eq('store_id', storeId)
+        .eq('line_user_id', userId)
+        .order('created_at', { ascending: true })
+        .limit(50)
+      
+      if (data) {
+        setChatHistory(data as LogEntry[])
+      }
+    } catch (error) {
+      console.error('Error fetching history:', error)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
   const handleReplyClick = (log: LogEntry) => {
     setSelectedLog(log)
     setReplyText('')
     setReplyModalOpen(true)
+    fetchChatHistory(log.line_user_id)
   }
 
   const handleSendReply = async () => {
@@ -273,6 +361,39 @@ export default function Dashboard() {
   }
 
 
+  const handleResolve = async () => {
+    if (!selectedLog) return
+
+    try {
+      const { error } = await supabase
+        .from('customer_logs')
+        .update({ status: 'resolved' })
+        .eq('id', selectedLog.id)
+
+      if (error) throw error
+
+      // Update local state immediately
+      setAllLogs(prev => prev.map(log => 
+        log.id === selectedLog.id ? { ...log, status: 'resolved' } : log
+      ))
+
+      setToast({
+        isVisible: true,
+        message: '対応済にしました',
+        type: 'success'
+      })
+      setReplyModalOpen(false)
+      fetchDashboardData()
+    } catch (error) {
+      console.error('Resolve Error:', error)
+      setToast({
+        isVisible: true,
+        message: '更新に失敗しました',
+        type: 'error'
+      })
+    }
+  }
+
   if (loading) {
     return <div className="p-8 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div></div>
   }
@@ -289,27 +410,55 @@ export default function Dashboard() {
       <Modal
         isOpen={replyModalOpen}
         onClose={() => setReplyModalOpen(false)}
-        onConfirm={handleSendReply}
-        title="手動返信"
-        confirmText="送信"
-        isLoading={sendingReply}
-        variant="emerald"
-        showDefaultButtons={true}
-        footerContent={quotaInfo && (
-            <div className="text-[10px] text-gray-500 space-y-0.5">
-                <p>プランごとの無料メッセージ上限:</p>
-                <p>フリー(200) / ライト(5,000) / スタンダード(30,000)</p>
-                <a 
-                    href="https://manager.line.biz/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-emerald-600 underline hover:text-emerald-700 inline-flex items-center gap-1"
+        title="メッセージ対応"
+        footerContent={
+          <div className="flex flex-col w-full gap-3">
+            <div className="flex justify-end gap-3 w-full">
+              {selectedLog?.status === 'manual_reply_needed' && (
+                <button
+                  onClick={handleResolve}
+                  className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors font-medium"
                 >
-                    プランの変更・確認はこちら
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                </a>
+                  返信せずに対応済にする
+                </button>
+              )}
+              <button
+                onClick={() => setReplyModalOpen(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium"
+              >
+                閉じる
+              </button>
+              <button
+                onClick={handleSendReply}
+                disabled={sendingReply || !replyText.trim()}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {sendingReply ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    送信中...
+                  </>
+                ) : (
+                  '送信する'
+                )}
+              </button>
             </div>
-        )}
+            {quotaInfo && (
+                <div className="text-[10px] text-gray-500 space-y-0.5 text-right">
+                    <p>プランごとの無料メッセージ上限: フリー(200) / ライト(5,000) / スタンダード(30,000)</p>
+                    <a 
+                        href="https://manager.line.biz/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-600 underline hover:text-emerald-700 inline-flex items-center gap-1"
+                    >
+                        プランの変更・確認はこちら
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                    </a>
+                </div>
+            )}
+          </div>
+        }
       >
         <div className="space-y-4">
             {/* Quota Info */}
@@ -353,9 +502,51 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            <div className="bg-gray-50 p-3 rounded-lg text-sm text-gray-600">
-                <p className="font-bold text-xs mb-1">ユーザーからのメッセージ:</p>
-                {selectedLog?.message_content}
+            <div ref={scrollRef} className="bg-gray-50 p-3 rounded-lg border border-gray-100 h-64 overflow-y-auto space-y-3">
+                {historyLoading ? (
+                    <div className="flex justify-center py-4"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400"></div></div>
+                ) : chatHistory.length > 0 ? (
+                    chatHistory.map((msg) => (
+                        <div key={msg.id} id={`msg-${msg.id}`} className={`space-y-1 ${msg.id === selectedLog?.id ? 'bg-yellow-50/30 -mx-2 px-2 py-2 rounded' : ''}`}>
+                            {/* User Message */}
+                            <div className="flex justify-start flex-col items-start">
+                                {msg.id === selectedLog?.id && (
+                                    <span className="text-[10px] font-bold text-primary-600 mb-1 ml-1">返信対象</span>
+                                )}
+                                <div className={`border rounded-lg rounded-tl-none p-2 max-w-[80%] text-sm shadow-sm ${
+                                    msg.id === selectedLog?.id 
+                                    ? 'bg-white border-primary-300 ring-2 ring-primary-100 text-gray-900' 
+                                    : 'bg-white border-gray-200 text-gray-800'
+                                }`}>
+                                    {msg.message_content}
+                                </div>
+                            </div>
+                            <div className="text-[10px] text-gray-400 ml-1">
+                                {new Date(msg.created_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </div>
+
+                            {/* Reply (if exists) */}
+                            {msg.reply_content && (
+                                <>
+                                    <div className="flex justify-end">
+                                        <div className={`rounded-lg rounded-tr-none p-2 max-w-[80%] text-sm shadow-sm ${
+                                            msg.status === 'manual_replied' ? 'bg-emerald-100 text-emerald-900' : 
+                                            msg.status === 'ai_replied' ? 'bg-blue-50 text-blue-900' :
+                                            'bg-gray-200 text-gray-800'
+                                        }`}>
+                                            {msg.reply_content}
+                                        </div>
+                                    </div>
+                                    <div className="text-[10px] text-gray-400 text-right mr-1">
+                                        {STATUS_LABELS[msg.status]}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    ))
+                ) : (
+                    <p className="text-center text-gray-400 text-sm py-4">履歴がありません</p>
+                )}
             </div>
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">返信内容</label>
@@ -369,30 +560,44 @@ export default function Dashboard() {
         </div>
       </Modal>
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">ダッシュボード</h1>
-          <p className="text-gray-500 mt-1 text-sm sm:text-base">店舗状況と自動応答のパフォーマンス</p>
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+                <h1 className="text-2xl font-bold text-gray-900">ダッシュボード</h1>
+                <p className="text-gray-500 mt-1 text-sm">店舗状況と自動応答のパフォーマンス</p>
+            </div>
+            
+            {/* Time Range Filter */}
+            <div className="flex bg-gray-100 p-1 rounded-lg shrink-0">
+                {(['all', 'month', 'week', 'today'] as const).map((range) => (
+                    <button
+                        key={range}
+                        onClick={() => setTimeRange(range)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
+                            timeRange === range 
+                                ? 'bg-white text-gray-900 shadow-sm' 
+                                : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                        {range === 'today' ? '今日' : range === 'week' ? '今週' : range === 'month' ? '今月' : '全期間'}
+                    </button>
+                ))}
+            </div>
         </div>
-        <div className="flex bg-gray-100 p-1 rounded-lg self-start sm:self-auto overflow-x-auto max-w-full">
-            {(['today', 'week', 'month', 'all'] as const).map((range) => (
-                <button
-                    key={range}
-                    onClick={() => setTimeRange(range)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
-                        timeRange === range 
-                            ? 'bg-white text-gray-900 shadow-sm' 
-                            : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                    {range === 'today' ? '今日' : range === 'week' ? '今週' : range === 'month' ? '今月' : '全期間'}
-                </button>
-            ))}
-        </div>
+
+        {/* Alert Banner */}
+        {stats.manualReplyNeeded > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3 text-red-800">
+              <AlertCircle className="w-5 h-5 shrink-0 text-red-600" />
+              <p className="font-medium">
+                現在、<span className="font-bold text-red-700 text-lg mx-1">{stats.manualReplyNeeded}件</span>のお客様への対応が必要です。
+              </p>
+            </div>
+        )}
       </div>
       
       {/* Top Section: Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* 1. Manual Reply Needed */}
         <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-red-100 hover:shadow-md transition relative overflow-hidden">
           <div className="absolute top-0 right-0 w-12 h-12 bg-red-50 rounded-bl-full -mr-4 -mt-4" />
@@ -432,7 +637,31 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* 3. Today's Reservations */}
+        {/* 3. AI Responses (New) */}
+        <div className={`bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition relative overflow-hidden ${!isProPlan ? 'bg-gray-50' : ''}`}>
+          {!isProPlan && (
+            <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
+               <ProBadge />
+            </div>
+          )}
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">AI応答 {getTimeRangeLabel()}</h2>
+            <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600 shrink-0">
+              <Sparkles size={16} />
+            </div>
+          </div>
+          <div className="flex items-end gap-1 sm:gap-2 flex-wrap">
+            <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.todayAiResponses}</p>
+            <p className="text-[10px] sm:text-xs text-gray-400 mb-1">回</p>
+            {stats.totalLogs > 0 && (
+              <span className="text-sm sm:text-2xl font-bold text-gray-500 mb-0.5 ml-auto">
+                {Math.round((stats.todayAiResponses / stats.totalLogs) * 100)}<span className="text-[10px] sm:text-base">%</span>
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* 4. Today's Reservations */}
         <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">予約 {getTimeRangeLabel()}</h2>
@@ -446,7 +675,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* 4. Total Friends (Proxy) */}
+        {/* 5. Total Friends (Proxy) */}
         <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">ユーザー {getTimeRangeLabel()}</h2>
@@ -464,11 +693,18 @@ export default function Dashboard() {
       {/* Recent Logs List (Compact) */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col flex-1 min-h-0 overflow-hidden h-[600px]">
         <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center shrink-0 bg-white z-10 gap-4">
-            <h3 className="font-bold text-gray-900">直近の対話ログ</h3>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-gray-900">メッセージ・対応状況</h2>
+            {stats.manualReplyNeeded > 0 && (
+              <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                要対応: {stats.manualReplyNeeded}
+              </span>
+            )}
+          </div>
             
             {/* Filter Tabs */}
             <div className="flex bg-gray-100 p-1 rounded-lg overflow-x-auto max-w-full">
-                {(['all', 'manual_reply_needed', 'auto_replied', 'ai_replied', 'manual_replied'] as const).map((status) => (
+                {(['all', 'manual_reply_needed', 'auto_replied', 'ai_replied', 'manual_replied', 'resolved'] as const).map((status) => (
                     <button
                         key={status}
                         onClick={() => setFilterStatus(status)}
@@ -487,13 +723,17 @@ export default function Dashboard() {
         <div className="divide-y divide-gray-100 overflow-y-auto">
           {filteredLogs.length > 0 ? (
             filteredLogs.map((log) => (
-              <div key={log.id} className="group hover:bg-gray-50 transition-colors">
+              <div 
+                key={log.id} 
+                className="group hover:bg-gray-50 transition-colors"
+              >
                 <div className="flex items-stretch">
                   {/* Status Indicator Strip */}
                   <div className={`w-1 shrink-0 ${
                     log.status === 'auto_replied' ? 'bg-primary-500' : 
                     log.status === 'ai_replied' ? 'bg-blue-500' : 
                     log.status === 'manual_replied' ? 'bg-emerald-500' :
+                    log.status === 'resolved' ? 'bg-gray-400' :
                     'bg-red-500'
                   }`} />
 
@@ -521,6 +761,7 @@ export default function Dashboard() {
                                 log.status === 'auto_replied' ? 'bg-primary-100 text-primary-800 border-primary-200' : 
                                 log.status === 'ai_replied' ? 'bg-blue-100 text-blue-800 border-blue-200' : 
                                 log.status === 'manual_replied' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                                log.status === 'resolved' ? 'bg-gray-100 text-gray-600 border-gray-200' :
                                 'bg-red-100 text-red-800 border-red-200'
                             }`}>
                             {STATUS_LABELS[log.status]}
@@ -547,7 +788,7 @@ export default function Dashboard() {
                             className="mt-2 flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-600 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm"
                         >
                             <MessageSquare size={14} className="text-emerald-500" />
-                            返信する
+                            対応する
                         </button>
                       </div>
 
