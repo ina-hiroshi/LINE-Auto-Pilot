@@ -250,6 +250,7 @@ serve(async (req: Request) => {
         let storeId = null
         let isAiEnabled = false
         let aiSettings = null
+        let plan = 'free' // Default to free
 
         if (destination) {
             const { data, error } = await supabase
@@ -268,8 +269,27 @@ serve(async (req: Request) => {
                 channelAccessToken = data.channel_access_token
                 storeId = data.store_id
                 
-                // Fetch AI Settings
                 if (storeId) {
+                    // Check Plan (Store -> Owner -> Profile)
+                    const { data: storeData } = await supabase
+                        .from('stores')
+                        .select('owner_id')
+                        .eq('id', storeId)
+                        .single()
+                    
+                    if (storeData && storeData.owner_id) {
+                        const { data: profileData } = await supabase
+                            .from('profiles')
+                            .select('plan')
+                            .eq('id', storeData.owner_id)
+                            .single()
+                        
+                        if (profileData) {
+                            plan = profileData.plan || 'free'
+                        }
+                    }
+
+                    // Fetch AI Settings
                     const { data: settings } = await supabase
                         .from('ai_settings')
                         .select('*')
@@ -278,7 +298,13 @@ serve(async (req: Request) => {
                     
                     if (settings) {
                         aiSettings = settings
-                        isAiEnabled = settings.is_enabled
+                        // Only enable AI if plan is pro/executive AND settings is enabled
+                        const isPlanValid = (plan === 'pro' || plan === 'executive')
+                        isAiEnabled = settings.is_enabled && isPlanValid
+
+                        if (settings.is_enabled && !isPlanValid) {
+                            console.log(`AI is enabled in settings but plan is ${plan}. Disabling AI.`)
+                        }
                     }
                 }
             }
