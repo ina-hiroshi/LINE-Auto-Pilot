@@ -270,23 +270,37 @@ serve(async (req: Request) => {
                 storeId = data.store_id
                 
                 if (storeId) {
-                    // Check Plan (Consistent with apply-rich-menu and other functions)
-                    const { data: storeData } = await supabase
-                        .from('stores')
-                        .select('owner_id')
-                        .eq('id', storeId)
-                        .single()
-                    
-                    if (storeData && storeData.owner_id) {
-                        const { data: profileData } = await supabase
-                            .from('profiles')
-                            .select('plan')
-                            .eq('id', storeData.owner_id)
+                    console.log(`Checking plan for storeId: ${storeId}`)
+                    try {
+                        // Check Plan (Consistent with apply-rich-menu and other functions)
+                        const { data: storeData, error: storeError } = await supabase
+                            .from('stores')
+                            .select('owner_id')
+                            .eq('id', storeId)
                             .single()
                         
-                        if (profileData) {
-                            plan = String(profileData.plan || 'free').trim().toLowerCase()
+                        if (storeError) {
+                            console.error('Error fetching store for plan check:', storeError)
                         }
+
+                        if (storeData && storeData.owner_id) {
+                            const { data: profileData, error: profileError } = await supabase
+                                .from('profiles')
+                                .select('plan')
+                                .eq('id', storeData.owner_id)
+                                .single()
+                            
+                            if (profileError) {
+                                console.error('Error fetching profile for plan check:', profileError)
+                            }
+                            
+                            if (profileData) {
+                                plan = String(profileData.plan || 'free').trim().toLowerCase()
+                                console.log(`Plan detected: ${plan}`)
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Unexpected error during plan check:', e)
                     }
 
                     // Fetch AI Settings
@@ -388,10 +402,10 @@ serve(async (req: Request) => {
                             }
                         } else {
                             // Manual Reply Needed
-                            // AIが無効の場合は自動応答を送信しない（手動対応待ちステータスのみ記録）
-                            replyText = null
+                            // Fallback to fixed message when AI is disabled or not applicable
+                            replyText = "お問い合わせありがとうございます。\n担当者が確認次第、返信させていただきます。\n今しばらくお待ちください。"
                             status = 'manual_reply_needed'
-                            console.log('Fallback to Manual Reply (No response sent)')
+                            console.log('Fallback to Manual Reply (Fixed Message Sent)')
                         }
                     }
 

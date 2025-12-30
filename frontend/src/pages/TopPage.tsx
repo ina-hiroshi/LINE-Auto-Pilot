@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { motion } from 'framer-motion'
 import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff, Loader2 } from 'lucide-react'
@@ -567,7 +568,23 @@ export default function TopPage() {
             </form>
             {!isLoginMode && (
               <p className="mt-6 text-xs text-center text-slate-400 leading-relaxed">
-                登録することで、<a href="#" className="underline hover:text-primary-600">利用規約</a>と<a href="#" className="underline hover:text-primary-600">プライバシーポリシー</a>に同意したことになります。
+                登録することで、
+                <Link 
+                  to="/terms" 
+                  className="underline hover:text-primary-600"
+                  onClick={() => window.scrollTo(0, 0)}
+                >
+                  利用規約
+                </Link>
+                と
+                <Link 
+                  to="/privacy" 
+                  className="underline hover:text-primary-600"
+                  onClick={() => window.scrollTo(0, 0)}
+                >
+                  プライバシーポリシー
+                </Link>
+                に同意したことになります。
               </p>
             )}
           </motion.div>
@@ -600,7 +617,24 @@ export default function TopPage() {
               <ul className="space-y-4">
                 <li><a href="#" className="hover:text-white transition">ヘルプセンター</a></li>
                 <li><a href="#" className="hover:text-white transition">お問い合わせ</a></li>
-                <li><a href="#" className="hover:text-white transition">利用規約</a></li>
+                <li>
+                  <Link 
+                    to="/terms" 
+                    className="hover:text-white transition"
+                    onClick={() => window.scrollTo(0, 0)}
+                  >
+                    利用規約
+                  </Link>
+                </li>
+                <li>
+                  <Link 
+                    to="/privacy" 
+                    className="hover:text-white transition"
+                    onClick={() => window.scrollTo(0, 0)}
+                  >
+                    プライバシーポリシー
+                  </Link>
+                </li>
               </ul>
             </div>
           </div>

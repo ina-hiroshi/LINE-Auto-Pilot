@@ -16,6 +16,8 @@ import TopPage from './pages/TopPage'
 import InitialSetup from './pages/InitialSetup'
 import DevSandbox from './pages/DevSandbox'
 import Booking from './pages/Booking'
+import PrivacyPolicy from './pages/PrivacyPolicy'
+import TermsOfService from './pages/TermsOfService'
 
 import MemberCardLIFF from './pages/MemberCardLIFF'
 
@@ -144,6 +146,8 @@ function App() {
       <Routes>
         <Route path="/booking" element={<Booking />} />
         <Route path="/member-card" element={<MemberCardLIFF />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
         {!session ? (
           <Route path="*" element={<TopPage />} />
         ) : hasStore === null ? (
