@@ -270,22 +270,32 @@ serve(async (req: Request) => {
                 storeId = data.store_id
                 
                 if (storeId) {
-                    // Check Plan (Store -> Owner -> Profile)
-                    const { data: storeData } = await supabase
-                        .from('stores')
-                        .select('owner_id')
-                        .eq('id', storeId)
-                        .single()
+                    // Check Plan using RPC for reliability
+                    // 2025-12-31: Added RPC call to ensure plan check is accurate
+                    const { data: planData, error: planError } = await supabase
+                        .rpc('get_store_plan', { p_store_id: storeId })
                     
-                    if (storeData && storeData.owner_id) {
-                        const { data: profileData } = await supabase
-                            .from('profiles')
-                            .select('plan')
-                            .eq('id', storeData.owner_id)
+                    if (!planError && planData) {
+                        plan = String(planData).trim().toLowerCase()
+                    } else {
+                        // Fallback to manual query if RPC fails
+                        console.log('RPC get_store_plan failed or missing, falling back to manual query')
+                        const { data: storeData } = await supabase
+                            .from('stores')
+                            .select('owner_id')
+                            .eq('id', storeId)
                             .single()
                         
-                        if (profileData) {
-                            plan = profileData.plan || 'free'
+                        if (storeData && storeData.owner_id) {
+                            const { data: profileData } = await supabase
+                                .from('profiles')
+                                .select('plan')
+                                .eq('id', storeData.owner_id)
+                                .single()
+                            
+                            if (profileData) {
+                                plan = String(profileData.plan || 'free').trim().toLowerCase()
+                            }
                         }
                     }
 
