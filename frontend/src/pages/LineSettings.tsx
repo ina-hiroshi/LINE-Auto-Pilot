@@ -303,11 +303,11 @@ export default function LineSettings() {
 				onClose={() => setMessage(null)}
 			/>
 
-			<div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full h-24">
-				<div className="max-w-7xl mx-auto px-4 sm:px-8 h-full flex justify-between items-end pb-4">
+			<div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
+				<div className="max-w-7xl mx-auto px-4 sm:px-8 py-4">
 					<div>
-						<h1 className="text-2xl font-bold text-gray-900 mb-2">LINE連携・設定</h1>
-						<p className="text-gray-500">LINE公式アカウントとの連携設定や、アカウント情報の管理を行います。</p>
+						<h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">LINE連携・設定</h1>
+						<p className="text-sm text-gray-500">LINE公式アカウントとの連携設定や、アカウント情報の管理を行います。</p>
 					</div>
 				</div>
 			</div>

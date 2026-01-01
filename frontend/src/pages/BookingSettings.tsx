@@ -28,6 +28,7 @@ export default function BookingSettingsPage() {
   const [bookingSettings, setBookingSettings] = useState<BookingSettings>(DEFAULT_BOOKING_SETTINGS)
   const [staffList, setStaffList] = useState<Staff[]>([])
   const [menuList, setMenuList] = useState<Menu[]>([])
+  const [specialDates, setSpecialDates] = useState<Record<string, { is_closed: boolean; override_hours: { start: string; end: string }[] | null }>>({})
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0)
 
@@ -90,6 +91,19 @@ export default function BookingSettingsPage() {
             .eq('store_id', store.id)
             .order('created_at', { ascending: true })
           setMenuList((menus ?? []) as Menu[])
+
+          // 特別日付を取得
+          const { data: dates } = await supabase
+            .from('booking_special_dates')
+            .select('date, is_closed, override_hours')
+            .eq('store_id', store.id)
+          if (dates) {
+            const datesMap: Record<string, { is_closed: boolean; override_hours: { start: string; end: string }[] | null }> = {}
+            dates.forEach((d: { date: string; is_closed: boolean; override_hours: { start: string; end: string }[] | null }) => {
+              datesMap[d.date] = { is_closed: d.is_closed, override_hours: d.override_hours }
+            })
+            setSpecialDates(datesMap)
+          }
         }
       } catch (error) {
         console.error('Error fetching data:', error)
@@ -100,6 +114,39 @@ export default function BookingSettingsPage() {
     fetchData()
   }, [])
 
+  // 特別日付の再取得（プレビュー更新時）
+  useEffect(() => {
+    const refetchSpecialDates = async () => {
+      if (!storeId || previewRefreshKey === 0) return
+      try {
+        const { data: dates } = await supabase
+          .from('booking_special_dates')
+          .select('date, is_closed, override_hours')
+          .eq('store_id', storeId)
+        if (dates) {
+          const datesMap: Record<string, { is_closed: boolean; override_hours: { start: string; end: string }[] | null }> = {}
+          dates.forEach((d: { date: string; is_closed: boolean; override_hours: { start: string; end: string }[] | null }) => {
+            datesMap[d.date] = { is_closed: d.is_closed, override_hours: d.override_hours }
+          })
+          setSpecialDates(datesMap)
+        }
+        
+        // 営業時間も再取得
+        const { data: store } = await supabase
+          .from('stores')
+          .select('business_hours')
+          .eq('id', storeId)
+          .single()
+        if (store?.business_hours) {
+          setBookingSettings(prev => ({ ...prev, business_hours: store.business_hours }))
+        }
+      } catch (e) {
+        console.error('Failed to refetch special dates:', e)
+      }
+    }
+    refetchSpecialDates()
+  }, [previewRefreshKey, storeId])
+
   // Post message to preview iframe
   useEffect(() => {
     if (iframeRef.current?.contentWindow) {
@@ -109,11 +156,12 @@ export default function BookingSettingsPage() {
           settings: bookingSettings,
           staffList,
           menuList,
+          specialDates,
         },
         '*',
       )
     }
-  }, [bookingSettings, staffList, menuList])
+  }, [bookingSettings, staffList, menuList, specialDates])
 
   const handleSave = async (e?: FormEvent) => {
     if (e) e.preventDefault()
@@ -286,16 +334,16 @@ export default function BookingSettingsPage() {
         onClose={() => setToast(prev => ({ ...prev, isVisible: false }))}
       />
       
-      <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full h-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-full flex justify-between items-end pb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">予約ページ</h1>
-            <p className="text-gray-500">営業時間、メニュー、スタッフなどの予約受付設定を行います。</p>
+      <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">予約ページ</h1>
+            <p className="text-sm text-gray-500">営業時間、メニュー、スタッフなどの予約受付設定を行います。</p>
           </div>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm flex-shrink-0"
+            className="flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm shrink-0 w-full sm:w-auto"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
             {saving ? '保存中...' : '設定を保存'}

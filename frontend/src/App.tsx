@@ -21,6 +21,9 @@ import TermsOfService from './pages/TermsOfService'
 import PlanSettings from './pages/PlanSettings'
 
 import MemberCardLIFF from './pages/MemberCardLIFF'
+import FeatureAutoResponse from './pages/FeatureAutoResponse'
+import FeatureReservation from './pages/FeatureReservation'
+import FeatureMembership from './pages/FeatureMembership'
 
 import type { Session } from '@supabase/supabase-js'
 
@@ -149,6 +152,9 @@ function App() {
         <Route path="/member-card" element={<MemberCardLIFF />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/feature/auto-response" element={<FeatureAutoResponse />} />
+        <Route path="/feature/reservation" element={<FeatureReservation />} />
+        <Route path="/feature/membership" element={<FeatureMembership />} />
         {!session ? (
           <Route path="*" element={<TopPage />} />
         ) : hasStore === null ? (

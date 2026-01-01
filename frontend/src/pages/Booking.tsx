@@ -104,6 +104,19 @@ export default function Booking() {
   const [activeReservations, setActiveReservations] = useState<ReservationSummary[]>([])
   const [modifyingReservationId, setModifyingReservationId] = useState<string | null>(null)
   
+  // Special Dates (臨時休業・営業時間上書き)
+  const [specialDates, setSpecialDates] = useState<Record<string, { is_closed: boolean; override_hours: { start: string; end: string }[] | null }>>({})
+  
+  // Staff Work Patterns (スタッフの勤務パターン)
+  const [staffWorkPatterns, setStaffWorkPatterns] = useState<Record<number, { is_active: boolean }>>({})
+  
+  // Staff Special Schedules (スタッフの欠勤・時間変更)
+  const [staffSpecialSchedules, setStaffSpecialSchedules] = useState<Record<string, { is_absent: boolean }>>({})
+  
+  // Date Availability (日付ごとの予約可能状態)
+  const [dateAvailability, setDateAvailability] = useState<Record<string, boolean>>({})
+  const [checkingAvailability, setCheckingAvailability] = useState(false)
+  
   // User Data
   const [lineUserId, setLineUserId] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -114,6 +127,15 @@ export default function Booking() {
 
   // Helper to parse business hours (Frontend version for Preview)
   const getBusinessHoursForDate = useCallback((dateStr: string) => {
+    // 特別日付をチェック (臨時休業・営業時間上書き)
+    const special = specialDates[dateStr]
+    if (special?.is_closed) {
+      return [] // 臨時休業日
+    }
+    if (special?.override_hours && Array.isArray(special.override_hours) && special.override_hours.length > 0) {
+      return special.override_hours // 営業時間上書き
+    }
+    
     if (!storeSettings.business_hours) return [{ start: '10:00', end: '20:00' }]
     
     try {
@@ -134,13 +156,43 @@ export default function Booking() {
       console.error('Error parsing business hours', e)
       return []
     }
-  }, [storeSettings.business_hours])
+  }, [storeSettings.business_hours, specialDates])
   
   const fetchSlots = useCallback(async () => {
     setLoadingSlots(true)
     setTime('') // Reset selected time
 
-    // PREVIEW MODE: Calculate slots locally based on current settings
+    // サロンモードでスタッフ指定がある場合、またはstoreIdがある場合はバックエンドを呼ぶ
+    // これによりスタッフのシフト設定が正しく反映される
+    if (storeId && (selectedStaff?.id || storeSettings.booking_system_type !== 'salon')) {
+      try {
+        const { data, error } = await supabase.functions.invoke('booking', {
+          body: {
+            action: 'get_available_slots',
+            store_id: storeId,
+            date: date,
+            menu_id: selectedMenu?.id || null,
+            staff_id: selectedStaff?.id || null,
+          }
+        })
+        
+        if (error) throw error
+        
+        if (data?.slots) {
+          setSlots(data.slots)
+        } else {
+          setSlots([])
+        }
+      } catch (e) {
+        console.error('Failed to fetch slots:', e)
+        setSlots([])
+      } finally {
+        setLoadingSlots(false)
+      }
+      return
+    }
+
+    // PREVIEW MODE (スタッフ未選択時): Calculate slots locally based on current settings
     if (window.self !== window.top || lineUserId === 'PREVIEW_USER') {
       console.log('Generating preview slots locally...')
       await new Promise(resolve => setTimeout(resolve, 300)) // Simulate delay
@@ -211,7 +263,7 @@ export default function Booking() {
     } finally {
       setLoadingSlots(false)
     }
-  }, [date, storeId, selectedMenu?.id, selectedStaff?.id, storeSettings.slot_interval_minutes, getBusinessHoursForDate, lineUserId])
+  }, [date, storeId, selectedMenu?.id, selectedStaff?.id, storeSettings.slot_interval_minutes, storeSettings.booking_system_type, getBusinessHoursForDate, lineUserId])
 
   const fetchStore = useCallback(async () => {
     // In production, store_id should be passed via query param ?store_id=...
@@ -351,6 +403,32 @@ export default function Booking() {
     initializeLiff()
   }, [initializeLiff])
 
+  // Fetch special dates when storeId changes
+  useEffect(() => {
+    const fetchSpecialDates = async () => {
+      if (!storeId) return
+      
+      try {
+        const { data: dates } = await supabase
+          .from('booking_special_dates')
+          .select('date, is_closed, override_hours')
+          .eq('store_id', storeId)
+        
+        if (dates) {
+          const datesMap: Record<string, { is_closed: boolean; override_hours: { start: string; end: string }[] | null }> = {}
+          dates.forEach((d: { date: string; is_closed: boolean; override_hours: { start: string; end: string }[] | null }) => {
+            datesMap[d.date] = { is_closed: d.is_closed, override_hours: d.override_hours }
+          })
+          setSpecialDates(datesMap)
+        }
+      } catch (e) {
+        console.error('Failed to fetch special dates:', e)
+      }
+    }
+    
+    fetchSpecialDates()
+  }, [storeId])
+
   // Set default date to today (Local Time)
   useEffect(() => {
     if (!date) {
@@ -400,12 +478,129 @@ export default function Booking() {
         // Update Staff & Menu Lists
         if (event.data.staffList) setStaffList(event.data.staffList)
         if (event.data.menuList) setMenuList(event.data.menuList)
+        
+        // Update Special Dates
+        if (event.data.specialDates) {
+          setSpecialDates(event.data.specialDates)
+        }
       }
     }
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
   }, [setStaffList, setMenuList])
+
+  // Fetch staff work patterns and special schedules when staff is selected
+  useEffect(() => {
+    const fetchStaffData = async () => {
+      if (!selectedStaff?.id) {
+        setStaffWorkPatterns({})
+        setStaffSpecialSchedules({})
+        return
+      }
+      
+      try {
+        // 勤務パターンを取得
+        const { data: patternsData, error: patternsError } = await supabase
+          .from('staff_work_patterns')
+          .select('day_of_week, is_active')
+          .eq('staff_id', selectedStaff.id)
+        
+        if (patternsError) {
+          console.error('Failed to fetch staff work patterns:', patternsError)
+        } else {
+          const patterns: Record<number, { is_active: boolean }> = {}
+          if (patternsData) {
+            patternsData.forEach(p => {
+              patterns[p.day_of_week] = { is_active: p.is_active }
+            })
+          }
+          setStaffWorkPatterns(patterns)
+        }
+        
+        // 特別スケジュール（欠勤など）を取得
+        const { data: schedulesData, error: schedulesError } = await supabase
+          .from('staff_special_schedules')
+          .select('date, is_absent')
+          .eq('staff_id', selectedStaff.id)
+        
+        if (schedulesError) {
+          console.error('Failed to fetch staff special schedules:', schedulesError)
+        } else {
+          const schedules: Record<string, { is_absent: boolean }> = {}
+          if (schedulesData) {
+            schedulesData.forEach(s => {
+              schedules[s.date] = { is_absent: s.is_absent }
+            })
+          }
+          setStaffSpecialSchedules(schedules)
+        }
+      } catch (e) {
+        console.error('Failed to fetch staff data:', e)
+      }
+    }
+    
+    fetchStaffData()
+  }, [selectedStaff?.id])
+
+  // Check date availability when staff/menu changes or on initial load
+  useEffect(() => {
+    const checkDateAvailability = async () => {
+      if (!storeId) return
+      
+      // サロンモードでスタッフ未選択の場合はスキップ
+      if (storeSettings.booking_system_type === 'salon' && !selectedStaff?.id) {
+        setDateAvailability({})
+        return
+      }
+      
+      setCheckingAvailability(true)
+      const availability: Record<string, boolean> = {}
+      const maxDays = storeSettings.max_booking_days || 14
+      
+      // 並列で全日付をチェック（ただし同時実行数を制限）
+      const dates: string[] = []
+      for (let i = 0; i < maxDays; i++) {
+        const d = new Date()
+        d.setDate(d.getDate() + i)
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        dates.push(dateStr)
+      }
+      
+      // バッチ処理（5件ずつ）
+      const batchSize = 5
+      for (let i = 0; i < dates.length; i += batchSize) {
+        const batch = dates.slice(i, i + batchSize)
+        const results = await Promise.all(
+          batch.map(async (dateStr) => {
+            try {
+              const { data } = await supabase.functions.invoke('booking', {
+                body: {
+                  action: 'get_available_slots',
+                  store_id: storeId,
+                  date: dateStr,
+                  menu_id: selectedMenu?.id || null,
+                  staff_id: selectedStaff?.id || null,
+                }
+              })
+              const hasAvailableSlots = data?.slots?.some((s: { available: boolean }) => s.available) ?? false
+              return { dateStr, hasAvailableSlots }
+            } catch {
+              return { dateStr, hasAvailableSlots: false }
+            }
+          })
+        )
+        results.forEach(({ dateStr, hasAvailableSlots }) => {
+          availability[dateStr] = hasAvailableSlots
+        })
+      }
+      
+      setDateAvailability(availability)
+      setCheckingAvailability(false)
+    }
+    
+    checkDateAvailability()
+  }, [storeId, selectedStaff?.id, selectedMenu?.id, storeSettings.booking_system_type, storeSettings.max_booking_days])
 
 
   const checkCustomer = useCallback(async () => {
@@ -1126,14 +1321,34 @@ export default function Booking() {
               
               <div className="space-y-6">
                 <div>
-                  <label className={theme.label}>日付</label>
+                  <label className={theme.label}>日付 {checkingAvailability && <span className="text-xs text-gray-400 ml-2">確認中...</span>}</label>
                   <div className="flex overflow-x-auto pb-4 gap-3 no-scrollbar -mx-4 px-4">
                     {Array.from({ length: storeSettings.max_booking_days || 14 }, (_, i) => {
                       const d = new Date()
                       d.setDate(d.getDate() + i)
                       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
                       const dayName = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()]
-                      const isClosed = getBusinessHoursForDate(dateStr).length === 0
+                      const dayOfWeek = d.getDay()
+                      
+                      // 店舗の営業日チェック
+                      const storeIsClosed = getBusinessHoursForDate(dateStr).length === 0
+                      
+                      // スタッフ選択時は、そのスタッフの勤務日もチェック
+                      let staffIsOff = false
+                      if (selectedStaff) {
+                        const staffPattern = staffWorkPatterns[dayOfWeek]
+                        // パターンがない、または is_active が false の場合は休み
+                        staffIsOff = !staffPattern || !staffPattern.is_active
+                      }
+                      
+                      // スタッフの欠勤日チェック
+                      const isStaffAbsent = selectedStaff && staffSpecialSchedules[dateStr]?.is_absent
+                      
+                      // 予約可能枠チェック（APIで確認済みの場合）
+                      const hasNoAvailableSlots = dateAvailability[dateStr] === false
+                      
+                      // 総合的な利用不可判定
+                      const isClosed = storeIsClosed || staffIsOff || isStaffAbsent || hasNoAvailableSlots
                       const isSelected = date === dateStr
                       
                       return (

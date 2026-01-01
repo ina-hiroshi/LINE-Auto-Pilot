@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { motion } from 'framer-motion'
 import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff, Loader2 } from 'lucide-react'
@@ -11,6 +11,7 @@ import membersImage from '../assets/members.png'
 import iconImage from '../assets/icon.png'
 
 export default function TopPage() {
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -18,6 +19,17 @@ export default function TopPage() {
   const [isLoginMode, setIsLoginMode] = useState(true)
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  // Scroll to auth section if navigated from feature pages
+  useEffect(() => {
+    const state = location.state as { scrollTo?: string } | null
+    if (state?.scrollTo === 'auth') {
+      const authElement = document.getElementById('auth')
+      if (authElement) {
+        authElement.scrollIntoView({ behavior: 'smooth' })
+      }
+    }
+  }, [location])
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -221,36 +233,44 @@ export default function TopPage() {
               { 
                 image: smartAutoChatImage, 
                 title: 'スマート自動応答', 
-                desc: 'よくある質問にはAIが即座に対応。お客様をお待たせすることなく、機会損失を防ぎます。' 
+                desc: 'よくある質問にはAIが即座に対応。お客様をお待たせすることなく、機会損失を防ぎます。',
+                link: '/feature/auto-response'
               },
               { 
                 image: yoyakuImage, 
                 title: 'かんたん予約管理', 
-                desc: 'LINEのトーク画面からそのまま予約完了。電話対応の手間を減らし、予約のハードルを下げます。' 
+                desc: 'LINEのトーク画面からそのまま予約完了。電話対応の手間を減らし、予約のハードルを下げます。',
+                link: '/feature/reservation'
               },
               { 
                 image: membersImage, 
                 title: 'デジタル会員証', 
-                desc: 'お財布を圧迫しないLINE上の会員証。ポイント管理もスムーズで、リピート率向上に貢献します。' 
+                desc: 'お財布を圧迫しないLINE上の会員証。ポイント管理もスムーズで、リピート率向上に貢献します。',
+                link: '/feature/membership'
               }
             ].map((feature, index) => (
-              <motion.div 
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.2 }}
-                className="group bg-slate-50 rounded-3xl overflow-hidden hover:bg-white hover:shadow-xl transition-all duration-300 border border-slate-100"
-              >
-                <div className="h-56 overflow-hidden relative">
-                  <div className="absolute inset-0 bg-slate-900/10 group-hover:bg-transparent transition-colors z-10"></div>
-                  <img src={feature.image} alt={feature.title} className="w-full h-full object-cover transform group-hover:scale-105 transition duration-700" />
-                </div>
-                <div className="p-8">
-                  <h3 className="text-xl font-bold mb-3 text-slate-900">{feature.title}</h3>
-                  <p className="text-slate-600 leading-relaxed">{feature.desc}</p>
-                </div>
-              </motion.div>
+              <Link to={feature.link} key={index}>
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.2 }}
+                  className="group bg-slate-50 rounded-3xl overflow-hidden hover:bg-white hover:shadow-xl transition-all duration-300 border border-slate-100 cursor-pointer h-full"
+                >
+                  <div className="h-56 overflow-hidden relative">
+                    <div className="absolute inset-0 bg-slate-900/10 group-hover:bg-transparent transition-colors z-10"></div>
+                    <img src={feature.image} alt={feature.title} className="w-full h-full object-cover transform group-hover:scale-105 transition duration-700" />
+                  </div>
+                  <div className="p-8">
+                    <h3 className="text-xl font-bold mb-3 text-slate-900 group-hover:text-primary-600 transition-colors">{feature.title}</h3>
+                    <p className="text-slate-600 leading-relaxed">{feature.desc}</p>
+                    <div className="mt-4 flex items-center text-primary-600 font-medium text-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                      詳しく見る
+                      <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+                </motion.div>
+              </Link>
             ))}
           </div>
         </div>

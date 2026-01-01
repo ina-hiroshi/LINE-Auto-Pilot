@@ -438,12 +438,12 @@ export function BookingPageTab({
 
             {/* 営業日タブ */}
             {activeTab === 'business-days' && (
-              <BusinessDaysTab storeId={storeId} onToast={onToast} />
+              <BusinessDaysTab storeId={storeId} onToast={onToast} onDataChange={onRefreshPreview} />
             )}
 
             {/* スタッフシフトタブ */}
             {activeTab === 'staff-shift' && (
-              <StaffShiftTab storeId={storeId} staffList={staffList} onToast={onToast} />
+              <StaffShiftTab storeId={storeId} staffList={staffList} onToast={onToast} onDataChange={onRefreshPreview} />
             )}
 
           </div>

@@ -44,12 +44,13 @@ interface StaffShiftTabProps {
   storeId: string | null
   staffList: Staff[]
   onToast: (message: string, type: 'success' | 'error') => void
+  onDataChange?: () => void
 }
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_KEYS: (keyof BusinessHours)[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 
-export function StaffShiftTab({ storeId, staffList, onToast }: StaffShiftTabProps) {
+export function StaffShiftTab({ storeId, staffList, onToast, onDataChange }: StaffShiftTabProps) {
   const [saving, setSaving] = useState(false)
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(staffList[0] || null)
   const [workPatterns, setWorkPatterns] = useState<StaffWorkPattern[]>([])
@@ -115,21 +116,34 @@ export function StaffShiftTab({ storeId, staffList, onToast }: StaffShiftTabProp
       if (!selectedStaff) return
       
       try {
-        const { data: patterns } = await supabase
+        const { data: patterns, error: patternsError } = await supabase
           .from('staff_work_patterns')
           .select('*')
           .eq('staff_id', selectedStaff.id)
         
+        console.log('[StaffShiftTab] Fetched patterns:', patterns, 'Error:', patternsError)
+        
         if (patterns) {
           const convertedPatterns: StaffWorkPattern[] = patterns.map(p => {
-            if ('start_time' in p && 'end_time' in p) {
+            console.log('[StaffShiftTab] Pattern:', p)
+            // slots カラムがある場合はそのまま使用
+            if (p.slots && Array.isArray(p.slots) && p.slots.length > 0) {
+              return p as StaffWorkPattern
+            }
+            // 古いデータ形式（start_time, end_time）からの変換
+            if ('start_time' in p && 'end_time' in p && p.start_time && p.end_time) {
               return {
                 ...p,
-                slots: p.start_time && p.end_time ? [{ start: p.start_time, end: p.end_time }] : []
+                slots: [{ start: p.start_time, end: p.end_time }]
               } as StaffWorkPattern
             }
-            return p as StaffWorkPattern
+            // slots が空または null の場合
+            return {
+              ...p,
+              slots: []
+            } as StaffWorkPattern
           })
+          console.log('[StaffShiftTab] Converted patterns:', convertedPatterns)
           setWorkPatterns(convertedPatterns)
         }
 
@@ -158,19 +172,26 @@ export function StaffShiftTab({ storeId, staffList, onToast }: StaffShiftTabProp
     
     const pattern = workPatterns.find(p => p.day_of_week === dayOfWeek)
     
+    console.log(`[StaffShiftTab] Toggling day ${dayOfWeek} for staff ${selectedStaff.id}`, { pattern })
+    
     try {
       if (pattern) {
         const newActive = !pattern.is_active
+        console.log(`[StaffShiftTab] Updating existing pattern ${pattern.id} to is_active=${newActive}`)
         const { error } = await supabase
           .from('staff_work_patterns')
           .update({ is_active: newActive })
           .eq('id', pattern.id)
         
-        if (error) throw error
+        if (error) {
+          console.error('[StaffShiftTab] Update error:', error)
+          throw error
+        }
         
         setWorkPatterns(workPatterns.map(p =>
           p.id === pattern.id ? { ...p, is_active: newActive } : p
         ))
+        onDataChange?.()
       } else {
         const dayKey = WEEKDAY_KEYS[dayOfWeek]
         const dayHours = businessHours[dayKey] || []
@@ -178,21 +199,39 @@ export function StaffShiftTab({ storeId, staffList, onToast }: StaffShiftTabProp
           ? JSON.parse(JSON.stringify(dayHours))
           : [{ start: '10:00', end: '19:00' }]
         
+        console.log(`[StaffShiftTab] Inserting new pattern for day ${dayOfWeek}`, { defaultSlots })
+        
+        // 現在のDBスキーマは start_time / end_time を使用
+        const defaultStartTime = defaultSlots[0]?.start || '10:00'
+        const defaultEndTime = defaultSlots[0]?.end || '19:00'
+        
         const { data, error } = await supabase
           .from('staff_work_patterns')
           .insert({
             staff_id: selectedStaff.id,
             day_of_week: dayOfWeek,
-            slots: defaultSlots,
+            start_time: defaultStartTime,
+            end_time: defaultEndTime,
             is_active: true
           })
           .select()
           .single()
         
-        if (error) throw error
+        if (error) {
+          console.error('[StaffShiftTab] Insert error:', error)
+          throw error
+        }
+        
+        console.log('[StaffShiftTab] Insert success:', data)
         
         if (data) {
-          setWorkPatterns([...workPatterns, data])
+          // データを内部形式（slots）に変換
+          const newPattern: StaffWorkPattern = {
+            ...data,
+            slots: [{ start: data.start_time, end: data.end_time }]
+          }
+          setWorkPatterns([...workPatterns, newPattern])
+          onDataChange?.()
         }
       }
     } catch (e) {
@@ -211,9 +250,17 @@ export function StaffShiftTab({ storeId, staffList, onToast }: StaffShiftTabProp
       const newSlots = [...pattern.slots]
       newSlots[slotIndex][field] = value
       
+      // DB スキーマに合わせて start_time / end_time も更新
+      const updateData: Record<string, unknown> = {}
+      if (slotIndex === 0) {
+        // 最初のスロットは start_time/end_time にも保存
+        updateData.start_time = newSlots[0].start
+        updateData.end_time = newSlots[0].end
+      }
+      
       const { error } = await supabase
         .from('staff_work_patterns')
-        .update({ slots: newSlots })
+        .update(updateData)
         .eq('id', pattern.id)
       
       if (error) throw error
@@ -221,6 +268,7 @@ export function StaffShiftTab({ storeId, staffList, onToast }: StaffShiftTabProp
       setWorkPatterns(workPatterns.map(p =>
         p.id === pattern.id ? { ...p, slots: newSlots } : p
       ))
+      onDataChange?.()
     } catch (e) {
       console.error('Failed to update:', e)
       onToast('更新に失敗しました', 'error')
@@ -246,6 +294,7 @@ export function StaffShiftTab({ storeId, staffList, onToast }: StaffShiftTabProp
       setWorkPatterns(workPatterns.map(p =>
         p.id === pattern.id ? { ...p, slots: newSlots } : p
       ))
+      onDataChange?.()
     } catch (e) {
       console.error('Failed to add slot:', e)
       onToast('枠の追加に失敗しました', 'error')
@@ -258,12 +307,19 @@ export function StaffShiftTab({ storeId, staffList, onToast }: StaffShiftTabProp
     const pattern = workPatterns.find(p => p.day_of_week === dayOfWeek)
     if (!pattern) return
     
+    // 現在のDBスキーマでは1スロットのみ対応
+    // 最後のスロットは削除できない（代わりに is_active=false にする）
+    if (pattern.slots.length <= 1) {
+      onToast('少なくとも1つの時間枠が必要です。休みにする場合は「出勤」をオフにしてください', 'error')
+      return
+    }
+    
     try {
       const newSlots = pattern.slots.filter((_, i) => i !== slotIndex)
-      
+      // 最初のスロットを start_time/end_time に反映
       const { error } = await supabase
         .from('staff_work_patterns')
-        .update({ slots: newSlots })
+        .update({ start_time: newSlots[0].start, end_time: newSlots[0].end })
         .eq('id', pattern.id)
       
       if (error) throw error
@@ -271,6 +327,7 @@ export function StaffShiftTab({ storeId, staffList, onToast }: StaffShiftTabProp
       setWorkPatterns(workPatterns.map(p =>
         p.id === pattern.id ? { ...p, slots: newSlots } : p
       ))
+      onDataChange?.()
     } catch (e) {
       console.error('Failed to remove slot:', e)
       onToast('枠の削除に失敗しました', 'error')
@@ -287,24 +344,32 @@ export function StaffShiftTab({ storeId, staffList, onToast }: StaffShiftTabProp
       const updates = []
       const inserts = []
       
+      // ソースの最初のスロットから start_time/end_time を取得
+      const sourceStartTime = sourcePattern.slots[0]?.start || '10:00'
+      const sourceEndTime = sourcePattern.slots[0]?.end || '19:00'
+      
       for (let i = 0; i < 7; i++) {
         if (i === dayOfWeek) continue
         
         const targetPattern = workPatterns.find(p => p.day_of_week === i)
-        const newSlots = JSON.parse(JSON.stringify(sourcePattern.slots))
         
         if (targetPattern) {
           updates.push(
             supabase
               .from('staff_work_patterns')
-              .update({ slots: newSlots, is_active: sourcePattern.is_active })
+              .update({ 
+                start_time: sourceStartTime, 
+                end_time: sourceEndTime, 
+                is_active: sourcePattern.is_active 
+              })
               .eq('id', targetPattern.id)
           )
         } else {
           inserts.push({
             staff_id: selectedStaff.id,
             day_of_week: i,
-            slots: newSlots,
+            start_time: sourceStartTime,
+            end_time: sourceEndTime,
             is_active: sourcePattern.is_active
           })
         }
@@ -313,22 +378,32 @@ export function StaffShiftTab({ storeId, staffList, onToast }: StaffShiftTabProp
       await Promise.all(updates.map(u => u))
       
       if (inserts.length > 0) {
-        const { data: inserted } = await supabase
+        const { data: inserted, error: insertError } = await supabase
           .from('staff_work_patterns')
           .insert(inserts)
           .select()
         
+        console.log('[StaffShiftTab] Copy inserts result:', { inserted, insertError })
+        
+        if (insertError) throw insertError
+        
         if (inserted) {
+          // 挿入されたデータを内部形式（slots）に変換
+          const convertedInserted = inserted.map(p => ({
+            ...p,
+            slots: [{ start: p.start_time, end: p.end_time }]
+          }))
+          
           setWorkPatterns([
             ...workPatterns.map(p => {
               if (p.day_of_week === dayOfWeek) return p
               return {
                 ...p,
-                slots: JSON.parse(JSON.stringify(sourcePattern.slots)),
+                slots: [{ start: sourceStartTime, end: sourceEndTime }],
                 is_active: sourcePattern.is_active
               }
             }),
-            ...inserted
+            ...convertedInserted
           ])
         }
       } else {
@@ -336,13 +411,14 @@ export function StaffShiftTab({ storeId, staffList, onToast }: StaffShiftTabProp
           if (p.day_of_week === dayOfWeek) return p
           return {
             ...p,
-            slots: JSON.parse(JSON.stringify(sourcePattern.slots)),
+            slots: [{ start: sourceStartTime, end: sourceEndTime }],
             is_active: sourcePattern.is_active
           }
         }))
       }
       
       onToast('全曜日にコピーしました', 'success')
+      onDataChange?.()
     } catch (e) {
       console.error('Failed to copy:', e)
       onToast('コピーに失敗しました', 'error')
@@ -404,6 +480,7 @@ export function StaffShiftTab({ storeId, staffList, onToast }: StaffShiftTabProp
       }
       
       onToast('保存しました', 'success')
+      onDataChange?.()
       setIsStaffScheduleModalOpen(false)
     } catch (e) {
       console.error('Failed to save:', e)
@@ -639,7 +716,11 @@ export function StaffShiftTab({ storeId, staffList, onToast }: StaffShiftTabProp
                       <div className="text-center">{day}</div>
                       {isStoreClosed && <div className="text-xs mt-1 opacity-60">店休</div>}
                       {isAbsent && !isStoreClosed && <div className="text-xs mt-1">欠勤</div>}
-                      {hasOverride && <div className="text-xs mt-1">変更</div>}
+                      {hasOverride && (
+                        <div className="text-[10px] mt-1">
+                          {schedule?.override_start?.slice(0, 5)}-{schedule?.override_end?.slice(0, 5)}
+                        </div>
+                      )}
                       {!schedule && !isStoreClosed && hasShift && workPattern?.slots[0] && (
                         <div className="text-[10px] mt-1 opacity-60">
                           {workPattern.slots[0].start.slice(0, 5)}-{workPattern.slots[0].end.slice(0, 5)}

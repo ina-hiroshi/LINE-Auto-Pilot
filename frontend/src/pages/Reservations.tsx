@@ -578,17 +578,17 @@ export default function Reservations() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full h-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-full flex justify-between items-end pb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">予約管理</h1>
-            <p className="text-gray-500">予約の確認・編集・キャンセルなどの管理を行います。</p>
+      <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex flex-col gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">予約管理</h1>
+            <p className="text-sm text-gray-500">予約の確認・編集・キャンセルなどの管理を行います。</p>
           </div>
-          <div className="flex gap-4 w-full sm:w-auto">
-            <div className="bg-gray-100 p-1 rounded-lg flex flex-1 sm:flex-none">
+          <div className="flex gap-2 w-full overflow-x-auto">
+            <div className="bg-gray-100 p-1 rounded-lg flex shrink-0">
               <button 
                 onClick={() => setViewMode('list')}
-                className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition whitespace-nowrap ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 リスト
               </button>
@@ -597,7 +597,7 @@ export default function Reservations() {
                   setViewMode('calendar')
                   if (isGoogleConnected && !calendars.length) fetchCalendars()
                 }}
-                className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition flex items-center justify-center gap-1 ${viewMode === 'calendar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition flex items-center justify-center gap-1 whitespace-nowrap ${viewMode === 'calendar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 カレンダー
                 {!isPro && <ProBadge />}
@@ -981,9 +981,9 @@ export default function Reservations() {
                   <div className="flex-1 flex flex-col min-h-0">
                     {/* Days Header */}
                     <div className="overflow-x-auto scrollbar-hide">
-                      <div className={`flex ${calendarView === 'week' ? 'min-w-[700px]' : ''}`}>
+                      <div className={`flex ${calendarView === 'week' ? 'min-w-[600px]' : ''}`}>
                         {(calendarView === 'week' || calendarView === 'day') && (
-                          <div className="w-12 flex-shrink-0 bg-gray-50 border-b border-r border-gray-200"></div>
+                          <div className="w-10 sm:w-14 flex-shrink-0 bg-gray-50 border-b border-r border-gray-200"></div>
                         )}
                         <div className={`flex-1 grid ${calendarView === 'day' ? 'grid-cols-1' : 'grid-cols-7'} border-b border-gray-200 bg-gray-50 shrink-0`}>
                         {(() => {
@@ -1118,18 +1118,19 @@ export default function Reservations() {
                       </div>
                     ) : (
                       // Week / Day View (Time Grid)
-                      <div className="flex-1 overflow-y-auto relative bg-white overflow-x-auto">
+                      <div className="flex-1 overflow-auto relative bg-white">
                         <div 
-                          className={`flex ${calendarView === 'week' ? 'min-w-[700px]' : ''}`}
+                          className={`flex ${calendarView === 'week' ? 'min-w-[600px]' : ''}`}
                           style={{ minHeight: `${(displayHours.end - displayHours.start) * 60}px` }}
                         >
                           {/* Time Labels */}
-                          <div className="w-12 flex-shrink-0 border-r border-gray-200 bg-gray-50 sticky left-0 z-20">
+                          <div className="w-10 sm:w-14 flex-shrink-0 border-r border-gray-200 bg-gray-50 sticky left-0 z-20">
                             {[...Array(displayHours.end - displayHours.start)].map((_, i) => {
                               const hour = i + displayHours.start
                               return (
-                                <div key={hour} className="h-[60px] text-[10px] text-gray-500 text-right pr-2 pt-1 border-b border-gray-100 bg-gray-50">
-                                  {hour}:00
+                                <div key={hour} className="h-[60px] text-[9px] sm:text-[11px] text-gray-500 text-right pr-0.5 sm:pr-1.5 pt-0.5 border-b border-gray-100 bg-gray-50">
+                                  <span className="sm:hidden">{hour}</span>
+                                  <span className="hidden sm:inline">{hour}:00</span>
                                 </div>
                               )
                             })}

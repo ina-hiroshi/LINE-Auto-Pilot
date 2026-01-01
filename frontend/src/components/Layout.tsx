@@ -207,7 +207,7 @@ export default function Layout() {
 
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-primary-600 border-t border-primary-500 z-30 pb-safe">
-        <div className="flex justify-around items-center h-16">
+        <div className="flex overflow-x-auto scrollbar-hide h-14">
           {navItems.map((item) => {
             const isItemActive = item.path?.includes('?') 
               ? (location.pathname + location.search) === item.path
@@ -217,16 +217,16 @@ export default function Layout() {
               <Link
                 key={item.path}
                 to={item.path!}
-                className={`flex flex-col items-center justify-center w-full h-full space-y-0.5 transition-colors ${
+                className={`flex flex-col items-center justify-center min-w-[64px] px-2 h-full space-y-0.5 transition-colors shrink-0 ${
                   isItemActive
-                    ? 'text-white bg-white/10' 
+                    ? 'text-white bg-white/15' 
                     : 'text-primary-100 hover:text-white hover:bg-white/5'
                 }`}
               >
-                <div className="flex items-center justify-center" style={{ fontSize: '16px' }}>
-                  {item.icon && <item.icon.type size={16} {...item.icon.props} />}
+                <div className="flex items-center justify-center">
+                  {item.icon && <item.icon.type size={18} {...item.icon.props} />}
                 </div>
-                <span className="text-[6px] font-bold leading-none">{item.label}</span>
+                <span className="text-[9px] font-bold leading-tight whitespace-nowrap">{item.label}</span>
               </Link>
             )
           })}

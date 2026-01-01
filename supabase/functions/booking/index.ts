@@ -24,7 +24,12 @@ const parseBusinessHours = (businessHoursRaw: unknown, targetDate: string): Busi
   }
 }
 
-const toJstDate = (date: string, time: string) => new Date(`${date}T${time}:00+09:00`)
+// time は "HH:MM" または "HH:MM:SS" 形式を受け付ける
+const toJstDate = (date: string, time: string) => {
+  // 秒を含む場合は除去（HH:MM のみにする）
+  const normalizedTime = time.slice(0, 5)
+  return new Date(`${date}T${normalizedTime}:00+09:00`)
+}
 
 const isOverlapping = (startA: Date, endA: Date, startB: Date, endB: Date) => startA < endB && endA > startB
 
@@ -328,6 +333,22 @@ Deno.serve(async (req: Request) => {
       const storeSettings = await getStoreSettings(store_id)
       const slotInterval = storeSettings?.slot_interval_minutes ?? 60
 
+      // --- 特別営業日/臨時休業日の確認 ---
+      const { data: specialDate } = await supabaseClient
+        .from('booking_special_dates')
+        .select('is_closed, override_hours')
+        .eq('store_id', store_id)
+        .eq('date', date)
+        .maybeSingle()
+      
+      // 臨時休業日の場合は空のスロットを返す
+      if (specialDate?.is_closed) {
+        return new Response(JSON.stringify({ slots: [] }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      // -----------------------------------
+
       // Menu-specific duration & capacity override
       let durationMinutes = slotInterval
       let menuCapacity: number | null = null
@@ -402,10 +423,12 @@ Deno.serve(async (req: Request) => {
         // 基本勤務パターンを取得
         const { data: workPattern } = await supabaseClient
           .from('staff_work_patterns')
-          .select('slots, is_active')
+          .select('start_time, end_time, is_active')
           .eq('staff_id', staff_id)
           .eq('day_of_week', dayOfWeek)
           .maybeSingle()
+        
+        console.log(`[Booking] Staff ${staff_id} work pattern for day ${dayOfWeek}:`, workPattern)
         
         // 特別スケジュール（個別日程設定）を取得
         const { data: specialSchedule } = await supabaseClient
@@ -415,32 +438,50 @@ Deno.serve(async (req: Request) => {
           .eq('date', date)
           .maybeSingle()
         
+        console.log(`[Booking] Staff ${staff_id} special schedule for ${date}:`, specialSchedule)
+        
         // 優先順位: 特別スケジュール > 基本勤務パターン
         if (specialSchedule) {
           if (specialSchedule.is_absent) {
             // 欠勤日は予約不可
+            console.log(`[Booking] Staff ${staff_id} is absent on ${date}`)
             effectiveHours = []
           } else if (specialSchedule.override_start && specialSchedule.override_end) {
             // 個別日程設定がある場合
             effectiveHours = [{ start: specialSchedule.override_start, end: specialSchedule.override_end }]
           } else {
             // 基本勤務パターンにフォールバック
-            effectiveHours = (workPattern?.is_active && workPattern.slots) ? workPattern.slots : []
+            if (workPattern?.is_active && workPattern.start_time && workPattern.end_time) {
+              effectiveHours = [{ start: workPattern.start_time, end: workPattern.end_time }]
+            } else {
+              effectiveHours = []
+            }
           }
-        } else if (workPattern?.is_active && workPattern.slots) {
-          // 基本勤務パターンを使用
-          effectiveHours = workPattern.slots
+        } else if (workPattern?.is_active) {
+          // 基本勤務パターンを使用 (start_time/end_time を使用)
+          if (workPattern.start_time && workPattern.end_time) {
+            effectiveHours = [{ start: workPattern.start_time, end: workPattern.end_time }]
+          } else {
+            effectiveHours = []
+          }
         }
+        // workPattern が null (未登録) の場合は effectiveHours = [] のまま
+        
+        console.log(`[Booking] Staff ${staff_id} effective hours:`, effectiveHours)
         
         // スタッフの勤務時間がない場合は予約不可
         if (effectiveHours.length === 0) {
+          console.log(`[Booking] No available slots for staff ${staff_id} on ${date}`)
           return new Response(JSON.stringify({ slots: [] }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           })
         }
       } else {
         // スタッフ指定がない場合は店舗営業時間を使用
-        if (storeSettings?.business_hours) {
+        // 特別営業日の営業時間上書きがある場合はそちらを優先
+        if (specialDate?.override_hours && Array.isArray(specialDate.override_hours) && specialDate.override_hours.length > 0) {
+          effectiveHours = specialDate.override_hours
+        } else if (storeSettings?.business_hours) {
           effectiveHours = parseBusinessHours(storeSettings.business_hours, date)
         } else {
           effectiveHours = [{ start: '10:00', end: '20:00' }]

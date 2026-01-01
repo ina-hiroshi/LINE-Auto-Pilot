@@ -15,12 +15,13 @@ interface SpecialDate {
 interface BusinessDaysTabProps {
   storeId: string | null
   onToast: (message: string, type: 'success' | 'error') => void
+  onDataChange?: () => void
 }
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_KEYS: (keyof BusinessHours)[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 
-export function BusinessDaysTab({ storeId, onToast }: BusinessDaysTabProps) {
+export function BusinessDaysTab({ storeId, onToast, onDataChange }: BusinessDaysTabProps) {
   const [saving, setSaving] = useState(false)
   const [businessHours, setBusinessHours] = useState<BusinessHours>({
     mon: [],
@@ -86,6 +87,7 @@ export function BusinessDaysTab({ storeId, onToast }: BusinessDaysTabProps) {
       
       setBusinessHours(newHours)
       onToast('営業時間を保存しました', 'success')
+      onDataChange?.() // プレビュー更新
     } catch (e) {
       console.error('Failed to save business hours:', e)
       onToast('保存に失敗しました', 'error')
@@ -203,6 +205,7 @@ export function BusinessDaysTab({ storeId, onToast }: BusinessDaysTabProps) {
       }
       
       onToast('保存しました', 'success')
+      onDataChange?.() // プレビュー更新
       setIsSpecialDateModalOpen(false)
     } catch (e) {
       console.error('Failed to save:', e)

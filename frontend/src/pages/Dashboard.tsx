@@ -407,13 +407,13 @@ export default function Dashboard() {
         onClose={() => setToast(prev => ({ ...prev, isVisible: false }))}
       />
 
-      <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full h-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-full flex justify-between items-end pb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">ダッシュボード</h1>
-            <p className="text-gray-500">予約状況や顧客の動向を一目で確認できます。</p>
+      <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">ダッシュボード</h1>
+            <p className="text-sm text-gray-500 truncate">予約状況や顧客の動向を一目で確認できます。</p>
           </div>
-          <div className="flex bg-gray-100 p-1 rounded-lg shrink-0">
+          <div className="flex bg-gray-100 p-1 rounded-lg shrink-0 overflow-x-auto scrollbar-hide">
             {(['all', 'month', 'week', 'today'] as const).map((range) => (
               <button
                 key={range}
@@ -692,9 +692,9 @@ export default function Dashboard() {
 
       {/* Recent Logs List (Compact) */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col flex-1 min-h-0 overflow-hidden h-[600px]">
-        <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center shrink-0 bg-white z-10 gap-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-gray-900">メッセージ・対応状況</h2>
+        <div className="p-4 border-b border-gray-100 flex flex-col gap-3 shrink-0 bg-white z-10">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base sm:text-lg font-bold text-gray-900">メッセージ・対応状況</h2>
             {stats.manualReplyNeeded > 0 && (
               <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full">
                 要対応: {stats.manualReplyNeeded}
@@ -703,7 +703,7 @@ export default function Dashboard() {
           </div>
             
             {/* Filter Tabs */}
-            <div className="flex bg-gray-100 p-1 rounded-lg overflow-x-auto max-w-full">
+            <div className="flex bg-gray-100 p-1 rounded-lg overflow-x-auto scrollbar-hide -mx-1 px-1">
                 {(['all', 'manual_reply_needed', 'auto_replied', 'ai_replied', 'manual_replied', 'resolved'] as const).map((status) => (
                     <button
                         key={status}
