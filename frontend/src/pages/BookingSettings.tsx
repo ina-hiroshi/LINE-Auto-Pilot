@@ -310,7 +310,6 @@ export default function BookingSettingsPage() {
           storeId={storeId}
           bookingSettings={bookingSettings}
           onBookingSettingsChange={setBookingSettings}
-          saving={false}
           staffList={staffList}
           menuList={menuList}
           onAddStaff={handleAddStaff}

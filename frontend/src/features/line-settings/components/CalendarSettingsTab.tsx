@@ -195,7 +195,7 @@ export function CalendarSettingsTab({ storeId, staffList, onToast }: CalendarSet
 
   const handleToggleDay = (day: keyof BusinessHours) => {
     const newHours = { ...businessHours }
-    if (newHours[day].length === 0) {
+    if ((newHours[day]?.length ?? 0) === 0) {
       newHours[day] = [{ start: '10:00', end: '19:00' }]
     } else {
       newHours[day] = []
@@ -400,8 +400,9 @@ export function CalendarSettingsTab({ storeId, staffList, onToast }: CalendarSet
       } else {
         // Create new pattern with business hours as default
         const dayKey = WEEKDAY_KEYS[dayOfWeek]
-        const defaultSlots = businessHours[dayKey]?.length > 0
-          ? JSON.parse(JSON.stringify(businessHours[dayKey]))
+        const dayHours = businessHours[dayKey] || []
+        const defaultSlots = dayHours.length > 0
+          ? JSON.parse(JSON.stringify(dayHours))
           : [{ start: '10:00', end: '19:00' }]
         
         const { data, error } = await supabase
