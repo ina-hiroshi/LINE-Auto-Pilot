@@ -13,7 +13,7 @@ import RichMenu from './pages/RichMenu'
 import BookingSettings from './pages/BookingSettings'
 import Reservations from './pages/Reservations'
 import TopPage from './pages/TopPage'
-import InitialSetup from './pages/InitialSetup'
+import Onboarding from './pages/Onboarding'
 import DevSandbox from './pages/DevSandbox'
 import Booking from './pages/Booking'
 import PrivacyPolicy from './pages/PrivacyPolicy'
@@ -31,37 +31,60 @@ function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [hasStore, setHasStore] = useState<boolean | null>(null)
+  const [hasLineAccount, setHasLineAccount] = useState<boolean | null>(null)
   const lastCheckedUserId = useRef<string | null>(null)
 
-  // ストアの存在確認関数（タイムアウト付き）
-  const checkStore = async (userId: string): Promise<boolean> => {
+  // ストアとLINE連携の存在確認関数（タイムアウト付き）
+  const checkStoreAndLine = async (userId: string): Promise<{ hasStore: boolean; hasLine: boolean }> => {
     try {
-      console.log('Checking store for user:', userId)
+      console.log('Checking store and LINE account for user:', userId)
       
       // 5秒でタイムアウト
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Store check timeout')), 5000)
+        setTimeout(() => reject(new Error('Check timeout')), 5000)
       )
 
-      const checkPromise = supabase
+      const checkStorePromise = supabase
         .from('stores')
         .select('id')
         .eq('owner_id', userId)
         .maybeSingle()
       
-      const result = await Promise.race([checkPromise, timeoutPromise])
+      const result = await Promise.race([checkStorePromise, timeoutPromise])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = result as any
+      const { data: storeData, error: storeError } = result as any
       
-      if (error) {
-        console.warn('Store check failed:', error.message)
-        return false
+      if (storeError) {
+        console.warn('Store check failed:', storeError.message)
+        return { hasStore: false, hasLine: false }
       }
       
-      return !!data
+      const storeExists = !!storeData
+      
+      // ストアが存在する場合のみLINE連携をチェック
+      if (storeExists && storeData) {
+        const checkLinePromise = supabase
+          .from('line_accounts')
+          .select('id')
+          .eq('store_id', storeData.id)
+          .maybeSingle()
+        
+        const lineResult = await Promise.race([checkLinePromise, timeoutPromise])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: lineData, error: lineError } = lineResult as any
+        
+        if (lineError) {
+          console.warn('LINE account check failed:', lineError.message)
+          return { hasStore: storeExists, hasLine: false }
+        }
+        
+        return { hasStore: storeExists, hasLine: !!lineData }
+      }
+      
+      return { hasStore: storeExists, hasLine: false }
     } catch (error) {
-      console.error('Unexpected error checking store:', error)
-      return false
+      console.error('Unexpected error checking store and LINE:', error)
+      return { hasStore: false, hasLine: false }
     }
   }
 
@@ -74,6 +97,7 @@ function App() {
       if (!currentSession) {
         setSession(null)
         setHasStore(null)
+        setHasLineAccount(null)
         setLoading(false)
         lastCheckedUserId.current = null
         return
@@ -85,11 +109,12 @@ function App() {
       if (currentSession.user.id !== lastCheckedUserId.current) {
         lastCheckedUserId.current = currentSession.user.id
         
-        // ストア確認
-        const exists = await checkStore(currentSession.user.id)
+        // ストアとLINE連携を確認
+        const { hasStore, hasLine } = await checkStoreAndLine(currentSession.user.id)
         
         if (mounted) {
-          setHasStore(exists)
+          setHasStore(hasStore)
+          setHasLineAccount(hasLine)
           setLoading(false)
         }
       } else {
@@ -121,6 +146,7 @@ function App() {
   const handleSetupComplete = () => {
     console.log('Setup complete, updating state...')
     setHasStore(true)
+    setHasLineAccount(true)
   }
 
   if (loading) {
@@ -171,10 +197,10 @@ function App() {
               <p className="text-slate-600 font-medium">情報を確認中...</p>
             </div>
           } />
-        ) : hasStore === false ? (
+        ) : hasStore === false || hasLineAccount === false ? (
           <>
-            <Route path="/initial-setup" element={<InitialSetup onComplete={handleSetupComplete} />} />
-            <Route path="*" element={<Navigate to="/initial-setup" replace />} />
+            <Route path="/onboarding" element={<Onboarding onComplete={handleSetupComplete} />} />
+            <Route path="*" element={<Navigate to="/onboarding" replace />} />
           </>
         ) : (
           <Route element={<Layout />}>

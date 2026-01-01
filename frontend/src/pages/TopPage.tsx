@@ -19,6 +19,19 @@ export default function TopPage() {
   const [isLoginMode, setIsLoginMode] = useState(true)
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  
+  // 認証コード関連
+  const [showVerificationStep, setShowVerificationStep] = useState(false)
+  const [verificationCode, setVerificationCode] = useState('')
+  const [resendCooldown, setResendCooldown] = useState(0)
+
+  // トーストを自動的に消す
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [toast])
 
   // Scroll to auth section if navigated from feature pages
   useEffect(() => {
@@ -30,6 +43,14 @@ export default function TopPage() {
       }
     }
   }, [location])
+
+  // 再送信のクールダウンタイマー
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [resendCooldown])
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,15 +66,19 @@ export default function TopPage() {
       } else {
         if (password !== confirmPassword) {
           setToast({ message: 'パスワードが一致しません。', type: 'error' })
+          setLoading(false)
           return
         }
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-        })
-        if (error) throw error
-        setToast({ message: 'アカウントを作成しました。ログインしてください。', type: 'success' })
-        setIsLoginMode(true)
+        
+        // まず認証コードを送信（アカウント作成はコード検証後に行う）
+        try {
+          await sendVerificationCode()
+          setShowVerificationStep(true)
+        } catch (error) {
+          // エラーはsendVerificationCode内で処理済み
+        }
+        setLoading(false)
+        return
       }
     } catch (error: unknown) {
       console.error('Auth error:', error)
@@ -65,6 +90,107 @@ export default function TopPage() {
         message = err.message
       }
       setToast({ message, type: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const sendVerificationCode = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-verification-code', {
+        body: { email }
+      })
+      
+      if (error) throw error
+      
+      // 既存ユーザーの場合
+      if (data?.existingUser) {
+        setToast({ message: data.error || 'このメールアドレスは既に登録されています。', type: 'error' })
+        setIsLoginMode(true)
+        throw new Error('existing_user')
+      }
+      
+      if (data?.error) {
+        throw new Error(data.error)
+      }
+      
+      setToast({ message: `${email} に認証コードを送信しました`, type: 'success' })
+      setResendCooldown(60) // 60秒のクールダウン
+    } catch (error) {
+      console.error('Send code error:', error)
+      if (error instanceof Error && error.message !== 'existing_user') {
+        setToast({ message: error.message || '認証コードの送信に失敗しました', type: 'error' })
+      }
+      throw error
+    }
+  }
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    
+    try {
+      // 認証コードを検証
+      const { data, error } = await supabase.functions.invoke('verify-code', {
+        body: { email, code: verificationCode }
+      })
+      
+      if (error || !data?.valid) {
+        throw new Error(data?.error || '認証コードが正しくありません')
+      }
+      
+      // 検証成功 → アカウント作成（メール確認スキップ設定が必要）
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          // メール確認をスキップするためのメタデータ
+          data: {
+            email_verified: true
+          }
+        }
+      })
+      
+      if (signUpError) {
+        // 既にアカウントが存在する場合はログインを試みる
+        if (signUpError.message?.includes('already registered')) {
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          })
+          if (signInError) throw signInError
+        } else {
+          throw signUpError
+        }
+      } else if (signUpData.session) {
+        // セッションが作成された（メール確認不要の設定の場合）
+        setToast({ message: 'アカウントを作成しました', type: 'success' })
+      } else {
+        // セッションがない場合はログインを試みる
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+        if (signInError) throw signInError
+      }
+      
+      // App.tsxのonAuthStateChangeで自動的にオンボーディングへ遷移
+    } catch (error: unknown) {
+      console.error('Verification error:', error)
+      const message = error instanceof Error ? error.message : '認証に失敗しました'
+      setToast({ message, type: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResendCode = async () => {
+    if (resendCooldown > 0) return
+    setLoading(true)
+    try {
+      await sendVerificationCode()
+    } catch (error) {
+      // エラーはsendVerificationCode内で処理済み
     } finally {
       setLoading(false)
     }
@@ -513,13 +639,79 @@ export default function TopPage() {
             <div className="flex flex-col items-center mb-8">
               <img src={iconImage} alt="IToguchi" className="h-16 w-auto mb-4" />
               <h2 className="text-2xl font-bold text-slate-900">
-                {isLoginMode ? 'おかえりなさい' : 'を始める'}
+                {showVerificationStep ? '認証コードを入力' : isLoginMode ? 'おかえりなさい' : 'を始める'}
               </h2>
-              <p className="text-slate-500 mt-2 text-center text-sm whitespace-nowrap">
-                {isLoginMode ? 'アカウントにログインして管理を続けましょう' : 'まずは無料で、新しい繋がりを作りましょう'}
+              <p className="text-slate-500 mt-2 text-center text-sm">
+                {showVerificationStep 
+                  ? <>{email}<br />に送信された6桁のコードを入力してください</>
+                  : isLoginMode ? 'アカウントにログインして管理を続けましょう' : 'まずは無料で、新しい繋がりを作りましょう'}
               </p>
             </div>
             
+            {showVerificationStep ? (
+              /* 認証コード入力フォーム */
+              <form onSubmit={handleVerifyCode} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">認証コード</label>
+                  <input
+                    type="text"
+                    value={verificationCode}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 6)
+                      setVerificationCode(value)
+                    }}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition bg-slate-50 focus:bg-white text-center text-2xl tracking-widest font-bold"
+                    placeholder="000000"
+                    required
+                    maxLength={6}
+                    pattern="\d{6}"
+                    autoFocus
+                  />
+                  <p className="text-xs text-slate-500 mt-2">
+                    コードが届いていませんか？
+                    {resendCooldown > 0 ? (
+                      <span className="text-slate-400 ml-1">({resendCooldown}秒後に再送信可能)</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleResendCode}
+                        disabled={loading}
+                        className="text-primary-600 hover:text-primary-700 font-medium ml-1 disabled:opacity-50"
+                      >
+                        再送信
+                      </button>
+                    )}
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading || verificationCode.length !== 6}
+                  className="w-full bg-primary-600 text-white py-3.5 rounded-xl font-bold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary-200 flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      確認中...
+                    </>
+                  ) : (
+                    '確認して次へ'
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowVerificationStep(false)
+                    setVerificationCode('')
+                  }}
+                  className="w-full text-slate-600 hover:text-slate-800 text-sm"
+                >
+                  ← 戻る
+                </button>
+              </form>
+            ) : (
+              /* 通常のログイン/サインアップフォーム */
             <form onSubmit={handleAuth} className="space-y-5">
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">メールアドレス</label>
@@ -586,7 +778,8 @@ export default function TopPage() {
                 )}
               </button>
             </form>
-            {!isLoginMode && (
+            )}
+            {!isLoginMode && !showVerificationStep && (
               <p className="mt-6 text-xs text-center text-slate-400 leading-relaxed">
                 登録することで、
                 <Link 

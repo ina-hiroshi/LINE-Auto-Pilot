@@ -60,6 +60,7 @@ Deno.serve(async (req: Request) => {
               .update({ 
                 stripe_customer_id: customerId,
                 subscription_id: subscriptionId,
+                subscription_status: status,
                 plan: plan,
                 price_id: priceId,
                 current_period_end: currentPeriodEnd
