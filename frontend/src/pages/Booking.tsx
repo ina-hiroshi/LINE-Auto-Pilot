@@ -297,7 +297,7 @@ export default function Booking() {
         setStep('error')
         setErrorMsg('店舗情報が見つかりませんでした。')
     }
-  }, [])
+  }, [navigate])
 
   const initializeLiff = useCallback(async () => {
     // Preview Mode Check (iframe)
@@ -405,7 +405,7 @@ export default function Booking() {
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [])
+  }, [setStaffList, setMenuList])
 
 
   const checkCustomer = useCallback(async () => {

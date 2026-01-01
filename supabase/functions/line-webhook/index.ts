@@ -1,6 +1,29 @@
 // Using Deno.serve instead of @std/http/server
 import { createClient } from '@supabase/supabase-js'
 
+// ============ 定数定義 ============
+const CONFIG = {
+  /** LINE ローディングアニメーションの表示秒数 */
+  LOADING_ANIMATION_SECONDS: 20,
+  /** AI学習データの最大文字数 */
+  KNOWLEDGE_BASE_MAX_CHARS: 30000,
+  /** Gemini API の最大出力トークン数 */
+  GEMINI_MAX_OUTPUT_TOKENS: 500,
+  /** Gemini API の温度パラメータ */
+  GEMINI_TEMPERATURE: 0.7,
+  /** 自動応答スコアリング */
+  SCORING: {
+    /** キーワード完全一致時のスコア */
+    EXACT_MATCH: 100,
+    /** キーワード部分一致時のスコア */
+    PARTIAL_MATCH: 30,
+    /** サブキーワード一致時のスコア */
+    SUB_KEYWORD_MATCH: 10,
+    /** 自動応答を発動するしきい値 */
+    THRESHOLD: 20,
+  },
+} as const;
+
 type LineTextMessage = { type: 'text'; text: string }
 type LineMessage = LineTextMessage
 type LineEvent = {
@@ -78,7 +101,7 @@ async function startLoadingAnimation(accessToken: string, userId: string) {
       },
       body: JSON.stringify({
         chatId: userId,
-        loadingSeconds: 20 // Display for up to 20 seconds
+        loadingSeconds: CONFIG.LOADING_ANIMATION_SECONDS
       })
     })
   } catch (e) {
@@ -101,7 +124,7 @@ async function generateAIResponse(apiKey: string, message: string, settings: AIS
     let context = "";
     if (docs && docs.length > 0) {
       // Combine texts, limiting total length to avoid token limits (rough estimation)
-      context = docs.map((d: { extracted_text?: string }) => d.extracted_text || "").join("\n\n").substring(0, 30000);
+      context = docs.map((d: { extracted_text?: string }) => d.extracted_text || "").join("\n\n").substring(0, CONFIG.KNOWLEDGE_BASE_MAX_CHARS);
     }
 
     // 2. Construct System Prompt
@@ -181,8 +204,8 @@ LINEのメッセージはMarkdownをサポートしていません。
           }
         ],
         generationConfig: {
-          maxOutputTokens: 500,
-          temperature: 0.7
+          maxOutputTokens: CONFIG.GEMINI_MAX_OUTPUT_TOKENS,
+          temperature: CONFIG.GEMINI_TEMPERATURE
         }
       })
     });
@@ -364,12 +387,12 @@ Deno.serve(async (req: Request) => {
                     if (rules && rules.length > 0) {
                         for (const rule of rules) {
                             let score = 0
-                            if (text === rule.keyword) score = 100
-                            else if (text.includes(rule.keyword)) score += 30
+                            if (text === rule.keyword) score = CONFIG.SCORING.EXACT_MATCH
+                            else if (text.includes(rule.keyword)) score += CONFIG.SCORING.PARTIAL_MATCH
 
                             if (rule.sub_keywords && Array.isArray(rule.sub_keywords)) {
                                 for (const sub of rule.sub_keywords) {
-                                    if (text.includes(sub)) score += 10
+                                    if (text.includes(sub)) score += CONFIG.SCORING.SUB_KEYWORD_MATCH
                                 }
                             }
                             if (score > bestScore) {
@@ -379,8 +402,8 @@ Deno.serve(async (req: Request) => {
                         }
                     }
                     
-                    // 3. Threshold Check (Threshold: 20)
-                    if (bestScore >= 20 && bestRule) {
+                    // 3. Threshold Check
+                    if (bestScore >= CONFIG.SCORING.THRESHOLD && bestRule) {
                         replyText = bestRule.response_text
                         status = 'auto_replied'
                         console.log('Selected auto-response rule:', bestRule.keyword)

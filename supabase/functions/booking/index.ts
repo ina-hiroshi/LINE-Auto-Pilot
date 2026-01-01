@@ -1,5 +1,4 @@
-import { serve } from "jsr:@std/http@1"
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createClient } from '@supabase/supabase-js'
 import { verifyLineToken } from '../_shared/line-auth.ts'
 
 const corsHeaders = {
@@ -224,7 +223,7 @@ Deno.serve(async (req: Request) => {
 
       const storeSettings = await getStoreSettings(store_id)
       let durationMinutes = storeSettings?.slot_interval_minutes ?? 60
-      let menuCapacity: number | null = null
+      let _menuCapacity: number | null = null // 将来の容量チェック用に保持
 
       // Menu-specific duration & capacity
       if (menu_id) {
@@ -234,7 +233,7 @@ Deno.serve(async (req: Request) => {
           .eq('id', menu_id)
           .maybeSingle()
         if (menu?.duration_minutes) durationMinutes = menu.duration_minutes
-        if (typeof menu?.capacity_per_slot === 'number') menuCapacity = menu.capacity_per_slot
+        if (typeof menu?.capacity_per_slot === 'number') _menuCapacity = menu.capacity_per_slot
       }
       if (!durationMinutes || durationMinutes <= 0) durationMinutes = storeSettings?.slot_interval_minutes ?? 60
 
@@ -978,9 +977,14 @@ LINE ID: ${line_user_id}
       ? error.message
       : (error as { message?: string })?.message ?? 'Unknown error'
 
+    // エラー内容に応じたステータスコードを返す
+    const isAuthError = errorMessage.toLowerCase().includes('unauthorized')
+    const isNotFoundError = errorMessage.toLowerCase().includes('not found')
+    const statusCode = isAuthError ? 401 : isNotFoundError ? 404 : 400
+
     return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200, // Return 200 so the client can read the error message
+      status: statusCode,
     })
   }
 })
