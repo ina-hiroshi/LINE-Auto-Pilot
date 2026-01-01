@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { extractTextFromFile, extractTextFromPdfBuffer } from '../lib/fileParser';
 import Modal from '../components/Modal';
 import Toast from '../components/Toast';
+import ProLockOverlay from '../components/ProLockOverlay';
 
 // --- Types ---
 
@@ -447,7 +448,7 @@ export default function AutoResponses() {
       if (error) throw error;
 
       let extractedText = '';
-      let title = data.title || urlInput;
+      const title = data.title || urlInput;
 
       if (data.type === 'pdf') {
         // Convert base64 to ArrayBuffer
@@ -485,9 +486,10 @@ export default function AutoResponses() {
       setUrlInput('');
       fetchData();
 
-    } catch (error: any) {
-      console.error('Error adding URL:', error);
-      setToast({ isVisible: true, message: 'URLからの追加に失敗しました: ' + (error.message || 'Unknown error'), type: 'error' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error adding URL:', message);
+      setToast({ isVisible: true, message: 'URLからの追加に失敗しました: ' + message, type: 'error' });
     } finally {
       setIsAddingUrl(false);
     }
@@ -506,7 +508,7 @@ export default function AutoResponses() {
       if (error) throw error;
 
       let extractedText = '';
-      let title = data.title || doc.file_path;
+      const title = data.title || doc.file_path;
 
       if (data.type === 'pdf') {
         const binaryString = atob(data.data);
@@ -687,19 +689,19 @@ export default function AutoResponses() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6 md:space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900 flex items-center gap-2">
-            自動応答設定
-          </h1>
-          <p className="text-sm md:text-base text-gray-500 mt-1">
-            LINE公式アカウントの自動応答ルールとAIアシスタントの設定を行います。
-          </p>
+    <div className="flex flex-col h-full">
+      <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full h-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-full flex justify-between items-end pb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">自動応答設定</h1>
+            <p className="text-gray-500">LINE公式アカウントの自動応答ルールとAIアシスタントの設定を行います。</p>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-h-[600px]">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {/* Tabs */}
         <div className="flex items-center gap-1 border-b border-gray-200 px-2 md:px-6 pt-2 md:pt-4">
           <button
@@ -861,23 +863,14 @@ export default function AutoResponses() {
           {activeTab === 'ai_settings' && (
             <div className="p-6 relative">
               {!isPro && (
-                <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-center p-6">
-                  <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100 max-w-md text-left">
-                    <div className="w-16 h-16 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Crown size={32} />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2 text-center">Proプラン限定機能</h3>
-                    <p className="text-gray-600 mb-6">
+                <ProLockOverlay 
+                  description={
+                    <>
                       AI自動応答機能を使用するにはProプランへのアップグレードが必要です。<br />
                       AIがお客様の質問に自動で回答し、接客を効率化します。
-                    </p>
-                    <div className="text-center">
-                      <button className="px-6 py-3 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/30">
-                        プランをアップグレード
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                    </>
+                  }
+                />
               )}
               <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 ${!isPro ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 <div className="space-y-8">
@@ -996,23 +989,14 @@ export default function AutoResponses() {
           {activeTab === 'knowledge' && (
             <div className="p-6 relative">
               {!isPro && (
-                <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-center p-6">
-                  <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100 max-w-md text-left">
-                    <div className="w-16 h-16 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Crown size={32} />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2 text-center">Proプラン限定機能</h3>
-                    <p className="text-gray-600 mb-6">
+                <ProLockOverlay 
+                  description={
+                    <>
                       AI学習データ機能を使用するにはProプランへのアップグレードが必要です。<br />
                       店舗独自の資料をAIに学習させ、より正確な回答を実現します。
-                    </p>
-                    <div className="text-center">
-                      <button className="px-6 py-3 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/30">
-                        プランをアップグレード
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                    </>
+                  }
+                />
               )}
               <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 ${!isPro ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 <div className="space-y-6">
@@ -1340,6 +1324,8 @@ export default function AutoResponses() {
           onClose={() => setToast({ ...toast, isVisible: false })}
         />
       )}
+        </div>
+      </div>
     </div>
   );
 }

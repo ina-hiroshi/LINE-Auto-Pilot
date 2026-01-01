@@ -1,5 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// Using Deno.serve instead of @std/http/server
+import { createClient } from '@supabase/supabase-js'
 
 type LineTextMessage = { type: 'text'; text: string }
 type LineMessage = LineTextMessage
@@ -88,7 +88,8 @@ async function startLoadingAnimation(accessToken: string, userId: string) {
 }
 
 // Helper to generate AI response using Gemini API
-async function generateAIResponse(apiKey: string, message: string, settings: any, storeId: string, supabase: any): Promise<string> {
+import type { SupabaseClientType, AISettings } from '../_shared/types.ts'
+async function generateAIResponse(apiKey: string, message: string, settings: AISettings, storeId: string, supabase: SupabaseClientType): Promise<string> {
   try {
     // 1. Fetch Knowledge Base
     const { data: docs } = await supabase
@@ -100,7 +101,7 @@ async function generateAIResponse(apiKey: string, message: string, settings: any
     let context = "";
     if (docs && docs.length > 0) {
       // Combine texts, limiting total length to avoid token limits (rough estimation)
-      context = docs.map((d: any) => d.extracted_text || "").join("\n\n").substring(0, 30000);
+      context = docs.map((d: { extracted_text?: string }) => d.extracted_text || "").join("\n\n").substring(0, 30000);
     }
 
     // 2. Construct System Prompt
@@ -200,7 +201,7 @@ LINEのメッセージはMarkdownをサポートしていません。
   }
 }
 
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   try {
     // Only allow POST requests
     if (req.method !== 'POST') {
@@ -246,14 +247,13 @@ serve(async (req: Request) => {
         let channelAccessToken = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')
 
         // Try DB lookup if destination exists
-        let account = null
         let storeId = null
         let isAiEnabled = false
         let aiSettings = null
         let plan = 'free' // Default to free
 
         if (destination) {
-            const { data, error } = await supabase
+            const { data } = await supabase
                 .from('line_accounts')
                 .select(`
                     channel_secret, 
@@ -264,7 +264,6 @@ serve(async (req: Request) => {
                 .maybeSingle()
             
             if (data) {
-                account = data
                 channelSecret = data.channel_secret
                 channelAccessToken = data.channel_access_token
                 storeId = data.store_id
@@ -447,9 +446,9 @@ serve(async (req: Request) => {
     }
 
     // Execute async processing
-    // @ts-ignore
+    // @ts-ignore: EdgeRuntime is a Supabase Edge Function specific global
     if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
-        // @ts-ignore
+        // @ts-ignore: EdgeRuntime.waitUntil is available in Supabase Edge Functions
         EdgeRuntime.waitUntil(processEvents())
     } else {
         await processEvents()

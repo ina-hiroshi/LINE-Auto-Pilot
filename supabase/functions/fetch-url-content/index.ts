@@ -1,13 +1,13 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { DOMParser } from "https://deno.land/x/deno_dom/deno-dom-wasm.ts";
-import { encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
+// Using Deno.serve instead of @std/http/server
+import { DOMParser } from "deno-dom";
+import { encodeBase64 } from "@std/encoding/base64";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -41,11 +41,11 @@ serve(async (req) => {
 
       if (doc) {
         title = doc.title || url;
-        // Remove script and style elements
+        // Remove script and style elements - cast to unknown first to bypass deno-dom type limitations
         const scripts = doc.querySelectorAll('script');
-        scripts.forEach((node: any) => node.remove());
+        scripts.forEach((node) => (node as unknown as { remove: () => void }).remove());
         const styles = doc.querySelectorAll('style');
-        styles.forEach((node: any) => node.remove());
+        styles.forEach((node) => (node as unknown as { remove: () => void }).remove());
         
         extractedText = doc.body?.textContent || '';
         // Clean up whitespace
@@ -58,7 +58,7 @@ serve(async (req) => {
       )
     } else if (contentType.includes('application/pdf')) {
       const arrayBuffer = await response.arrayBuffer();
-      const base64 = encode(new Uint8Array(arrayBuffer));
+      const base64 = encodeBase64(new Uint8Array(arrayBuffer));
       
       return new Response(
         JSON.stringify({ type: 'pdf', title: url.split('/').pop() || 'document.pdf', data: base64 }),
@@ -77,10 +77,11 @@ serve(async (req) => {
       )
     }
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(error);
+    const message = error instanceof Error ? error.message : 'Unknown error'
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }

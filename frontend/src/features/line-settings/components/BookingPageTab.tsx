@@ -1,10 +1,12 @@
-import { Layout, Palette, Smartphone, Edit, Trash2, User, Save, Loader2, Clock, Users, Calendar, Settings, List } from 'lucide-react'
+import { Layout, Palette, Smartphone, Edit, Trash2, User, Save, Loader2, Clock, Users, Calendar, Settings, List, CalendarDays, UserCheck } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import type { FormEvent, RefObject } from 'react'
+import type { RefObject } from 'react'
 import type { BookingSettings, BookingSystemType, Menu, Staff } from '../types'
-import { BusinessHoursEditor } from './BusinessHoursEditor'
+import { BusinessDaysTab } from './BusinessDaysTab'
+import { StaffShiftTab } from './StaffShiftTab'
 import { DESIGN_THEMES } from '../../../constants/designThemes'
 import ProBadge from '../../../components/ProBadge'
+import ProUpgradeButton from '../../../components/ProUpgradeButton'
 
 interface BookingPageTabProps {
   storeId: string | null
@@ -15,7 +17,6 @@ interface BookingPageTabProps {
   previewRefreshKey: number
   iframeRef: RefObject<HTMLIFrameElement | null>
   onBookingSettingsChange: (next: BookingSettings) => void
-  onSubmitBookingSettings: (e: FormEvent<HTMLFormElement>) => void
   onAddStaff: () => void
   onEditStaff: (staff: Staff) => void
   onDeleteStaff: (id: string) => void
@@ -23,6 +24,7 @@ interface BookingPageTabProps {
   onEditMenu: (menu: Menu) => void
   onDeleteMenu: (id: string) => void
   onRefreshPreview: () => void
+  onToast: (message: string, type: 'success' | 'error') => void
   isPro: boolean
 }
 
@@ -42,7 +44,6 @@ export function BookingPageTab({
   saving,
   previewRefreshKey,
   onBookingSettingsChange,
-  onSubmitBookingSettings,
   onAddStaff,
   onEditStaff,
   onDeleteStaff,
@@ -50,14 +51,15 @@ export function BookingPageTab({
   onEditMenu,
   onDeleteMenu,
   onRefreshPreview,
+  onToast,
   iframeRef,
   isPro,
 }: BookingPageTabProps) {
-  const [activeTab, setActiveTab] = useState<'basic' | 'items' | 'design'>('basic')
+  const [activeTab, setActiveTab] = useState<'basic' | 'items' | 'design' | 'business-days' | 'staff-shift'>('basic')
   const bookingUrl = useMemo(() => `/booking${storeId ? `?store_id=${storeId}` : ''}`, [storeId])
 
   return (
-    <form onSubmit={onSubmitBookingSettings}>
+    <div>
       {/* Tabs & Action Header */}
       <div className="flex items-end justify-between mb-6 border-b border-gray-200">
         <div className="flex gap-2 overflow-x-auto">
@@ -79,7 +81,7 @@ export function BookingPageTab({
             }`}
           >
             <List className="w-4 h-4" />
-            <span className="hidden sm:inline">メニュー・スタッフ</span>
+            <span className="hidden sm:inline">メニュー・スタッフ登録</span>
           </button>
           <button
             type="button"
@@ -91,16 +93,25 @@ export function BookingPageTab({
             <Palette className="w-4 h-4" />
             <span className="hidden sm:inline">デザイン設定</span>
           </button>
-        </div>
-
-        <div className="mb-2 flex-shrink-0">
           <button
-            type="submit"
-            disabled={saving}
-            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm"
+            type="button"
+            onClick={() => setActiveTab('business-days')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'business-days' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
           >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
-            {saving ? '保存中...' : '設定を保存'}
+            <CalendarDays className="w-4 h-4" />
+            <span className="hidden sm:inline">営業日</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('staff-shift')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'staff-shift' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <UserCheck className="w-4 h-4" />
+            <span className="hidden sm:inline">スタッフシフト</span>
           </button>
         </div>
       </div>
@@ -201,14 +212,6 @@ export function BookingPageTab({
                       </div>
                     </div>
                   </div>
-                </div>
-
-                {/* 営業時間設定 (Replaced with Component) */}
-                <div className="space-y-4">
-                  <BusinessHoursEditor
-                    businessHours={bookingSettings.business_hours}
-                    onChange={(next) => onBookingSettingsChange({ ...bookingSettings, business_hours: next })}
-                  />
                 </div>
               </>
             )}
@@ -385,47 +388,64 @@ export function BookingPageTab({
                   </div>
 
                   <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 space-y-4">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="block text-xs font-semibold text-gray-600">テーマカラー</label>
-                        {!isPro && <ProBadge />}
+                    {!isPro && (
+                      <div className="mb-4 flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <ProBadge />
+                          <span className="text-xs text-gray-500">デザイン設定はProプラン限定です</span>
+                        </div>
+                        <ProUpgradeButton variant="small-button" label="アップグレード" />
                       </div>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="color"
-                          value={bookingSettings.liff_theme_color}
-                          onChange={(e) => onBookingSettingsChange({ ...bookingSettings, liff_theme_color: e.target.value })}
-                          className={`w-10 h-10 rounded border-0 p-0 ${!isPro ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                          disabled={!isPro}
-                        />
-                        <input
-                          type="text"
-                          value={bookingSettings.liff_theme_color}
-                          onChange={(e) => onBookingSettingsChange({ ...bookingSettings, liff_theme_color: e.target.value })}
-                          className={`border rounded px-3 py-2 text-sm w-32 font-mono ${!isPro ? 'bg-gray-50 opacity-50 cursor-not-allowed' : ''}`}
-                          disabled={!isPro}
-                        />
-                      </div>
-                    </div>
+                    )}
 
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="block text-xs font-semibold text-gray-600">ロゴ画像URL</label>
-                        {!isPro && <ProBadge />}
+                    <div className={`space-y-6 ${!isPro ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-xs font-semibold text-gray-600">テーマカラー</label>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="color"
+                            value={bookingSettings.liff_theme_color}
+                            onChange={(e) => onBookingSettingsChange({ ...bookingSettings, liff_theme_color: e.target.value })}
+                            className="w-10 h-10 rounded border-0 p-0 cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={bookingSettings.liff_theme_color}
+                            onChange={(e) => onBookingSettingsChange({ ...bookingSettings, liff_theme_color: e.target.value })}
+                            className="border rounded px-3 py-2 text-sm w-32 font-mono"
+                          />
+                        </div>
                       </div>
-                      <input
-                        type="url"
-                        placeholder="https://example.com/logo.png"
-                        className={`w-full border rounded-lg p-2 text-sm ${!isPro ? 'bg-gray-50 opacity-50 cursor-not-allowed' : ''}`}
-                        value={bookingSettings.liff_logo_url}
-                        onChange={(e) => onBookingSettingsChange({ ...bookingSettings, liff_logo_url: e.target.value })}
-                        disabled={!isPro}
-                      />
-                      <p className="text-xs text-gray-500 mt-1">ヘッダーに表示されるロゴ画像のURLを入力してください。</p>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-xs font-semibold text-gray-600">ロゴ画像URL</label>
+                        </div>
+                        <input
+                          type="url"
+                          placeholder="https://example.com/logo.png"
+                          className="w-full border rounded-lg p-2 text-sm"
+                          value={bookingSettings.liff_logo_url}
+                          onChange={(e) => onBookingSettingsChange({ ...bookingSettings, liff_logo_url: e.target.value })}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">ヘッダーに表示されるロゴ画像のURLを入力してください。</p>
+                      </div>
                     </div>
                   </div>
                 </div>
               </>
+            )}
+
+            {/* 営業日タブ */}
+            {activeTab === 'business-days' && (
+              <BusinessDaysTab storeId={storeId} onToast={onToast} />
+            )}
+
+            {/* スタッフシフトタブ */}
+            {activeTab === 'staff-shift' && (
+              <StaffShiftTab storeId={storeId} staffList={staffList} onToast={onToast} />
             )}
 
           </div>
@@ -471,6 +491,6 @@ export function BookingPageTab({
           </div>
         </div>
       </div>
-    </form>
+    </div>
   )
 }

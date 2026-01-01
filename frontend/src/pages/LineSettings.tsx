@@ -6,6 +6,7 @@ import { ConnectionTab } from '../features/line-settings/components/ConnectionTa
 import { GuideTab } from '../features/line-settings/components/GuideTab'
 import { BasicInfoTab } from '../features/line-settings/components/BasicInfoTab'
 import { PasswordTab } from '../features/line-settings/components/PasswordTab'
+import { PlanTab } from '../features/line-settings/components/PlanTab'
 import type {
 	LineSettingsState,
 	ProfileData,
@@ -50,7 +51,7 @@ const toErrorMessage = (error: unknown): string => {
 export default function LineSettings() {
 // const location = useLocation()
 
-	const [activeTab, setActiveTab] = useState<'connection' | 'guide' | 'basic_info' | 'password'>('connection')
+	const [activeTab, setActiveTab] = useState<'connection' | 'guide' | 'basic_info' | 'password' | 'plan'>('connection')
 	const [loading, setLoading] = useState(true)
 	const [saving, setSaving] = useState(false)
 	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -274,7 +275,7 @@ export default function LineSettings() {
 				const fullAddress = `${result.address1}${result.address2}${result.address3}`
 				setProfileData((prev) => ({ ...prev, address: fullAddress }))
 			} else {
-				alert('住所が見つかりませんでした。')
+				setMessage({ type: 'error', text: '住所が見つかりませんでした。' })
 			}
 		} catch (error) {
 			console.error('Address search error:', error)
@@ -294,7 +295,7 @@ export default function LineSettings() {
 	}
 
 	return (
-		<div className="p-4 sm:p-8 max-w-7xl mx-auto">
+		<div className="flex flex-col h-full">
 			<Toast
 				isVisible={!!message}
 				message={message?.text || ''}
@@ -302,13 +303,19 @@ export default function LineSettings() {
 				onClose={() => setMessage(null)}
 			/>
 
-			<div className="mb-8">
-				<h1 className="text-2xl font-bold text-gray-900 mb-2">LINE連携・設定</h1>
-				<p className="text-gray-500">LINE公式アカウントとの連携設定や、アカウント情報の管理を行います。</p>
+			<div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full h-24">
+				<div className="max-w-7xl mx-auto px-4 sm:px-8 h-full flex justify-between items-end pb-4">
+					<div>
+						<h1 className="text-2xl font-bold text-gray-900 mb-2">LINE連携・設定</h1>
+						<p className="text-gray-500">LINE公式アカウントとの連携設定や、アカウント情報の管理を行います。</p>
+					</div>
+				</div>
 			</div>
 
-			{/* Tabs Navigation */}
-			<div className="flex overflow-x-auto border-b border-gray-200 mb-6 no-scrollbar">
+			<div className="flex-1 overflow-y-auto p-4 sm:p-8">
+				<div className="max-w-7xl mx-auto">
+					{/* Tabs Navigation */}
+					<div className="flex overflow-x-auto border-b border-gray-200 mb-6 no-scrollbar">
 				<button
 					onClick={() => setActiveTab('connection')}
 					className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
@@ -328,6 +335,16 @@ export default function LineSettings() {
 					}`}
 				>
 					基本情報
+				</button>
+				<button
+					onClick={() => setActiveTab('plan')}
+					className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+						activeTab === 'plan'
+							? 'border-primary-500 text-primary-600'
+							: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+					}`}
+				>
+					プラン
 				</button>
 				<button
 					onClick={() => setActiveTab('password')}
@@ -372,6 +389,10 @@ export default function LineSettings() {
 					/>
 				)}
 
+				{activeTab === 'plan' && (
+					<PlanTab />
+				)}
+
 				{activeTab === 'password' && (
 					<PasswordTab
 						newPassword={passwordData.newPassword}
@@ -390,6 +411,8 @@ export default function LineSettings() {
 						onNavigateConnection={() => setActiveTab('connection')}
 					/>
 				)}
+			</div>
+				</div>
 			</div>
 		</div>
 	)

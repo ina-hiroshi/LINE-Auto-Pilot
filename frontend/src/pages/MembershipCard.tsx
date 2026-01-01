@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { Loader2, CreditCard, Save, Layout, Palette, Settings, Award, Stamp, Trash2 } from 'lucide-react'
 import ProBadge from '../components/ProBadge'
+import ProUpgradeButton from '../components/ProUpgradeButton'
 import Toast from '../components/Toast'
 import { usePlan } from '../hooks/usePlan'
 import { DESIGN_THEMES } from '../constants/designThemes'
@@ -82,21 +83,28 @@ export default function MembershipCard() {
       if (store) {
         setStoreId(store.id)
         
-        // Merge JSON settings
-        const cardSettings = store.membership_card_settings as any || {}
-        const rankSettings = store.membership_rank_settings as any || DEFAULT_SETTINGS.rank_settings
+        // Merge JSON settings with type safety
+        const cardSettings = (store.membership_card_settings ?? {}) as Partial<{
+          card_type: CardType
+          name_display: NameDisplay
+          show_icon: boolean
+          show_member_no: boolean
+          show_rank: boolean
+          stamp_config: StampConfig
+        }>
+        const rankSettings = (store.membership_rank_settings ?? DEFAULT_SETTINGS.rank_settings) as typeof DEFAULT_SETTINGS.rank_settings
 
         setSettings({
           title: store.membership_card_title || DEFAULT_SETTINGS.title,
           color: store.membership_card_color || DEFAULT_SETTINGS.color,
           logo_url: store.membership_card_logo_url || DEFAULT_SETTINGS.logo_url,
           template_id: store.membership_card_template_id || DEFAULT_SETTINGS.template_id,
-          card_type: cardSettings.card_type || DEFAULT_SETTINGS.card_type,
-          name_display: cardSettings.name_display || DEFAULT_SETTINGS.name_display,
+          card_type: (cardSettings.card_type as CardType) || DEFAULT_SETTINGS.card_type,
+          name_display: (cardSettings.name_display as NameDisplay) || DEFAULT_SETTINGS.name_display,
           show_icon: cardSettings.show_icon ?? DEFAULT_SETTINGS.show_icon,
           show_member_no: cardSettings.show_member_no ?? DEFAULT_SETTINGS.show_member_no,
           show_rank: cardSettings.show_rank ?? DEFAULT_SETTINGS.show_rank,
-          stamp_config: cardSettings.stamp_config || DEFAULT_SETTINGS.stamp_config,
+          stamp_config: (cardSettings.stamp_config as StampConfig) || DEFAULT_SETTINGS.stamp_config,
           rank_settings: rankSettings
         })
       }
@@ -162,7 +170,7 @@ export default function MembershipCard() {
   }
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto">
+    <div className="flex flex-col h-full">
       <Toast 
         isVisible={toast.isVisible}
         message={toast.message}
@@ -170,14 +178,28 @@ export default function MembershipCard() {
         onClose={() => setToast(prev => ({ ...prev, isVisible: false }))}
       />
       
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">デジタル会員証</h1>
-        <p className="text-gray-500">LINE上で表示される会員証のデザインと機能を設定します。</p>
+      <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full h-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-full flex justify-between items-end pb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">デジタル会員証</h1>
+            <p className="text-gray-500">LINE上で表示される会員証のデザインと機能を設定します。</p>
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm flex-shrink-0"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
+            {saving ? '保存中...' : '設定を保存'}
+          </button>
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
         {/* Tabs & Action Header */}
-        <div className="flex items-end justify-between mb-6 border-b border-gray-200">
+        <div className="flex items-end mb-6 border-b border-gray-200">
           <div className="flex gap-2 overflow-x-auto">
             <button
               type="button"
@@ -208,17 +230,6 @@ export default function MembershipCard() {
             >
               <Award size={16} />
               <span className="hidden sm:inline">ランク設定</span>
-            </button>
-          </div>
-
-          <div className="mb-2 flex-shrink-0">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
-              {saving ? '保存中...' : '設定を保存'}
             </button>
           </div>
         </div>
@@ -324,10 +335,19 @@ export default function MembershipCard() {
                     <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
                       カスタマイズ
                     </h3>
-                    {!isPro && <ProBadge />}
                   </div>
 
-                  <div className="space-y-6">
+                  {!isPro && (
+                    <div className="mb-4 flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <ProBadge />
+                        <span className="text-xs text-gray-500">カスタマイズ機能はProプラン限定です</span>
+                      </div>
+                      <ProUpgradeButton variant="small-button" label="アップグレード" />
+                    </div>
+                  )}
+
+                  <div className={`space-y-6 ${!isPro ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         カードカラー
@@ -337,8 +357,7 @@ export default function MembershipCard() {
                           type="color"
                           value={settings.color}
                           onChange={(e) => setSettings(prev => ({ ...prev, color: e.target.value }))}
-                          className={`h-10 w-20 p-1 border border-gray-300 rounded-md ${!isPro ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                          disabled={!isPro}
+                          className="h-10 w-20 p-1 border border-gray-300 rounded-md cursor-pointer"
                         />
                         <span className="text-sm text-gray-500">{settings.color}</span>
                       </div>
@@ -353,8 +372,7 @@ export default function MembershipCard() {
                         value={settings.logo_url || ''}
                         onChange={(e) => setSettings(prev => ({ ...prev, logo_url: e.target.value }))}
                         placeholder="https://example.com/logo.png"
-                        className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 ${!isPro ? 'bg-gray-50 opacity-50 cursor-not-allowed' : ''}`}
-                        disabled={!isPro}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                     </div>
                   </div>
@@ -445,13 +463,17 @@ export default function MembershipCard() {
             )}
 
             {activeTab === 'rank' && (
-              <div className={`relative ${!isPro ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+              <div className="relative">
                 {!isPro && (
-                  <div className="mb-4 flex justify-end">
-                    <ProBadge />
+                  <div className="mb-4 flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <ProBadge />
+                      <span className="text-xs text-gray-500">ランク機能はProプラン限定です</span>
+                    </div>
+                    <ProUpgradeButton variant="small-button" label="アップグレード" />
                   </div>
                 )}
-                <div className="space-y-4">
+                <div className={`space-y-4 ${!isPro ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                   <p className="text-sm text-gray-500">
                     累計獲得ポイントに応じた会員ランクを設定します。
                   </p>
@@ -684,6 +706,8 @@ export default function MembershipCard() {
           <p className="text-sm text-gray-500 mt-4 text-center">
             ※ 実際の表示は端末やLINEのバージョンにより異なる場合があります
           </p>
+        </div>
+      </div>
         </div>
       </div>
     </div>

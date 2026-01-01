@@ -1,22 +1,19 @@
-import type { FormEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { ExternalLink, Image as ImageIcon, Layout, MessageSquare, MousePointerClick, Palette, Smartphone } from 'lucide-react'
-import { Save, Loader2 } from 'lucide-react'
 import { AVAILABLE_ICONS, RICH_MENU_LAYOUTS } from '../constants'
 import type { RichMenuAction, RichMenuSettings } from '../types'
 import { DESIGN_THEMES } from '../../../constants/designThemes'
 import ProBadge from '../../../components/ProBadge'
+import ProUpgradeButton from '../../../components/ProUpgradeButton'
 
 interface RichMenuTabProps {
   richMenuSettings: RichMenuSettings
-  saving: boolean
   onChangeSettings: (next: RichMenuSettings) => void
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void
-  previewRef?: any
+  previewRef?: React.RefObject<HTMLDivElement | null>
   isPro: boolean
 }
 
-export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubmit, previewRef, isPro }: RichMenuTabProps) {
+export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, isPro }: RichMenuTabProps) {
   const [activeTab, setActiveTab] = useState<'design' | 'actions'>('design')
   const [openIconSelector, setOpenIconSelector] = useState<number | null>(null)
 
@@ -30,7 +27,7 @@ export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubm
   }
 
   return (
-    <form onSubmit={onSubmit}>
+    <div>
       <div className="flex items-end justify-between mb-6 border-b border-gray-200">
         <div className="flex gap-2 overflow-x-auto">
           <button
@@ -56,17 +53,6 @@ export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubm
           >
             <MousePointerClick size={16} />
             <span className="hidden sm:inline">アクション設定</span>
-          </button>
-        </div>
-
-        <div className="mb-2 flex-shrink-0">
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm"
-          >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
-            {saving ? '保存中...' : '設定を保存してLINEに反映'}
           </button>
         </div>
       </div>
@@ -175,18 +161,26 @@ export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubm
                     <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
                       <ImageIcon size={16} /> 背景画像カスタマイズ
                     </h3>
-                    {!isPro && <ProBadge />}
                   </div>
 
-                  <div>
+                  {!isPro && (
+                    <div className="mb-4 flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <ProBadge />
+                        <span className="text-xs text-gray-500">背景画像カスタマイズはProプラン限定です</span>
+                      </div>
+                      <ProUpgradeButton variant="small-button" label="アップグレード" />
+                    </div>
+                  )}
+
+                  <div className={!isPro ? 'opacity-50 pointer-events-none select-none' : ''}>
                     <label className="block text-sm font-medium text-gray-700 mb-1">画像 URL</label>
                     <input
                       type="text"
                       value={richMenuSettings.custom_image_url}
                       onChange={(e) => onChangeSettings({ ...richMenuSettings, custom_image_url: e.target.value })}
                       placeholder="https://example.com/richmenu.png"
-                      className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none ${!isPro ? 'bg-gray-50 opacity-50 cursor-not-allowed' : ''}`}
-                      disabled={!isPro}
+                      className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-200 outline-none"
                     />
                     <p className="text-xs text-gray-500 mt-1">※未設定の場合はシステム標準の画像が使用されます</p>
                   </div>
@@ -440,6 +434,6 @@ export function RichMenuTab({ richMenuSettings, saving, onChangeSettings, onSubm
           </div>
         </div>
       </div>
-    </form>
+    </div>
   )
 }

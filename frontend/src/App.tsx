@@ -18,6 +18,7 @@ import DevSandbox from './pages/DevSandbox'
 import Booking from './pages/Booking'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
+import PlanSettings from './pages/PlanSettings'
 
 import MemberCardLIFF from './pages/MemberCardLIFF'
 
@@ -179,6 +180,7 @@ function App() {
             <Route path="/membership-card" element={<MembershipCard />} />
             <Route path="/rich-menu" element={<RichMenu />} />
             <Route path="/booking-settings" element={<BookingSettings />} />
+            <Route path="/plan-settings" element={<PlanSettings />} />
             <Route path="/dev" element={<DevSandbox />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

@@ -1,12 +1,12 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// Using Deno.serve instead of @std/http/server
+import { createClient } from '@supabase/supabase-js'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -60,7 +60,7 @@ serve(async (req) => {
     }
 
     // 4. Get Access Token from line_accounts
-    const { data: accountData, error: accountError } = await supabaseAdmin
+    const { data: accountData } = await supabaseAdmin
         .from('line_accounts')
         .select('channel_access_token')
         .eq('store_id', logData.store_id)
@@ -121,9 +121,10 @@ serve(async (req) => {
       status: 200,
     })
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return new Response(JSON.stringify({ error: message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     })

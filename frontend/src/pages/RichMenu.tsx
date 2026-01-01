@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { FormEvent } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { supabase } from '../lib/supabase'
-import { Loader2, ExternalLink, Smartphone, MessageSquare } from 'lucide-react'
+import { Loader2, Save, ExternalLink, Smartphone, MessageSquare } from 'lucide-react'
 import Toast from '../components/Toast'
 import { RichMenuTab } from '../features/line-settings/components/RichMenuTab'
 import type { RichMenuSettings, RichMenuAction } from '../features/line-settings/types'
@@ -288,7 +288,7 @@ export default function RichMenu() {
   }
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto">
+    <div className="flex flex-col h-full">
       <Toast 
         isVisible={toast.isVisible}
         message={toast.message}
@@ -296,20 +296,34 @@ export default function RichMenu() {
         onClose={() => setToast(prev => ({ ...prev, isVisible: false }))}
       />
       
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">リッチメニュー</h1>
-        <p className="text-gray-500">トーク画面下部に表示されるメニューを設定します。</p>
+      <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full h-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-full flex justify-between items-end pb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">リッチメニュー</h1>
+            <p className="text-gray-500">LINEトーク画面下部のメニューデザインと動作を設定します。</p>
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm flex-shrink-0"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
+            {saving ? '保存中...' : 'LINEに適用'}
+          </button>
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
         <RichMenuTab
           richMenuSettings={richMenuSettings}
           onChangeSettings={setRichMenuSettings}
-          onSubmit={handleSave}
-          saving={saving}
           previewRef={previewRef}
           isPro={isPro}
         />
+      </div>
+        </div>
       </div>
     </div>
   )

@@ -1,4 +1,11 @@
 {
+  "imports": {
+    "@std/http/server": "jsr:@std/http@^1.0.0/server",
+    "@std/encoding/base64": "jsr:@std/encoding@^1.0.0/base64",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@^2.39.0",
+    "stripe": "npm:stripe@^14.10.0",
+    "deno-dom": "https://deno.land/x/deno_dom@v0.1.56/deno-dom-wasm.ts"
+  },
   "compilerOptions": {
     "allowJs": true,
     "lib": ["deno.window"],

@@ -194,6 +194,7 @@ export default function Booking() {
           store_id: storeId,
           date: date,
           menu_id: selectedMenu?.id || null,
+          staff_id: selectedStaff?.id || null,
         }
       })
       
@@ -210,7 +211,7 @@ export default function Booking() {
     } finally {
       setLoadingSlots(false)
     }
-  }, [date, storeId, selectedMenu?.id, storeSettings.slot_interval_minutes, getBusinessHoursForDate, lineUserId])
+  }, [date, storeId, selectedMenu?.id, selectedStaff?.id, storeSettings.slot_interval_minutes, getBusinessHoursForDate, lineUserId])
 
   const fetchStore = useCallback(async () => {
     // In production, store_id should be passed via query param ?store_id=...
@@ -473,6 +474,30 @@ export default function Booking() {
       }
     }
   }, [lineUserId, storeId, storeSettings.booking_system_type])
+
+  // 仮押さえ解除のヘルパー関数
+  const releaseHold = useCallback(async () => {
+    if (!storeId || !lineUserId) return
+    try {
+      await supabase.functions.invoke('booking', {
+        body: {
+          action: 'release_hold',
+          store_id: storeId,
+          line_user_id: lineUserId
+        }
+      })
+      console.log('Hold released')
+    } catch (e) {
+      console.error('Failed to release hold:', e)
+    }
+  }, [storeId, lineUserId])
+
+  // ページ離脱時に仮押さえを解除
+  useEffect(() => {
+    return () => {
+      releaseHold()
+    }
+  }, [releaseHold])
 
   useEffect(() => {
     if (storeId && lineUserId) {
@@ -1161,7 +1186,29 @@ export default function Booking() {
                               <button
                                 key={slot.time}
                                 id={isFirstOfHour ? `hour-${h}` : undefined}
-                                onClick={() => slot.available && setTime(slot.time)}
+                                onClick={async () => {
+                                  if (!slot.available) return
+                                  setTime(slot.time)
+                                  
+                                  // 仮押さえを実行
+                                  try {
+                                    await supabase.functions.invoke('booking', {
+                                      body: {
+                                        action: 'hold_slot',
+                                        store_id: storeId,
+                                        line_user_id: lineUserId,
+                                        display_name: displayName,
+                                        date: date,
+                                        time: slot.time,
+                                        staff_id: selectedStaff?.id || null,
+                                        menu_id: selectedMenu?.id || null,
+                                      }
+                                    })
+                                    console.log('Slot held successfully')
+                                  } catch (e) {
+                                    console.error('Failed to hold slot:', e)
+                                  }
+                                }}
                                 disabled={!slot.available}
                                 className={`${theme.slotButton(time === slot.time, slot.available)} ${isFirstOfHour ? 'scroll-mt-4' : ''}`}
                                 style={time === slot.time && storeSettings.liff_template_id === 'simple' ? { backgroundColor: storeSettings.liff_theme_color } : {}}
@@ -1185,7 +1232,11 @@ export default function Booking() {
               <div className="flex gap-3 mt-8">
                 {(storeSettings.booking_system_type === 'salon' || storeSettings.booking_system_type === 'restaurant') && (
                   <button 
-                    onClick={() => setStep('menu_select')}
+                    onClick={() => {
+                      setTime('') // 時間選択をクリア
+                      releaseHold() // 仮押さえを解除
+                      setStep('menu_select')
+                    }}
                     className={theme.buttonSecondary}
                   >
                     戻る

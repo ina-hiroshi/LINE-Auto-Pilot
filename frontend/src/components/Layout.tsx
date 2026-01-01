@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User, Code, Calendar, CreditCard, Grid, Clock } from 'lucide-react'
+import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User, Code, Calendar, CreditCard, Grid, CalendarCheck } from 'lucide-react'
 import Modal from './Modal'
 import iconImage from '../assets/icon.png'
 
@@ -53,7 +53,7 @@ export default function Layout() {
     { path: '/auto-responses', label: '自動応答', icon: <MessageSquare size={20} /> },
     { path: '/membership-card', label: 'デジタル会員証', icon: <CreditCard size={20} /> },
     { path: '/rich-menu', label: 'リッチメニュー', icon: <Grid size={20} /> },
-    { path: '/booking-settings', label: '予約ページ', icon: <Clock size={20} /> },
+    { path: '/booking-settings', label: '予約ページ', icon: <CalendarCheck size={20} /> },
     { path: '/dev', label: '開発', icon: <Code size={20} /> },
   ]
 
@@ -109,7 +109,7 @@ export default function Layout() {
       {/* Sidebar (Desktop) */}
       <aside className="hidden md:flex w-64 bg-primary-600 text-white shadow-lg flex-col z-20 transition-all duration-300 h-full shrink-0">
         {/* Logo Area */}
-        <div className="bg-white p-6 flex flex-col items-center border-b border-primary-500/20">
+        <div className="bg-white h-24 flex flex-col items-center justify-center border-b border-primary-500/20 shrink-0">
           <img src={iconImage} alt="IToguchi" className="h-10 w-auto" />
         </div>
 
@@ -197,7 +197,11 @@ export default function Layout() {
       />
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto bg-gray-50 pb-20 md:pb-0">
+      <main className={`flex-1 bg-gray-50 pb-20 md:pb-0 ${
+        ['/', '/reservations', '/customers', '/auto-responses', '/line-settings', '/membership-card', '/rich-menu', '/booking-settings'].includes(location.pathname) 
+          ? 'overflow-hidden flex flex-col' 
+          : 'overflow-y-auto'
+      }`}>
         <Outlet />
       </main>
 
@@ -219,7 +223,9 @@ export default function Layout() {
                     : 'text-primary-100 hover:text-white hover:bg-white/5'
                 }`}
               >
-                {item.icon}
+                <div className="flex items-center justify-center" style={{ fontSize: '16px' }}>
+                  {item.icon && <item.icon.type size={16} {...item.icon.props} />}
+                </div>
                 <span className="text-[6px] font-bold leading-none">{item.label}</span>
               </Link>
             )

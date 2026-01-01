@@ -577,32 +577,39 @@ export default function Reservations() {
   }
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">予約確認</h1>
-        <div className="flex gap-4 w-full sm:w-auto">
-          <div className="bg-gray-100 p-1 rounded-lg flex flex-1 sm:flex-none">
-            <button 
-              onClick={() => setViewMode('list')}
-              className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              リスト
-            </button>
-            <button 
-              onClick={() => {
-                setViewMode('calendar')
-                if (isGoogleConnected && !calendars.length) fetchCalendars()
-              }}
-              className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition flex items-center justify-center gap-1 ${viewMode === 'calendar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              カレンダー
-              {!isPro && <ProBadge />}
-            </button>
+    <div className="flex flex-col h-full">
+      <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full h-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-full flex justify-between items-end pb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">予約管理</h1>
+            <p className="text-gray-500">予約の確認・編集・キャンセルなどの管理を行います。</p>
           </div>
-          <button className="bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 shadow-sm whitespace-nowrap">+ 予約登録</button>
+          <div className="flex gap-4 w-full sm:w-auto">
+            <div className="bg-gray-100 p-1 rounded-lg flex flex-1 sm:flex-none">
+              <button 
+                onClick={() => setViewMode('list')}
+                className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                リスト
+              </button>
+              <button 
+                onClick={() => {
+                  setViewMode('calendar')
+                  if (isGoogleConnected && !calendars.length) fetchCalendars()
+                }}
+                className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition flex items-center justify-center gap-1 ${viewMode === 'calendar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                カレンダー
+                {!isPro && <ProBadge />}
+              </button>
+            </div>
+            <button className="bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 shadow-sm whitespace-nowrap">+ 予約登録</button>
+          </div>
         </div>
       </div>
 
+      <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+        <div className="max-w-7xl mx-auto">
       {viewMode === 'list' ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="p-4 sm:p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -1445,6 +1452,8 @@ export default function Reservations() {
           </div>
         </div>
       </Modal>
+        </div>
+      </div>
     </div>
   )
 }

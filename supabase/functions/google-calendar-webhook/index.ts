@@ -1,15 +1,15 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// Using Deno.serve instead of @std/http/server
+import { createClient } from '@supabase/supabase-js'
 
 console.log("Google Calendar Webhook Initialized")
 
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   try {
     // 1. Verify Request Headers
     const channelId = req.headers.get('x-goog-channel-id')
     const resourceId = req.headers.get('x-goog-resource-id')
     const resourceState = req.headers.get('x-goog-resource-state')
-    const channelExpiration = req.headers.get('x-goog-channel-expiration')
+    const _channelExpiration = req.headers.get('x-goog-channel-expiration') // For future use
 
     console.log(`Received Webhook: Channel=${channelId}, State=${resourceState}`)
 
@@ -131,7 +131,9 @@ serve(async (req) => {
   }
 })
 
-async function processEvents(data: any, supabase: any, storeId: string, settingsId: string) {
+import type { SupabaseClientType, GoogleCalendarListResponse } from '../_shared/types.ts'
+
+async function processEvents(data: GoogleCalendarListResponse, supabase: SupabaseClientType, storeId: string, settingsId: string) {
   const events = data.items || []
   const nextSyncToken = data.nextSyncToken
 
@@ -152,7 +154,12 @@ async function processEvents(data: any, supabase: any, storeId: string, settings
         .eq('store_id', storeId)
       console.log(`Deleted reservation for event ${event.id}`)
     } else {
-      // Upsert reservation
+      // Upsert reservation - check for undefined start/end times
+      if (!event.start || !event.end) {
+        console.warn(`Event ${event.id} has no start or end time, skipping`)
+        continue
+      }
+      
       const start = event.start.dateTime || event.start.date // dateTime for timed, date for all-day
       const end = event.end.dateTime || event.end.date
 
@@ -166,7 +173,7 @@ async function processEvents(data: any, supabase: any, storeId: string, settings
       // If so, we update it. If not, we create a new one (source='google')
       
       // We use google_event_id as unique key
-      const { error } = await supabase
+      const { error: _error } = await supabase
         .from('reservations')
         .upsert({
           store_id: storeId,

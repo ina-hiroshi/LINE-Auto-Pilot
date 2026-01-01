@@ -72,7 +72,9 @@
 - **関数デプロイ**: `supabase functions deploy [name] --no-verify-jwt`
   - 環境変数は `supabase secrets set` で管理。
 - **DB マイグレーション**: `supabase/migrations/` に SQL ファイルを配置。
-  - 変更後は `supabase db reset` または `supabase db push` (ローカル開発時)。
+  - **データ保持**: 既存データを消さずにスキーマ変更する場合は `supabase db reset` ではなく `supabase db push` を使用する。
+  - **競合解決**: `duplicate key value violates unique constraint "schema_migrations_pkey"` エラーが出た場合は、`supabase migration repair --status applied <version>` で履歴を修正するか、競合ファイルを一時的にリネームして `push` する。
+  - **Docker不要**: リモートDBへの適用はDockerなしで実行可能。
 - **Lint**: `cd frontend && npm run lint` (ESLint 9)。
 
 ## 6. コーディング規約と注意点

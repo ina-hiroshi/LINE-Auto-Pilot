@@ -1,5 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// Using Deno.serve instead of @std/http/server
+import { createClient } from '@supabase/supabase-js'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,7 +7,8 @@ const corsHeaders = {
 }
 
 // Helper to generate AI response using Gemini API (Duplicated from line-webhook for now)
-async function generateAIResponse(apiKey: string, message: string, settings: any, storeId: string, supabase: any): Promise<string> {
+import type { SupabaseClientType, AISettings } from '../_shared/types.ts'
+async function generateAIResponse(apiKey: string, message: string, settings: AISettings, storeId: string, supabase: SupabaseClientType): Promise<string> {
   try {
     // 1. Fetch Knowledge Base
     const { data: docs } = await supabase
@@ -19,7 +20,7 @@ async function generateAIResponse(apiKey: string, message: string, settings: any
     let context = "";
     if (docs && docs.length > 0) {
       // Combine texts, limiting total length to avoid token limits (rough estimation)
-      context = docs.map((d: any) => d.extracted_text || "").join("\n\n").substring(0, 30000);
+      context = docs.map((d: { extracted_text?: string }) => d.extracted_text || "").join("\n\n").substring(0, 30000);
     }
 
     // 2. Construct System Prompt
@@ -92,7 +93,7 @@ LINEのメッセージとして返信するため、Markdown記法（**太字**�
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -121,10 +122,11 @@ serve(async (req) => {
       JSON.stringify({ reply }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Preview Error:', error)
+    const message = error instanceof Error ? error.message : 'Unknown error'
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: message }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
