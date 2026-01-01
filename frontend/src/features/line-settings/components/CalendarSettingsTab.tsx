@@ -3,7 +3,7 @@ import { supabase } from '../../../lib/supabase'
 import { Calendar as CalendarIcon, Clock, User, Plus, Copy, Trash2 } from 'lucide-react'
 import { SpecialDateModal } from './SpecialDateModal'
 import { StaffScheduleModal } from './StaffScheduleModal'
-import type { BusinessHours, BusinessHourSlot } from '../types'
+import type { BusinessHours } from '../types'
 
 interface SpecialDate {
   id?: string
@@ -205,25 +205,31 @@ export function CalendarSettingsTab({ storeId, staffList, onToast }: CalendarSet
 
   const handleTimeChange = (day: keyof BusinessHours, index: number, field: 'start' | 'end', value: string) => {
     const newHours = { ...businessHours }
-    newHours[day][index][field] = value
+    if (newHours[day]?.[index]) {
+      newHours[day][index][field] = value
+    }
     handleBusinessHoursChange(newHours)
   }
 
   const handleAddSlot = (day: keyof BusinessHours) => {
     const newHours = { ...businessHours }
-    newHours[day].push({ start: '10:00', end: '19:00' })
+    if (newHours[day]) {
+      newHours[day].push({ start: '10:00', end: '19:00' })
+    }
     handleBusinessHoursChange(newHours)
   }
 
   const handleRemoveSlot = (day: keyof BusinessHours, index: number) => {
     const newHours = { ...businessHours }
-    newHours[day].splice(index, 1)
+    if (newHours[day]) {
+      newHours[day].splice(index, 1)
+    }
     handleBusinessHoursChange(newHours)
   }
 
   const handleCopyToAllDays = (day: keyof BusinessHours) => {
     const newHours = { ...businessHours }
-    const slots = businessHours[day]
+    const slots = businessHours[day] || []
     WEEKDAY_KEYS.forEach(d => {
       newHours[d] = JSON.parse(JSON.stringify(slots))
     })
@@ -394,7 +400,7 @@ export function CalendarSettingsTab({ storeId, staffList, onToast }: CalendarSet
       } else {
         // Create new pattern with business hours as default
         const dayKey = WEEKDAY_KEYS[dayOfWeek]
-        const defaultSlots = businessHours[dayKey].length > 0
+        const defaultSlots = businessHours[dayKey]?.length > 0
           ? JSON.parse(JSON.stringify(businessHours[dayKey]))
           : [{ start: '10:00', end: '19:00' }]
         
@@ -614,7 +620,7 @@ export function CalendarSettingsTab({ storeId, staffList, onToast }: CalendarSet
             
             <div className="space-y-4">
               {WEEKDAY_KEYS.map((day, index) => {
-                const slots = businessHours[day]
+                const slots = businessHours[day] || []
                 const isOpen = slots.length > 0
 
                 return (
@@ -758,7 +764,7 @@ export function CalendarSettingsTab({ storeId, staffList, onToast }: CalendarSet
                   const hasOverride = special?.override_hours && special.override_hours.length > 0
                   
                   // 基本設定での定休日チェック
-                  const businessHoursForDay = businessHours[weekdayKey]
+                  const businessHoursForDay = businessHours[weekdayKey] || []
                   const isRegularClosed = businessHoursForDay.length === 0
                   
                   return (
@@ -992,7 +998,7 @@ export function CalendarSettingsTab({ storeId, staffList, onToast }: CalendarSet
                       
                       // 店舗の定休日チェック
                       const specialDate = specialDates[dateStr]
-                      const isStoreClosed = specialDate?.is_closed || businessHours[weekdayKey].length === 0
+                      const isStoreClosed = specialDate?.is_closed || (businessHours[weekdayKey]?.length ?? 0) === 0
                       
                       // 基本シフトの確認
                       const workPattern = workPatterns.find(p => p.day_of_week === dayOfWeek)

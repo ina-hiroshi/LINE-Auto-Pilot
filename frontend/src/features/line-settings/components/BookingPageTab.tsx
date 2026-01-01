@@ -1,4 +1,4 @@
-import { Layout, Palette, Smartphone, Edit, Trash2, User, Save, Loader2, Clock, Users, Calendar, Settings, List, CalendarDays, UserCheck } from 'lucide-react'
+import { Layout, Palette, Smartphone, Edit, Trash2, User, Clock, Users, Calendar, Settings, List, CalendarDays, UserCheck } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { RefObject } from 'react'
 import type { BookingSettings, BookingSystemType, Menu, Staff } from '../types'
@@ -13,7 +13,6 @@ interface BookingPageTabProps {
   bookingSettings: BookingSettings
   staffList: Staff[]
   menuList: Menu[]
-  saving: boolean
   previewRefreshKey: number
   iframeRef: RefObject<HTMLIFrameElement | null>
   onBookingSettingsChange: (next: BookingSettings) => void
@@ -41,7 +40,6 @@ export function BookingPageTab({
   bookingSettings,
   staffList,
   menuList,
-  saving,
   previewRefreshKey,
   onBookingSettingsChange,
   onAddStaff,
