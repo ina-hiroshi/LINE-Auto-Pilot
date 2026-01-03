@@ -1,4 +1,4 @@
-import { Layout, Palette, Smartphone, Edit, Trash2, User, Clock, Users, Calendar, Settings, List, CalendarDays, UserCheck } from 'lucide-react'
+import { Layout, Palette, Smartphone, Edit, Trash2, User, Clock, Users, Calendar, Settings, List, CalendarDays, UserCheck, UtensilsCrossed } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { RefObject } from 'react'
 import type { BookingSettings, BookingSystemType, Menu, Staff } from '../types'
@@ -122,11 +122,12 @@ export function BookingPageTab({
             {/* 基本設定タブ */}
             {activeTab === 'basic' && (
               <>
-                {/* 予約システムタイプ (Moved to Top) */}
+                {/* 予約システムタイプ (プリセット選択) */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
                     <Layout size={16} /> 予約システムタイプ
                   </h3>
+                  <p className="text-xs text-gray-500 -mt-2">プリセットを選ぶと、下の機能が自動でON/OFFされます。</p>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {BOOKING_SYSTEM_TYPES.map((type) => (
                       <label
@@ -143,7 +144,19 @@ export function BookingPageTab({
                           name="booking_system_type"
                           value={type.id}
                           checked={bookingSettings.booking_system_type === type.id}
-                          onChange={(e) => onBookingSettingsChange({ ...bookingSettings, booking_system_type: e.target.value as BookingSystemType })}
+                          onChange={(e) => {
+                            const newType = e.target.value as BookingSystemType
+                            // プリセットに応じてトグルを自動設定
+                            let newSettings = { ...bookingSettings, booking_system_type: newType }
+                            if (newType === 'generic') {
+                              newSettings = { ...newSettings, booking_enable_party_size: false, booking_enable_staff: false, booking_enable_menu: false }
+                            } else if (newType === 'salon') {
+                              newSettings = { ...newSettings, booking_enable_party_size: false, booking_enable_staff: true, booking_enable_menu: true }
+                            } else if (newType === 'restaurant') {
+                              newSettings = { ...newSettings, booking_enable_party_size: true, booking_enable_staff: false, booking_enable_menu: true }
+                            }
+                            onBookingSettingsChange(newSettings)
+                          }}
                           className="sr-only"
                         />
                         <div className="font-bold text-sm">{type.name}</div>
@@ -155,6 +168,88 @@ export function BookingPageTab({
                         )}
                       </label>
                     ))}
+                  </div>
+                </div>
+
+                {/* 機能カスタマイズ（トグルスイッチ） */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                    <Settings size={16} /> 予約オプション機能
+                  </h3>
+                  <p className="text-xs text-gray-500 -mt-2">予約時に表示する項目を個別にON/OFFできます。</p>
+                  
+                  <div className="space-y-3">
+                    {/* 人数選択 */}
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-center gap-3">
+                        <Users size={20} className="text-gray-600" />
+                        <div>
+                          <div className="font-semibold text-sm text-gray-800">人数選択</div>
+                          <div className="text-xs text-gray-500">予約時に来店人数を選択できます</div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onBookingSettingsChange({ ...bookingSettings, booking_enable_party_size: !bookingSettings.booking_enable_party_size })}
+                        className={`relative w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                          bookingSettings.booking_enable_party_size ? 'bg-primary-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
+                            bookingSettings.booking_enable_party_size ? 'translate-x-6' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* 担当者選択 */}
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-center gap-3">
+                        <User size={20} className="text-gray-600" />
+                        <div>
+                          <div className="font-semibold text-sm text-gray-800">担当者選択</div>
+                          <div className="text-xs text-gray-500">予約時に担当スタッフを指名できます</div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onBookingSettingsChange({ ...bookingSettings, booking_enable_staff: !bookingSettings.booking_enable_staff })}
+                        className={`relative w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                          bookingSettings.booking_enable_staff ? 'bg-primary-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
+                            bookingSettings.booking_enable_staff ? 'translate-x-6' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* メニュー/コース選択 */}
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-center gap-3">
+                        <UtensilsCrossed size={20} className="text-gray-600" />
+                        <div>
+                          <div className="font-semibold text-sm text-gray-800">メニュー/コース選択</div>
+                          <div className="text-xs text-gray-500">予約時にメニューやコースを選択できます</div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onBookingSettingsChange({ ...bookingSettings, booking_enable_menu: !bookingSettings.booking_enable_menu })}
+                        className={`relative w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                          bookingSettings.booking_enable_menu ? 'bg-primary-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
+                            bookingSettings.booking_enable_menu ? 'translate-x-6' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
                 </div>
 

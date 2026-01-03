@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { motion } from 'framer-motion'
-import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff, Loader2, AlertTriangle, Sparkles } from 'lucide-react'
 import Toast from '../components/Toast'
 import topHeroImage from '../assets/top_hero.jpg'
 import smartAutoChatImage from '../assets/smartautochat.jpg'
@@ -402,7 +402,96 @@ export default function TopPage() {
         </div>
       </section>
 
-      {/* Campaign Section */}
+      {/* Pre-Release Monitor Section */}
+      <section id="pre-release" className="py-20 bg-linear-to-br from-primary-600 to-primary-800 text-white relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-20">
+          <div className="absolute -top-[50%] -left-[20%] w-[100%] h-[100%] rounded-full bg-white blur-3xl"></div>
+          <div className="absolute bottom-[10%] right-[10%] w-[60%] h-[60%] rounded-full bg-primary-300 blur-3xl"></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center mb-12">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full text-sm font-bold mb-4 border border-white/30"
+            >
+              <Sparkles className="w-4 h-4" />
+              先行体験モニター募集中
+              <Sparkles className="w-4 h-4" />
+            </motion.div>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
+              プレリリースモニター募集
+            </h2>
+            <p className="text-primary-100 text-lg max-w-2xl mx-auto">
+              正式リリース前の今だけ！<br className="hidden md:block" />
+              <span className="font-bold text-yellow-300">Proプラン2ヶ月無料</span>で先行体験できます。
+            </p>
+          </div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="max-w-2xl mx-auto"
+          >
+            <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20">
+              <div className="text-center mb-8">
+                <div className="bg-white text-primary-700 text-sm font-bold px-4 py-2 rounded-full inline-block mb-4">
+                  🎁 プレリリース限定特典
+                </div>
+                <div className="text-5xl md:text-6xl font-bold mb-2 text-yellow-300">
+                  2ヶ月無料
+                </div>
+                <p className="text-primary-100">
+                  Proプラン（通常 ¥4,980/月）が無料で使えます
+                </p>
+              </div>
+              
+              <ul className="space-y-4 mb-8">
+                <li className="flex items-start gap-3">
+                  <Check className="w-6 h-6 text-yellow-300 shrink-0 mt-0.5" />
+                  <span className="text-lg">Proプランの全機能を<span className="font-bold text-yellow-300">2ヶ月間無料</span>で利用可能</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Check className="w-6 h-6 text-yellow-300 shrink-0 mt-0.5" />
+                  <span className="text-lg">ご登録いただいた<span className="font-bold text-yellow-300">データはそのまま継続</span>利用可能</span>
+                </li>
+              </ul>
+
+              {/* 注意事項 */}
+              <div className="bg-primary-900/30 border border-primary-300/30 rounded-xl p-4 mb-8">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-yellow-300 shrink-0 mt-0.5" />
+                  <div className="text-sm text-primary-100">
+                    <p className="font-bold text-yellow-300 mb-2">プレリリース版についてのご注意</p>
+                    <ul className="space-y-1 list-disc list-inside">
+                      <li>現在開発中のため、<span className="font-medium text-yellow-300">仕様が予告なく変更</span>される場合があります</li>
+                      <li>一部機能に<span className="font-medium text-yellow-300">不具合</span>が発生する可能性があります</li>
+                      <li>プレリリース期間中は<span className="font-medium text-yellow-300">サポート対応ができません</span></li>
+                      <li>LINE初期設定代行（¥9,980）は<span className="font-medium text-yellow-300">ご利用いただけません</span></li>
+                      <li>クレジットカード登録が必須です。<span className="font-medium text-yellow-300">2ヶ月後から自動更新</span>で課金されます</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <a href="#auth" className="block w-full py-4 bg-white text-primary-700 rounded-xl font-bold text-center text-lg hover:bg-primary-50 transition shadow-lg hover:shadow-xl">
+                無料でモニター登録する
+              </a>
+              
+              <p className="text-center text-primary-200 text-sm mt-4">
+                ※ 簡単なフィードバックへのご協力をお願いする場合があります
+              </p>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Campaign Section - リリース記念キャンペーン（将来用に保持） */}
+      {/* 正式リリース時に表示を切り替え */}
+      {false && (
       <section className="py-20 bg-linear-to-br from-primary-600 to-primary-800 text-white relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-20">
           <div className="absolute -top-[50%] -left-[20%] w-[100%] h-[100%] rounded-full bg-white blur-3xl"></div>
@@ -489,6 +578,7 @@ export default function TopPage() {
           </p>
         </div>
       </section>
+      )}
 
       {/* Pricing Section */}
       <section id="pricing" className="py-24 bg-slate-50">

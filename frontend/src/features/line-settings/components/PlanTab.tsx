@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { Loader2, Check, Shield } from 'lucide-react'
+import { Loader2, Check, Shield, Gift, AlertTriangle } from 'lucide-react'
 import Toast from '../../../components/Toast'
+
+// プレリリースモード切り替えフラグ
+// true: プレリリースモニター募集中（2ヶ月無料、サポートなし）
+// false: 正式リリース（リリース記念キャンペーン）
+const IS_PRE_RELEASE_MODE = true
 
 const PRO_PRICE_ID = import.meta.env.VITE_STRIPE_PRO_PRICE_ID || 'price_1SkA8F9gqo1AslYsV0rVvBzF' 
 
@@ -12,6 +17,7 @@ export function PlanTab() {
     plan: string
     current_period_end: string | null
     price_id: string | null
+    has_used_trial: boolean
   } | null>(null)
   const [toast, setToast] = useState<{ isVisible: boolean; message: string; type: 'success' | 'error' }>({
     isVisible: false,
@@ -30,12 +36,15 @@ export function PlanTab() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('plan, current_period_end, price_id')
+        .select('plan, current_period_end, price_id, has_used_trial')
         .eq('id', user.id)
         .single()
 
       if (error) throw error
-      setSubscription(data)
+      setSubscription({
+        ...data,
+        has_used_trial: data.has_used_trial || false
+      })
     } catch (error) {
       console.error('Error fetching subscription:', error)
     } finally {
@@ -109,6 +118,7 @@ export function PlanTab() {
   }
 
   const isPro = subscription?.plan === 'pro'
+  const hasUsedTrial = subscription?.has_used_trial || false
 
   return (
     <div className="space-y-8">
@@ -116,6 +126,103 @@ export function PlanTab() {
         <h2 className="text-lg font-medium text-gray-900">料金プラン</h2>
         <p className="text-sm text-gray-500 mt-1">ビジネスの成長に合わせて最適なプランをお選びください。</p>
       </div>
+
+      {/* プレリリース特典 or リリース特典バナー（トライアル未使用 & Proプラン未加入の場合のみ表示） */}
+      {!isPro && !hasUsedTrial && IS_PRE_RELEASE_MODE && (
+        /* プレリリースモニター特典 */
+        <div className="bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Gift className="w-6 h-6" />
+            <span className="font-bold text-lg">🎁 プレリリースモニター限定特典</span>
+          </div>
+          <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 mb-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <div className="text-3xl font-bold text-yellow-300 mb-1">
+                  2ヶ月無料
+                </div>
+                <p className="text-primary-100 text-sm">
+                  Proプラン（通常 ¥4,980/月）が無料で使えます
+                </p>
+              </div>
+              <ul className="space-y-2">
+                <li className="flex items-start gap-2 text-sm">
+                  <Check className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
+                  <span>Proプランの全機能を<span className="font-bold text-yellow-300">2ヶ月間無料</span>で利用可能</span>
+                </li>
+                <li className="flex items-start gap-2 text-sm">
+                  <Check className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
+                  <span>ご登録いただいた<span className="font-bold text-yellow-300">データはそのまま継続</span>利用可能</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+          {/* 注意事項 */}
+          <div className="bg-primary-900/30 border border-primary-300/30 rounded-xl p-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
+              <div className="text-xs text-primary-100">
+                <p className="font-bold text-yellow-300 mb-1">プレリリース版についてのご注意</p>
+                <ul className="space-y-0.5 list-disc list-inside">
+                  <li>現在開発中のため、<span className="font-medium text-yellow-300">仕様が予告なく変更</span>される場合があります</li>
+                  <li>一部機能に<span className="font-medium text-yellow-300">不具合</span>が発生する可能性があります</li>
+                  <li>プレリリース期間中は<span className="font-medium text-yellow-300">サポート対応ができません</span></li>
+                  <li>クレジットカード登録が必須です。<span className="font-medium text-yellow-300">2ヶ月後から自動更新</span>で課金されます</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 正式リリース時のリリース特典（トライアル未使用 & Proプラン未加入の場合のみ表示） */}
+      {!isPro && !hasUsedTrial && !IS_PRE_RELEASE_MODE && (
+        <div className="bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Gift className="w-6 h-6" />
+            <span className="font-bold text-lg">🎉 リリース特典 - 2つのコースから選べます</span>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            {/* Course 1 */}
+            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+              <div className="bg-white text-primary-700 text-xs font-bold px-2 py-1 rounded-full inline-block mb-2">
+                すぐ使いたい方向け
+              </div>
+              <h4 className="text-base font-bold mb-2 text-yellow-300">スピード導入コース</h4>
+              <ul className="space-y-1 text-sm">
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
+                  <span>初期設定代行費（¥9,980）が<span className="font-bold text-yellow-300">無料</span></span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
+                  <span>Proプラン<span className="font-bold text-yellow-300">初月無料</span></span>
+                </li>
+              </ul>
+            </div>
+            {/* Course 2 */}
+            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+              <div className="bg-white text-primary-700 text-xs font-bold px-2 py-1 rounded-full inline-block mb-2">
+                安く使いたい方向け
+              </div>
+              <h4 className="text-base font-bold mb-2 text-yellow-300">じっくりお得コース</h4>
+              <ul className="space-y-1 text-sm">
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
+                  <span>Proプランが<span className="font-bold text-yellow-300">3ヶ月間無料</span></span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
+                  <span>初期設定代行（¥9,980）を利用可能</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <p className="text-center text-primary-100 text-xs mt-4">
+            ※ 特典の適用には、導入後のインタビューフォームへの回答が必要です。
+          </p>
+        </div>
+      )}
 
       {isPro && subscription?.current_period_end && (
         <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 flex items-start space-x-3">
@@ -184,6 +291,13 @@ export function PlanTab() {
             <span className="px-3 py-1 bg-primary-50 text-primary-600 rounded-full text-xs font-bold uppercase tracking-wider">Standard</span>
           </div>
           <h3 className="text-xl font-bold text-slate-900 mb-2">Pro</h3>
+          {!isPro && !hasUsedTrial && (
+            <div className="mb-2">
+              <span className="inline-block bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded">
+                {IS_PRE_RELEASE_MODE ? '2ヶ月無料' : '初月無料'}
+              </span>
+            </div>
+          )}
           <div className="flex items-baseline mb-6">
             <span className="text-3xl font-bold text-slate-900">¥4,980</span>
             <span className="text-slate-500 ml-2">/月</span>

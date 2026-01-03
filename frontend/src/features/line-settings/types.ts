@@ -37,6 +37,10 @@ export interface BookingSettings {
   capacity_per_slot: number
   max_booking_days?: number
   business_hours?: BusinessHours | null
+  // 予約機能フラグ
+  booking_enable_party_size: boolean
+  booking_enable_staff: boolean
+  booking_enable_menu: boolean
 }
 
 export interface RichMenuAction {

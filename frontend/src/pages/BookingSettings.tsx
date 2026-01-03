@@ -18,6 +18,9 @@ const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   slot_interval_minutes: 60,
   capacity_per_slot: 1,
   business_hours: null,
+  booking_enable_party_size: false,
+  booking_enable_staff: false,
+  booking_enable_menu: false,
 }
 
 export default function BookingSettingsPage() {
@@ -76,6 +79,9 @@ export default function BookingSettingsPage() {
             capacity_per_slot: store.capacity_per_slot || DEFAULT_BOOKING_SETTINGS.capacity_per_slot,
             max_booking_days: store.max_booking_days || 60,
             business_hours: store.business_hours || DEFAULT_BOOKING_SETTINGS.business_hours,
+            booking_enable_party_size: store.booking_enable_party_size ?? DEFAULT_BOOKING_SETTINGS.booking_enable_party_size,
+            booking_enable_staff: store.booking_enable_staff ?? DEFAULT_BOOKING_SETTINGS.booking_enable_staff,
+            booking_enable_menu: store.booking_enable_menu ?? DEFAULT_BOOKING_SETTINGS.booking_enable_menu,
           })
 
           const { data: staff } = await supabase
@@ -179,6 +185,9 @@ export default function BookingSettingsPage() {
           capacity_per_slot: bookingSettings.capacity_per_slot,
           max_booking_days: bookingSettings.max_booking_days,
           business_hours: bookingSettings.business_hours,
+          booking_enable_party_size: bookingSettings.booking_enable_party_size,
+          booking_enable_staff: bookingSettings.booking_enable_staff,
+          booking_enable_menu: bookingSettings.booking_enable_menu,
           updated_at: new Date().toISOString(),
         })
         .eq('id', storeId)

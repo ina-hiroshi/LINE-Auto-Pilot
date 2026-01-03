@@ -41,12 +41,29 @@ export default function Booking() {
     capacity_per_slot: 1,
     max_booking_days: 60,
     business_hours: null as Record<string, { start: string; end: string }[]> | null,
+    booking_enable_party_size: false,
+    booking_enable_staff: false,
+    booking_enable_menu: false,
   })
 
   // Salon/Restaurant Data
   const { staffList, menuList, setStaffList, setMenuList } = useStoreResources(storeId)
   const [selectedStaff, setSelectedStaff] = useState<StoreStaff | null>(null)
   const [selectedMenu, setSelectedMenu] = useState<StoreMenu | null>(null)
+  const [partySize, setPartySize] = useState<number>(1)
+
+  // ヘルパー関数：機能フラグに基づいて最初のステップを決定
+  const getInitialStep = useCallback((): 'staff_select' | 'menu_select' | 'date' => {
+    // 機能フラグを優先（booking_enable_* が設定されている場合）
+    if (storeSettings.booking_enable_staff) {
+      return 'staff_select'
+    }
+    if (storeSettings.booking_enable_menu) {
+      return 'menu_select'
+    }
+    // フラグがすべてOFFの場合は日付選択から
+    return 'date'
+  }, [storeSettings.booking_enable_staff, storeSettings.booking_enable_menu])
   
   // UI State
   const [modalConfig, setModalConfig] = useState<{
@@ -162,9 +179,9 @@ export default function Booking() {
     setLoadingSlots(true)
     setTime('') // Reset selected time
 
-    // サロンモードでスタッフ指定がある場合、またはstoreIdがある場合はバックエンドを呼ぶ
+    // スタッフ選択が有効でスタッフ指定がある場合、またはstoreIdがある場合はバックエンドを呼ぶ
     // これによりスタッフのシフト設定が正しく反映される
-    if (storeId && (selectedStaff?.id || storeSettings.booking_system_type !== 'salon')) {
+    if (storeId && (selectedStaff?.id || !storeSettings.booking_enable_staff)) {
       try {
         const { data, error } = await supabase.functions.invoke('booking', {
           body: {
@@ -263,7 +280,7 @@ export default function Booking() {
     } finally {
       setLoadingSlots(false)
     }
-  }, [date, storeId, selectedMenu?.id, selectedStaff?.id, storeSettings.slot_interval_minutes, storeSettings.booking_system_type, getBusinessHoursForDate, lineUserId])
+  }, [date, storeId, selectedMenu?.id, selectedStaff?.id, storeSettings.slot_interval_minutes, storeSettings.booking_enable_staff, getBusinessHoursForDate, lineUserId])
 
   const fetchStore = useCallback(async () => {
     // In production, store_id should be passed via query param ?store_id=...
@@ -280,7 +297,7 @@ export default function Booking() {
 
     if (!targetStoreId) {
         // Fallback: Get first store
-        const { data } = await supabase.from('stores').select('id, name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type, slot_interval_minutes, capacity_per_slot, max_booking_days, business_hours').limit(1).maybeSingle()
+        const { data } = await supabase.from('stores').select('id, name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type, slot_interval_minutes, capacity_per_slot, max_booking_days, business_hours, booking_enable_party_size, booking_enable_staff, booking_enable_menu').limit(1).maybeSingle()
         targetStoreId = data?.id
         if (data) {
           if (data.name) document.title = data.name
@@ -308,11 +325,14 @@ export default function Booking() {
             capacity_per_slot: data.capacity_per_slot || 1,
             max_booking_days: data.max_booking_days || 60,
             business_hours: data.business_hours || null,
+            booking_enable_party_size: data.booking_enable_party_size ?? false,
+            booking_enable_staff: data.booking_enable_staff ?? false,
+            booking_enable_menu: data.booking_enable_menu ?? false,
           })
         }
     } else {
         // Fetch specific store settings
-        const { data } = await supabase.from('stores').select('name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type, slot_interval_minutes, capacity_per_slot, max_booking_days, business_hours').eq('id', targetStoreId).maybeSingle()
+        const { data } = await supabase.from('stores').select('name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type, slot_interval_minutes, capacity_per_slot, max_booking_days, business_hours, booking_enable_party_size, booking_enable_staff, booking_enable_menu').eq('id', targetStoreId).maybeSingle()
         if (data) {
           if (data.name) document.title = data.name
 
@@ -339,6 +359,9 @@ export default function Booking() {
             capacity_per_slot: data.capacity_per_slot || 1,
             max_booking_days: data.max_booking_days || 60,
             business_hours: data.business_hours || null,
+            booking_enable_party_size: data.booking_enable_party_size ?? false,
+            booking_enable_staff: data.booking_enable_staff ?? false,
+            booking_enable_menu: data.booking_enable_menu ?? false,
           })
         }
     }
@@ -455,14 +478,26 @@ export default function Booking() {
         
         const newSettings = event.data.settings
         
+        // フラグの値を取得（undefined の場合は false）
+        const newEnablePartySize = newSettings.booking_enable_party_size ?? false
+        const newEnableStaff = newSettings.booking_enable_staff ?? false
+        const newEnableMenu = newSettings.booking_enable_menu ?? false
+        
         setStoreSettings(prev => {
-          // Check if booking system type changed
-          if (prev.booking_system_type !== newSettings.booking_system_type) {
-            // Reset step based on new type
+          // Check if feature flags changed
+          const flagsChanged = 
+            prev.booking_enable_party_size !== newEnablePartySize ||
+            prev.booking_enable_staff !== newEnableStaff ||
+            prev.booking_enable_menu !== newEnableMenu ||
+            prev.booking_system_type !== newSettings.booking_system_type
+
+          // Always reset step based on new feature flags when they change
+          if (flagsChanged) {
+            // Reset step based on new feature flags
             setTimeout(() => {
-              if (newSettings.booking_system_type === 'salon') {
+              if (newEnableStaff) {
                 setStep('staff_select')
-              } else if (newSettings.booking_system_type === 'restaurant') {
+              } else if (newEnableMenu) {
                 setStep('menu_select')
               } else {
                 setStep('date')
@@ -470,9 +505,16 @@ export default function Booking() {
               // Reset selections
               setSelectedStaff(null)
               setSelectedMenu(null)
+              setPartySize(1)
             }, 0)
           }
-          return { ...prev, ...newSettings }
+          return { 
+            ...prev, 
+            ...newSettings,
+            booking_enable_party_size: newEnablePartySize,
+            booking_enable_staff: newEnableStaff,
+            booking_enable_menu: newEnableMenu,
+          }
         })
 
         // Update Staff & Menu Lists
@@ -548,8 +590,8 @@ export default function Booking() {
     const checkDateAvailability = async () => {
       if (!storeId) return
       
-      // サロンモードでスタッフ未選択の場合はスキップ
-      if (storeSettings.booking_system_type === 'salon' && !selectedStaff?.id) {
+      // スタッフ選択が有効でスタッフ未選択の場合はスキップ
+      if (storeSettings.booking_enable_staff && !selectedStaff?.id) {
         setDateAvailability({})
         return
       }
@@ -600,7 +642,7 @@ export default function Booking() {
     }
     
     checkDateAvailability()
-  }, [storeId, selectedStaff?.id, selectedMenu?.id, storeSettings.booking_system_type, storeSettings.max_booking_days])
+  }, [storeId, selectedStaff?.id, selectedMenu?.id, storeSettings.booking_enable_staff, storeSettings.max_booking_days])
 
 
   const checkCustomer = useCallback(async () => {
@@ -648,27 +690,15 @@ export default function Booking() {
         setActiveReservations(data.reservations as ReservationSummary[])
         setStep('existing_reservation')
       } else {
-        // Determine initial step based on booking system type
-        if (storeSettings.booking_system_type === 'salon') {
-          setStep('staff_select')
-        } else if (storeSettings.booking_system_type === 'restaurant') {
-          setStep('menu_select')
-        } else {
-          setStep('date')
-        }
+        // Determine initial step based on feature flags
+        setStep(getInitialStep())
       }
     } catch (e) {
       console.error('Failed to check reservation:', e)
       // Fallback
-      if (storeSettings.booking_system_type === 'salon') {
-        setStep('staff_select')
-      } else if (storeSettings.booking_system_type === 'restaurant') {
-        setStep('menu_select')
-      } else {
-        setStep('date')
-      }
+      setStep(getInitialStep())
     }
-  }, [lineUserId, storeId, storeSettings.booking_system_type])
+  }, [lineUserId, storeId, getInitialStep])
 
   // 仮押さえ解除のヘルパー関数
   const releaseHold = useCallback(async () => {
@@ -696,13 +726,20 @@ export default function Booking() {
 
   useEffect(() => {
     if (storeId && lineUserId) {
+      // Preview mode (iframe) - skip reservation check, wait for settings from parent
+      if (window.self !== window.top) {
+        // プレビューモードでは初期ステップを設定して待機
+        setStep(getInitialStep())
+        return
+      }
+      
       const init = async () => {
         await checkCustomer()
         await checkReservation()
       }
       init()
     }
-  }, [checkCustomer, checkReservation, lineUserId, storeId])
+  }, [checkCustomer, checkReservation, lineUserId, storeId, getInitialStep])
 
   const handleCancelReservation = async (reservationId: string) => {
     showModal(
@@ -727,13 +764,7 @@ export default function Booking() {
           showToast('予約をキャンセルしました。', 'success')
           
           if (updated.length === 0) {
-            if (storeSettings.booking_system_type === 'salon') {
-              setStep('staff_select')
-            } else if (storeSettings.booking_system_type === 'restaurant') {
-              setStep('menu_select')
-            } else {
-              setStep('date')
-            }
+            setStep(getInitialStep())
           }
         } catch (e) {
           console.error('Failed to cancel reservation:', e)
@@ -749,13 +780,7 @@ export default function Booking() {
 
   const handleModifyStart = (reservationId: string) => {
     setModifyingReservationId(reservationId)
-    if (storeSettings.booking_system_type === 'salon') {
-      setStep('staff_select')
-    } else if (storeSettings.booking_system_type === 'restaurant') {
-      setStep('menu_select')
-    } else {
-      setStep('date')
-    }
+    setStep(getInitialStep())
   }
 
   const handleSubmit = async () => {
@@ -1135,13 +1160,7 @@ export default function Booking() {
                     setDate('')
                     setTime('')
                     
-                    if (storeSettings.booking_system_type === 'salon') {
-                      setStep('staff_select')
-                    } else if (storeSettings.booking_system_type === 'restaurant') {
-                      setStep('menu_select')
-                    } else {
-                      setStep('date')
-                    }
+                    setStep(getInitialStep())
                   }}
                   className={theme.buttonPrimary}
                   style={theme.primaryStyle}
@@ -1170,7 +1189,8 @@ export default function Booking() {
                         key={staff.id}
                         onClick={() => {
                           setSelectedStaff(staff)
-                          setStep('menu_select')
+                          // メニュー選択が有効なら次へ、そうでなければ日付選択へ
+                          setStep(storeSettings.booking_enable_menu ? 'menu_select' : 'date')
                         }}
                         className={theme.selectableItem(selectedStaff?.id === staff.id)}
                         style={selectedStaff?.id === staff.id && storeSettings.liff_template_id !== 'dark' ? { borderColor: storeSettings.liff_theme_color, backgroundColor: `${storeSettings.liff_theme_color}10` } : {}}
@@ -1192,7 +1212,8 @@ export default function Booking() {
                     <button
                       onClick={() => {
                         setSelectedStaff(null)
-                        setStep('menu_select')
+                        // メニュー選択が有効なら次へ、そうでなければ日付選択へ
+                        setStep(storeSettings.booking_enable_menu ? 'menu_select' : 'date')
                       }}
                       className={theme.selectableItem(false)}
                     >
@@ -1254,14 +1275,12 @@ export default function Booking() {
               <div className="flex gap-3 mt-8">
                 <button 
                   onClick={() => {
-                    if (storeSettings.booking_system_type === 'salon') {
+                    // スタッフ選択が有効なら戻る
+                    if (storeSettings.booking_enable_staff) {
                       setStep('staff_select')
-                    } else {
-                      // For restaurant, maybe go back to something else? Or just disable back if it's the first step
-                      // Actually restaurant starts at menu_select, so no back button needed unless we have a home screen
                     }
                   }}
-                  className={`${theme.buttonSecondary} ${storeSettings.booking_system_type === 'restaurant' ? 'hidden' : ''}`}
+                  className={`${theme.buttonSecondary} ${!storeSettings.booking_enable_staff ? 'hidden' : ''}`}
                 >
                   戻る
                 </button>
@@ -1281,8 +1300,14 @@ export default function Booking() {
               </h2>
               
               {/* Selected Info Summary */}
-              {(selectedStaff || selectedMenu) && (
+              {(selectedStaff || selectedMenu || (storeSettings.booking_enable_party_size && partySize > 1)) && (
                 <div className="mb-6 p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm space-y-1">
+                  {storeSettings.booking_enable_party_size && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">人数:</span>
+                      <span className="font-bold">{partySize}名</span>
+                    </div>
+                  )}
                   {selectedStaff && (
                     <div className="flex justify-between">
                       <span className="text-gray-500">指名スタッフ:</span>
@@ -1295,12 +1320,14 @@ export default function Booking() {
                       <span className="font-bold">{selectedMenu.name}</span>
                     </div>
                   )}
-                  <button 
-                    onClick={() => setStep(storeSettings.booking_system_type === 'salon' ? 'staff_select' : 'menu_select')}
-                    className="text-xs text-blue-500 underline w-full text-right mt-2"
-                  >
-                    選択し直す
-                  </button>
+                  {(selectedStaff || selectedMenu) && (
+                    <button 
+                      onClick={() => setStep(getInitialStep())}
+                      className="text-xs text-blue-500 underline w-full text-right mt-2"
+                    >
+                      選択し直す
+                    </button>
+                  )}
                 </div>
               )}
               
@@ -1320,6 +1347,43 @@ export default function Booking() {
               )}
               
               <div className="space-y-6">
+                {/* 人数選択（booking_enable_party_size が true の場合のみ表示） */}
+                {storeSettings.booking_enable_party_size && (
+                  <div>
+                    <label className={theme.label}>人数</label>
+                    <div className="flex items-center gap-4 mt-2">
+                      <button
+                        type="button"
+                        onClick={() => setPartySize(Math.max(1, partySize - 1))}
+                        disabled={partySize <= 1}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold transition-colors ${
+                          partySize <= 1 
+                            ? 'bg-gray-100 text-gray-300 cursor-not-allowed' 
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        −
+                      </button>
+                      <div className="text-2xl font-bold min-w-[60px] text-center">
+                        {partySize}<span className="text-base font-normal ml-1">名</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPartySize(Math.min(20, partySize + 1))}
+                        disabled={partySize >= 20}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold transition-colors ${
+                          partySize >= 20 
+                            ? 'bg-gray-100 text-gray-300 cursor-not-allowed' 
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                        style={partySize < 20 ? { backgroundColor: `${storeSettings.liff_theme_color}20`, color: storeSettings.liff_theme_color } : {}}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className={theme.label}>日付 {checkingAvailability && <span className="text-xs text-gray-400 ml-2">確認中...</span>}</label>
                   <div className="flex overflow-x-auto pb-4 gap-3 no-scrollbar -mx-4 px-4">
@@ -1445,12 +1509,17 @@ export default function Booking() {
               </div>
 
               <div className="flex gap-3 mt-8">
-                {(storeSettings.booking_system_type === 'salon' || storeSettings.booking_system_type === 'restaurant') && (
+                {(storeSettings.booking_enable_staff || storeSettings.booking_enable_menu) && (
                   <button 
                     onClick={() => {
                       setTime('') // 時間選択をクリア
                       releaseHold() // 仮押さえを解除
-                      setStep('menu_select')
+                      // メニュー選択が有効ならメニューへ、そうでなければスタッフへ
+                      if (storeSettings.booking_enable_menu) {
+                        setStep('menu_select')
+                      } else if (storeSettings.booking_enable_staff) {
+                        setStep('staff_select')
+                      }
                     }}
                     className={theme.buttonSecondary}
                   >
@@ -1551,6 +1620,12 @@ export default function Booking() {
                   <span className="opacity-70">日時</span>
                   <span className="font-bold text-right">{date} {time}</span>
                 </div>
+                {storeSettings.booking_enable_party_size && (
+                  <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
+                    <span className="opacity-70">人数</span>
+                    <span className="font-bold text-right">{partySize}名</span>
+                  </div>
+                )}
                 {selectedStaff && (
                   <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
                     <span className="opacity-70">指名スタッフ</span>

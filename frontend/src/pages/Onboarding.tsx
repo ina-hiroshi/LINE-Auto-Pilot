@@ -24,10 +24,16 @@ import {
   Calendar,
   Settings,
   LayoutDashboard,
-  Users
+  Users,
+  AlertTriangle
 } from 'lucide-react'
 import Modal from '../components/Modal'
 import Toast from '../components/Toast'
+
+// プレリリースモード切り替えフラグ
+// true: プレリリースモニター募集中（2ヶ月無料、サポートなし）
+// false: 正式リリース（リリース記念キャンペーン）
+const IS_PRE_RELEASE_MODE = true
 
 interface OnboardingProps {
   onComplete: () => void
@@ -83,6 +89,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   
   // プラン情報
   const [currentPlan, setCurrentPlan] = useState<string | null>(null)
+  
+  // トライアル利用済みフラグ
+  const [hasUsedTrial, setHasUsedTrial] = useState<boolean>(false)
 
   // Stripe決済完了チェック
   useEffect(() => {
@@ -142,7 +151,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         // プロフィール情報を取得
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('full_name, full_name_kana, phone_number, plan')
+          .select('full_name, full_name_kana, phone_number, plan, has_used_trial')
           .eq('id', user.id)
           .single()
 
@@ -158,6 +167,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           // サブスクリプション情報を保持（planのみ）
           setCurrentPlan(profileData.plan || null)
           console.log('Current plan:', profileData.plan)
+          
+          // トライアル利用済みフラグを設定
+          setHasUsedTrial(profileData.has_used_trial || false)
+          console.log('Has used trial:', profileData.has_used_trial)
         }
 
         // 店舗情報を取得
@@ -734,52 +747,101 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   <p className="text-slate-500">あなたのビジネスに合ったプランをお選びください。</p>
                 </div>
 
-                {/* リリース特典 */}
-                <div className="bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-2xl p-6 mb-8">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Gift className="w-6 h-6" />
-                    <span className="font-bold text-lg">🎉 リリース特典 - 2つのコースから選べます</span>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {/* Course 1 */}
-                    <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                      <div className="bg-white text-primary-700 text-xs font-bold px-2 py-1 rounded-full inline-block mb-3">
-                        すぐ使いたい方向け
+                {/* プレリリース特典 or リリース特典（トライアル未使用の場合のみ表示） */}
+                {!hasUsedTrial && IS_PRE_RELEASE_MODE && (
+                  /* プレリリースモニター特典 */
+                  <div className="bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-2xl p-6 mb-8">
+                    <div className="flex items-center gap-3 mb-4">
+                      <Gift className="w-6 h-6" />
+                      <span className="font-bold text-lg">🎁 プレリリースモニター限定特典</span>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 mb-4">
+                      <div className="text-center mb-4">
+                        <div className="text-4xl md:text-5xl font-bold text-yellow-300 mb-2">
+                          2ヶ月無料
+                        </div>
+                        <p className="text-primary-100">
+                          Proプラン（通常 ¥4,980/月）が無料で使えます
+                        </p>
                       </div>
-                      <h4 className="text-lg font-bold mb-3 text-yellow-300">スピード導入コース</h4>
-                      <ul className="space-y-2 text-sm">
+                      <ul className="space-y-3">
                         <li className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
-                          <span>初期設定代行費（¥9,980）が<span className="font-bold text-yellow-300">無料</span></span>
+                          <Check className="w-5 h-5 text-yellow-300 shrink-0 mt-0.5" />
+                          <span>Proプランの全機能を<span className="font-bold text-yellow-300">2ヶ月間無料</span>で利用可能</span>
                         </li>
                         <li className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
-                          <span>Proプラン<span className="font-bold text-yellow-300">初月無料</span></span>
+                          <Check className="w-5 h-5 text-yellow-300 shrink-0 mt-0.5" />
+                          <span>ご登録いただいた<span className="font-bold text-yellow-300">データはそのまま継続</span>利用可能</span>
                         </li>
                       </ul>
                     </div>
-                    {/* Course 2 */}
-                    <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                      <div className="bg-white text-primary-700 text-xs font-bold px-2 py-1 rounded-full inline-block mb-3">
-                        安く使いたい方向け
+                    {/* 注意事項 */}
+                    <div className="bg-primary-900/30 border border-primary-300/30 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="w-5 h-5 text-yellow-300 shrink-0 mt-0.5" />
+                        <div className="text-sm text-primary-100">
+                          <p className="font-bold text-yellow-300 mb-2">プレリリース版についてのご注意</p>
+                          <ul className="space-y-1 list-disc list-inside">
+                            <li>現在開発中のため、<span className="font-medium text-yellow-300">仕様が予告なく変更</span>される場合があります</li>
+                            <li>一部機能に<span className="font-medium text-yellow-300">不具合</span>が発生する可能性があります</li>
+                            <li>プレリリース期間中は<span className="font-medium text-yellow-300">サポート対応ができません</span></li>
+                            <li>LINE初期設定代行（¥9,980）は<span className="font-medium text-yellow-300">ご利用いただけません</span></li>
+                            <li>クレジットカード登録が必須です。<span className="font-medium text-yellow-300">2ヶ月後から自動更新</span>で課金されます</li>
+                          </ul>
+                        </div>
                       </div>
-                      <h4 className="text-lg font-bold mb-3 text-yellow-300">じっくりお得コース</h4>
-                      <ul className="space-y-2 text-sm">
-                        <li className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
-                          <span>Proプランが<span className="font-bold text-yellow-300">3ヶ月間無料</span></span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <Check className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
-                          <span>初期設定代行（¥9,980）を利用可能</span>
-                        </li>
-                      </ul>
                     </div>
                   </div>
-                  <p className="text-center text-primary-100 text-xs mt-4">
-                    ※ 特典の適用には、導入後のインタビューフォームへの回答が必要です。
-                  </p>
-                </div>
+                )}
+
+                {/* 正式リリース時のリリース特典（トライアル未使用の場合のみ表示） */}
+                {!hasUsedTrial && !IS_PRE_RELEASE_MODE && (
+                  <div className="bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-2xl p-6 mb-8">
+                    <div className="flex items-center gap-3 mb-4">
+                      <Gift className="w-6 h-6" />
+                      <span className="font-bold text-lg">🎉 リリース特典 - 2つのコースから選べます</span>
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {/* Course 1 */}
+                      <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                        <div className="bg-white text-primary-700 text-xs font-bold px-2 py-1 rounded-full inline-block mb-3">
+                          すぐ使いたい方向け
+                        </div>
+                        <h4 className="text-lg font-bold mb-3 text-yellow-300">スピード導入コース</h4>
+                        <ul className="space-y-2 text-sm">
+                          <li className="flex items-start gap-2">
+                            <Check className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
+                            <span>初期設定代行費（¥9,980）が<span className="font-bold text-yellow-300">無料</span></span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <Check className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
+                            <span>Proプラン<span className="font-bold text-yellow-300">初月無料</span></span>
+                          </li>
+                        </ul>
+                      </div>
+                      {/* Course 2 */}
+                      <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                        <div className="bg-white text-primary-700 text-xs font-bold px-2 py-1 rounded-full inline-block mb-3">
+                          安く使いたい方向け
+                        </div>
+                        <h4 className="text-lg font-bold mb-3 text-yellow-300">じっくりお得コース</h4>
+                        <ul className="space-y-2 text-sm">
+                          <li className="flex items-start gap-2">
+                            <Check className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
+                            <span>Proプランが<span className="font-bold text-yellow-300">3ヶ月間無料</span></span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <Check className="w-4 h-4 text-yellow-300 shrink-0 mt-0.5" />
+                            <span>初期設定代行（¥9,980）を利用可能</span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                    <p className="text-center text-primary-100 text-xs mt-4">
+                      ※ 特典の適用には、導入後のインタビューフォームへの回答が必要です。
+                    </p>
+                  </div>
+                )}
 
                 {/* プランカード */}
                 <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -841,11 +903,13 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                       <span className="px-3 py-1 bg-primary-50 text-primary-600 rounded-full text-xs font-bold uppercase tracking-wider">Standard</span>
                     </div>
                     <h3 className="text-2xl font-bold text-slate-900 mb-2">Pro</h3>
-                    <div className="mb-3">
-                      <span className="inline-block bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded">
-                        初月無料
-                      </span>
-                    </div>
+                    {!hasUsedTrial && (
+                      <div className="mb-3">
+                        <span className="inline-block bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded">
+                          {IS_PRE_RELEASE_MODE ? '2ヶ月無料' : '初月無料'}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-baseline mb-8">
                       <span className="text-4xl font-bold text-slate-900">¥4,980</span>
                       <span className="text-slate-500 ml-2">/月</span>
@@ -932,23 +996,38 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   <p className="text-slate-500">ステップごとに丁寧にご案内します。ゆっくり進めてください。</p>
                 </div>
 
-                {/* 初期設定代行バナー */}
-                <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-6 mb-8">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <HelpCircle size={20} />
-                        <span className="font-bold">設定が難しいですか？</span>
+                {/* 初期設定代行バナー（プレリリースモードでは非表示） */}
+                {!IS_PRE_RELEASE_MODE && (
+                  <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-6 mb-8">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <HelpCircle size={20} />
+                          <span className="font-bold">設定が難しいですか？</span>
+                        </div>
+                        <p className="text-sm text-white/90">
+                          専門スタッフがあなたの代わりにLINE接続設定を完了させます。
+                        </p>
                       </div>
-                      <p className="text-sm text-white/90">
-                        専門スタッフがあなたの代わりにLINE接続設定を完了させます。
-                      </p>
+                      <button className="bg-white text-amber-600 px-6 py-3 rounded-xl font-bold hover:bg-amber-50 transition whitespace-nowrap shadow-lg">
+                        初期設定代行を依頼（¥9,980）
+                      </button>
                     </div>
-                    <button className="bg-white text-amber-600 px-6 py-3 rounded-xl font-bold hover:bg-amber-50 transition whitespace-nowrap shadow-lg">
-                      初期設定代行を依頼（¥9,980）
-                    </button>
                   </div>
-                </div>
+                )}
+
+                {/* プレリリースモード時の注意バナー */}
+                {IS_PRE_RELEASE_MODE && (
+                  <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 mb-8">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                      <div className="text-sm text-slate-600">
+                        <p className="font-bold text-slate-800 mb-1">プレリリースモニターの方へ</p>
+                        <p>プレリリース期間中は初期設定代行サービスをご利用いただけません。以下の手順に沿ってご自身で設定をお願いいたします。</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* LINE設定のサブステップ */}
                 <div className="space-y-4">

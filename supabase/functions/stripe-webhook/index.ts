@@ -48,23 +48,35 @@ Deno.serve(async (req: Request) => {
             const priceId = subscription.items.data[0].price.id;
             const currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
             
-            console.log(`Subscription status: ${status}, Plan: ${status === 'active' || status === 'trialing' ? 'pro' : 'free'}`);
+            // トライアル期間があるかどうかをチェック
+            const isTrialing = status === 'trialing';
+            
+            console.log(`Subscription status: ${status}, Plan: ${status === 'active' || status === 'trialing' ? 'pro' : 'free'}, isTrialing: ${isTrialing}`);
 
             let plan = 'free';
             if (status === 'active' || status === 'trialing') {
               plan = 'pro';
             }
 
+            // トライアルを利用した場合は has_used_trial を true に設定
+            const updateData: Record<string, unknown> = { 
+              stripe_customer_id: customerId,
+              subscription_id: subscriptionId,
+              subscription_status: status,
+              plan: plan,
+              price_id: priceId,
+              current_period_end: currentPeriodEnd
+            };
+            
+            // トライアル中の場合、has_used_trial フラグを立てる（再利用防止）
+            if (isTrialing) {
+              updateData.has_used_trial = true;
+              console.log('Setting has_used_trial to true (trial period detected)');
+            }
+
             const { error } = await supabase
               .from('profiles')
-              .update({ 
-                stripe_customer_id: customerId,
-                subscription_id: subscriptionId,
-                subscription_status: status,
-                plan: plan,
-                price_id: priceId,
-                current_period_end: currentPeriodEnd
-              })
+              .update(updateData)
               .eq('id', userId);
             
             if (error) {
