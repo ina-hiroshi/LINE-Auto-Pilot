@@ -115,24 +115,18 @@ export default function Booking() {
   // Reservation Data
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
-  const [slots, setSlots] = useState<{ time: string; available: boolean }[]>([])
-  const [loadingSlots, setLoadingSlots] = useState(false)
   const [loading, setLoading] = useState(false)
   const [activeReservations, setActiveReservations] = useState<ReservationSummary[]>([])
   const [modifyingReservationId, setModifyingReservationId] = useState<string | null>(null)
   
+  // 表形式用：複数日のスロット情報 { "2026-01-04": { "10:00": true, "11:00": false, ... }, ... }
+  const [multiDateSlots, setMultiDateSlots] = useState<Record<string, Record<string, boolean>>>({})
+  const [loadingMultiDateSlots, setLoadingMultiDateSlots] = useState(false)
+  const [displayDates, setDisplayDates] = useState<string[]>([]) // 表示する日付リスト
+  const [allTimeSlots, setAllTimeSlots] = useState<string[]>([]) // 全時間帯のリスト
+  
   // Special Dates (臨時休業・営業時間上書き)
   const [specialDates, setSpecialDates] = useState<Record<string, { is_closed: boolean; override_hours: { start: string; end: string }[] | null }>>({})
-  
-  // Staff Work Patterns (スタッフの勤務パターン)
-  const [staffWorkPatterns, setStaffWorkPatterns] = useState<Record<number, { is_active: boolean }>>({})
-  
-  // Staff Special Schedules (スタッフの欠勤・時間変更)
-  const [staffSpecialSchedules, setStaffSpecialSchedules] = useState<Record<string, { is_absent: boolean }>>({})
-  
-  // Date Availability (日付ごとの予約可能状態)
-  const [dateAvailability, setDateAvailability] = useState<Record<string, boolean>>({})
-  const [checkingAvailability, setCheckingAvailability] = useState(false)
   
   // User Data
   const [lineUserId, setLineUserId] = useState('')
@@ -175,112 +169,111 @@ export default function Booking() {
     }
   }, [storeSettings.business_hours, specialDates])
   
-  const fetchSlots = useCallback(async () => {
-    setLoadingSlots(true)
-    setTime('') // Reset selected time
-
-    // スタッフ選択が有効でスタッフ指定がある場合、またはstoreIdがある場合はバックエンドを呼ぶ
-    // これによりスタッフのシフト設定が正しく反映される
-    if (storeId && (selectedStaff?.id || !storeSettings.booking_enable_staff)) {
-      try {
-        const { data, error } = await supabase.functions.invoke('booking', {
-          body: {
-            action: 'get_available_slots',
-            store_id: storeId,
-            date: date,
-            menu_id: selectedMenu?.id || null,
-            staff_id: selectedStaff?.id || null,
+  // 表形式用：複数日のスロット情報を一括取得
+  const fetchMultiDateSlots = useCallback(async () => {
+    if (!storeId) return
+    
+    setLoadingMultiDateSlots(true)
+    
+    // 表示する日付を生成（7日間）
+    const dates: string[] = []
+    const displayDays = Math.min(7, storeSettings.max_booking_days || 14)
+    for (let i = 0; i < displayDays; i++) {
+      const d = new Date()
+      d.setDate(d.getDate() + i)
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      dates.push(dateStr)
+    }
+    setDisplayDates(dates)
+    
+    // 各日のスロット情報を取得
+    const slotsMap: Record<string, Record<string, boolean>> = {}
+    const allTimes = new Set<string>()
+    
+    // プレビューモードでは営業時間からローカルでスロット生成
+    if (window.self !== window.top || lineUserId === 'PREVIEW_USER') {
+      const interval = storeSettings.slot_interval_minutes || 60
+      
+      for (const dateStr of dates) {
+        const businessHours = getBusinessHoursForDate(dateStr)
+        if (businessHours.length === 0) {
+          slotsMap[dateStr] = {}
+          continue
+        }
+        
+        const dateSlots: Record<string, boolean> = {}
+        businessHours.forEach(slot => {
+          const [startH, startM] = slot.start.split(':').map(Number)
+          const [endH, endM] = slot.end.split(':').map(Number)
+          
+          const [y, m, dd] = dateStr.split('-').map(Number)
+          const startTime = new Date(y, m - 1, dd)
+          startTime.setHours(startH, startM, 0, 0)
+          
+          const endTime = new Date(y, m - 1, dd)
+          endTime.setHours(endH, endM, 0, 0)
+          
+          const now = new Date()
+          let cursor = new Date(startTime)
+          
+          while (cursor < endTime) {
+            const slotEnd = new Date(cursor.getTime() + interval * 60000)
+            if (slotEnd > endTime) break
+            
+            const timeStr = `${String(cursor.getHours()).padStart(2, '0')}:${String(cursor.getMinutes()).padStart(2, '0')}`
+            allTimes.add(timeStr)
+            
+            // 過去の時間は不可
+            dateSlots[timeStr] = cursor >= now
+            cursor = slotEnd
           }
         })
-        
-        if (error) throw error
-        
-        if (data?.slots) {
-          setSlots(data.slots)
-        } else {
-          setSlots([])
-        }
-      } catch (e) {
-        console.error('Failed to fetch slots:', e)
-        setSlots([])
-      } finally {
-        setLoadingSlots(false)
+        slotsMap[dateStr] = dateSlots
       }
-      return
-    }
-
-    // PREVIEW MODE (スタッフ未選択時): Calculate slots locally based on current settings
-    if (window.self !== window.top || lineUserId === 'PREVIEW_USER') {
-      console.log('Generating preview slots locally...')
-      await new Promise(resolve => setTimeout(resolve, 300)) // Simulate delay
-
-      const businessHours = getBusinessHoursForDate(date)
-      const interval = storeSettings.slot_interval_minutes || 60
-      const generatedSlots: { time: string; available: boolean }[] = []
-
-      businessHours.forEach(slot => {
-        const [startH, startM] = slot.start.split(':').map(Number)
-        const [endH, endM] = slot.end.split(':').map(Number)
-        
-        const [y, m, d] = date.split('-').map(Number)
-        const startTime = new Date(y, m - 1, d)
-        startTime.setHours(startH, startM, 0, 0)
-        
-        const endTime = new Date(y, m - 1, d)
-        endTime.setHours(endH, endM, 0, 0)
-
-        const now = new Date()
-
-        let cursor = new Date(startTime)
-        while (cursor < endTime) {
-          // Calculate slot end time
-          const slotEnd = new Date(cursor.getTime() + interval * 60000)
-          // If slot end exceeds business hours end, don't add it (strict fit)
-          if (slotEnd > endTime) break
-
-          // Skip past slots
-          if (cursor < now) {
-            cursor = slotEnd
-            continue
+    } else {
+      // 通常モード：APIから取得（並列処理）
+      const results = await Promise.all(
+        dates.map(async (dateStr) => {
+          try {
+            const { data } = await supabase.functions.invoke('booking', {
+              body: {
+                action: 'get_available_slots',
+                store_id: storeId,
+                date: dateStr,
+                menu_id: selectedMenu?.id || null,
+                staff_id: selectedStaff?.id || null,
+              }
+            })
+            const dateSlots: Record<string, boolean> = {}
+            if (data?.slots) {
+              data.slots.forEach((s: { time: string; available: boolean }) => {
+                dateSlots[s.time] = s.available
+                allTimes.add(s.time)
+              })
+            }
+            return { dateStr, slots: dateSlots }
+          } catch {
+            return { dateStr, slots: {} }
           }
-
-          const timeStr = `${String(cursor.getHours()).padStart(2, '0')}:${String(cursor.getMinutes()).padStart(2, '0')}`
-          generatedSlots.push({ time: timeStr, available: true })
-          
-          cursor = slotEnd
-        }
-      })
-
-      setSlots(generatedSlots)
-      setLoadingSlots(false)
-      return
-    }
-
-    try {
-      const { data, error } = await supabase.functions.invoke('booking', {
-        body: {
-          action: 'get_available_slots',
-          store_id: storeId,
-          date: date,
-          menu_id: selectedMenu?.id || null,
-          staff_id: selectedStaff?.id || null,
-        }
-      })
+        })
+      )
       
-      if (error) throw error
-      
-      if (data?.slots) {
-        setSlots(data.slots)
-      } else {
-        setSlots([])
-      }
-    } catch (e) {
-      console.error('Failed to fetch slots:', e)
-      setSlots([])
-    } finally {
-      setLoadingSlots(false)
+      results.forEach(({ dateStr, slots }) => {
+        slotsMap[dateStr] = slots
+      })
     }
-  }, [date, storeId, selectedMenu?.id, selectedStaff?.id, storeSettings.slot_interval_minutes, storeSettings.booking_enable_staff, getBusinessHoursForDate, lineUserId])
+    
+    // 時間帯をソート
+    const sortedTimes = Array.from(allTimes).sort((a, b) => {
+      const [aH, aM] = a.split(':').map(Number)
+      const [bH, bM] = b.split(':').map(Number)
+      return aH * 60 + aM - (bH * 60 + bM)
+    })
+    
+    setAllTimeSlots(sortedTimes)
+    setMultiDateSlots(slotsMap)
+    setLoadingMultiDateSlots(false)
+  }, [storeId, storeSettings.max_booking_days, storeSettings.slot_interval_minutes, selectedMenu?.id, selectedStaff?.id, getBusinessHoursForDate, lineUserId])
 
   const fetchStore = useCallback(async () => {
     // In production, store_id should be passed via query param ?store_id=...
@@ -463,12 +456,12 @@ export default function Booking() {
     }
   }, [date])
 
-  // Fetch slots when date or storeId changes
+  // 表形式：日付ステップに入ったときに複数日のスロットを取得
   useEffect(() => {
-    if (storeId && date) {
-      fetchSlots()
+    if (step === 'date' && storeId) {
+      fetchMultiDateSlots()
     }
-  }, [storeId, date, fetchSlots])
+  }, [step, storeId, fetchMultiDateSlots])
 
   // Listen for settings updates from parent window (LineSettings.tsx)
   useEffect(() => {
@@ -532,119 +525,6 @@ export default function Booking() {
     return () => window.removeEventListener('message', handleMessage)
   }, [setStaffList, setMenuList])
 
-  // Fetch staff work patterns and special schedules when staff is selected
-  useEffect(() => {
-    const fetchStaffData = async () => {
-      if (!selectedStaff?.id) {
-        setStaffWorkPatterns({})
-        setStaffSpecialSchedules({})
-        return
-      }
-      
-      try {
-        // 勤務パターンを取得
-        const { data: patternsData, error: patternsError } = await supabase
-          .from('staff_work_patterns')
-          .select('day_of_week, is_active')
-          .eq('staff_id', selectedStaff.id)
-        
-        if (patternsError) {
-          console.error('Failed to fetch staff work patterns:', patternsError)
-        } else {
-          const patterns: Record<number, { is_active: boolean }> = {}
-          if (patternsData) {
-            patternsData.forEach(p => {
-              patterns[p.day_of_week] = { is_active: p.is_active }
-            })
-          }
-          setStaffWorkPatterns(patterns)
-        }
-        
-        // 特別スケジュール（欠勤など）を取得
-        const { data: schedulesData, error: schedulesError } = await supabase
-          .from('staff_special_schedules')
-          .select('date, is_absent')
-          .eq('staff_id', selectedStaff.id)
-        
-        if (schedulesError) {
-          console.error('Failed to fetch staff special schedules:', schedulesError)
-        } else {
-          const schedules: Record<string, { is_absent: boolean }> = {}
-          if (schedulesData) {
-            schedulesData.forEach(s => {
-              schedules[s.date] = { is_absent: s.is_absent }
-            })
-          }
-          setStaffSpecialSchedules(schedules)
-        }
-      } catch (e) {
-        console.error('Failed to fetch staff data:', e)
-      }
-    }
-    
-    fetchStaffData()
-  }, [selectedStaff?.id])
-
-  // Check date availability when staff/menu changes or on initial load
-  useEffect(() => {
-    const checkDateAvailability = async () => {
-      if (!storeId) return
-      
-      // スタッフ選択が有効でスタッフ未選択の場合はスキップ
-      if (storeSettings.booking_enable_staff && !selectedStaff?.id) {
-        setDateAvailability({})
-        return
-      }
-      
-      setCheckingAvailability(true)
-      const availability: Record<string, boolean> = {}
-      const maxDays = storeSettings.max_booking_days || 14
-      
-      // 並列で全日付をチェック（ただし同時実行数を制限）
-      const dates: string[] = []
-      for (let i = 0; i < maxDays; i++) {
-        const d = new Date()
-        d.setDate(d.getDate() + i)
-        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-        dates.push(dateStr)
-      }
-      
-      // バッチ処理（5件ずつ）
-      const batchSize = 5
-      for (let i = 0; i < dates.length; i += batchSize) {
-        const batch = dates.slice(i, i + batchSize)
-        const results = await Promise.all(
-          batch.map(async (dateStr) => {
-            try {
-              const { data } = await supabase.functions.invoke('booking', {
-                body: {
-                  action: 'get_available_slots',
-                  store_id: storeId,
-                  date: dateStr,
-                  menu_id: selectedMenu?.id || null,
-                  staff_id: selectedStaff?.id || null,
-                }
-              })
-              const hasAvailableSlots = data?.slots?.some((s: { available: boolean }) => s.available) ?? false
-              return { dateStr, hasAvailableSlots }
-            } catch {
-              return { dateStr, hasAvailableSlots: false }
-            }
-          })
-        )
-        results.forEach(({ dateStr, hasAvailableSlots }) => {
-          availability[dateStr] = hasAvailableSlots
-        })
-      }
-      
-      setDateAvailability(availability)
-      setCheckingAvailability(false)
-    }
-    
-    checkDateAvailability()
-  }, [storeId, selectedStaff?.id, selectedMenu?.id, storeSettings.booking_enable_staff, storeSettings.max_booking_days])
-
-
   const checkCustomer = useCallback(async () => {
     setCheckingUser(true)
     try {
@@ -700,8 +580,18 @@ export default function Booking() {
     }
   }, [lineUserId, storeId, getInitialStep])
 
+  // プレビューモードかどうかの判定
+  const isPreviewMode = useCallback(() => {
+    return window.self !== window.top || lineUserId === 'PREVIEW_USER'
+  }, [lineUserId])
+
   // 仮押さえ解除のヘルパー関数
   const releaseHold = useCallback(async () => {
+    // プレビューモードでは仮押さえをスキップ
+    if (isPreviewMode()) {
+      console.log('Skipping release_hold in preview mode')
+      return
+    }
     if (!storeId || !lineUserId) return
     try {
       await supabase.functions.invoke('booking', {
@@ -715,7 +605,7 @@ export default function Booking() {
     } catch (e) {
       console.error('Failed to release hold:', e)
     }
-  }, [storeId, lineUserId])
+  }, [storeId, lineUserId, isPreviewMode])
 
   // ページ離脱時に仮押さえを解除
   useEffect(() => {
@@ -866,39 +756,72 @@ export default function Booking() {
           title: 'text-xl tracking-[0.2em] text-[#44403C] font-medium flex items-center justify-center gap-3',
           label: 'block text-xs font-bold text-[#78716C] mb-2 tracking-widest uppercase',
           input: `${common.input} bg-transparent border-b border-[#D6D3D1] focus:border-[#44403C] rounded-none px-0 text-[#44403C] placeholder-[#A8A29E]`,
-          buttonPrimary: 'w-full py-4 bg-[#44403C] text-[#F5F5F4] hover:bg-[#292524] uppercase tracking-[0.2em] text-xs rounded-sm shadow-sm transition-colors',
-          buttonSecondary: 'w-full py-4 bg-transparent border border-[#D6D3D1] text-[#78716C] hover:bg-[#F5F5F4] uppercase tracking-[0.2em] text-xs rounded-sm transition-colors',
+          buttonPrimary: 'w-full py-4 bg-[#44403C] text-[#F5F5F4] uppercase tracking-[0.2em] text-xs rounded-sm shadow-sm transition-colors active:bg-[#292524]',
+          buttonSecondary: 'w-full py-4 bg-transparent border border-[#D6D3D1] text-[#78716C] uppercase tracking-[0.2em] text-xs rounded-sm transition-colors active:bg-[#F5F5F4]',
           slotGrid: 'grid grid-cols-3 gap-3',
           slotButton: (selected: boolean, available: boolean) => `
             py-4 text-sm font-serif tracking-wider border transition-all
             ${selected 
               ? 'bg-[#44403C] text-[#F5F5F4] border-[#44403C]' 
               : available 
-                ? 'bg-white text-[#57534E] border-[#E7E5E4] hover:border-[#78716C]' 
+                ? 'bg-white text-[#57534E] border-[#E7E5E4] active:border-[#78716C]' 
                 : 'bg-[#F5F5F4] text-[#D6D3D1] border-transparent cursor-not-allowed'}
           `,
           selectableItem: (selected: boolean) => `
             p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
             ${selected 
               ? 'border-[#44403C] bg-[#44403C]/10' 
-              : 'border-[#E7E5E4] bg-white hover:border-[#D6D3D1]'}
+              : 'border-[#E7E5E4] bg-white active:border-[#D6D3D1]'}
           `,
           selectableListItem: (selected: boolean) => `
             w-full p-4 rounded-xl border-2 transition-all flex items-center justify-between gap-3 text-left
             ${selected 
               ? 'border-[#44403C] bg-[#44403C]/10' 
-              : 'border-[#E7E5E4] bg-white hover:border-[#D6D3D1]'}
+              : 'border-[#E7E5E4] bg-white active:border-[#D6D3D1]'}
           `,
           selectableItemText: (selected: boolean) => (selected ? 'text-[#44403C]' : 'text-[#44403C]'),
           selectableItemSubText: (selected: boolean) => (selected ? 'text-[#78716C]' : 'text-[#78716C]'),
           infoBox: 'p-6 bg-[#FAFAF9] border border-[#E7E5E4] text-[#57534E]',
-          actionButtonPrimary: 'flex items-center justify-center gap-1 px-3 py-2 bg-[#44403C] text-[#F5F5F4] text-xs uppercase tracking-wider rounded-sm hover:bg-[#292524] transition-colors',
-          actionButtonSecondary: 'flex items-center justify-center gap-1 px-3 py-2 bg-transparent border border-[#D6D3D1] text-[#78716C] text-xs uppercase tracking-wider rounded-sm hover:bg-[#F5F5F4] transition-colors',
+          actionButtonPrimary: 'flex items-center justify-center gap-1 px-3 py-2 bg-[#44403C] text-[#F5F5F4] text-xs uppercase tracking-wider rounded-sm active:bg-[#292524] transition-colors',
+          actionButtonSecondary: 'flex items-center justify-center gap-1 px-3 py-2 bg-transparent border border-[#D6D3D1] text-[#78716C] text-xs uppercase tracking-wider rounded-sm active:bg-[#F5F5F4] transition-colors',
+          // 追加：選択サマリー・通知用スタイル
+          summaryBox: 'mb-6 p-4 bg-[#FAFAF9] rounded-sm border border-[#E7E5E4] text-sm space-y-1',
+          summaryLabel: 'text-[#78716C]',
+          summaryValue: 'font-medium text-[#44403C]',
+          summaryLink: 'text-xs text-[#57534E] underline w-full text-right mt-2',
+          noticeBox: 'mb-4 p-4 bg-[#F0F9FF] text-[#0369A1] text-sm rounded-sm border border-[#BAE6FD]',
+          noticeLink: 'block mt-1 underline font-medium',
+          emptySlotBox: 'text-center py-8 text-[#78716C] bg-[#FAFAF9] rounded-sm border border-dashed border-[#D6D3D1]',
+          selectedDateBox: 'mt-4 p-3 rounded-sm border-2 text-center',
+          selectedDateLabel: 'text-sm text-[#78716C]',
+          partySizeDisabled: 'bg-[#F5F5F4] text-[#D6D3D1] cursor-not-allowed',
+          partySizeEnabled: 'bg-[#E7E5E4] text-[#44403C]',
+          partySizeText: 'text-2xl font-medium min-w-[60px] text-center text-[#44403C]',
           iconColor: '#57534E',
           primaryStyle: {}, 
           headerStyle: {},
           titleStyle: {},
           cardStyle: {},
+          // 表形式用スタイル
+          slotTable: {
+            headerBg: 'bg-[#FAFAF9]',
+            headerText: 'text-[#78716C]',
+            headerBorder: 'border-[#E7E5E4]',
+            timeCellBg: 'bg-[#FAFAF9]',
+            timeCellText: 'text-[#57534E]',
+            timeCellBorder: 'border-[#E7E5E4]',
+            rowBorder: 'border-[#E7E5E4]',
+            availableBtn: 'bg-white border border-[#D6D3D1] text-[#44403C]',
+            availableBtnActive: 'bg-[#F5F5F4] border-[#44403C]',
+            unavailableBtn: 'bg-[#F5F5F4] text-[#D6D3D1]',
+            emptyCell: 'text-[#D6D3D1]',
+            sundayText: 'text-[#B91C1C]',
+            saturdayText: 'text-[#1D4ED8]',
+            weekdayText: 'text-[#57534E]',
+            legendText: 'text-[#78716C]',
+            legendAvailable: 'border-[#D6D3D1] bg-white text-[#44403C]',
+            legendUnavailable: 'bg-[#F5F5F4] text-[#D6D3D1]',
+          },
         }
 
       case 'pop':
@@ -909,39 +832,72 @@ export default function Booking() {
           title: 'text-2xl font-black tracking-tight flex items-center justify-center gap-2',
           label: 'block text-sm font-bold text-gray-400 mb-2 ml-3',
           input: `${common.input} bg-gray-100 border-2 border-transparent rounded-3xl focus:bg-white focus:border-current transition-all font-bold text-gray-700 px-5`,
-          buttonPrimary: 'w-full py-4 text-white font-black rounded-full shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all text-lg',
-          buttonSecondary: 'w-full py-4 bg-white text-gray-500 font-black rounded-full border-2 border-gray-100 hover:bg-gray-50 transition-all',
+          buttonPrimary: 'w-full py-4 text-white font-black rounded-full shadow-lg active:shadow-xl active:-translate-y-1 transition-all text-lg',
+          buttonSecondary: 'w-full py-4 bg-white text-gray-500 font-black rounded-full border-2 border-gray-100 active:bg-gray-50 transition-all',
           slotGrid: 'grid grid-cols-3 gap-3',
           slotButton: (selected: boolean, available: boolean) => `
             py-3 rounded-2xl font-bold transition-all border-2
             ${selected 
               ? 'text-white shadow-md transform scale-105 border-transparent' 
               : available 
-                ? 'bg-white text-gray-600 border-gray-100 hover:border-current' 
+                ? 'bg-white text-gray-600 border-gray-100 active:border-current' 
                 : 'bg-gray-50 text-gray-300 border-transparent cursor-not-allowed'}
           `,
           selectableItem: (selected: boolean) => `
             p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
             ${selected 
               ? 'border-current bg-opacity-10' 
-              : 'border-gray-100 bg-white hover:border-gray-200'}
+              : 'border-gray-100 bg-white active:border-gray-200'}
           `,
           selectableListItem: (selected: boolean) => `
             p-4 rounded-xl border-2 transition-all flex flex-row items-center gap-3
             ${selected 
               ? 'border-current bg-opacity-10' 
-              : 'border-gray-100 bg-white hover:border-gray-200'}
+              : 'border-gray-100 bg-white active:border-gray-200'}
           `,
           selectableItemText: (selected: boolean) => (selected ? 'text-gray-800' : 'text-gray-800'),
           selectableItemSubText: (selected: boolean) => (selected ? 'text-gray-500' : 'text-gray-500'),
           infoBox: 'p-5 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200',
-          actionButtonPrimary: 'flex items-center justify-center gap-1 px-4 py-2 text-white font-bold rounded-full shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all text-xs',
-          actionButtonSecondary: 'flex items-center justify-center gap-1 px-4 py-2 bg-white text-gray-500 font-bold rounded-full border-2 border-gray-100 hover:bg-gray-50 transition-all text-xs',
+          actionButtonPrimary: 'flex items-center justify-center gap-1 px-4 py-2 text-white font-bold rounded-full shadow-md active:shadow-lg active:-translate-y-0.5 transition-all text-xs',
+          actionButtonSecondary: 'flex items-center justify-center gap-1 px-4 py-2 bg-white text-gray-500 font-bold rounded-full border-2 border-gray-100 active:bg-gray-50 transition-all text-xs',
+          // 追加：選択サマリー・通知用スタイル
+          summaryBox: 'mb-6 p-4 bg-gray-50 rounded-3xl border-2 border-gray-100 text-sm space-y-1',
+          summaryLabel: 'text-gray-500',
+          summaryValue: 'font-bold text-gray-800',
+          summaryLink: 'text-xs text-blue-500 underline w-full text-right mt-2',
+          noticeBox: 'mb-4 p-4 bg-blue-50 text-blue-700 text-sm rounded-2xl border-2 border-blue-100',
+          noticeLink: 'block mt-1 underline font-bold',
+          emptySlotBox: 'text-center py-8 text-gray-500 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200',
+          selectedDateBox: 'mt-4 p-3 rounded-2xl border-2 text-center',
+          selectedDateLabel: 'text-sm text-gray-600',
+          partySizeDisabled: 'bg-gray-100 text-gray-300 cursor-not-allowed',
+          partySizeEnabled: 'bg-gray-200 text-gray-700',
+          partySizeText: 'text-2xl font-black min-w-[60px] text-center',
           iconColor: c,
           primaryStyle: { backgroundColor: c, borderColor: c },
           headerStyle: { backgroundColor: `${c}15` }, // 10% opacity of theme color
           titleStyle: { color: c },
           cardStyle: {},
+          // 表形式用スタイル
+          slotTable: {
+            headerBg: 'bg-white',
+            headerText: 'text-gray-500',
+            headerBorder: 'border-gray-200',
+            timeCellBg: 'bg-white',
+            timeCellText: 'text-gray-600',
+            timeCellBorder: 'border-gray-100',
+            rowBorder: 'border-gray-100',
+            availableBtn: 'bg-white border-2 border-gray-200 text-emerald-500',
+            availableBtnActive: 'bg-emerald-50 border-emerald-400',
+            unavailableBtn: 'bg-gray-100 text-gray-300',
+            emptyCell: 'text-gray-200',
+            sundayText: 'text-red-500',
+            saturdayText: 'text-blue-500',
+            weekdayText: 'text-gray-700',
+            legendText: 'text-gray-500',
+            legendAvailable: 'border-2 border-gray-200 bg-white text-emerald-500',
+            legendUnavailable: 'bg-gray-100 text-gray-300',
+          },
         }
 
       case 'dark':
@@ -951,40 +907,73 @@ export default function Booking() {
           header: 'p-6 text-center border-b border-slate-800 bg-slate-900/50 backdrop-blur',
           title: 'text-xl font-bold text-white flex items-center justify-center gap-2',
           label: 'block text-sm font-medium text-slate-300 mb-2',
-          input: `${common.input} bg-slate-950 border border-slate-800 rounded-lg text-white focus:border-white focus:ring-1 focus:ring-white placeholder-slate-500`,
-          buttonPrimary: 'w-full py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all',
-          buttonSecondary: 'w-full py-3 bg-slate-800 text-slate-300 border border-slate-700 font-bold rounded-lg hover:bg-slate-700 transition-all',
+          input: `${common.input} bg-slate-950 border border-slate-700 rounded-lg text-white focus:border-slate-500 focus:ring-1 focus:ring-slate-500 placeholder-slate-500`,
+          buttonPrimary: 'w-full py-3 bg-white text-slate-900 font-bold rounded-lg active:bg-slate-200 shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all',
+          buttonSecondary: 'w-full py-3 bg-slate-800 text-slate-200 border border-slate-700 font-bold rounded-lg active:bg-slate-700 transition-all',
           slotGrid: 'grid grid-cols-3 gap-3',
           slotButton: (selected: boolean, available: boolean) => `
             py-3 rounded-lg font-medium transition-all
             ${selected 
-              ? 'bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
+              ? 'bg-white text-slate-900 shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
               : available 
-                ? 'bg-slate-800 text-slate-200 border border-slate-700 hover:border-slate-500' 
+                ? 'bg-slate-800 text-slate-200 border border-slate-700 active:border-slate-500' 
                 : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}
           `,
           selectableItem: (selected: boolean) => `
             p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
             ${selected 
-              ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
-              : 'bg-slate-800 text-slate-200 border-slate-700 hover:border-slate-500'}
+              ? 'bg-white text-slate-900 border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
+              : 'bg-slate-800 text-slate-200 border-slate-700 active:border-slate-500'}
           `,
           selectableListItem: (selected: boolean) => `
             p-4 rounded-xl border-2 transition-all flex flex-row items-center gap-3
             ${selected 
-              ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
-              : 'bg-slate-800 text-slate-200 border-slate-700 hover:border-slate-500'}
+              ? 'bg-white text-slate-900 border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
+              : 'bg-slate-800 text-slate-200 border-slate-700 active:border-slate-500'}
           `,
-          selectableItemText: (selected: boolean) => selected ? 'text-black' : 'text-white',
-          selectableItemSubText: (selected: boolean) => selected ? 'text-gray-600' : 'text-slate-400',
-          infoBox: 'p-4 bg-slate-800/50 border border-slate-700 rounded-lg',
-          actionButtonPrimary: 'flex items-center justify-center gap-1 px-3 py-2 bg-white text-black font-bold rounded-lg hover:bg-gray-200 shadow-[0_0_10px_rgba(255,255,255,0.2)] transition-all text-xs',
-          actionButtonSecondary: 'flex items-center justify-center gap-1 px-3 py-2 bg-slate-800 text-slate-300 border border-slate-700 font-bold rounded-lg hover:bg-slate-700 transition-all text-xs',
+          selectableItemText: (selected: boolean) => selected ? 'text-slate-900' : 'text-white',
+          selectableItemSubText: (selected: boolean) => selected ? 'text-slate-600' : 'text-slate-400',
+          infoBox: 'p-4 bg-slate-800 border border-slate-700 rounded-lg text-slate-200',
+          actionButtonPrimary: 'flex items-center justify-center gap-1 px-3 py-2 bg-white text-slate-900 font-bold rounded-lg active:bg-slate-200 shadow-[0_0_10px_rgba(255,255,255,0.2)] transition-all text-xs',
+          actionButtonSecondary: 'flex items-center justify-center gap-1 px-3 py-2 bg-slate-800 text-slate-200 border border-slate-700 font-bold rounded-lg active:bg-slate-700 transition-all text-xs',
+          // 追加：選択サマリー・通知用スタイル
+          summaryBox: 'mb-6 p-3 bg-slate-800 rounded-lg border border-slate-700 text-sm space-y-1',
+          summaryLabel: 'text-slate-400',
+          summaryValue: 'font-bold text-white',
+          summaryLink: 'text-xs text-cyan-400 underline w-full text-right mt-2',
+          noticeBox: 'mb-4 p-3 bg-cyan-900/30 text-cyan-300 text-sm rounded-lg border border-cyan-700/50',
+          noticeLink: 'block mt-1 underline font-bold text-cyan-200',
+          emptySlotBox: 'text-center py-8 text-slate-400 bg-slate-800/50 rounded-lg border border-dashed border-slate-700',
+          selectedDateBox: 'mt-4 p-3 rounded-lg border-2 text-center',
+          selectedDateLabel: 'text-sm text-slate-400',
+          partySizeDisabled: 'bg-slate-800 text-slate-600 cursor-not-allowed',
+          partySizeEnabled: 'bg-slate-700 text-white',
+          partySizeText: 'text-2xl font-bold min-w-[60px] text-center text-white',
           iconColor: 'white',
           primaryStyle: {},
           headerStyle: {},
           titleStyle: { textShadow: `0 0 20px ${c}` },
           cardStyle: {},
+          // 表形式用スタイル
+          slotTable: {
+            headerBg: 'bg-slate-900',
+            headerText: 'text-slate-400',
+            headerBorder: 'border-slate-700',
+            timeCellBg: 'bg-slate-900',
+            timeCellText: 'text-slate-300',
+            timeCellBorder: 'border-slate-800',
+            rowBorder: 'border-slate-800',
+            availableBtn: 'bg-slate-800 border border-slate-600 text-emerald-400',
+            availableBtnActive: 'bg-slate-700 border-emerald-400',
+            unavailableBtn: 'bg-slate-900 text-slate-600',
+            emptyCell: 'text-slate-700',
+            sundayText: 'text-red-400',
+            saturdayText: 'text-blue-400',
+            weekdayText: 'text-slate-300',
+            legendText: 'text-slate-400',
+            legendAvailable: 'border border-slate-600 bg-slate-800 text-emerald-400',
+            legendUnavailable: 'bg-slate-900 text-slate-600',
+          },
         }
 
       case 'simple':
@@ -996,39 +985,72 @@ export default function Booking() {
           title: 'text-lg font-bold text-gray-800 flex items-center justify-center gap-2',
           label: 'block text-sm font-medium text-gray-700 mb-2',
           input: `${common.input} bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-opacity-50 focus:border-transparent`,
-          buttonPrimary: 'w-full py-3 text-white font-bold rounded-lg shadow-sm hover:opacity-90 transition-opacity',
-          buttonSecondary: 'w-full py-3 bg-white text-gray-600 border border-gray-200 font-bold rounded-lg hover:bg-gray-50 transition-colors',
+          buttonPrimary: 'w-full py-3 text-white font-bold rounded-lg shadow-sm active:opacity-90 transition-opacity',
+          buttonSecondary: 'w-full py-3 bg-white text-gray-600 border border-gray-200 font-bold rounded-lg active:bg-gray-50 transition-colors',
           slotGrid: 'grid grid-cols-3 gap-3',
           slotButton: (selected: boolean, available: boolean) => `
             py-3 rounded-lg text-sm font-bold transition-all
             ${selected 
               ? 'text-white shadow-md transform scale-105' 
               : available 
-                ? 'bg-white border border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50' 
+                ? 'bg-white border border-gray-200 text-gray-700 active:border-gray-300 active:bg-gray-50' 
                 : 'bg-gray-50 text-gray-300 border border-gray-100 cursor-not-allowed'}
           `,
           selectableItem: (selected: boolean) => `
             p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
             ${selected 
               ? 'border-current bg-opacity-10' 
-              : 'border-gray-100 bg-white hover:border-gray-200'}
+              : 'border-gray-100 bg-white active:border-gray-200'}
           `,
           selectableListItem: (selected: boolean) => `
             p-4 rounded-xl border-2 transition-all flex flex-row items-center gap-3
             ${selected 
               ? 'border-current bg-opacity-10' 
-              : 'border-gray-100 bg-white hover:border-gray-200'}
+              : 'border-gray-100 bg-white active:border-gray-200'}
           `,
           selectableItemText: (selected: boolean) => (selected ? 'text-gray-800' : 'text-gray-800'),
           selectableItemSubText: (selected: boolean) => (selected ? 'text-gray-500' : 'text-gray-500'),
           infoBox: 'p-4 bg-gray-50 border border-gray-100 rounded-lg',
-          actionButtonPrimary: 'flex items-center justify-center gap-1 px-3 py-2 text-white font-bold rounded-lg shadow-sm hover:opacity-90 transition-opacity text-xs',
-          actionButtonSecondary: 'flex items-center justify-center gap-1 px-3 py-2 bg-white text-gray-600 border border-gray-200 font-bold rounded-lg hover:bg-gray-50 transition-colors text-xs',
+          actionButtonPrimary: 'flex items-center justify-center gap-1 px-3 py-2 text-white font-bold rounded-lg shadow-sm active:opacity-90 transition-opacity text-xs',
+          actionButtonSecondary: 'flex items-center justify-center gap-1 px-3 py-2 bg-white text-gray-600 border border-gray-200 font-bold rounded-lg active:bg-gray-50 transition-colors text-xs',
+          // 追加：選択サマリー・通知用スタイル
+          summaryBox: 'mb-6 p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm space-y-1',
+          summaryLabel: 'text-gray-500',
+          summaryValue: 'font-bold text-gray-800',
+          summaryLink: 'text-xs text-blue-500 underline w-full text-right mt-2',
+          noticeBox: 'mb-4 p-3 bg-blue-50 text-blue-700 text-sm rounded-lg border border-blue-100',
+          noticeLink: 'block mt-1 underline font-bold',
+          emptySlotBox: 'text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300',
+          selectedDateBox: 'mt-4 p-3 rounded-lg border-2 text-center',
+          selectedDateLabel: 'text-sm text-gray-600',
+          partySizeDisabled: 'bg-gray-100 text-gray-300 cursor-not-allowed',
+          partySizeEnabled: 'bg-gray-200 text-gray-700',
+          partySizeText: 'text-2xl font-bold min-w-[60px] text-center',
           iconColor: c,
           primaryStyle: { backgroundColor: c },
           headerStyle: {},
           titleStyle: {},
           cardStyle: {},
+          // 表形式用スタイル
+          slotTable: {
+            headerBg: 'bg-white',
+            headerText: 'text-gray-500',
+            headerBorder: 'border-gray-200',
+            timeCellBg: 'bg-white',
+            timeCellText: 'text-gray-600',
+            timeCellBorder: 'border-gray-100',
+            rowBorder: 'border-gray-100',
+            availableBtn: 'bg-white border border-gray-200 text-emerald-600',
+            availableBtnActive: 'bg-emerald-50 border-emerald-400',
+            unavailableBtn: 'bg-gray-100 text-gray-300',
+            emptyCell: 'text-gray-200',
+            sundayText: 'text-red-500',
+            saturdayText: 'text-blue-500',
+            weekdayText: 'text-gray-700',
+            legendText: 'text-gray-500',
+            legendAvailable: 'border border-gray-200 bg-white text-emerald-600',
+            legendUnavailable: 'bg-gray-100 text-gray-300',
+          },
         }
     }
   })()
@@ -1301,29 +1323,29 @@ export default function Booking() {
               
               {/* Selected Info Summary */}
               {(selectedStaff || selectedMenu || (storeSettings.booking_enable_party_size && partySize > 1)) && (
-                <div className="mb-6 p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm space-y-1">
+                <div className={theme.summaryBox}>
                   {storeSettings.booking_enable_party_size && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">人数:</span>
-                      <span className="font-bold">{partySize}名</span>
+                      <span className={theme.summaryLabel}>人数:</span>
+                      <span className={theme.summaryValue}>{partySize}名</span>
                     </div>
                   )}
                   {selectedStaff && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">指名スタッフ:</span>
-                      <span className="font-bold">{selectedStaff.name}</span>
+                      <span className={theme.summaryLabel}>指名スタッフ:</span>
+                      <span className={theme.summaryValue}>{selectedStaff.name}</span>
                     </div>
                   )}
                   {selectedMenu && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">メニュー:</span>
-                      <span className="font-bold">{selectedMenu.name}</span>
+                      <span className={theme.summaryLabel}>メニュー:</span>
+                      <span className={theme.summaryValue}>{selectedMenu.name}</span>
                     </div>
                   )}
                   {(selectedStaff || selectedMenu) && (
                     <button 
                       onClick={() => setStep(getInitialStep())}
-                      className="text-xs text-blue-500 underline w-full text-right mt-2"
+                      className={theme.summaryLink}
                     >
                       選択し直す
                     </button>
@@ -1332,14 +1354,14 @@ export default function Booking() {
               )}
               
               {modifyingReservationId && (
-                <div className="mb-4 p-3 bg-blue-50 text-blue-700 text-sm rounded-lg border border-blue-100">
+                <div className={theme.noticeBox}>
                   現在、予約の変更を行っています。新しい日時を選択してください。
                   <button 
                     onClick={() => {
                       setModifyingReservationId(null)
                       setStep('existing_reservation')
                     }}
-                    className="block mt-1 underline font-bold"
+                    className={theme.noticeLink}
                   >
                     変更を中止して戻る
                   </button>
@@ -1358,13 +1380,13 @@ export default function Booking() {
                         disabled={partySize <= 1}
                         className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold transition-colors ${
                           partySize <= 1 
-                            ? 'bg-gray-100 text-gray-300 cursor-not-allowed' 
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            ? theme.partySizeDisabled 
+                            : theme.partySizeEnabled
                         }`}
                       >
                         −
                       </button>
-                      <div className="text-2xl font-bold min-w-[60px] text-center">
+                      <div className={theme.partySizeText}>
                         {partySize}<span className="text-base font-normal ml-1">名</span>
                       </div>
                       <button
@@ -1373,8 +1395,8 @@ export default function Booking() {
                         disabled={partySize >= 20}
                         className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold transition-colors ${
                           partySize >= 20 
-                            ? 'bg-gray-100 text-gray-300 cursor-not-allowed' 
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            ? theme.partySizeDisabled 
+                            : theme.partySizeEnabled
                         }`}
                         style={partySize < 20 ? { backgroundColor: `${storeSettings.liff_theme_color}20`, color: storeSettings.liff_theme_color } : {}}
                       >
@@ -1384,126 +1406,156 @@ export default function Booking() {
                   </div>
                 )}
 
+                {/* ホットペッパー風：日時選択テーブル */}
                 <div>
-                  <label className={theme.label}>日付 {checkingAvailability && <span className="text-xs text-gray-400 ml-2">確認中...</span>}</label>
-                  <div className="flex overflow-x-auto pb-4 gap-3 no-scrollbar -mx-4 px-4">
-                    {Array.from({ length: storeSettings.max_booking_days || 14 }, (_, i) => {
-                      const d = new Date()
-                      d.setDate(d.getDate() + i)
-                      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-                      const dayName = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()]
-                      const dayOfWeek = d.getDay()
-                      
-                      // 店舗の営業日チェック
-                      const storeIsClosed = getBusinessHoursForDate(dateStr).length === 0
-                      
-                      // スタッフ選択時は、そのスタッフの勤務日もチェック
-                      let staffIsOff = false
-                      if (selectedStaff) {
-                        const staffPattern = staffWorkPatterns[dayOfWeek]
-                        // パターンがない、または is_active が false の場合は休み
-                        staffIsOff = !staffPattern || !staffPattern.is_active
-                      }
-                      
-                      // スタッフの欠勤日チェック
-                      const isStaffAbsent = selectedStaff && staffSpecialSchedules[dateStr]?.is_absent
-                      
-                      // 予約可能枠チェック（APIで確認済みの場合）
-                      const hasNoAvailableSlots = dateAvailability[dateStr] === false
-                      
-                      // 総合的な利用不可判定
-                      const isClosed = storeIsClosed || staffIsOff || isStaffAbsent || hasNoAvailableSlots
-                      const isSelected = date === dateStr
-                      
-                      return (
-                        <button
-                          key={dateStr}
-                          onClick={() => !isClosed && setDate(dateStr)}
-                          disabled={isClosed}
-                          className={`
-                            flex-shrink-0 flex flex-col items-center justify-center w-16 h-20 rounded-xl border-2 transition-all
-                            ${isSelected 
-                              ? 'border-current bg-current text-white shadow-md' 
-                              : isClosed
-                                ? 'bg-gray-100 border-gray-100 text-gray-300 cursor-not-allowed'
-                                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'}
-                          `}
-                          style={isSelected ? { backgroundColor: storeSettings.liff_theme_color, borderColor: storeSettings.liff_theme_color } : {}}
-                        >
-                          <span className="text-[10px] font-bold mb-0.5 opacity-80">{d.getMonth() + 1}月</span>
-                          <span className="text-xs font-bold mb-0.5">{dayName}</span>
-                          <span className="text-lg font-black leading-none">{d.getDate()}</span>
-                          <span className="text-[10px] mt-1 font-bold">
-                            {isClosed ? '×' : '○'}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-                
-                <div>
-                  <label className={theme.label}>時間</label>
-                  
-                  {loadingSlots ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="animate-spin text-gray-400" />
+                  <div className="flex items-center justify-between mb-2">
+                    <label className={theme.label}>日時を選択 {loadingMultiDateSlots && <span className="text-xs opacity-60 ml-2">読込中...</span>}</label>
+                    {/* 凡例（上部右側） */}
+                    <div className={`flex items-center gap-3 text-xs ${theme.slotTable.legendText}`}>
+                      <span className="flex items-center gap-1">
+                        <span className={`w-4 h-4 rounded text-xs flex items-center justify-center font-bold ${theme.slotTable.legendAvailable}`}>◯</span>
+                        可
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className={`w-4 h-4 rounded text-xs flex items-center justify-center font-bold ${theme.slotTable.legendUnavailable}`}>×</span>
+                        不可
+                      </span>
                     </div>
-                  ) : slots.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                  </div>
+                  
+                  {loadingMultiDateSlots ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="animate-spin opacity-60" />
+                    </div>
+                  ) : allTimeSlots.length === 0 ? (
+                    <div className={theme.emptySlotBox}>
                       予約可能な枠がありません
                     </div>
                   ) : (
-                      <div className="max-h-[400px] overflow-y-auto pr-2 -mr-2 scroll-smooth">
-                        <div className={theme.slotGrid}>
-                          {slots.map((slot, index) => {
-                            const h = parseInt(slot.time.split(':')[0], 10)
-                            const prevH = index > 0 ? parseInt(slots[index - 1].time.split(':')[0], 10) : -1
-                            const isFirstOfHour = h !== prevH
-                            
-                            return (
-                              <button
-                                key={slot.time}
-                                id={isFirstOfHour ? `hour-${h}` : undefined}
-                                onClick={async () => {
-                                  if (!slot.available) return
-                                  setTime(slot.time)
-                                  
-                                  // 仮押さえを実行
-                                  try {
-                                    await supabase.functions.invoke('booking', {
-                                      body: {
-                                        action: 'hold_slot',
-                                        store_id: storeId,
-                                        line_user_id: lineUserId,
-                                        display_name: displayName,
-                                        date: date,
-                                        time: slot.time,
-                                        staff_id: selectedStaff?.id || null,
-                                        menu_id: selectedMenu?.id || null,
-                                      }
-                                    })
-                                    console.log('Slot held successfully')
-                                  } catch (e) {
-                                    console.error('Failed to hold slot:', e)
-                                  }
-                                }}
-                                disabled={!slot.available}
-                                className={`${theme.slotButton(time === slot.time, slot.available)} ${isFirstOfHour ? 'scroll-mt-4' : ''}`}
-                                style={time === slot.time && storeSettings.liff_template_id === 'simple' ? { backgroundColor: storeSettings.liff_theme_color } : {}}
-                              >
-                                {slot.time}
-                                {!slot.available && (
-                                  <span className="absolute top-1 right-1 text-xs opacity-50">×</span>
-                                )}
-                                {slot.available && time !== slot.time && (
-                                  <span className="absolute top-1 right-1 text-xs opacity-50">○</span>
-                                )}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
+                    <div className="overflow-x-auto -mx-2 px-2 max-h-[60vh] overflow-y-auto">
+                      <table className="w-full border-collapse min-w-max">
+                        {/* ヘッダー：日付（スティッキー） */}
+                        <thead className="sticky top-0 z-20">
+                          <tr>
+                            <th className={`sticky left-0 z-30 ${theme.slotTable.headerBg} p-2 text-xs font-bold ${theme.slotTable.headerText} border-b ${theme.slotTable.headerBorder} min-w-[50px]`}>
+                              時間
+                            </th>
+                            {displayDates.map((dateStr) => {
+                              const d = new Date(dateStr + 'T00:00:00')
+                              const dayName = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()]
+                              const isSelected = date === dateStr
+                              const isSunday = d.getDay() === 0
+                              const isSaturday = d.getDay() === 6
+                              return (
+                                <th 
+                                  key={dateStr} 
+                                  className={`${theme.slotTable.headerBg} p-2 text-center border-b ${theme.slotTable.headerBorder} min-w-[52px]`}
+                                  style={isSelected ? { backgroundColor: `${storeSettings.liff_theme_color}20` } : {}}
+                                >
+                                  <div className={`text-[10px] font-bold ${isSunday ? theme.slotTable.sundayText : isSaturday ? theme.slotTable.saturdayText : theme.slotTable.headerText}`}>
+                                    {d.getMonth() + 1}/{d.getDate()}
+                                  </div>
+                                  <div className={`text-xs font-bold ${isSunday ? theme.slotTable.sundayText : isSaturday ? theme.slotTable.saturdayText : theme.slotTable.weekdayText}`}>
+                                    {dayName}
+                                  </div>
+                                </th>
+                              )
+                            })}
+                          </tr>
+                        </thead>
+                        {/* ボディ：時間帯 × 日付 */}
+                        <tbody>
+                          {allTimeSlots.map((timeStr) => (
+                            <tr key={timeStr} className={`border-b ${theme.slotTable.rowBorder} last:border-b-0`}>
+                              <td className={`sticky left-0 z-10 ${theme.slotTable.timeCellBg} p-2 text-xs font-bold ${theme.slotTable.timeCellText} border-r ${theme.slotTable.timeCellBorder}`}>
+                                {timeStr}
+                              </td>
+                              {displayDates.map((dateStr) => {
+                                const slotAvailable = multiDateSlots[dateStr]?.[timeStr]
+                                const isSelected = date === dateStr && time === timeStr
+                                const isAvailable = slotAvailable === true
+                                const hasSlot = slotAvailable !== undefined
+                                
+                                return (
+                                  <td key={`${dateStr}-${timeStr}`} className="p-1 text-center">
+                                    {hasSlot ? (
+                                      <button
+                                        onClick={async () => {
+                                          if (!isAvailable) return
+                                          setDate(dateStr)
+                                          setTime(timeStr)
+                                          
+                                          // プレビューモードでは仮押さえをスキップ
+                                          if (isPreviewMode()) {
+                                            console.log('Skipping hold_slot in preview mode')
+                                            return
+                                          }
+                                          
+                                          // 仮押さえを実行
+                                          try {
+                                            await supabase.functions.invoke('booking', {
+                                              body: {
+                                                action: 'hold_slot',
+                                                store_id: storeId,
+                                                line_user_id: lineUserId,
+                                                display_name: displayName,
+                                                date: dateStr,
+                                                time: timeStr,
+                                                staff_id: selectedStaff?.id || null,
+                                                menu_id: selectedMenu?.id || null,
+                                              }
+                                            })
+                                            console.log('Slot held successfully')
+                                          } catch (e) {
+                                            console.error('Failed to hold slot:', e)
+                                          }
+                                        }}
+                                        disabled={!isAvailable}
+                                        className={`
+                                          w-10 h-10 rounded-lg text-lg font-bold transition-all
+                                          ${isSelected 
+                                            ? 'text-white shadow-md transform scale-105' 
+                                            : isAvailable 
+                                              ? `${theme.slotTable.availableBtn} active:${theme.slotTable.availableBtnActive} cursor-pointer` 
+                                              : `${theme.slotTable.unavailableBtn} cursor-not-allowed`}
+                                        `}
+                                        style={isSelected ? { backgroundColor: storeSettings.liff_theme_color } : {}}
+                                      >
+                                        {isSelected ? '✓' : isAvailable ? '◯' : '×'}
+                                      </button>
+                                    ) : (
+                                      <div className={`w-10 h-10 flex items-center justify-center ${theme.slotTable.emptyCell}`}>
+                                        −
+                                      </div>
+                                    )}
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  
+                  {/* 選択中の日時表示 */}
+                  {date && time && (
+                    <div 
+                      className={theme.selectedDateBox}
+                      style={{ 
+                        borderColor: storeSettings.liff_theme_color, 
+                        backgroundColor: `${storeSettings.liff_theme_color}10` 
+                      }}
+                    >
+                      <span className={theme.selectedDateLabel}>選択中：</span>
+                      <span className="font-bold ml-2" style={{ color: storeSettings.liff_theme_color }}>
+                        {(() => {
+                          const d = new Date(date + 'T00:00:00')
+                          const dayName = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()]
+                          return `${d.getMonth() + 1}月${d.getDate()}日(${dayName}) ${time}`
+                        })()}
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
