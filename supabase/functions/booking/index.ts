@@ -79,11 +79,13 @@ async function getGoogleCalendarClient(supabaseClient: SupabaseClientType, store
 
 async function listGoogleEvents(client: { accessToken: string; calendarId: string }, timeMin: string, timeMax: string) {
   try {
+    // descriptionフィールドも取得するために明示的に指定（デフォルトでは含まれない場合がある）
     const response = await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(client.calendarId)}/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`,
       { headers: { Authorization: `Bearer ${client.accessToken}` } }
     )
     const data = await response.json()
+    console.log('[Booking] Google Calendar events fetched:', JSON.stringify(data.items?.map((e: { summary?: string; description?: string }) => ({ summary: e.summary, description: e.description })) || []))
     return data.items || []
   } catch (e) {
     console.error('Google List Events Error:', e)
@@ -386,6 +388,40 @@ Deno.serve(async (req: Request) => {
     if (action === 'get_available_slots') {
       if (!store_id || !date) throw new Error('store_id and date are required')
       
+      // --- 期限切れの仮予約を削除（Google Calendarからも削除）---
+      const { data: expiredHolds } = await supabaseClient
+        .from('temporary_holds')
+        .select('id, google_event_id, store_id')
+        .lt('expires_at', new Date().toISOString())
+      
+      if (expiredHolds && expiredHolds.length > 0) {
+        console.log(`[Booking] Found ${expiredHolds.length} expired holds to cleanup`)
+        
+        for (const hold of expiredHolds) {
+          // Google Calendarイベントを削除
+          if (hold.google_event_id) {
+            const googleClient = await getGoogleCalendarClient(supabaseClient, hold.store_id)
+            if (googleClient) {
+              try {
+                await deleteGoogleEvent(googleClient, hold.google_event_id)
+                console.log(`[Booking] Deleted expired Google event: ${hold.google_event_id}`)
+              } catch (e) {
+                console.error('Failed to delete expired Google event:', e)
+              }
+            }
+          }
+        }
+        
+        // DBから期限切れの仮予約を削除
+        await supabaseClient
+          .from('temporary_holds')
+          .delete()
+          .lt('expires_at', new Date().toISOString())
+        
+        console.log('[Booking] Cleanup completed')
+      }
+      // -----------------------------------------------------------
+      
       const storeSettings = await getStoreSettings(store_id)
       const slotInterval = storeSettings?.slot_interval_minutes ?? 60
 
@@ -580,8 +616,13 @@ Deno.serve(async (req: Request) => {
             if (!e.start?.dateTime || !e.end?.dateTime) return false // Skip all-day events for now or handle them differently
             
             // 仮予約イベントで、自分のline_user_idが含まれている場合は除外
-            if (e.summary?.startsWith('【仮予約】') && e.description?.includes(`ユーザーID: ${line_user_id}`)) {
-              return false
+            // line_user_idが指定されている場合のみチェック
+            if (line_user_id && e.summary?.startsWith('【仮予約】')) {
+              // descriptionにline_user_idが含まれているかチェック
+              if (e.description && e.description.includes(line_user_id)) {
+                console.log(`[Booking] Excluding own temporary event: ${e.summary}`)
+                return false
+              }
             }
             
             const resStart = new Date(e.start.dateTime)
