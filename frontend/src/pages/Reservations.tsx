@@ -2076,6 +2076,15 @@ export default function Reservations() {
             )}
 
             <div className="flex gap-3 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setIsGoogleEventModalOpen(false)
+                  setSelectedGoogleEvent(null)
+                }}
+                className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 text-center text-sm font-medium rounded-lg hover:bg-gray-50 transition"
+              >
+                閉じる
+              </button>
               <a
                 href={selectedGoogleEvent.htmlLink}
                 target="_blank"
@@ -2084,15 +2093,6 @@ export default function Reservations() {
               >
                 Googleカレンダーで開く
               </a>
-              <button
-                onClick={() => {
-                  setIsGoogleEventModalOpen(false)
-                  setSelectedGoogleEvent(null)
-                }}
-                className="py-2 px-4 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition"
-              >
-                閉じる
-              </button>
             </div>
           </div>
         )}

@@ -389,7 +389,9 @@ Deno.serve(async (req: Request) => {
         durationMinutes = slotInterval || 60
       }
 
-      const capacityLimit = menuCapacity ?? storeSettings?.capacity_per_slot ?? 1
+      // 担当者指定がある場合は、その担当者は1人までしか同時に受付不可
+      // 担当者指定がない場合は店舗の基本受付上限を使用
+      const capacityLimit = staff_id ? 1 : (menuCapacity ?? storeSettings?.capacity_per_slot ?? 1)
       const dayStart = toJstDate(date, '00:00').toISOString()
       const dayEnd = toJstDate(date, '23:59').toISOString()
 
@@ -711,17 +713,25 @@ Deno.serve(async (req: Request) => {
         if (typeof menu?.capacity_per_slot === 'number') menuCapacity = menu.capacity_per_slot
       }
       if (!durationMinutes || durationMinutes <= 0) durationMinutes = storeSettings?.slot_interval_minutes ?? 60
-      const capacityLimit = menuCapacity ?? storeSettings?.capacity_per_slot ?? 1
+      // 担当者指定がある場合は、その担当者は1人までしか同時に受付不可
+      const capacityLimit = staff_id ? 1 : (menuCapacity ?? storeSettings?.capacity_per_slot ?? 1)
 
       const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000)
 
-      const { data: overlapReservations, error: overlapError } = await supabaseClient
+      // 担当者指定がある場合は、その担当者の予約のみをチェック
+      let updateOverlapQuery = supabaseClient
         .from('reservations')
         .select('id')
         .eq('store_id', store_id)
         .neq('status', 'cancelled')
         .lt('start_time', endDateTime.toISOString())
         .gt('end_time', startDateTime.toISOString())
+      
+      if (staff_id) {
+        updateOverlapQuery = updateOverlapQuery.eq('staff_id', staff_id)
+      }
+
+      const { data: overlapReservations, error: overlapError } = await updateOverlapQuery
       if (overlapError) throw overlapError
       if ((overlapReservations?.length ?? 0) >= capacityLimit) {
         throw new Error('この時間帯の予約枠が埋まっています')
@@ -869,7 +879,8 @@ LINE ID: ${line_user_id}
         if (typeof menu?.capacity_per_slot === 'number') menuCapacity = menu.capacity_per_slot
       }
       if (!durationMinutes || durationMinutes <= 0) durationMinutes = storeSettings?.slot_interval_minutes ?? 60
-      const capacityLimit = menuCapacity ?? storeSettings?.capacity_per_slot ?? 1
+      // 担当者指定がある場合は、その担当者は1人までしか同時に受付不可
+      const capacityLimit = staff_id ? 1 : (menuCapacity ?? storeSettings?.capacity_per_slot ?? 1)
 
       const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000)
 

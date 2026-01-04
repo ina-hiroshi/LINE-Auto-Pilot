@@ -530,9 +530,17 @@ export default function Booking() {
     try {
       // Get access token for authentication
       let accessToken: string | null = null
-      if (liff.isLoggedIn()) {
-        accessToken = liff.getAccessToken()
+      try {
+        // LIFFが初期化されているか確認
+        if (liff.isInClient() || liff.isLoggedIn()) {
+          accessToken = liff.getAccessToken()
+          console.log('[Booking] checkCustomer - accessToken:', accessToken ? 'obtained' : 'null')
+        }
+      } catch (liffError) {
+        console.warn('[Booking] LIFF not initialized yet:', liffError)
       }
+
+      console.log('[Booking] checkCustomer - store_id:', storeId, 'line_user_id:', lineUserId)
 
       const { data, error } = await supabase.functions.invoke('booking', {
         body: {
@@ -545,14 +553,18 @@ export default function Booking() {
       
       if (error) throw error
       
+      console.log('[Booking] checkCustomer - response:', data)
+      
       if (data?.customer) {
         setExistingCustomer(data.customer as CustomerInfo)
         if (data.customer.real_name) setRealName(data.customer.real_name)
         if (data.customer.furigana) setFurigana(data.customer.furigana)
+        console.log('[Booking] Customer found:', data.customer.real_name, data.customer.furigana)
       } else {
         setExistingCustomer(null)
         setRealName('')
         setFurigana('')
+        console.log('[Booking] Customer not found')
       }
     } catch (e) {
       console.error('Failed to check customer:', e)
