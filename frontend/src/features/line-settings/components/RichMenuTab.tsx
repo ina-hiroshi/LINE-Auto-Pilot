@@ -2,7 +2,7 @@ import { useMemo, useState, useRef, useCallback } from 'react'
 import { 
   ExternalLink, Image as ImageIcon, Layout, MessageSquare, MousePointerClick, 
   Palette, Smartphone, Upload, AlertTriangle, CreditCard, Check, Eye, EyeOff,
-  Trash2, Info, ArrowUpDown, Type
+  Trash2, Info, ArrowUpDown, Type, ChevronDown
 } from 'lucide-react'
 import { AVAILABLE_ICONS, RICH_MENU_LAYOUTS } from '../constants'
 import type { RichMenuAction, RichMenuSettings } from '../types'
@@ -10,6 +10,20 @@ import { DESIGN_THEMES } from '../../../constants/designThemes'
 import ProBadge from '../../../components/ProBadge'
 import ProUpgradeButton from '../../../components/ProUpgradeButton'
 import { supabase } from '../../../lib/supabase'
+
+// プリセットカラー定義
+const PRESET_COLORS = [
+  { name: 'ホワイト', color: '#FFFFFF' },
+  { name: 'ブラック', color: '#1F2937' },
+  { name: 'ブルー', color: '#3B82F6' },
+  { name: 'シアン', color: '#00c3dc' },
+  { name: 'グリーン', color: '#10B981' },
+  { name: 'レッド', color: '#EF4444' },
+  { name: 'オレンジ', color: '#F97316' },
+  { name: 'パープル', color: '#8B5CF6' },
+  { name: 'ピンク', color: '#EC4899' },
+  { name: 'ゴールド', color: '#F59E0B' },
+]
 
 // デフォルトアクション定義
 const DEFAULT_ACTIONS = {
@@ -32,6 +46,7 @@ export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, is
   const [openIconSelector, setOpenIconSelector] = useState<number | null>(null)
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null)
   const [draggingSlot, setDraggingSlot] = useState<number | null>(null)
+  const [expandedColorPicker, setExpandedColorPicker] = useState<{ slot: number, type: 'icon' | 'label' } | null>(null)
   const slotFileInputRefs = useRef<Record<number, HTMLInputElement | null>>({})
 
   const layout = useMemo(() => RICH_MENU_LAYOUTS.find((l) => l.id === richMenuSettings.layout_id) || RICH_MENU_LAYOUTS[0], [richMenuSettings.layout_id])
@@ -616,6 +631,157 @@ export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, is
                                   </button>
                                 </div>
                               </div>
+
+                              {/* 色設定 */}
+                              <div className="space-y-2">
+                                {/* アイコン色 */}
+                                {action.show_icon !== false && (
+                                  <div className="space-y-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedColorPicker(
+                                        expandedColorPicker?.slot === slotNum && expandedColorPicker?.type === 'icon' 
+                                          ? null 
+                                          : { slot: slotNum, type: 'icon' }
+                                      )}
+                                      className="w-full flex items-center justify-between text-xs text-gray-600 hover:text-gray-800"
+                                    >
+                                      <span className="flex items-center gap-1">
+                                        <Palette size={12} />
+                                        アイコンの色
+                                      </span>
+                                      <span className="flex items-center gap-2">
+                                        <span 
+                                          className="w-5 h-5 rounded border border-gray-300" 
+                                          style={{ backgroundColor: action.icon_color || '#1F2937' }}
+                                        />
+                                        <ChevronDown 
+                                          size={12} 
+                                          className={`transition-transform ${expandedColorPicker?.slot === slotNum && expandedColorPicker?.type === 'icon' ? 'rotate-180' : ''}`}
+                                        />
+                                      </span>
+                                    </button>
+                                    
+                                    {expandedColorPicker?.slot === slotNum && expandedColorPicker?.type === 'icon' && (
+                                      <div className="p-3 bg-gray-50 rounded-lg space-y-3">
+                                        {/* プリセットカラー */}
+                                        <div>
+                                          <p className="text-[10px] text-gray-500 mb-2">プリセット</p>
+                                          <div className="flex flex-wrap gap-1.5">
+                                            {PRESET_COLORS.map((preset) => (
+                                              <button
+                                                key={preset.color}
+                                                type="button"
+                                                onClick={() => updateAction(slotNum, (prev) => ({ ...prev, icon_color: preset.color }))}
+                                                className={`w-6 h-6 rounded-full border-2 transition-all hover:scale-110 ${
+                                                  action.icon_color === preset.color 
+                                                    ? 'border-gray-800 ring-2 ring-offset-1 ring-gray-400' 
+                                                    : 'border-gray-200'
+                                                }`}
+                                                style={{ backgroundColor: preset.color }}
+                                                title={preset.name}
+                                              />
+                                            ))}
+                                          </div>
+                                        </div>
+                                        {/* カスタムカラー */}
+                                        <div>
+                                          <p className="text-[10px] text-gray-500 mb-2">カスタム</p>
+                                          <div className="flex items-center gap-2">
+                                            <input
+                                              type="color"
+                                              value={action.icon_color || '#1F2937'}
+                                              onChange={(e) => updateAction(slotNum, (prev) => ({ ...prev, icon_color: e.target.value }))}
+                                              className="w-8 h-8 rounded border border-gray-200 p-0.5 cursor-pointer"
+                                            />
+                                            <input
+                                              type="text"
+                                              value={action.icon_color || '#1F2937'}
+                                              onChange={(e) => updateAction(slotNum, (prev) => ({ ...prev, icon_color: e.target.value }))}
+                                              className="border rounded px-2 py-1 text-xs w-20 font-mono"
+                                              placeholder="#1F2937"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* ラベル色 */}
+                                {action.show_label !== false && (
+                                  <div className="space-y-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedColorPicker(
+                                        expandedColorPicker?.slot === slotNum && expandedColorPicker?.type === 'label' 
+                                          ? null 
+                                          : { slot: slotNum, type: 'label' }
+                                      )}
+                                      className="w-full flex items-center justify-between text-xs text-gray-600 hover:text-gray-800"
+                                    >
+                                      <span className="flex items-center gap-1">
+                                        <Type size={12} />
+                                        ラベルの色
+                                      </span>
+                                      <span className="flex items-center gap-2">
+                                        <span 
+                                          className="w-5 h-5 rounded border border-gray-300" 
+                                          style={{ backgroundColor: action.label_color || '#1F2937' }}
+                                        />
+                                        <ChevronDown 
+                                          size={12} 
+                                          className={`transition-transform ${expandedColorPicker?.slot === slotNum && expandedColorPicker?.type === 'label' ? 'rotate-180' : ''}`}
+                                        />
+                                      </span>
+                                    </button>
+                                    
+                                    {expandedColorPicker?.slot === slotNum && expandedColorPicker?.type === 'label' && (
+                                      <div className="p-3 bg-gray-50 rounded-lg space-y-3">
+                                        {/* プリセットカラー */}
+                                        <div>
+                                          <p className="text-[10px] text-gray-500 mb-2">プリセット</p>
+                                          <div className="flex flex-wrap gap-1.5">
+                                            {PRESET_COLORS.map((preset) => (
+                                              <button
+                                                key={preset.color}
+                                                type="button"
+                                                onClick={() => updateAction(slotNum, (prev) => ({ ...prev, label_color: preset.color }))}
+                                                className={`w-6 h-6 rounded-full border-2 transition-all hover:scale-110 ${
+                                                  action.label_color === preset.color 
+                                                    ? 'border-gray-800 ring-2 ring-offset-1 ring-gray-400' 
+                                                    : 'border-gray-200'
+                                                }`}
+                                                style={{ backgroundColor: preset.color }}
+                                                title={preset.name}
+                                              />
+                                            ))}
+                                          </div>
+                                        </div>
+                                        {/* カスタムカラー */}
+                                        <div>
+                                          <p className="text-[10px] text-gray-500 mb-2">カスタム</p>
+                                          <div className="flex items-center gap-2">
+                                            <input
+                                              type="color"
+                                              value={action.label_color || '#1F2937'}
+                                              onChange={(e) => updateAction(slotNum, (prev) => ({ ...prev, label_color: e.target.value }))}
+                                              className="w-8 h-8 rounded border border-gray-200 p-0.5 cursor-pointer"
+                                            />
+                                            <input
+                                              type="text"
+                                              value={action.label_color || '#1F2937'}
+                                              onChange={(e) => updateAction(slotNum, (prev) => ({ ...prev, label_color: e.target.value }))}
+                                              className="border rounded px-2 py-1 text-xs w-20 font-mono"
+                                              placeholder="#1F2937"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                               
                               {/* 配置変更ボタン */}
                               <div className="flex items-center justify-between">
@@ -724,43 +890,71 @@ export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, is
                         `}
                       >
                         {slots.map((slotNum) => {
-                          let icon = <ExternalLink size={20} className="mb-1" />
+                          let IconComp = ExternalLink
                           let label = '未設定'
                           let isSet = false
                           let showIcon = true
                           let showLabel = true
+                          let iconColor: string | undefined = undefined
+                          let labelColor: string | undefined = undefined
                           const action = richMenuSettings.actions[slotNum]
                           const slotBgImage = richMenuSettings.slot_background_images?.[slotNum]
 
                           // Freeプラン: ボタン1・2は固定表示
                           if (!isPro && slotNum === 1) {
-                            icon = <Smartphone size={20} className="mb-1" />
+                            IconComp = Smartphone
                             label = '予約する'
                             isSet = true
+                            if (action) {
+                              iconColor = action.icon_color
+                              labelColor = action.label_color
+                              showIcon = action.show_icon !== false
+                              showLabel = action.show_label !== false
+                            }
                           } else if (!isPro && slotNum === 2) {
-                            icon = <MessageSquare size={20} className="mb-1" />
+                            IconComp = MessageSquare
                             label = 'メッセージ入力'
                             isSet = true
+                            if (action) {
+                              iconColor = action.icon_color
+                              labelColor = action.label_color
+                              showIcon = action.show_icon !== false
+                              showLabel = action.show_label !== false
+                            }
                           } else if (action && action.label) {
                             // アクションが設定されている場合
-                            const IconComp = AVAILABLE_ICONS.find((i) => i.id === action.icon)?.icon || ExternalLink
-                            icon = <IconComp size={20} className="mb-1" />
+                            IconComp = AVAILABLE_ICONS.find((i) => i.id === action.icon)?.icon || ExternalLink
                             label = action.label || '未設定'
                             isSet = !!action.label
                             showIcon = action.show_icon !== false
                             showLabel = action.show_label !== false
+                            iconColor = action.icon_color
+                            labelColor = action.label_color
                           }
+
+                          // デフォルトテーマカラー取得
+                          const getDefaultColor = () => {
+                            switch (richMenuSettings.template_id) {
+                              case 'simple': return '#1F2937'
+                              case 'elegant': return '#5D4037'
+                              case 'pop': return '#0e7490'
+                              case 'dark': return '#FFFFFF'
+                              case 'luxury': return '#fef3c7'
+                              case 'natural': return '#451a03'
+                              default: return '#1F2937'
+                            }
+                          }
+                          const defaultColor = getDefaultColor()
 
                           // スロット背景画像がある場合は背景色を無効化
                           const styleClass = `
                             flex flex-col items-center justify-center p-2 overflow-hidden relative
-                            ${!slotBgImage && richMenuSettings.template_id === 'simple' ? 'bg-white text-gray-800' : ''}
-                            ${!slotBgImage && richMenuSettings.template_id === 'elegant' ? 'bg-[#F5F5F0] text-[#5D4037]' : ''}
-                            ${!slotBgImage && richMenuSettings.template_id === 'pop' ? 'bg-primary-50 text-primary-700' : ''}
-                            ${!slotBgImage && richMenuSettings.template_id === 'dark' ? 'bg-slate-800 text-white' : ''}
-                            ${!slotBgImage && richMenuSettings.template_id === 'luxury' ? 'bg-gradient-to-br from-stone-900 to-stone-950 text-amber-100 border-r border-b border-amber-600/20' : ''}
-                            ${!slotBgImage && richMenuSettings.template_id === 'natural' ? 'bg-gradient-to-br from-orange-50 to-amber-50 text-amber-950 border-r border-b border-amber-300/30' : ''}
-                            ${slotBgImage ? 'text-white' : ''}
+                            ${!slotBgImage && richMenuSettings.template_id === 'simple' ? 'bg-white' : ''}
+                            ${!slotBgImage && richMenuSettings.template_id === 'elegant' ? 'bg-[#F5F5F0]' : ''}
+                            ${!slotBgImage && richMenuSettings.template_id === 'pop' ? 'bg-primary-50' : ''}
+                            ${!slotBgImage && richMenuSettings.template_id === 'dark' ? 'bg-slate-800' : ''}
+                            ${!slotBgImage && richMenuSettings.template_id === 'luxury' ? 'bg-gradient-to-br from-stone-900 to-stone-950 border-r border-b border-amber-600/20' : ''}
+                            ${!slotBgImage && richMenuSettings.template_id === 'natural' ? 'bg-gradient-to-br from-orange-50 to-amber-50 border-r border-b border-amber-300/30' : ''}
                             ${!isSet && !slotBgImage ? 'opacity-50' : ''}
                           `
 
@@ -781,8 +975,21 @@ export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, is
                               )}
                               {/* コンテンツ（背景画像の上に表示） */}
                               <div className={`relative z-10 flex flex-col items-center justify-center ${slotBgImage ? 'drop-shadow-md' : ''}`}>
-                                {showIcon && icon}
-                                {showLabel && <span className="text-[10px] font-bold truncate w-full text-center">{label}</span>}
+                                {showIcon && (
+                                  <IconComp 
+                                    size={20} 
+                                    className="mb-1" 
+                                    style={{ color: iconColor || (slotBgImage ? '#FFFFFF' : defaultColor) }}
+                                  />
+                                )}
+                                {showLabel && (
+                                  <span 
+                                    className="text-[10px] font-bold truncate w-full text-center"
+                                    style={{ color: labelColor || (slotBgImage ? '#FFFFFF' : defaultColor) }}
+                                  >
+                                    {label}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           )

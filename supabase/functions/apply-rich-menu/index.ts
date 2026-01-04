@@ -241,10 +241,13 @@ Deno.serve(async (req) => {
     }
 
     const { richMenuId } = await createRes.json()
+    console.log('Created rich menu:', richMenuId)
 
     // 7. Upload Image
     // Use custom image or placeholder
     let imageUrl = generated_image_url || store.rich_menu_custom_image_url
+    console.log('Image URL to use:', imageUrl)
+    
     if (!imageUrl) {
       // Fallback to a placeholder service based on theme
       const templateId = store.rich_menu_template_id || 'simple'
@@ -280,26 +283,43 @@ Deno.serve(async (req) => {
       }
 
       imageUrl = `https://placehold.co/${width}x${height}/${bgColor}/${textColor}.png?text=Menu`
+      console.log('Using placeholder image:', imageUrl)
     }
 
+    console.log('Fetching image from:', imageUrl)
     const imageRes = await fetch(imageUrl)
+    
+    if (!imageRes.ok) {
+      throw new Error(`Failed to fetch image: ${imageRes.status} ${imageRes.statusText}`)
+    }
+    
     const imageBlob = await imageRes.blob()
+    console.log('Image blob size:', imageBlob.size, 'type:', imageBlob.type)
 
+    // 1MBを超える場合はエラー
+    if (imageBlob.size > 1024 * 1024) {
+      throw new Error(`Image size ${Math.round(imageBlob.size / 1024)}KB exceeds LINE API limit (1MB)`)
+    }
+
+    console.log('Uploading image to LINE API...')
     const uploadRes = await fetch(`https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${channelAccessToken}`,
-        'Content-Type': 'image/png' // Assuming PNG
+        'Content-Type': imageBlob.type || 'image/png' // 動的に判定
       },
       body: imageBlob
     })
 
     if (!uploadRes.ok) {
-      const err = await uploadRes.json()
-      throw new Error(`Failed to upload rich menu image: ${JSON.stringify(err)}`)
+      const errText = await uploadRes.text()
+      console.error('Upload error response:', uploadRes.status, errText)
+      throw new Error(`Failed to upload rich menu image: ${errText}`)
     }
+    console.log('Image upload successful')
 
     // 8. Set as Default
+    console.log('Setting as default rich menu...')
     const defaultRes = await fetch(`https://api.line.me/v2/bot/user/all/richmenu/${richMenuId}`, {
       method: 'POST',
       headers: {
@@ -308,9 +328,11 @@ Deno.serve(async (req) => {
     })
 
     if (!defaultRes.ok) {
-      const err = await defaultRes.json()
-      throw new Error(`Failed to set default rich menu: ${JSON.stringify(err)}`)
+      const errText = await defaultRes.text()
+      console.error('Default setting error:', defaultRes.status, errText)
+      throw new Error(`Failed to set default rich menu: ${errText}`)
     }
+    console.log('Default rich menu set successfully')
 
     return new Response(
       JSON.stringify({ success: true, richMenuId }),
@@ -318,6 +340,7 @@ Deno.serve(async (req) => {
     )
 
   } catch (error) {
+    console.error('apply-rich-menu error:', error.message)
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

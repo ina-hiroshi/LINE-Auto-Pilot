@@ -51,6 +51,8 @@ export interface RichMenuAction {
   show_icon?: boolean
   show_label?: boolean
   background_image_url?: string
+  icon_color?: string
+  label_color?: string
 }
 
 export interface RichMenuSlotConfig {

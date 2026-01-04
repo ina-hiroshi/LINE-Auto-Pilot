@@ -48,19 +48,25 @@ export default function RichMenu() {
         const store = stores && stores.length > 0 ? stores[0] : null
         if (store) {
           setStoreId(store.id)
+          
+          // actionsからslot_background_imagesを抽出
+          const rawActions = store.rich_menu_actions || {}
+          const slotBgImages = rawActions._slot_background_images || {}
+          const actions = Object.entries(rawActions).reduce((acc, [key, value]) => {
+            if (key === '_slot_background_images') return acc // スキップ
+            const numKey = Number(key)
+            if (Number.isFinite(numKey)) {
+              acc[numKey] = value as RichMenuAction
+            }
+            return acc
+          }, {} as Record<number, RichMenuAction>)
+          
           setRichMenuSettings({
             template_id: store.rich_menu_template_id || DEFAULT_RICH_MENU_SETTINGS.template_id,
             layout_id: store.rich_menu_layout_id || DEFAULT_RICH_MENU_SETTINGS.layout_id,
             custom_image_url: store.rich_menu_custom_image_url || DEFAULT_RICH_MENU_SETTINGS.custom_image_url,
-            actions: store.rich_menu_actions
-              ? Object.entries(store.rich_menu_actions).reduce((acc, [key, value]) => {
-                const numKey = Number(key)
-                if (Number.isFinite(numKey)) {
-                  acc[numKey] = value as RichMenuAction
-                }
-                return acc
-              }, {} as Record<number, RichMenuAction>)
-              : {},
+            actions,
+            slot_background_images: slotBgImages,
           })
         }
       } catch (error) {
@@ -134,63 +140,132 @@ export default function RichMenu() {
         const gap = 4
         
         const drawSlot = async (slotNum: number, x: number, y: number, w: number, h: number) => {
-          ctx.fillStyle = theme.slot
-          ctx.fillRect(x, y, w, h)
+          // スロットごとの背景画像があれば使用
+          const slotBgImage = richMenuSettings.slot_background_images?.[slotNum]
+          
+          let hasSlotBgImage = false
+          if (slotBgImage) {
+            // スロット背景画像を描画
+            try {
+              const bgImg = new Image()
+              bgImg.crossOrigin = 'anonymous'
+              await new Promise((resolve, reject) => {
+                bgImg.onload = resolve
+                bgImg.onerror = reject
+                bgImg.src = slotBgImage
+              })
+              // object-cover のように描画
+              const scale = Math.max(w / bgImg.width, h / bgImg.height)
+              const drawW = bgImg.width * scale
+              const drawH = bgImg.height * scale
+              const offsetX = x + (w - drawW) / 2
+              const offsetY = y + (h - drawH) / 2
+              
+              // クリッピングでスロット領域に制限
+              ctx.save()
+              ctx.beginPath()
+              ctx.rect(x, y, w, h)
+              ctx.clip()
+              ctx.drawImage(bgImg, offsetX, offsetY, drawW, drawH)
+              ctx.restore()
+              hasSlotBgImage = true
+              // アイコン・ラベルも描画するため、returnしない
+            } catch (err) {
+              console.error(`Failed to load slot ${slotNum} background image:`, err)
+              // フォールバック: 通常のスロット描画
+            }
+          }
+          
+          // スロット背景画像がない場合のみデフォルト背景を描画
+          if (!hasSlotBgImage) {
+            ctx.fillStyle = theme.slot
+            ctx.fillRect(x, y, w, h)
+          }
 
           let IconComp = ExternalLink
           let label = '未設定'
           let isSet = false
+          let showIcon = true
+          let showLabel = true
+          let iconColor = theme.text
+          let labelColor = theme.text
 
           if (slotNum === 1) {
             IconComp = Smartphone
             label = '予約する'
             isSet = true
+            // アクション設定から色を取得
+            const action = richMenuSettings.actions[1]
+            if (action) {
+              iconColor = action.icon_color || theme.text
+              labelColor = action.label_color || theme.text
+              showIcon = action.show_icon !== false
+              showLabel = action.show_label !== false
+            }
           } else if (slotNum === 2) {
             IconComp = MessageSquare
             label = 'メッセージ入力'
             isSet = true
+            // アクション設定から色を取得
+            const action = richMenuSettings.actions[2]
+            if (action) {
+              iconColor = action.icon_color || theme.text
+              labelColor = action.label_color || theme.text
+              showIcon = action.show_icon !== false
+              showLabel = action.show_label !== false
+            }
           } else {
             const action = richMenuSettings.actions[slotNum]
             if (action) {
               const found = AVAILABLE_ICONS.find(i => i.id === action.icon)
               if (found) IconComp = found.icon
               label = action.label || '未設定'
-              isSet = true
+              isSet = !!action.label
+              showIcon = action.show_icon !== false
+              showLabel = action.show_label !== false
+              iconColor = action.icon_color || theme.text
+              labelColor = action.label_color || theme.text
             }
           }
 
           if (!isSet) ctx.globalAlpha = 0.5
 
-          // Icon
-          const svgString = renderToStaticMarkup(
-            <IconComp 
-              size={64} 
-              color={theme.text} 
-              strokeWidth={2}
-            />
-          )
-          const img = new Image()
-          const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
-          const url = URL.createObjectURL(svgBlob)
-          
-          await new Promise((resolve) => {
-            img.onload = resolve
-            img.src = url
-          })
-          
-          const iconSize = 64
-          const iconX = x + (w - iconSize) / 2
-          const iconY = y + (h - iconSize) / 2 - 20
+          // Icon（表示設定がONの場合のみ）
+          if (showIcon) {
+            const svgString = renderToStaticMarkup(
+              <IconComp 
+                size={64} 
+                color={iconColor} 
+                strokeWidth={2}
+              />
+            )
+            const img = new Image()
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+            const url = URL.createObjectURL(svgBlob)
+            
+            await new Promise((resolve) => {
+              img.onload = resolve
+              img.src = url
+            })
+            
+            const iconSize = 64
+            const iconX = x + (w - iconSize) / 2
+            const iconY = y + (h - iconSize) / 2 - (showLabel ? 20 : 0)
 
-          ctx.drawImage(img, iconX, iconY, iconSize, iconSize)
-          URL.revokeObjectURL(url)
+            ctx.drawImage(img, iconX, iconY, iconSize, iconSize)
+            URL.revokeObjectURL(url)
+          }
 
-          // Text
-          ctx.fillStyle = theme.text
-          ctx.font = 'bold 36px sans-serif'
-          ctx.textAlign = 'center'
-          ctx.textBaseline = 'top'
-          ctx.fillText(label, x + w / 2, iconY + iconSize + 16)
+          // Text（表示設定がONの場合のみ）
+          if (showLabel) {
+            ctx.fillStyle = labelColor
+            ctx.font = 'bold 36px sans-serif'
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'top'
+            
+            const textY = showIcon ? y + (h - 64) / 2 - 20 + 64 + 16 : y + h / 2 - 18
+            ctx.fillText(label, x + w / 2, textY)
+          }
           
           ctx.globalAlpha = 1.0
         }
@@ -220,7 +295,30 @@ export default function RichMenu() {
           }
         }
 
-        return new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error('Blob failed')), 'image/png'))
+        // PNG圧縮: 品質を下げてサイズを削減（LINE APIの1MB制限対応）
+        return new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob(
+            (b) => {
+              if (!b) {
+                reject(new Error('Blob failed'))
+                return
+              }
+              
+              // 1MB以下かチェック
+              if (b.size <= 1024 * 1024) {
+                resolve(b)
+              } else {
+                // 1MBを超える場合はJPEGで再圧縮（品質80%）
+                canvas.toBlob(
+                  (jpegBlob) => jpegBlob ? resolve(jpegBlob) : reject(new Error('JPEG conversion failed')),
+                  'image/jpeg',
+                  0.8
+                )
+              }
+            },
+            'image/png'
+          )
+        })
       }
 
       try {
@@ -247,21 +345,45 @@ export default function RichMenu() {
         return
       }
 
+      console.log('Saving rich menu settings:', {
+        template_id: richMenuSettings.template_id,
+        layout_id: richMenuSettings.layout_id,
+        custom_image_url: richMenuSettings.custom_image_url,
+        actions: richMenuSettings.actions,
+        slot_images: richMenuSettings.slot_background_images
+      })
+
+      // スロット画像をactionsに含めて保存（新しいカラムが無い場合の互換性対策）
+      const actionsWithSlotImages = { ...richMenuSettings.actions }
+      // slot_background_imagesの情報をactionsのmetadataとして保存
+      
       const { error } = await supabase
         .from('stores')
         .update({
           rich_menu_template_id: richMenuSettings.template_id,
           rich_menu_layout_id: richMenuSettings.layout_id,
           rich_menu_custom_image_url: richMenuSettings.custom_image_url,
-          rich_menu_actions: richMenuSettings.actions,
+          rich_menu_actions: {
+            ...actionsWithSlotImages,
+            _slot_background_images: richMenuSettings.slot_background_images || {}
+          },
           updated_at: new Date().toISOString(),
         })
         .eq('id', storeId)
 
-      if (error) throw error
+      if (error) {
+        console.error('DB Save Error:', error)
+        throw error
+      }
 
       // Apply Rich Menu via Edge Function
-      const { error: applyError } = await supabase.functions.invoke('apply-rich-menu', {
+      console.log('Calling apply-rich-menu with:', {
+        store_id: storeId,
+        generated_image_url: generatedImageUrl,
+        liff_id: import.meta.env.VITE_LIFF_ID
+      })
+      
+      const { data: applyData, error: applyError } = await supabase.functions.invoke('apply-rich-menu', {
         body: { 
           store_id: storeId,
           generated_image_url: generatedImageUrl,
@@ -269,9 +391,14 @@ export default function RichMenu() {
         }
       })
 
+      console.log('apply-rich-menu response:', { data: applyData, error: applyError })
+
       if (applyError) {
         console.error('Failed to apply rich menu:', applyError)
-        setToast({ isVisible: true, message: '設定は保存されましたが、LINEへの反映に失敗しました', type: 'error' })
+        setToast({ isVisible: true, message: `LINEへの反映に失敗: ${applyError.message || JSON.stringify(applyError)}`, type: 'error' })
+      } else if (applyData?.error) {
+        console.error('Apply rich menu returned error:', applyData.error)
+        setToast({ isVisible: true, message: `LINEへの反映に失敗: ${applyData.error}`, type: 'error' })
       } else {
         setToast({ isVisible: true, message: 'リッチメニューを更新しました', type: 'success' })
       }
