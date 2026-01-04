@@ -37,7 +37,8 @@ export default function Modal({
     ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
     : 'bg-primary-600 hover:bg-primary-700 text-white';
 
-  const shouldShowButtons = !footerContent || showDefaultButtons;
+  // showDefaultButtons が明示的に false の場合はデフォルトボタンを表示しない
+  const shouldShowButtons = showDefaultButtons === true || (showDefaultButtons !== false && !footerContent);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">

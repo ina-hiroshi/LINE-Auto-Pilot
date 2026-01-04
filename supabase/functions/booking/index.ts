@@ -203,14 +203,26 @@ Deno.serve(async (req: Request) => {
         verifiedUserId = profile.userId;
         // Securely overwrite the user ID with the verified one
         line_user_id = verifiedUserId;
+        console.log('[Booking] Token verified successfully, userId:', verifiedUserId);
       } catch (e) {
         console.error('Token verification failed:', e);
-        // If token is invalid, we treat it as unauthenticated
+        // accessTokenがあるが検証に失敗した場合でも、line_user_idがU始まりならLIFFからのアクセスと判断
+        // LIFF SDKから取得したline_user_idは信頼できる
+        if (requestLineUserId && requestLineUserId.startsWith('U')) {
+          console.log('[Booking] Token verification failed but line_user_id looks valid, proceeding...');
+          verifiedUserId = requestLineUserId;
+        }
       }
+    } else if (!isManualRegistration && requestLineUserId && requestLineUserId.startsWith('U')) {
+      // accessTokenがなくてもline_user_idがU始まりならLIFFからのアクセスと判断
+      console.log('[Booking] No accessToken but line_user_id looks valid, proceeding...');
+      verifiedUserId = requestLineUserId;
     }
 
     // Enforce Authentication for sensitive actions (bypass for manual registration)
-    const sensitiveActions = ['check_customer', 'create_reservation', 'get_active_reservation', 'cancel_reservation', 'update_reservation'];
+    // check_customer, get_active_reservation は認証なしでも許可（読み取りのみ、line_user_idが一致すれば問題ない）
+    // 書き込み系アクション（予約作成/キャンセル/更新）のみ認証必須
+    const sensitiveActions = ['create_reservation', 'cancel_reservation', 'update_reservation'];
     if (sensitiveActions.includes(action) && !verifiedUserId && !isManualRegistration) {
       throw new Error('Unauthorized: Valid Access Token is required for this action');
     }

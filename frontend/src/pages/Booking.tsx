@@ -729,17 +729,23 @@ export default function Booking() {
       
       // Get access token for authentication
       let accessToken: string | null = null
-      if (liff.isLoggedIn()) {
-        accessToken = liff.getAccessToken()
-        try {
-          const profile = await liff.getProfile()
-          currentPictureUrl = profile.pictureUrl || ''
-          currentDisplayName = profile.displayName || ''
-          setPictureUrl(currentPictureUrl)
-          setDisplayName(currentDisplayName)
-        } catch (e) {
-          console.error('Failed to refresh profile:', e)
+      try {
+        // LIFFが初期化されているか確認（isInClient または isLoggedIn）
+        if (liff.isInClient() || liff.isLoggedIn()) {
+          accessToken = liff.getAccessToken()
+          console.log('[Booking] handleSubmit - accessToken:', accessToken ? 'obtained' : 'null')
+          try {
+            const profile = await liff.getProfile()
+            currentPictureUrl = profile.pictureUrl || ''
+            currentDisplayName = profile.displayName || ''
+            setPictureUrl(currentPictureUrl)
+            setDisplayName(currentDisplayName)
+          } catch (e) {
+            console.error('Failed to refresh profile:', e)
+          }
         }
+      } catch (liffError) {
+        console.warn('[Booking] LIFF not available:', liffError)
       }
 
       const action = modifyingReservationId ? 'update_reservation' : 'create_reservation'

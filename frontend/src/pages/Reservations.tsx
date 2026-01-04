@@ -2031,6 +2031,29 @@ export default function Reservations() {
         }}
         title="Googleカレンダーの予定"
         showDefaultButtons={false}
+        footerContent={
+          selectedGoogleEvent && (
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={() => {
+                  setIsGoogleEventModalOpen(false)
+                  setSelectedGoogleEvent(null)
+                }}
+                className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 text-center text-sm font-medium rounded-lg hover:bg-gray-50 transition"
+              >
+                閉じる
+              </button>
+              <a
+                href={selectedGoogleEvent.htmlLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-2 px-4 bg-primary-600 text-white text-center text-sm font-medium rounded-lg hover:bg-primary-700 transition"
+              >
+                Googleカレンダーで開く
+              </a>
+            </div>
+          )
+        }
       >
         {selectedGoogleEvent && (
           <div className="space-y-4">
@@ -2074,26 +2097,6 @@ export default function Reservations() {
                 <pre className="whitespace-pre-wrap font-sans">{selectedGoogleEvent.description}</pre>
               </div>
             )}
-
-            <div className="flex gap-3 pt-4 border-t border-gray-200">
-              <button
-                onClick={() => {
-                  setIsGoogleEventModalOpen(false)
-                  setSelectedGoogleEvent(null)
-                }}
-                className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 text-center text-sm font-medium rounded-lg hover:bg-gray-50 transition"
-              >
-                閉じる
-              </button>
-              <a
-                href={selectedGoogleEvent.htmlLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 py-2 px-4 bg-primary-600 text-white text-center text-sm font-medium rounded-lg hover:bg-primary-700 transition"
-              >
-                Googleカレンダーで開く
-              </a>
-            </div>
           </div>
         )}
       </Modal>
