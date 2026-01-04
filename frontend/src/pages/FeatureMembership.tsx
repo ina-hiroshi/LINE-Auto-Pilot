@@ -54,23 +54,23 @@ function MemberCardPreview({ template, color = '#00c3dc', title = "MEMBER'S CARD
 
       {/* Card Content */}
       <div className="relative z-10 flex flex-col h-full justify-between">
-        <div className="flex justify-between items-start">
+        <div className="flex justify-between items-start mb-2">
           <h3 className={`font-bold text-lg tracking-wider ${template === 'elegant' ? 'font-serif' : ''}`}>
             {title}
           </h3>
         </div>
         
-        <div className="flex-1 flex flex-col justify-end space-y-4 pb-2">
+        <div className="flex-1 flex flex-col justify-center space-y-3">
           <div className="flex justify-between items-end">
             <div>
               <p className={`text-xs mb-1 ${template === 'pop' ? 'opacity-75' : 'opacity-60'}`}>MEMBER NAME</p>
-              <p className={`font-medium tracking-wide ${template === 'elegant' ? 'font-serif' : ''}`}>
+              <p className={`font-medium text-base tracking-wide ${template === 'elegant' ? 'font-serif' : ''}`}>
                 {mockCustomer.display_name}
               </p>
             </div>
             <div className="text-right">
               <p className={`text-xs mb-1 ${template === 'pop' ? 'opacity-75' : 'opacity-60'}`}>POINTS</p>
-              <p className={`text-2xl font-bold ${template === 'pop' ? 'text-primary-600' : template === 'elegant' ? 'font-serif' : ''}`}>
+              <p className={`text-3xl font-bold ${template === 'pop' ? 'text-primary-600' : template === 'elegant' ? 'font-serif' : ''}`}>
                 {mockCustomer.points.toLocaleString()} pt
               </p>
             </div>
@@ -170,7 +170,7 @@ function StampCardPreview({ template, color = '#00c3dc' }: {
             <div className="flex justify-between items-end border-t pt-1 border-dashed border-gray-300/30">
               <div>
                 <p className={`text-[8px] mb-0.5 ${template === 'pop' ? 'opacity-75' : 'opacity-60'}`}>MEMBER NAME</p>
-                <p className={`font-medium text-xs tracking-wide ${template === 'elegant' ? 'font-serif' : ''}`}>
+                <p className={`font-medium text-sm tracking-wide ${template === 'elegant' ? 'font-serif' : ''}`}>
                   {mockCustomer.display_name}
                 </p>
               </div>

@@ -820,7 +820,7 @@ export default function MembershipCard() {
               )}
 
               <div className="relative z-10 flex flex-col h-full justify-between">
-                <div className="flex justify-between items-start">
+                <div className="flex justify-between items-start mb-2">
                   <h3 className={`font-bold text-lg tracking-wider ${settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
                     {settings.title}
                   </h3>
@@ -892,7 +892,7 @@ export default function MembershipCard() {
                       <div className="flex justify-between items-end border-t pt-1 border-dashed border-gray-300/30">
                         <div>
                           <p className={`text-[8px] mb-0.5 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>MEMBER NAME</p>
-                          <p className={`font-medium text-xs tracking-wide ${settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
+                          <p className={`font-medium text-sm tracking-wide ${settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
                             {settings.name_display === 'real_kanji' ? '山田 太郎' : 
                              settings.name_display === 'real_romaji' ? 'TARO YAMADA' : 'LINE User'}
                           </p>
@@ -915,11 +915,11 @@ export default function MembershipCard() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex-1 flex flex-col justify-end space-y-4 pb-2">
+                  <div className="flex-1 flex flex-col justify-center space-y-3">
                     <div className="flex justify-between items-end">
                       <div>
                         <p className={`text-xs mb-1 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>MEMBER NAME</p>
-                        <p className={`font-medium tracking-wide ${settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
+                        <p className={`font-medium text-base tracking-wide ${settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
                           {settings.name_display === 'real_kanji' ? '山田 太郎' : 
                            settings.name_display === 'real_romaji' ? 'TARO YAMADA' : 'LINE User'}
                         </p>
@@ -928,7 +928,7 @@ export default function MembershipCard() {
                         <p className={`text-xs mb-1 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>POINTS</p>
                         <p 
                           key={`points-${settings.color}`}
-                          className={`text-2xl font-bold transition-colors duration-300 ${
+                          className={`text-3xl font-bold transition-colors duration-300 ${
                             settings.template_id === 'elegant' ? 'font-serif' : 
                             settings.template_id === 'luxury' ? 'font-light tracking-wider' : ''
                           }`}
