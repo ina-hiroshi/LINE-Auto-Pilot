@@ -242,6 +242,7 @@ export default function Booking() {
                 date: dateStr,
                 menu_id: selectedMenu?.id || null,
                 staff_id: selectedStaff?.id || null,
+                line_user_id: lineUserId || null, // 自分の仮予約を除外するため
               }
             })
             const dateSlots: Record<string, boolean> = {}

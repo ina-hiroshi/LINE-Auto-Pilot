@@ -957,6 +957,9 @@ LINE ID: ${line_user_id}
       if (laError) throw laError
       if (!lineAccount) throw new Error('LINE Account not found for this store')
 
+      // Google Calendar Client を取得
+      const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
+
       // 1. Upsert Customer
       const { error: custError } = await supabaseClient
         .from('customers')
@@ -1063,9 +1066,9 @@ LINE ID: ${line_user_id}
 
       if (userHolds && userHolds.length > 0) {
         for (const hold of userHolds) {
-          if (hold.google_event_id && googleClient2) {
+          if (hold.google_event_id && googleClient) {
             try {
-              await deleteGoogleEvent(googleClient2, hold.google_event_id)
+              await deleteGoogleEvent(googleClient, hold.google_event_id)
             } catch (e) {
               console.error('Failed to delete temporary Google event:', e)
             }
@@ -1081,7 +1084,7 @@ LINE ID: ${line_user_id}
       // ---------------------------------------------------------------
 
       // --- Google Calendar Create Event ---
-      if (googleClient2 && newReservation) {
+      if (googleClient && newReservation) {
         try {
             // Fetch Staff Name
             let staffName = '指定なし'
@@ -1118,7 +1121,7 @@ ${memo || 'なし'}
 LINE ID: ${line_user_id}
 `.trim()
 
-            const eventId = await createGoogleEvent(googleClient2, {
+            const eventId = await createGoogleEvent(googleClient, {
                 summary,
                 description,
                 start: { dateTime: startDateTime.toISOString() },
