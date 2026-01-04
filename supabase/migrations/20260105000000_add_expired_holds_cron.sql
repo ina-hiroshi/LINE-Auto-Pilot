@@ -5,25 +5,45 @@ create extension if not exists pg_cron with schema extensions;
 grant usage on schema cron to postgres;
 grant all privileges on all tables in schema cron to postgres;
 
--- Create or replace the function to delete expired holds and their Google Calendar events
+-- Enable pg_net extension for HTTP requests
+create extension if not exists pg_net with schema extensions;
+
+-- Create or replace the function to call the cleanup Edge Function
 create or replace function public.cleanup_expired_holds()
 returns void
 language plpgsql
 security definer
 as $$
 declare
-  hold_record record;
+  supabase_url text;
+  service_role_key text;
+  request_id bigint;
 begin
+  -- Get environment variables
+  supabase_url := current_setting('app.settings.supabase_url', true);
+  service_role_key := current_setting('app.settings.service_role_key', true);
+  
+  -- If not set, use default (needs to be configured)
+  if supabase_url is null then
+    supabase_url := 'https://puzmemsawziykgzmbvyh.supabase.co';
+  end if;
+  
   -- Log start
-  raise notice 'Starting cleanup of expired holds at %', now();
+  raise notice 'Calling cleanup Edge Function at %', now();
 
-  -- Delete expired holds (Google Calendar events are handled separately by the booking function)
-  -- Just delete the database records - Google Calendar cleanup can be handled async
-  delete from public.temporary_holds
-  where expires_at < now();
+  -- Call the Edge Function using pg_net
+  select net.http_post(
+    url := supabase_url || '/functions/v1/cleanup-expired-holds',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || service_role_key
+    ),
+    body := jsonb_build_object(),
+    timeout_milliseconds := 30000
+  ) into request_id;
   
   -- Log completion
-  raise notice 'Expired holds cleanup completed at %', now();
+  raise notice 'Cleanup Edge Function called with request_id: %', request_id;
 end;
 $$;
 
@@ -36,4 +56,4 @@ select cron.schedule(
 );
 
 -- Comment
-comment on function public.cleanup_expired_holds() is '期限切れの仮押さえを定期的に削除（毎分実行）';
+comment on function public.cleanup_expired_holds() is '期限切れの仮押さえとGoogleカレンダーイベントを定期的に削除（毎分実行）';

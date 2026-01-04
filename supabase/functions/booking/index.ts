@@ -282,6 +282,27 @@ Deno.serve(async (req: Request) => {
       const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000)
 
       // このユーザーの既存の仮押さえを削除（新しい選択に置き換え）
+      // Googleカレンダーからも削除
+      const { data: existingHolds } = await supabaseClient
+        .from('temporary_holds')
+        .select('google_event_id')
+        .eq('line_user_id', line_user_id)
+        .eq('store_id', store_id)
+
+      const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
+      if (googleClient && existingHolds && existingHolds.length > 0) {
+        for (const hold of existingHolds) {
+          if (hold.google_event_id) {
+            try {
+              await deleteGoogleEvent(googleClient, hold.google_event_id)
+              console.log(`[Booking] Deleted old temporary Google event: ${hold.google_event_id}`)
+            } catch (e) {
+              console.error('Failed to delete old temporary Google event:', e)
+            }
+          }
+        }
+      }
+
       await supabaseClient
         .from('temporary_holds')
         .delete()
@@ -290,7 +311,6 @@ Deno.serve(async (req: Request) => {
 
       // Google Calendarに仮予約を作成
       let googleEventId: string | null = null
-      const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
       if (googleClient) {
         try {
           const eventData = {
@@ -786,24 +806,8 @@ Deno.serve(async (req: Request) => {
         .eq('line_user_id', line_user_id)
       // --------------------------------------------
 
-      // --- Google Calendar Check (Double Check) for UPDATE ---
-      if (googleClient1) {
-        const googleEvents1 = await listGoogleEvents(googleClient1, startDateTime.toISOString(), endDateTime.toISOString())
-        type GoogleEvent1 = { start?: { dateTime?: string }; end?: { dateTime?: string }; summary?: string; description?: string }
-        const googleOverlapCount = googleEvents1.filter((e: GoogleEvent1) => {
-            if (!e.start?.dateTime || !e.end?.dateTime) return false
-            // 自分の仮予約のみ除外（他人の仮予約は重複としてカウント）
-            if (e.summary?.includes('【仮予約】') && e.description?.includes(line_user_id)) return false
-            const resStart = new Date(e.start.dateTime)
-            const resEnd = new Date(e.end.dateTime)
-            return isOverlapping(startDateTime, endDateTime, resStart, resEnd)
-        }).length
-        
-        if (googleOverlapCount > 0 && capacityLimit <= 1) {
-             throw new Error('この時間帯はGoogleカレンダーの予定と重複しています')
-        }
-      }
-      // --------------------------------------------
+      // 注: Googleカレンダーの重複チェックは不要
+      // hold_slot時点で既にチェック済み + 仮予約で枠を確保済みのため
 
       const { data: newReservation, error: resError } = await supabaseClient
         .from('reservations')
