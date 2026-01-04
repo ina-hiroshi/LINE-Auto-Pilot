@@ -754,13 +754,46 @@ Deno.serve(async (req: Request) => {
         throw new Error('この時間帯の予約枠が埋まっています')
       }
 
-      // --- Google Calendar Check (Double Check) for UPDATE ---
+      // --- Get Google Calendar Client (if available) ---
       const googleClient1 = await getGoogleCalendarClient(supabaseClient, store_id)
+
+      // --- Delete temporary hold Google events for this user BEFORE checking Google Calendar ---
+      // 確定予約作成前に、そのユーザーの仮押さえGoogleイベントを削除
+      const { data: userHolds } = await supabaseClient
+        .from('temporary_holds')
+        .select('google_event_id')
+        .eq('store_id', store_id)
+        .eq('line_user_id', line_user_id)
+      
+      if (googleClient1 && userHolds && userHolds.length > 0) {
+        for (const hold of userHolds) {
+          if (hold.google_event_id) {
+            try {
+              await deleteGoogleEvent(googleClient1, hold.google_event_id)
+              console.log(`[Booking] Deleted temporary Google event: ${hold.google_event_id}`)
+            } catch (e) {
+              console.error(`[Booking] Failed to delete temporary Google event ${hold.google_event_id}:`, e)
+            }
+          }
+        }
+      }
+
+      // temporary_holdsテーブルからも削除
+      await supabaseClient
+        .from('temporary_holds')
+        .delete()
+        .eq('store_id', store_id)
+        .eq('line_user_id', line_user_id)
+      // --------------------------------------------
+
+      // --- Google Calendar Check (Double Check) for UPDATE ---
       if (googleClient1) {
         const googleEvents1 = await listGoogleEvents(googleClient1, startDateTime.toISOString(), endDateTime.toISOString())
-        type GoogleEvent1 = { start?: { dateTime?: string }; end?: { dateTime?: string } }
+        type GoogleEvent1 = { start?: { dateTime?: string }; end?: { dateTime?: string }; summary?: string; description?: string }
         const googleOverlapCount = googleEvents1.filter((e: GoogleEvent1) => {
             if (!e.start?.dateTime || !e.end?.dateTime) return false
+            // 自分の仮予約のみ除外（他人の仮予約は重複としてカウント）
+            if (e.summary?.includes('【仮予約】') && e.description?.includes(line_user_id)) return false
             const resStart = new Date(e.start.dateTime)
             const resEnd = new Date(e.end.dateTime)
             return isOverlapping(startDateTime, endDateTime, resStart, resEnd)
