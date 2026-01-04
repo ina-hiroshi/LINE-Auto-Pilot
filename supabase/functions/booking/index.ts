@@ -155,13 +155,36 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { accessToken, action, store_id, line_user_id: requestLineUserId, display_name, profile_picture_url, real_name, furigana, date, time, reservation_id, staff_id, menu_id, memo } = await req.json()
+    const { accessToken, action, store_id, line_user_id: requestLineUserId, display_name, profile_picture_url, real_name, furigana, date, time, reservation_id, staff_id, menu_id, memo, is_manual } = await req.json()
 
     // --- Security: Verify Access Token ---
     let line_user_id = requestLineUserId;
     let verifiedUserId: string | null = null;
+    let isManualRegistration = false;
 
-    if (accessToken) {
+    // 管理画面からの手動登録の場合はSupabase Auth認証をチェック
+    if (is_manual === true) {
+      const authHeader = req.headers.get('authorization')
+      if (authHeader) {
+        const token = authHeader.replace('Bearer ', '')
+        const { data: { user }, error } = await supabaseClient.auth.getUser(token)
+        if (!error && user) {
+          // 店舗のオーナーか確認
+          const { data: store } = await supabaseClient
+            .from('stores')
+            .select('owner_id')
+            .eq('id', store_id)
+            .single()
+          
+          if (store?.owner_id === user.id) {
+            isManualRegistration = true
+            // 手動登録の場合はリクエストのline_user_idをそのまま使用
+          }
+        }
+      }
+    }
+
+    if (accessToken && !isManualRegistration) {
       try {
         // Fetch Channel ID if store_id is available
         let expectedChannelId: string | undefined;
@@ -186,9 +209,9 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Enforce Authentication for sensitive actions
+    // Enforce Authentication for sensitive actions (bypass for manual registration)
     const sensitiveActions = ['check_customer', 'create_reservation', 'get_active_reservation', 'cancel_reservation', 'update_reservation'];
-    if (sensitiveActions.includes(action) && !verifiedUserId) {
+    if (sensitiveActions.includes(action) && !verifiedUserId && !isManualRegistration) {
       throw new Error('Unauthorized: Valid Access Token is required for this action');
     }
     // -------------------------------------
@@ -915,7 +938,8 @@ LINE ID: ${line_user_id}
           status: 'confirmed',
           memo: memo || '',
           staff_id: staff_id || null,
-          menu_id: menu_id || null
+          menu_id: menu_id || null,
+          registration_type: isManualRegistration ? 'manual' : 'line'
         })
         .select()
         .single()

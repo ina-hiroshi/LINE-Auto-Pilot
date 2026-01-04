@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Calendar, Clock, User, CheckCircle, AlertCircle, Loader2, Edit2, XCircle, FileText, MessageSquare } from 'lucide-react'
+import { Calendar, Clock, User, CheckCircle, AlertCircle, Loader2, Edit2, XCircle, FileText, MessageSquare, Plus, Search, UserPlus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useStoreResources } from '../hooks/useStoreResources'
 import type { StoreMenu, StoreStaff } from '../types/storeResources'
@@ -8,6 +8,15 @@ import Modal from '../components/Modal'
 import ProLockOverlay from '../components/ProLockOverlay'
 import ProBadge from '../components/ProBadge'
 
+type Customer = {
+  id: string
+  line_user_id: string
+  display_name: string
+  profile_picture_url: string | null
+  real_name: string | null
+  furigana: string | null
+}
+
 type Reservation = {
   id: string
   start_time: string
@@ -15,6 +24,7 @@ type Reservation = {
   status: string
   memo: string
   line_user_id: string
+  registration_type?: 'line' | 'manual'
   customer?: {
     display_name: string
     profile_picture_url: string | null
@@ -86,6 +96,28 @@ export default function Reservations() {
   const [modifyMemo, setModifyMemo] = useState<string>('')
   const [actionLoading, setActionLoading] = useState(false)
   const [isPro, setIsPro] = useState(false)
+
+  // 予約登録モーダル State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const [isNewCustomer, setIsNewCustomer] = useState(false)
+  const [newCustomerName, setNewCustomerName] = useState('')
+  const [newCustomerFurigana, setNewCustomerFurigana] = useState('')
+  const [createDate, setCreateDate] = useState('')
+  const [createTime, setCreateTime] = useState('')
+  const [createStaffId, setCreateStaffId] = useState<string>('')
+  const [createMenuId, setCreateMenuId] = useState<string>('')
+  const [createMemo, setCreateMemo] = useState('')
+  const [createLoading, setCreateLoading] = useState(false)
+  const [availableSlots, setAvailableSlots] = useState<{ time: string; available: boolean }[]>([])
+  const [loadingSlots, setLoadingSlots] = useState(false)
+  const [bookingSettings, setBookingSettings] = useState<{
+    booking_enable_staff: boolean
+    booking_enable_menu: boolean
+    slot_interval_minutes: number
+  }>({ booking_enable_staff: false, booking_enable_menu: false, slot_interval_minutes: 60 })
 
   const fetchCalendars = useCallback(async (preselectedId?: string) => {
     try {
@@ -576,34 +608,202 @@ export default function Reservations() {
     setIsModifyModalOpen(true)
   }
 
+  // 予約登録モーダルを開く
+  const openCreateModal = async () => {
+    // 今日の日付をデフォルト設定
+    const today = new Date()
+    const year = today.getFullYear()
+    const month = String(today.getMonth() + 1).padStart(2, '0')
+    const day = String(today.getDate()).padStart(2, '0')
+    setCreateDate(`${year}-${month}-${day}`)
+    setCreateTime('')
+    setCreateStaffId('')
+    setCreateMenuId('')
+    setCreateMemo('')
+    setSelectedCustomer(null)
+    setIsNewCustomer(false)
+    setNewCustomerName('')
+    setNewCustomerFurigana('')
+    setCustomerSearch('')
+    setAvailableSlots([])
+    
+    // 顧客一覧を取得
+    if (storeId) {
+      const { data } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('store_id', storeId)
+        .order('display_name', { ascending: true })
+      setCustomers((data || []) as Customer[])
+      
+      // 予約設定を取得
+      const { data: store } = await supabase
+        .from('stores')
+        .select('booking_enable_staff, booking_enable_menu, slot_interval_minutes')
+        .eq('id', storeId)
+        .single()
+      if (store) {
+        setBookingSettings({
+          booking_enable_staff: store.booking_enable_staff ?? false,
+          booking_enable_menu: store.booking_enable_menu ?? false,
+          slot_interval_minutes: store.slot_interval_minutes ?? 60
+        })
+      }
+    }
+    
+    setIsCreateModalOpen(true)
+  }
+
+  // 日付変更時に空き枠を取得
+  const fetchAvailableSlots = useCallback(async (date: string, menuId?: string, staffId?: string) => {
+    if (!storeId || !date) return
+    
+    setLoadingSlots(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('booking', {
+        body: {
+          action: 'get_available_slots',
+          store_id: storeId,
+          date: date,
+          menu_id: menuId || null,
+          staff_id: staffId || null,
+        }
+      })
+      
+      if (error) throw error
+      setAvailableSlots(data?.slots || [])
+    } catch (e) {
+      console.error('Failed to fetch slots:', e)
+      setAvailableSlots([])
+    } finally {
+      setLoadingSlots(false)
+    }
+  }, [storeId])
+
+  // 日付・メニュー・スタッフ変更時に空き枠を再取得
+  useEffect(() => {
+    if (isCreateModalOpen && createDate) {
+      fetchAvailableSlots(createDate, createMenuId, createStaffId)
+    }
+  }, [isCreateModalOpen, createDate, createMenuId, createStaffId, fetchAvailableSlots])
+
+  // 予約登録処理
+  const handleCreateReservation = async () => {
+    if (!storeId) {
+      setToast({ message: '店舗情報が見つかりません', type: 'error' })
+      return
+    }
+    
+    if (!createDate || !createTime) {
+      setToast({ message: '日付と時間を選択してください', type: 'error' })
+      return
+    }
+    
+    if (!selectedCustomer && !isNewCustomer) {
+      setToast({ message: '顧客を選択するか、新規顧客情報を入力してください', type: 'error' })
+      return
+    }
+    
+    if (isNewCustomer && !newCustomerName) {
+      setToast({ message: '顧客名を入力してください', type: 'error' })
+      return
+    }
+
+    setCreateLoading(true)
+    try {
+      // 予約作成
+      const { data, error } = await supabase.functions.invoke('booking', {
+        body: {
+          action: 'create_reservation',
+          store_id: storeId,
+          line_user_id: selectedCustomer?.line_user_id || `MANUAL_${Date.now()}`,
+          display_name: selectedCustomer?.display_name || newCustomerName,
+          real_name: selectedCustomer?.real_name || newCustomerName,
+          furigana: selectedCustomer?.furigana || newCustomerFurigana,
+          date: createDate,
+          time: createTime,
+          staff_id: createStaffId || null,
+          menu_id: createMenuId || null,
+          memo: createMemo || null,
+          is_manual: true, // 手動登録フラグ
+        }
+      })
+
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+
+      // 新規顧客の場合、顧客テーブルにも登録
+      if (isNewCustomer && newCustomerName) {
+        const newLineUserId = `MANUAL_${Date.now()}`
+        await supabase.from('customers').upsert({
+          store_id: storeId,
+          line_user_id: newLineUserId,
+          display_name: newCustomerName,
+          real_name: newCustomerName,
+          furigana: newCustomerFurigana || null,
+        }, { onConflict: 'store_id, line_user_id' })
+      }
+
+      setToast({ message: '予約を登録しました', type: 'success' })
+      setIsCreateModalOpen(false)
+      
+      // 予約一覧を再取得
+      fetchReservations()
+    } catch (error) {
+      console.error('Create Reservation Error:', error)
+      setToast({ message: `予約登録に失敗しました: ${toErrorMessage(error)}`, type: 'error' })
+    } finally {
+      setCreateLoading(false)
+    }
+  }
+
+  // 顧客検索フィルター
+  const filteredCustomers = customers.filter(c => {
+    if (!customerSearch) return true
+    const search = customerSearch.toLowerCase()
+    return (
+      c.display_name?.toLowerCase().includes(search) ||
+      c.real_name?.toLowerCase().includes(search) ||
+      c.furigana?.toLowerCase().includes(search)
+    )
+  })
+
   return (
     <div className="flex flex-col h-full">
       <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex flex-col gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4">
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">予約管理</h1>
-            <p className="text-sm text-gray-500">予約の確認・編集・キャンセルなどの管理を行います。</p>
-          </div>
-          <div className="flex gap-2 w-full overflow-x-auto">
-            <div className="bg-gray-100 p-1 rounded-lg flex shrink-0">
-              <button 
-                onClick={() => setViewMode('list')}
-                className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition whitespace-nowrap ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                リスト
-              </button>
-              <button 
-                onClick={() => {
-                  setViewMode('calendar')
-                  if (isGoogleConnected && !calendars.length) fetchCalendars()
-                }}
-                className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition flex items-center justify-center gap-1 whitespace-nowrap ${viewMode === 'calendar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                カレンダー
-                {!isPro && <ProBadge />}
-              </button>
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-sm text-gray-500">予約の確認・編集・キャンセルなどの管理を行います。</p>
+              <div className="flex gap-2 shrink-0">
+                <div className="bg-gray-100 p-1 rounded-lg flex">
+                  <button 
+                    onClick={() => setViewMode('list')}
+                    className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition whitespace-nowrap ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    リスト
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setViewMode('calendar')
+                      if (isGoogleConnected && !calendars.length) fetchCalendars()
+                    }}
+                    className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition flex items-center justify-center gap-1 whitespace-nowrap ${viewMode === 'calendar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    カレンダー
+                    {!isPro && <ProBadge />}
+                  </button>
+                </div>
+                <button 
+                  onClick={openCreateModal}
+                  className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 shadow-sm whitespace-nowrap flex items-center gap-2 font-medium"
+                >
+                  <Plus size={18} />
+                  予約登録
+                </button>
+              </div>
             </div>
-            <button className="bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 shadow-sm whitespace-nowrap">+ 予約登録</button>
           </div>
         </div>
       </div>
@@ -672,9 +872,11 @@ export default function Reservations() {
                               </div>
                               <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-medium ${
                                 reservation.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                reservation.registration_type === 'manual' ? 'bg-blue-100 text-blue-700' :
                                 'bg-green-100 text-green-700'
                               }`}>
-                                {reservation.status === 'cancelled' ? 'キャンセル' : 'LINE予約'}
+                                {reservation.status === 'cancelled' ? 'キャンセル' : 
+                                 reservation.registration_type === 'manual' ? '手動登録' : 'LINE予約'}
                               </span>
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-1">
@@ -1449,6 +1651,250 @@ export default function Reservations() {
               onChange={(e) => setModifyMemo(e.target.value)}
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 min-h-[100px]"
               placeholder="予約に関するメモを入力してください"
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* 予約登録モーダル */}
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        title="予約登録"
+        confirmText={createLoading ? '登録中...' : '予約を登録'}
+        onConfirm={handleCreateReservation}
+        isLoading={createLoading}
+      >
+        <div className="space-y-5">
+          {/* 顧客選択セクション */}
+          <div className="space-y-3">
+            <label className="block text-sm font-bold text-gray-700">顧客情報</label>
+            
+            {/* 顧客タイプ選択 */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsNewCustomer(false)
+                  setSelectedCustomer(null)
+                }}
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg border-2 transition ${
+                  !isNewCustomer 
+                    ? 'border-primary-500 bg-primary-50 text-primary-700' 
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                <Search size={16} className="inline mr-1" />
+                既存顧客から選択
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsNewCustomer(true)
+                  setSelectedCustomer(null)
+                }}
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg border-2 transition ${
+                  isNewCustomer 
+                    ? 'border-primary-500 bg-primary-50 text-primary-700' 
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                <UserPlus size={16} className="inline mr-1" />
+                新規顧客
+              </button>
+            </div>
+
+            {/* 既存顧客検索 */}
+            {!isNewCustomer && (
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="顧客名・フリガナで検索..."
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 text-sm"
+                  />
+                </div>
+                
+                <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg">
+                  {filteredCustomers.length === 0 ? (
+                    <div className="p-3 text-center text-sm text-gray-500">
+                      {customerSearch ? '該当する顧客が見つかりません' : '顧客がいません'}
+                    </div>
+                  ) : (
+                    filteredCustomers.map(customer => (
+                      <button
+                        key={customer.id}
+                        type="button"
+                        onClick={() => setSelectedCustomer(customer)}
+                        className={`w-full px-3 py-2 text-left text-sm flex items-center gap-3 hover:bg-gray-50 transition ${
+                          selectedCustomer?.id === customer.id ? 'bg-primary-50 border-l-4 border-primary-500' : ''
+                        }`}
+                      >
+                        {customer.profile_picture_url ? (
+                          <img src={customer.profile_picture_url} alt="" className="w-8 h-8 rounded-full" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                            <User size={16} className="text-gray-500" />
+                          </div>
+                        )}
+                        <div>
+                          <div className="font-medium text-gray-900">{customer.real_name || customer.display_name}</div>
+                          <div className="text-xs text-gray-500">
+                            {customer.furigana && <span>{customer.furigana}</span>}
+                            {customer.furigana && customer.real_name && customer.display_name !== customer.real_name && ' / '}
+                            {customer.real_name && customer.display_name !== customer.real_name && <span className="text-gray-400">LINE: {customer.display_name}</span>}
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+                
+                {selectedCustomer && (
+                  <div className="p-3 bg-primary-50 rounded-lg border border-primary-200">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle size={16} className="text-primary-600" />
+                      <span className="text-sm font-medium text-primary-700">選択中: {selectedCustomer.real_name || selectedCustomer.display_name}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 新規顧客入力 */}
+            {isNewCustomer && (
+              <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">顧客名 <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={newCustomerName}
+                    onChange={(e) => setNewCustomerName(e.target.value)}
+                    placeholder="山田 太郎"
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">フリガナ</label>
+                  <input
+                    type="text"
+                    value={newCustomerFurigana}
+                    onChange={(e) => setNewCustomerFurigana(e.target.value)}
+                    placeholder="ヤマダ タロウ"
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 text-sm"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 日付選択 */}
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-1">予約日 <span className="text-red-500">*</span></label>
+            <input 
+              type="date" 
+              value={createDate}
+              onChange={(e) => setCreateDate(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+
+          {/* 担当スタッフ（設定で有効な場合） */}
+          {bookingSettings.booking_enable_staff && staffList.length > 0 && (
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">担当スタッフ</label>
+              <select
+                value={createStaffId}
+                onChange={(e) => setCreateStaffId(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="">指定なし</option>
+                {staffList.map((staff: StoreStaff) => (
+                  <option key={staff.id} value={staff.id}>{staff.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* メニュー（設定で有効な場合） */}
+          {bookingSettings.booking_enable_menu && menuList.length > 0 && (
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">メニュー</label>
+              <select
+                value={createMenuId}
+                onChange={(e) => setCreateMenuId(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="">指定なし</option>
+                {menuList.map((menu: StoreMenu) => (
+                  <option key={menu.id} value={menu.id}>
+                    {menu.name} ({menu.duration_minutes}分) {menu.price ? `¥${menu.price.toLocaleString()}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* 時間選択 */}
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-1">予約時間 <span className="text-red-500">*</span></label>
+            {loadingSlots ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-primary-600" />
+                <span className="ml-2 text-sm text-gray-500">空き枠を確認中...</span>
+              </div>
+            ) : createDate && availableSlots.length > 0 ? (
+              <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border border-gray-200 rounded-lg">
+                {availableSlots.map(slot => (
+                  <button
+                    key={slot.time}
+                    type="button"
+                    onClick={() => slot.available && setCreateTime(slot.time)}
+                    disabled={!slot.available}
+                    className={`py-2 px-1 text-sm rounded-md transition ${
+                      createTime === slot.time
+                        ? 'bg-primary-600 text-white'
+                        : slot.available
+                          ? 'bg-white border border-gray-200 text-gray-700 hover:border-primary-300 hover:bg-primary-50'
+                          : 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                    }`}
+                  >
+                    {slot.time}
+                  </button>
+                ))}
+              </div>
+            ) : createDate ? (
+              <div className="p-4 bg-gray-50 rounded-lg text-center text-sm text-gray-500">
+                この日は予約可能な枠がありません
+              </div>
+            ) : (
+              <div className="p-4 bg-gray-50 rounded-lg text-center text-sm text-gray-500">
+                日付を選択すると空き枠が表示されます
+              </div>
+            )}
+            
+            {createTime && (
+              <div className="mt-2 p-2 bg-primary-50 rounded-md">
+                <span className="text-sm font-medium text-primary-700">
+                  <Clock size={14} className="inline mr-1" />
+                  選択中: {createTime}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* メモ */}
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-1">メモ</label>
+            <textarea
+              value={createMemo}
+              onChange={(e) => setCreateMemo(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 min-h-[80px] text-sm"
+              placeholder="予約に関するメモ（任意）"
             />
           </div>
         </div>

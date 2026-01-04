@@ -976,6 +976,155 @@ export default function Booking() {
           },
         }
 
+      case 'luxury':
+        return {
+          container: `${common.container} bg-gradient-to-br from-stone-950 via-stone-900 to-stone-950 font-serif`,
+          card: `${common.card} bg-gradient-to-br from-stone-900 to-stone-950 border border-amber-600/30 rounded-lg shadow-[0_0_60px_-15px_rgba(217,119,6,0.3)]`,
+          header: 'p-8 text-center border-b border-amber-600/20 bg-gradient-to-r from-amber-900/10 via-amber-600/10 to-amber-900/10',
+          title: 'text-xl font-light tracking-[0.15em] text-amber-100 flex items-center justify-center gap-3',
+          label: 'block text-xs font-medium text-amber-200/70 mb-2 tracking-wider uppercase',
+          input: `${common.input} bg-stone-900/50 border border-amber-600/30 rounded text-amber-100 focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50 placeholder-amber-200/30`,
+          buttonPrimary: 'w-full py-4 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-stone-900 font-semibold tracking-wider rounded shadow-lg shadow-amber-600/20 active:from-amber-500 active:to-amber-500 transition-all',
+          buttonSecondary: 'w-full py-4 bg-transparent border border-amber-600/50 text-amber-200 font-medium tracking-wider rounded active:bg-amber-600/10 transition-all',
+          slotGrid: 'grid grid-cols-3 gap-3',
+          slotButton: (selected: boolean, available: boolean) => `
+            py-4 rounded text-sm font-medium tracking-wide transition-all border
+            ${selected 
+              ? 'bg-gradient-to-r from-amber-600 to-amber-500 text-stone-900 border-amber-500 shadow-lg shadow-amber-600/30' 
+              : available 
+                ? 'bg-stone-900/50 text-amber-100 border-amber-600/30 active:border-amber-500 active:bg-amber-900/20' 
+                : 'bg-stone-950 text-amber-200/30 border-stone-800 cursor-not-allowed'}
+          `,
+          selectableItem: (selected: boolean) => `
+            p-5 rounded-lg border transition-all flex flex-col items-center gap-3
+            ${selected 
+              ? 'bg-gradient-to-br from-amber-600/20 to-amber-900/20 border-amber-500 shadow-lg shadow-amber-600/20' 
+              : 'bg-stone-900/50 border-amber-600/20 active:border-amber-500'}
+          `,
+          selectableListItem: (selected: boolean) => `
+            w-full p-5 rounded-lg border transition-all flex items-center justify-between gap-3 text-left
+            ${selected 
+              ? 'bg-gradient-to-br from-amber-600/20 to-amber-900/20 border-amber-500 shadow-lg shadow-amber-600/20' 
+              : 'bg-stone-900/50 border-amber-600/20 active:border-amber-500'}
+          `,
+          selectableItemText: (selected: boolean) => selected ? 'text-amber-100' : 'text-amber-100',
+          selectableItemSubText: (selected: boolean) => selected ? 'text-amber-200/70' : 'text-amber-200/50',
+          infoBox: 'p-6 bg-stone-900/50 border border-amber-600/20 rounded-lg text-amber-100',
+          actionButtonPrimary: 'flex items-center justify-center gap-1 px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-500 text-stone-900 font-semibold rounded shadow-lg shadow-amber-600/20 active:from-amber-500 transition-all text-xs tracking-wide',
+          actionButtonSecondary: 'flex items-center justify-center gap-1 px-4 py-2 bg-transparent border border-amber-600/50 text-amber-200 font-medium rounded active:bg-amber-600/10 transition-all text-xs tracking-wide',
+          summaryBox: 'mb-6 p-4 bg-stone-900/50 rounded-lg border border-amber-600/20 text-sm space-y-2',
+          summaryLabel: 'text-amber-200/60',
+          summaryValue: 'font-medium text-amber-100',
+          summaryLink: 'text-xs text-amber-400 underline w-full text-right mt-2',
+          noticeBox: 'mb-4 p-4 bg-amber-900/20 text-amber-200 text-sm rounded-lg border border-amber-600/30',
+          noticeLink: 'block mt-1 underline font-medium text-amber-300',
+          emptySlotBox: 'text-center py-8 text-amber-200/50 bg-stone-900/30 rounded-lg border border-dashed border-amber-600/30',
+          selectedDateBox: 'mt-4 p-3 rounded-lg border text-center',
+          selectedDateLabel: 'text-sm text-amber-200/60',
+          partySizeDisabled: 'bg-stone-900 text-amber-200/30 cursor-not-allowed',
+          partySizeEnabled: 'bg-amber-900/30 text-amber-200',
+          partySizeText: 'text-2xl font-light min-w-[60px] text-center text-amber-100 tracking-wider',
+          iconColor: '#fbbf24',
+          primaryStyle: {},
+          headerStyle: {},
+          titleStyle: {},
+          cardStyle: {},
+          slotTable: {
+            headerBg: 'bg-stone-900/50',
+            headerText: 'text-amber-200/60',
+            headerBorder: 'border-amber-600/20',
+            timeCellBg: 'bg-stone-900/50',
+            timeCellText: 'text-amber-100',
+            timeCellBorder: 'border-amber-600/10',
+            rowBorder: 'border-amber-600/10',
+            availableBtn: 'bg-stone-900/30 border border-amber-600/30 text-amber-400',
+            availableBtnActive: 'bg-amber-600/20 border-amber-500',
+            unavailableBtn: 'bg-stone-950 text-amber-200/20',
+            emptyCell: 'text-amber-200/10',
+            sundayText: 'text-red-400',
+            saturdayText: 'text-blue-400',
+            weekdayText: 'text-amber-100',
+            legendText: 'text-amber-200/60',
+            legendAvailable: 'border border-amber-600/30 bg-stone-900/30 text-amber-400',
+            legendUnavailable: 'bg-stone-950 text-amber-200/20',
+          },
+        }
+
+      case 'natural':
+        // 木目調・自然を感じさせるブラウン×グリーンのハーモニー
+        return {
+          container: `${common.container} bg-gradient-to-b from-amber-100/60 via-orange-50/40 to-lime-50/30 font-sans`,
+          card: `${common.card} bg-gradient-to-br from-orange-50/95 to-amber-50/90 backdrop-blur border border-amber-300/40 rounded-2xl shadow-xl shadow-amber-900/10`,
+          header: 'p-6 text-center border-b border-amber-200/60 bg-gradient-to-r from-amber-100/50 via-orange-50/30 to-lime-50/40',
+          title: 'text-lg font-semibold text-amber-950 flex items-center justify-center gap-2',
+          label: 'block text-sm font-medium text-amber-900 mb-2',
+          input: `${common.input} bg-white/70 border border-amber-300/60 rounded-xl text-amber-950 focus:border-lime-600 focus:ring-2 focus:ring-lime-200 placeholder-amber-500`,
+          buttonPrimary: 'w-full py-3.5 bg-gradient-to-r from-lime-700 via-lime-600 to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-lime-700/25 active:from-lime-800 active:to-emerald-700 transition-all',
+          buttonSecondary: 'w-full py-3.5 bg-gradient-to-r from-amber-100/80 to-orange-100/60 border border-amber-300/50 text-amber-900 font-medium rounded-xl active:from-amber-200/80 transition-all',
+          slotGrid: 'grid grid-cols-3 gap-3',
+          slotButton: (selected: boolean, available: boolean) => `
+            py-3 rounded-xl text-sm font-medium transition-all border
+            ${selected 
+              ? 'bg-gradient-to-r from-lime-600 to-emerald-600 text-white border-lime-500 shadow-lg shadow-lime-600/25' 
+              : available 
+                ? 'bg-gradient-to-br from-amber-50/80 to-orange-50/60 text-amber-900 border-amber-300/50 active:border-lime-500 active:bg-lime-50/50' 
+                : 'bg-stone-100/40 text-stone-400 border-stone-200/50 cursor-not-allowed'}
+          `,
+          selectableItem: (selected: boolean) => `
+            p-4 rounded-xl border transition-all flex flex-col items-center gap-3
+            ${selected 
+              ? 'bg-gradient-to-br from-lime-100/80 to-emerald-100/60 border-lime-500 shadow-lg shadow-lime-600/15' 
+              : 'bg-gradient-to-br from-amber-50/60 to-orange-50/40 border-amber-300/40 active:border-lime-400'}
+          `,
+          selectableListItem: (selected: boolean) => `
+            w-full p-4 rounded-xl border transition-all flex items-center justify-between gap-3 text-left
+            ${selected 
+              ? 'bg-gradient-to-br from-lime-100/80 to-emerald-100/60 border-lime-500 shadow-lg shadow-lime-600/15' 
+              : 'bg-gradient-to-br from-amber-50/60 to-orange-50/40 border-amber-300/40 active:border-lime-400'}
+          `,
+          selectableItemText: (selected: boolean) => selected ? 'text-lime-900' : 'text-amber-950',
+          selectableItemSubText: (selected: boolean) => selected ? 'text-lime-800' : 'text-amber-800',
+          infoBox: 'p-5 bg-gradient-to-br from-amber-100/60 to-orange-100/40 border border-amber-300/50 rounded-xl text-amber-950',
+          actionButtonPrimary: 'flex items-center justify-center gap-1 px-4 py-2 bg-gradient-to-r from-lime-700 to-emerald-600 text-white font-medium rounded-lg shadow-md shadow-lime-600/20 active:from-lime-800 transition-all text-xs',
+          actionButtonSecondary: 'flex items-center justify-center gap-1 px-4 py-2 bg-gradient-to-r from-amber-100/80 to-orange-100/60 border border-amber-300/50 text-amber-900 font-medium rounded-lg active:from-amber-200/80 transition-all text-xs',
+          summaryBox: 'mb-6 p-4 bg-gradient-to-br from-amber-100/50 via-orange-50/40 to-lime-100/30 rounded-xl border border-amber-300/40 text-sm space-y-1',
+          summaryLabel: 'text-amber-800',
+          summaryValue: 'font-semibold text-amber-950',
+          summaryLink: 'text-xs text-lime-700 underline w-full text-right mt-2',
+          noticeBox: 'mb-4 p-4 bg-gradient-to-r from-amber-100/60 to-orange-100/40 text-amber-900 text-sm rounded-xl border border-amber-300/50',
+          noticeLink: 'block mt-1 underline font-semibold text-lime-700',
+          emptySlotBox: 'text-center py-8 text-amber-600 bg-amber-100/30 rounded-xl border border-dashed border-amber-300/50',
+          selectedDateBox: 'mt-4 p-3 rounded-xl border text-center',
+          selectedDateLabel: 'text-sm text-amber-800',
+          partySizeDisabled: 'bg-stone-100/50 text-stone-400 cursor-not-allowed',
+          partySizeEnabled: 'bg-gradient-to-r from-amber-200/80 to-orange-200/60 text-amber-900',
+          partySizeText: 'text-2xl font-semibold min-w-[60px] text-center text-amber-950',
+          iconColor: '#92400e',
+          primaryStyle: {},
+          headerStyle: {},
+          titleStyle: {},
+          cardStyle: {},
+          slotTable: {
+            headerBg: 'bg-gradient-to-r from-amber-100/70 to-orange-100/50',
+            headerText: 'text-amber-800',
+            headerBorder: 'border-amber-300/40',
+            timeCellBg: 'bg-gradient-to-r from-amber-100/50 to-orange-50/40',
+            timeCellText: 'text-amber-900',
+            timeCellBorder: 'border-amber-200/50',
+            rowBorder: 'border-amber-200/40',
+            availableBtn: 'bg-gradient-to-br from-amber-50/70 to-orange-50/50 border border-amber-300/40 text-lime-800',
+            availableBtnActive: 'bg-gradient-to-br from-lime-100 to-emerald-100 border-lime-500',
+            unavailableBtn: 'bg-stone-100/40 text-stone-400',
+            emptyCell: 'text-amber-300',
+            sundayText: 'text-red-600',
+            saturdayText: 'text-blue-600',
+            weekdayText: 'text-amber-950',
+            legendText: 'text-amber-800',
+            legendAvailable: 'border border-amber-300/40 bg-gradient-to-br from-amber-50/70 to-orange-50/50 text-lime-800',
+            legendUnavailable: 'bg-stone-100/40 text-stone-400',
+          },
+        }
+
       case 'simple':
       default:
         return {
@@ -1337,10 +1486,25 @@ export default function Booking() {
                     </div>
                   )}
                   {selectedMenu && (
-                    <div className="flex justify-between">
-                      <span className={theme.summaryLabel}>メニュー:</span>
-                      <span className={theme.summaryValue}>{selectedMenu.name}</span>
-                    </div>
+                    <>
+                      <div className="flex justify-between">
+                        <span className={theme.summaryLabel}>メニュー:</span>
+                        <span className={theme.summaryValue}>{selectedMenu.name}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className={theme.summaryLabel}>詳細:</span>
+                        <span className={`${theme.summaryValue} flex items-center gap-2 text-sm`}>
+                          {selectedMenu.duration_minutes && (
+                            <span className="flex items-center gap-1">
+                              <Clock size={14} /> {selectedMenu.duration_minutes}分
+                            </span>
+                          )}
+                          {selectedMenu.price && (
+                            <span>¥{selectedMenu.price.toLocaleString()}</span>
+                          )}
+                        </span>
+                      </div>
+                    </>
                   )}
                   {(selectedStaff || selectedMenu) && (
                     <button 

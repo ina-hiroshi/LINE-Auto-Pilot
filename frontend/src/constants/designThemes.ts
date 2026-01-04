@@ -47,9 +47,9 @@ export const DESIGN_THEMES: DesignTheme[] = [
   { 
     id: 'natural', 
     name: 'ナチュラル', 
-    color: 'bg-stone-50 border-stone-200 text-stone-700', 
+    color: 'bg-gradient-to-br from-amber-100 to-orange-50 border-amber-400 text-amber-950', 
     isPro: true,
-    description: '自然な風合いのオーガニックデザイン'
+    description: '木目調ブラウン×リーフグリーンの温かみあるオーガニックデザイン'
   }
 ]
 
