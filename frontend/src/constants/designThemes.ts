@@ -15,28 +15,28 @@ export const DESIGN_THEMES: DesignTheme[] = [
     isPro: false,
     description: '清潔感のある標準的なデザイン'
   },
+  // Pro Themes
   { 
     id: 'elegant', 
     name: 'エレガント', 
     color: 'bg-[#F5F5F0] border-[#E0E0D0] text-[#5D4037]', 
-    isPro: false,
+    isPro: true,
     description: '落ち着いた雰囲気の上品なデザイン'
   },
   { 
     id: 'pop', 
     name: 'ポップ', 
     color: 'bg-cyan-50 border-cyan-200 text-cyan-900', 
-    isPro: false,
+    isPro: true,
     description: '明るく元気な印象のデザイン'
   },
   { 
     id: 'dark', 
     name: 'ダーク', 
     color: 'bg-slate-800 border-slate-700 text-white', 
-    isPro: false,
+    isPro: true,
     description: 'シックで洗練されたダークモード'
   },
-  // Pro Themes
   { 
     id: 'luxury', 
     name: 'ラグジュアリー', 

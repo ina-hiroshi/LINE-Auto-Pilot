@@ -647,8 +647,7 @@ export function BookingPageTab({
                                 </div>
                               )}
                               {isLocked && (
-                                <div className="absolute top-2 right-2 flex items-center gap-1">
-                                  <Lock size={12} className="text-gray-400" />
+                                <div className="absolute top-2 right-2">
                                   <ProBadge />
                                 </div>
                               )}
@@ -661,10 +660,17 @@ export function BookingPageTab({
 
                   <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 space-y-4">
                     {!isPro && (
-                      <div className="mb-4 flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
+                      <div className="mb-4 bg-white p-4 rounded-lg border border-gray-200 space-y-3">
                         <div className="flex items-center gap-2">
-                          <Lock size={14} className="text-gray-400" />
-                          <span className="text-xs text-gray-500">以下のカスタマイズはProプラン限定です</span>
+                          <ProBadge />
+                          <span className="text-sm font-medium text-gray-700">カスタマイズ機能</span>
+                        </div>
+                        <div className="space-y-2 text-xs text-gray-600 pl-6">
+                          <p>• <strong>テーマカラー:</strong> ブランドカラーで予約ページをカスタマイズ</p>
+                          <p>• <strong>背景画像:</strong> 店舗の雰囲気に合わせた背景画像を設定</p>
+                        </div>
+                        <div className="pt-2">
+                          <ProUpgradeButton variant="small-button" label="Proプランにアップグレード" />
                         </div>
                       </div>
                     )}

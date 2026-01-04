@@ -108,8 +108,8 @@ export default function Layout() {
 
       {/* Sidebar (Desktop) */}
       <aside className="hidden md:flex w-64 bg-primary-600 text-white shadow-lg flex-col z-20 transition-all duration-300 h-full shrink-0">
-        {/* Logo Area */}
-        <div className="bg-white h-24 flex flex-col items-center justify-center border-b border-primary-500/20 shrink-0">
+        {/* Logo Area - Height matches header */}
+        <div className="bg-white h-[86px] flex flex-col items-center justify-center border-b border-primary-500/20 shrink-0">
           <img src={iconImage} alt="IToguchi" className="h-10 w-auto" />
         </div>
 

@@ -264,6 +264,14 @@ Deno.serve(async (req) => {
           bgColor = '1e293b' // Slate 800
           textColor = 'ffffff'
           break
+        case 'luxury':
+          bgColor = '1c1917' // Stone 900
+          textColor = 'fef3c7' // Amber 100
+          break
+        case 'natural':
+          bgColor = 'fef3c7' // Amber 100
+          textColor = '451a03' // Amber 950
+          break
         case 'simple':
         default:
           bgColor = 'eeeeee'

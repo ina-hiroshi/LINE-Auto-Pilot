@@ -25,6 +25,7 @@ type Reservation = {
   memo: string
   line_user_id: string
   registration_type?: 'line' | 'manual'
+  google_event_id?: string | null
   customer?: {
     display_name: string
     profile_picture_url: string | null
@@ -781,37 +782,37 @@ export default function Reservations() {
     <div className="flex flex-col h-full">
       <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4">
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">予約管理</h1>
-            <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">予約管理</h1>
               <p className="text-sm text-gray-500">予約の確認・編集・キャンセルなどの管理を行います。</p>
-              <div className="flex gap-2 shrink-0">
-                <div className="bg-gray-100 p-1 rounded-lg flex">
-                  <button 
-                    onClick={() => setViewMode('list')}
-                    className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition whitespace-nowrap ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-                  >
-                    リスト
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setViewMode('calendar')
-                      if (isGoogleConnected && !calendars.length) fetchCalendars()
-                    }}
-                    className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition flex items-center justify-center gap-1 whitespace-nowrap ${viewMode === 'calendar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-                  >
-                    カレンダー
-                    {!isPro && <ProBadge />}
-                  </button>
-                </div>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <div className="bg-gray-100 p-1 rounded-lg flex">
                 <button 
-                  onClick={openCreateModal}
-                  className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 shadow-sm whitespace-nowrap flex items-center gap-2 font-medium"
+                  onClick={() => setViewMode('list')}
+                  className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition whitespace-nowrap ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                 >
-                  <Plus size={18} />
-                  予約登録
+                  リスト
+                </button>
+                <button 
+                  onClick={() => {
+                    setViewMode('calendar')
+                    if (isGoogleConnected && !calendars.length) fetchCalendars()
+                  }}
+                  className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition flex items-center justify-center gap-1 whitespace-nowrap ${viewMode === 'calendar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  カレンダー
+                  {!isPro && <ProBadge />}
                 </button>
               </div>
+              <button 
+                onClick={openCreateModal}
+                className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 shadow-sm whitespace-nowrap flex items-center gap-2 font-medium"
+              >
+                <Plus size={18} />
+                予約登録
+              </button>
             </div>
           </div>
         </div>
@@ -1274,9 +1275,18 @@ export default function Reservations() {
                             // Filter Reservations
                             const dayReservations = reservations.filter(r => isSameDay(new Date(r.start_time), d.date))
                             
-                            // Filter Google Events
+                            // Supabaseの予約に紐付いたgoogle_event_idを取得
+                            const linkedGoogleEventIds = new Set(
+                              reservations
+                                .filter(r => r.google_event_id)
+                                .map(r => r.google_event_id)
+                            )
+                            
+                            // Filter Google Events（Supabaseの予約と重複するものは除外）
                             const dayGoogleEvents = googleEvents.filter(e => {
                               if (!e.start.dateTime && !e.start.date) return false
+                              // Supabaseの予約に紐付いたイベントは除外
+                              if (linkedGoogleEventIds.has(e.id)) return false
                               const start = new Date(e.start.dateTime || e.start.date!)
                               return isSameDay(start, d.date)
                             })
@@ -1374,9 +1384,18 @@ export default function Reservations() {
                                 // Filter Reservations
                                 const dayReservations = reservations.filter(r => isSameDay(new Date(r.start_time), d))
                                 
-                                // Filter Google Events
+                                // Supabaseの予約に紐付いたgoogle_event_idを取得
+                                const linkedGoogleEventIds = new Set(
+                                  reservations
+                                    .filter(r => r.google_event_id)
+                                    .map(r => r.google_event_id)
+                                )
+                                
+                                // Filter Google Events（Supabaseの予約と重複するものは除外）
                                 const dayGoogleEvents = googleEvents.filter(e => {
                                   if (!e.start.dateTime && !e.start.date) return false
+                                  // Supabaseの予約に紐付いたイベントは除外
+                                  if (linkedGoogleEventIds.has(e.id)) return false
                                   const start = new Date(e.start.dateTime || e.start.date!)
                                   return isSameDay(start, d)
                                 })

@@ -1941,14 +1941,58 @@ export default function Booking() {
                 <CheckCircle size={40} />
               </div>
               <h2 className={theme.title} style={theme.titleStyle}>{modifyingReservationId ? '変更完了' : '予約完了'}</h2>
-              <p className="mb-8 opacity-70 whitespace-nowrap">{modifyingReservationId ? '予約の変更が完了しました。' : 'ご予約ありがとうございます。'}</p>
+              <p className="mb-6 opacity-70 whitespace-nowrap">{modifyingReservationId ? '予約の変更が完了しました。' : 'ご予約ありがとうございます。'}</p>
               
               {/* Reservation Details Card for Screenshot */}
               <div className={`${theme.infoBox} text-left mb-8`}>
-                 <div className="text-xs opacity-70 mb-1">予約日時</div>
-                 <div className="text-xl font-bold mb-4">{date} {time}</div>
-                 <div className="text-xs opacity-70 mb-1">お名前</div>
-                 <div className="text-lg font-bold">{realName} 様</div>
+                {/* 予約日時 */}
+                <div className="mb-4">
+                  <div className="text-xs opacity-70 mb-1">予約日時</div>
+                  <div className="text-xl font-bold">{date} {time}</div>
+                </div>
+
+                {/* お名前 */}
+                <div className="mb-4">
+                  <div className="text-xs opacity-70 mb-1">お名前</div>
+                  <div className="text-lg font-bold">{realName} 様</div>
+                </div>
+
+                {/* 担当者（選択されている場合のみ表示） */}
+                {selectedStaff && (
+                  <div className="mb-4">
+                    <div className="text-xs opacity-70 mb-1">担当</div>
+                    <div className="text-base font-semibold">{selectedStaff.name}</div>
+                  </div>
+                )}
+
+                {/* メニュー（選択されている場合のみ表示） */}
+                {selectedMenu && (
+                  <div className="mb-4">
+                    <div className="text-xs opacity-70 mb-1">メニュー</div>
+                    <div className="text-base font-semibold">{selectedMenu.name}</div>
+                    <div className="text-sm opacity-70 mt-1">
+                      {selectedMenu.duration_minutes && `${selectedMenu.duration_minutes}分`}
+                      {selectedMenu.duration_minutes && selectedMenu.price && ' / '}
+                      {selectedMenu.price && `¥${selectedMenu.price.toLocaleString()}`}
+                    </div>
+                  </div>
+                )}
+
+                {/* 人数（人数選択が有効で2名以上の場合のみ表示） */}
+                {storeSettings.booking_enable_party_size && partySize > 1 && (
+                  <div className="mb-4">
+                    <div className="text-xs opacity-70 mb-1">人数</div>
+                    <div className="text-base font-semibold">{partySize}名</div>
+                  </div>
+                )}
+
+                {/* 人数選択が有効で1名の場合も表示 */}
+                {storeSettings.booking_enable_party_size && partySize === 1 && (
+                  <div>
+                    <div className="text-xs opacity-70 mb-1">人数</div>
+                    <div className="text-base font-semibold">{partySize}名</div>
+                  </div>
+                )}
               </div>
 
               <button 

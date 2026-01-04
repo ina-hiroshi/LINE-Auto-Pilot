@@ -47,6 +47,17 @@ export interface RichMenuAction {
   label: string
   url: string
   icon: string
+  is_enabled?: boolean
+  show_icon?: boolean
+  show_label?: boolean
+  background_image_url?: string
+}
+
+export interface RichMenuSlotConfig {
+  slot_type: 'booking' | 'message' | 'member_card' | 'custom'
+  action: RichMenuAction
+  background_image_url?: string
+  show_icon?: boolean
 }
 
 export interface RichMenuSettings {
@@ -54,6 +65,9 @@ export interface RichMenuSettings {
   layout_id: string
   custom_image_url: string
   actions: Record<number, RichMenuAction>
+  // Pro features
+  slot_configs?: Record<number, RichMenuSlotConfig>
+  slot_background_images?: Record<number, string>
 }
 
 export interface ProfileData {

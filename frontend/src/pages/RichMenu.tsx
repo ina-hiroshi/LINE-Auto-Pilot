@@ -29,6 +29,10 @@ export default function RichMenu() {
   })
   const previewRef = useRef<HTMLDivElement>(null)
 
+  const handleToast = (message: string, type: 'success' | 'error') => {
+    setToast({ isVisible: true, message, type })
+  }
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -297,19 +301,21 @@ export default function RichMenu() {
       />
       
       <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">リッチメニュー</h1>
-            <p className="text-sm text-gray-500">LINEトーク画面下部のメニューデザインと動作を設定します。</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">リッチメニュー</h1>
+              <p className="text-sm text-gray-500">LINEトーク画面下部のメニューデザインと動作を設定します。</p>
+            </div>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm shrink-0"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
+              {saving ? '保存中...' : 'LINEに適用'}
+            </button>
           </div>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm shrink-0 w-full sm:w-auto"
-          >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
-            {saving ? '保存中...' : 'LINEに適用'}
-          </button>
         </div>
       </div>
 
@@ -321,6 +327,8 @@ export default function RichMenu() {
           onChangeSettings={setRichMenuSettings}
           previewRef={previewRef}
           isPro={isPro}
+          storeId={storeId}
+          onToast={handleToast}
         />
       </div>
         </div>

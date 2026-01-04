@@ -1,11 +1,23 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { Loader2, CreditCard, Save, Layout, Palette, Settings, Award, Stamp, Trash2 } from 'lucide-react'
+import { Loader2, CreditCard, Save, Layout, Palette, Settings, Award, Stamp, Trash2, Upload, Lock, Image as ImageIcon } from 'lucide-react'
 import ProBadge from '../components/ProBadge'
 import ProUpgradeButton from '../components/ProUpgradeButton'
 import Toast from '../components/Toast'
 import { usePlan } from '../hooks/usePlan'
 import { DESIGN_THEMES } from '../constants/designThemes'
+
+// プリセットカラー
+const PRESET_COLORS = [
+  { name: 'ブルー', color: '#3B82F6' },
+  { name: 'シアン', color: '#00c3dc' },
+  { name: 'グリーン', color: '#10B981' },
+  { name: 'レッド', color: '#EF4444' },
+  { name: 'オレンジ', color: '#F97316' },
+  { name: 'パープル', color: '#8B5CF6' },
+  { name: 'ピンク', color: '#EC4899' },
+  { name: 'ブラック', color: '#1F2937' },
+]
 
 type CardType = 'point' | 'stamp'
 type NameDisplay = 'real_kanji' | 'real_romaji' | 'line_name'
@@ -63,6 +75,9 @@ export default function MembershipCard() {
   const [settings, setSettings] = useState<MembershipCardSettings>(DEFAULT_SETTINGS)
   const [storeId, setStoreId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'rank'>('design')
+  const [uploading, setUploading] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [toast, setToast] = useState<{ isVisible: boolean; message: string; type: 'success' | 'error' }>({
     isVisible: false,
     message: '',
@@ -161,6 +176,76 @@ export default function MembershipCard() {
     }
   }
 
+  // ロゴ画像アップロード処理
+  const handleLogoUpload = useCallback(async (file: File) => {
+    if (!storeId) return
+    
+    // ファイルサイズチェック (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setToast({ isVisible: true, message: 'ファイルサイズは5MB以下にしてください', type: 'error' })
+      return
+    }
+
+    // 画像ファイルチェック
+    if (!file.type.startsWith('image/')) {
+      setToast({ isVisible: true, message: '画像ファイルを選択してください', type: 'error' })
+      return
+    }
+
+    setUploading(true)
+    try {
+      const ext = file.name.split('.').pop() || 'png'
+      const fileName = `membership-card-logo-${storeId}-${Date.now()}.${ext}`
+      const filePath = `${storeId}/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('store-assets')
+        .upload(filePath, file, { upsert: true })
+
+      if (uploadError) throw uploadError
+
+      const { data: publicUrlData } = supabase.storage
+        .from('store-assets')
+        .getPublicUrl(filePath)
+
+      const newUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`
+      setSettings(prev => ({ ...prev, logo_url: newUrl }))
+      setToast({ isVisible: true, message: 'ロゴ画像をアップロードしました', type: 'success' })
+    } catch (error) {
+      console.error('Logo upload failed:', error)
+      setToast({ isVisible: true, message: 'アップロードに失敗しました', type: 'error' })
+    } finally {
+      setUploading(false)
+    }
+  }, [storeId])
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) handleLogoUpload(file)
+  }, [handleLogoUpload])
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) handleLogoUpload(file)
+  }, [handleLogoUpload])
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }, [])
+
+  const handleLogoDelete = useCallback(() => {
+    setSettings(prev => ({ ...prev, logo_url: null }))
+    setToast({ isVisible: true, message: 'ロゴ画像を削除しました', type: 'success' })
+  }, [])
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -179,19 +264,21 @@ export default function MembershipCard() {
       />
       
       <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">デジタル会員証</h1>
-            <p className="text-sm text-gray-500">LINE上で表示される会員証のデザインと機能を設定します。</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">デジタル会員証</h1>
+              <p className="text-sm text-gray-500">会員証のデザインと表示内容をカスタマイズできます。</p>
+            </div>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm shrink-0"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
+              {saving ? '保存中...' : '設定を保存'}
+            </button>
           </div>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm shrink-0 w-full sm:w-auto"
-          >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
-            {saving ? '保存中...' : '設定を保存'}
-          </button>
         </div>
       </div>
 
@@ -239,6 +326,22 @@ export default function MembershipCard() {
           <div className="space-y-8">
             {activeTab === 'design' && (
               <>
+                {/* Free Plan Notice */}
+                {!isPro && (
+                  <div className="flex items-start justify-between bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                        <Lock size={20} className="text-amber-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-amber-800">デザイン設定はProプラン限定です</p>
+                        <p className="text-xs text-amber-600 mt-0.5">Freeプランでは「シンプル」テーマのみ選択可能です</p>
+                      </div>
+                    </div>
+                    <ProUpgradeButton variant="small-button" label="アップグレード" />
+                  </div>
+                )}
+
                 {/* Card Type */}
                 <div className="mb-8">
                   <label className="block text-sm font-medium text-gray-700 mb-2">カードタイプ</label>
@@ -287,14 +390,15 @@ export default function MembershipCard() {
                   <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                     <Palette size={16} /> デザインテーマ
                   </h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <p className="text-xs text-gray-500 -mt-2 mb-4">テーマカラーを選択することで、配色を変更できます</p>
+                  <div className="grid grid-cols-2 gap-3">
                     {DESIGN_THEMES.map((template) => {
-                      const isLocked = !isPro && template.isPro
+                      const isLocked = !isPro && template.id !== 'simple'
                       return (
                         <div key={template.id} className="relative">
                           <label
                             className={`
-                              relative rounded-lg border-2 p-4 transition-all flex flex-col items-center justify-center gap-2 h-24 w-full
+                              relative rounded-lg border-2 p-4 transition-all flex flex-col items-center justify-center gap-2 h-28 w-full
                               ${settings.template_id === template.id
                                 ? 'border-primary-500 ring-2 ring-primary-100'
                                 : 'border-gray-200'}
@@ -311,7 +415,10 @@ export default function MembershipCard() {
                               className="sr-only"
                               disabled={isLocked}
                             />
-                            <span className="font-bold text-sm">{template.name}</span>
+                            <div className="text-center text-sm font-medium">{template.name}</div>
+                            {template.description && (
+                              <div className="text-center text-[10px] opacity-70 px-2">{template.description}</div>
+                            )}
                             {settings.template_id === template.id && (
                               <div className="absolute top-2 right-2 w-4 h-4 bg-primary-500 rounded-full flex items-center justify-center">
                                 <div className="w-2 h-2 bg-white rounded-full" />
@@ -330,49 +437,151 @@ export default function MembershipCard() {
                 </div>
 
                 {/* Pro Features Section */}
-                <div className="border-t pt-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                      カスタマイズ
-                    </h3>
-                  </div>
-
+                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 space-y-4">
                   {!isPro && (
-                    <div className="mb-4 flex items-center justify-between bg-gray-50 p-3 rounded-lg border border-gray-100">
+                    <div className="mb-4 bg-white p-4 rounded-lg border border-gray-200 space-y-3">
                       <div className="flex items-center gap-2">
                         <ProBadge />
-                        <span className="text-xs text-gray-500">カスタマイズ機能はProプラン限定です</span>
+                        <span className="text-sm font-medium text-gray-700">カスタマイズ機能</span>
                       </div>
-                      <ProUpgradeButton variant="small-button" label="アップグレード" />
+                      <div className="space-y-2 text-xs text-gray-600 pl-6">
+                        <p>• <strong>テーマカラー:</strong> ブランドカラーで会員証をカスタマイズ</p>
+                        <p>• <strong>ロゴ画像:</strong> 店舗ロゴをアップロードして表示</p>
+                      </div>
+                      <div className="pt-2">
+                        <ProUpgradeButton variant="small-button" label="Proプランにアップグレード" />
+                      </div>
                     </div>
                   )}
 
                   <div className={`space-y-6 ${!isPro ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        カードカラー
-                      </label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="color"
-                          value={settings.color}
-                          onChange={(e) => setSettings(prev => ({ ...prev, color: e.target.value }))}
-                          className="h-10 w-20 p-1 border border-gray-300 rounded-md cursor-pointer"
-                        />
-                        <span className="text-sm text-gray-500">{settings.color}</span>
+                      <div className="flex items-center justify-between mb-3">
+                        <label className="block text-xs font-semibold text-gray-600">テーマカラー</label>
+                      </div>
+                      
+                      {/* プリセットカラー */}
+                      <div className="mb-4">
+                        <p className="text-xs text-gray-500 mb-2">プリセットから選択</p>
+                        <div className="flex flex-wrap gap-2">
+                          {PRESET_COLORS.map((preset) => (
+                            <button
+                              key={preset.color}
+                              type="button"
+                              onClick={() => setSettings(prev => ({ ...prev, color: preset.color }))}
+                              className={`w-8 h-8 rounded-full border-2 transition-all hover:scale-110 ${
+                                settings.color === preset.color 
+                                  ? 'border-gray-800 ring-2 ring-offset-2 ring-gray-400' 
+                                  : 'border-gray-200'
+                              }`}
+                              style={{ backgroundColor: preset.color }}
+                              title={preset.name}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* カスタムカラー */}
+                      <div>
+                        <p className="text-xs text-gray-500 mb-2">カスタムカラー</p>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="color"
+                            value={settings.color}
+                            onChange={(e) => setSettings(prev => ({ ...prev, color: e.target.value }))}
+                            className="w-12 h-12 rounded-lg border-2 border-gray-200 p-1 cursor-pointer hover:border-gray-300 transition-colors"
+                          />
+                          <input
+                            type="text"
+                            value={settings.color}
+                            onChange={(e) => setSettings(prev => ({ ...prev, color: e.target.value }))}
+                            className="border rounded-lg px-3 py-2 text-sm w-32 font-mono"
+                            placeholder="#00c3dc"
+                          />
+                          <div 
+                            className="w-12 h-12 rounded-lg border-2 border-gray-200"
+                            style={{ backgroundColor: settings.color }}
+                          />
+                        </div>
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        ロゴ・背景画像 URL
-                      </label>
+                      <div className="flex items-center justify-between mb-3">
+                        <label className="block text-xs font-semibold text-gray-600 flex items-center gap-2">
+                          <ImageIcon size={14} /> ロゴ画像
+                        </label>
+                      </div>
+                      
+                      {/* ドラッグ&ドロップエリア */}
+                      <div
+                        onDrop={handleDrop}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
+                          isDragging 
+                            ? 'border-primary-500 bg-primary-50' 
+                            : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+                        }`}
+                      >
+                        {settings.logo_url ? (
+                          <div className="space-y-3">
+                            <img 
+                              key={settings.logo_url}
+                              src={settings.logo_url.includes('?') 
+                                ? settings.logo_url 
+                                : `${settings.logo_url}?t=${Date.now()}`}
+                              alt="ロゴプレビュー" 
+                              className="max-h-20 mx-auto rounded"
+                              onError={(e) => {
+                                console.error('Logo image failed to load:', settings.logo_url);
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="text-xs text-primary-600 hover:text-primary-700 underline"
+                                disabled={uploading}
+                              >
+                                変更する
+                              </button>
+                              <span className="text-gray-300">|</span>
+                              <button
+                                type="button"
+                                onClick={handleLogoDelete}
+                                className="text-xs text-red-600 hover:text-red-700 underline"
+                              >
+                                削除
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <Upload size={32} className="mx-auto text-gray-400" />
+                            <p className="text-sm text-gray-600">
+                              画像をドラッグ&ドロップ<br />
+                              <span className="text-xs text-gray-400">または</span>
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                              disabled={uploading}
+                            >
+                              {uploading ? '処理中...' : 'ファイルを選択'}
+                            </button>
+                            <p className="text-xs text-gray-400">PNG, JPG, GIF (最大5MB)</p>
+                          </div>
+                        )}
+                      </div>
                       <input
-                        type="text"
-                        value={settings.logo_url || ''}
-                        onChange={(e) => setSettings(prev => ({ ...prev, logo_url: e.target.value }))}
-                        placeholder="https://example.com/logo.png"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileChange}
+                        className="hidden"
                       />
                     </div>
                   </div>
@@ -539,57 +748,74 @@ export default function MembershipCard() {
               <Layout size={16} /> プレビュー
             </h3>
             <div className={`flex justify-center p-8 rounded-lg transition-colors duration-300 ${
-            settings.template_id === 'dark' || settings.template_id === 'luxury' ? 'bg-slate-950' : 
+            settings.template_id === 'dark' ? 'bg-slate-950' : 
+            settings.template_id === 'luxury' ? 'bg-gradient-to-br from-stone-950 via-stone-900 to-stone-950' :
             settings.template_id === 'elegant' ? 'bg-[#F5F5F0]' :
             settings.template_id === 'pop' ? 'bg-primary-50' : 
-            settings.template_id === 'natural' ? 'bg-stone-100' : 'bg-gray-100'
+            settings.template_id === 'natural' ? 'bg-gradient-to-b from-amber-100/60 via-orange-50/40 to-lime-50/30' : 'bg-gray-100'
           }`}>
-            <div 
-              className={`
-                w-full max-w-sm min-h-[220px] rounded-xl shadow-xl p-4 relative overflow-hidden transition-all duration-300 flex flex-col
-                ${settings.template_id === 'simple' ? 'text-gray-800 bg-white border border-gray-100' : 
-                  settings.template_id === 'elegant' ? 'text-[#44403C] border border-[#E7E5E4]' :
-                  settings.template_id === 'pop' ? 'text-gray-800 bg-white border-2 border-white' :
-                  settings.template_id === 'luxury' ? 'text-amber-100 bg-stone-900 border border-amber-900' :
-                  settings.template_id === 'natural' ? 'text-stone-700 bg-[#FAF9F6] border border-stone-200' :
-                  'text-slate-200 bg-slate-900 border border-slate-700'}
-              `}
-              style={{ 
-                backgroundColor: settings.template_id === 'pop' ? '#FFFFFF' : 
-                               settings.template_id === 'elegant' ? '#FFFFFF' : 
-                               settings.template_id === 'natural' ? '#FAF9F6' : undefined
-              }}
-            >
+              <div className="w-full max-w-sm space-y-4">
+                {/* Member Card */}
+                <div 
+                  key={`${settings.template_id}-${settings.color}`}
+                  className={`
+                    w-full min-h-[220px] rounded-xl shadow-xl p-4 relative overflow-hidden transition-all duration-300 flex flex-col
+                    ${settings.template_id === 'simple' ? 'text-gray-800 bg-white border border-gray-100' : 
+                      settings.template_id === 'elegant' ? 'text-[#44403C] border border-[#E7E5E4]' :
+                      settings.template_id === 'pop' ? 'text-gray-800 bg-white border-2 border-white' :
+                      settings.template_id === 'luxury' ? 'text-amber-100 bg-gradient-to-br from-stone-900 to-stone-950 border border-amber-600/30 shadow-[0_0_30px_-10px_rgba(217,119,6,0.3)]' :
+                      settings.template_id === 'natural' ? 'text-amber-950 bg-gradient-to-br from-orange-50/95 to-amber-50/90 border border-amber-300/40 shadow-lg shadow-amber-900/10' :
+                      'text-slate-200 bg-slate-900 border border-slate-700'}
+                  `}
+                  style={{ 
+                    backgroundColor: settings.template_id === 'pop' ? '#FFFFFF' : 
+                                   settings.template_id === 'elegant' ? '#FFFFFF' : undefined
+                  }}
+                >
               {/* Background Accents based on Template */}
               {settings.template_id === 'simple' && (
-                <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: settings.color }}></div>
+                <>
+                  <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: settings.color }}></div>
+                  <div className="absolute bottom-0 left-0 w-full h-1" style={{ backgroundColor: settings.color, opacity: 0.3 }}></div>
+                </>
               )}
               {settings.template_id === 'elegant' && (
-                <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(#44403C 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+                <>
+                  <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(#44403C 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+                  <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: settings.color }}></div>
+                  <div className="absolute bottom-0 left-0 w-full h-1" style={{ backgroundColor: settings.color, opacity: 0.3 }}></div>
+                </>
               )}
               {settings.template_id === 'pop' && (
                 <>
                   <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-200 rounded-bl-full opacity-50"></div>
-                  <div className="absolute bottom-0 left-0 w-16 h-16 bg-primary-200 rounded-tr-full opacity-50"></div>
+                  <div className="absolute bottom-0 left-0 w-16 h-16 rounded-tr-full opacity-50" style={{ backgroundColor: settings.color }}></div>
+                  <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: settings.color }}></div>
                 </>
               )}
               {settings.template_id === 'dark' && (
                 <>
                   <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.05)_50%,transparent_75%,transparent_100%)] bg-[length:20px_20px]"></div>
                   <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-bl from-slate-800/50 to-transparent"></div>
+                  <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: settings.color }}></div>
+                  <div className="absolute bottom-0 left-0 w-full h-1" style={{ backgroundColor: settings.color, opacity: 0.3 }}></div>
                 </>
               )}
               {settings.template_id === 'luxury' && (
                 <>
                   <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(251,191,36,0.05)_50%,transparent_75%,transparent_100%)] bg-[length:20px_20px]"></div>
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-700 via-amber-400 to-amber-700"></div>
-                  <div className="absolute bottom-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl"></div>
+                  <div className="absolute top-0 left-0 w-full h-2" style={{ background: `linear-gradient(to right, ${settings.color}CC, ${settings.color}, ${settings.color}CC)` }}></div>
+                  <div className="absolute bottom-0 right-0 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl"></div>
+                  <div className="absolute top-0 left-0 w-24 h-24 bg-amber-400/5 rounded-full blur-2xl"></div>
                 </>
               )}
               {settings.template_id === 'natural' && (
                 <>
-                  <div className="absolute top-0 left-0 w-full h-full opacity-10" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' viewBox=\'0 0 20 20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'%239C92AC\' fill-opacity=\'0.4\' fill-rule=\'evenodd\'%3E%3Ccircle cx=\'3\' cy=\'3\' r=\'3\'/%3E%3Ccircle cx=\'13\' cy=\'13\' r=\'3\'/%3E%3C/g%3E%3C/svg%3E")' }}></div>
-                  <div className="absolute -top-4 -right-4 w-24 h-24 bg-green-100 rounded-full opacity-50"></div>
+                  <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(circle at 30% 20%, rgba(132, 204, 22, 0.15) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(251, 191, 36, 0.1) 0%, transparent 50%)' }}></div>
+                  <div className="absolute -top-6 -right-6 w-28 h-28 bg-lime-200/40 rounded-full blur-xl"></div>
+                  <div className="absolute -bottom-4 -left-4 w-20 h-20 bg-amber-200/30 rounded-full blur-xl"></div>
+                  <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: settings.color }}></div>
+                  <div className="absolute bottom-0 left-0 w-full h-1" style={{ backgroundColor: settings.color, opacity: 0.3 }}></div>
                 </>
               )}
 
@@ -603,8 +829,8 @@ export default function MembershipCard() {
                       settings.template_id === 'simple' ? 'bg-gray-50' : 
                       settings.template_id === 'elegant' ? 'bg-[#F5F5F0]' :
                       settings.template_id === 'pop' ? 'bg-primary-100 text-primary-600' :
-                      settings.template_id === 'luxury' ? 'bg-stone-800 text-amber-400' :
-                      settings.template_id === 'natural' ? 'bg-stone-100 text-stone-600' :
+                      settings.template_id === 'luxury' ? 'bg-stone-800/50 text-amber-400 border border-amber-600/20' :
+                      settings.template_id === 'natural' ? 'bg-amber-100/60 text-amber-800 border border-amber-300/40' :
                       'bg-slate-800 text-slate-400'
                     }`}>
                       <img src={settings.logo_url} alt="Logo" className="w-6 h-6 object-contain" />
@@ -625,24 +851,41 @@ export default function MembershipCard() {
                         }, minmax(0, 1fr))`
                       }}
                     >
-                      {Array.from({ length: settings.stamp_config.total_slots }).map((_, i) => (
-                        <div key={i} className={`aspect-square rounded-full border flex items-center justify-center ${
-                          settings.stamp_config.total_slots > 30 ? 'text-[6px]' : 'text-[8px]'
-                        } ${
-                          i < 3 
-                            ? (settings.template_id === 'pop' ? 'border-primary-500 text-primary-500 bg-primary-50' : 
-                               settings.template_id === 'luxury' ? 'border-amber-500 text-amber-500 bg-amber-900/30' :
-                               settings.template_id === 'natural' ? 'border-green-600 text-green-600 bg-green-50' :
-                               'border-current opacity-80') 
-                            : (settings.template_id === 'dark' || settings.template_id === 'luxury' ? 'border-slate-700 text-slate-700' : 'border-gray-200 text-gray-300')
-                        }`}>
-                          {i < 3 ? <Stamp className={settings.stamp_config.total_slots > 30 ? "w-2 h-2" : "w-2.5 h-2.5"} /> : i + 1}
+                      {Array.from({ length: settings.stamp_config.total_slots }).map((_, i) => {
+                        const isStamped = i < 3
+                        const stampedStyle = {
+                          borderColor: settings.color,
+                          color: settings.color,
+                          backgroundColor: `${settings.color}20`
+                        }
+                        
+                        return (
+                        <div 
+                          key={`stamp-${i}-${settings.color}`}
+                          className={`aspect-square rounded-full border flex items-center justify-center transition-all duration-300 ${
+                            settings.stamp_config.total_slots > 30 ? 'text-[6px]' : 'text-[8px]'
+                          } ${
+                            isStamped ? 'opacity-100' : 
+                            (settings.template_id === 'dark' ? 'border-slate-700 text-slate-700' : 
+                             settings.template_id === 'luxury' ? 'border-amber-600/30 text-amber-200/30' :
+                             settings.template_id === 'natural' ? 'border-amber-300/50 text-amber-400/60' :
+                             'border-gray-200 text-gray-300')
+                          }`}
+                          style={isStamped ? stampedStyle : undefined}
+                        >
+                          {isStamped ? <Stamp className={settings.stamp_config.total_slots > 30 ? "w-2 h-2" : "w-2.5 h-2.5"} /> : i + 1}
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
                     
                     <div className="space-y-0.5 mt-auto">
-                      <div className={`text-right text-[10px] ${settings.template_id === 'dark' || settings.template_id === 'luxury' ? 'text-slate-400' : 'text-gray-500'}`}>
+                      <div className={`text-right text-[10px] ${
+                        settings.template_id === 'dark' ? 'text-slate-400' : 
+                        settings.template_id === 'luxury' ? 'text-amber-200/60' :
+                        settings.template_id === 'natural' ? 'text-amber-700' :
+                        'text-gray-500'
+                      }`}>
                         あと {settings.stamp_config.total_slots - 3} 個で {settings.stamp_config.goal_reward}
                       </div>
 
@@ -661,7 +904,8 @@ export default function MembershipCard() {
                           settings.template_id === 'simple' ? 'text-gray-500' :
                           settings.template_id === 'elegant' ? 'text-[#44403C]/80' :
                           settings.template_id === 'pop' ? 'text-gray-600' :
-                          settings.template_id === 'natural' ? 'text-stone-500' :
+                          settings.template_id === 'luxury' ? 'text-amber-200/50' :
+                          settings.template_id === 'natural' ? 'text-amber-800' :
                           'text-slate-400'
                         }`}>
                           {settings.show_member_no && <span>No. 00000001</span>}
@@ -682,7 +926,16 @@ export default function MembershipCard() {
                       </div>
                       <div className="text-right">
                         <p className={`text-xs mb-1 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>POINTS</p>
-                        <p className={`text-2xl font-bold ${settings.template_id === 'pop' ? 'text-primary-600' : settings.template_id === 'elegant' ? 'font-serif' : ''}`}>1,250 pt</p>
+                        <p 
+                          key={`points-${settings.color}`}
+                          className={`text-2xl font-bold transition-colors duration-300 ${
+                            settings.template_id === 'elegant' ? 'font-serif' : 
+                            settings.template_id === 'luxury' ? 'font-light tracking-wider' : ''
+                          }`}
+                          style={{ color: settings.color }}
+                        >
+                          1,250 pt
+                        </p>
                       </div>
                     </div>
                     
@@ -691,7 +944,8 @@ export default function MembershipCard() {
                         settings.template_id === 'simple' ? 'border-gray-100 text-gray-400' :
                         settings.template_id === 'elegant' ? 'border-[#E7E5E4]' :
                         settings.template_id === 'pop' ? 'border-gray-100 text-gray-500' :
-                        settings.template_id === 'natural' ? 'border-stone-200 text-stone-500' :
+                        settings.template_id === 'luxury' ? 'border-amber-600/20 text-amber-200/50' :
+                        settings.template_id === 'natural' ? 'border-amber-300/40 text-amber-800' :
                         'border-slate-700 text-slate-500'
                       }`}>
                         {settings.show_member_no && <span>No. 00000001</span>}
@@ -702,15 +956,68 @@ export default function MembershipCard() {
                 )}
               </div>
             </div>
+
+            {/* QR Code Section */}
+            <div 
+              key={`qr-${settings.template_id}-${settings.color}`}
+              className={`rounded-xl shadow-sm p-6 text-center space-y-4 ${
+              settings.template_id === 'dark' ? 'bg-slate-900 text-slate-200' :
+              settings.template_id === 'luxury' ? 'bg-stone-900 text-amber-100 border border-amber-600/20' :
+              settings.template_id === 'natural' ? 'bg-white text-amber-950 border border-amber-200' :
+              'bg-white text-gray-800'
+            }`}>
+              <p className={`text-sm ${
+                settings.template_id === 'dark' ? 'text-slate-400' :
+                settings.template_id === 'luxury' ? 'text-amber-200/60' :
+                settings.template_id === 'natural' ? 'text-amber-700' :
+                'text-gray-500'
+              }`}>
+                会員QRコード
+              </p>
+              <div className="flex justify-center">
+                <div 
+                  className="p-3 rounded-lg inline-block transition-all duration-300"
+                  style={{
+                    border: `2px solid ${settings.color}`,
+                    backgroundColor: `${settings.color}08`
+                  }}
+                >
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent('PREVIEW_MEMBER_001')}`}
+                    alt="Member QR Code"
+                    className="w-32 h-32"
+                  />
+                </div>
+              </div>
+              <p className={`text-xs ${
+                settings.template_id === 'dark' ? 'text-slate-500' :
+                settings.template_id === 'luxury' ? 'text-amber-200/40' :
+                settings.template_id === 'natural' ? 'text-amber-600' :
+                'text-gray-400'
+              }`}>
+                No. 00000001
+              </p>
+              <p className={`text-[10px] ${
+                settings.template_id === 'dark' ? 'text-slate-600' :
+                settings.template_id === 'luxury' ? 'text-amber-200/30' :
+                settings.template_id === 'natural' ? 'text-amber-500' :
+                'text-gray-300'
+              }`}>
+                スタッフに提示してください
+              </p>
+            </div>
+
+            {/* Note */}
+            <p className="text-xs text-gray-500 text-center">
+              ※ 実際の表示は端末やLINEのバージョンにより異なる場合があります
+            </p>
           </div>
-          <p className="text-sm text-gray-500 mt-4 text-center">
-            ※ 実際の表示は端末やLINEのバージョンにより異なる場合があります
-          </p>
         </div>
       </div>
         </div>
       </div>
-    </div>
+        </div>
+      </div>
     </div>
   )
 }

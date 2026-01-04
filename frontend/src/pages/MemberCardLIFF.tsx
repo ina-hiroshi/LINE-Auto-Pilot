@@ -285,6 +285,8 @@ export default function MemberCardLIFF() {
       case 'dark': return 'bg-slate-950'
       case 'elegant': return 'bg-[#F5F5F0]'
       case 'pop': return 'bg-primary-50'
+      case 'luxury': return 'bg-gradient-to-br from-stone-950 via-stone-900 to-stone-950'
+      case 'natural': return 'bg-gradient-to-b from-amber-100/60 via-orange-50/40 to-lime-50/30'
       default: return 'bg-gray-100' // simple
     }
   }
@@ -298,6 +300,8 @@ export default function MemberCardLIFF() {
       case 'elegant': return `${base} text-[#44403C] border border-[#E7E5E4] bg-white`
       case 'pop': return `${base} text-gray-800 border-2 border-white bg-white`
       case 'dark': return `${base} text-slate-200 border border-slate-700 bg-slate-900`
+      case 'luxury': return `${base} text-amber-100 bg-gradient-to-br from-stone-900 to-stone-950 border border-amber-600/30 shadow-[0_0_30px_-10px_rgba(217,119,6,0.3)]`
+      case 'natural': return `${base} text-amber-950 bg-gradient-to-br from-orange-50/95 to-amber-50/90 border border-amber-300/40 shadow-lg shadow-amber-900/10`
       default: return `${base} text-white`
     }
   }
@@ -307,7 +311,21 @@ export default function MemberCardLIFF() {
     if (settings.template_id === 'pop' || settings.template_id === 'elegant') {
       return { backgroundColor: '#FFFFFF' }
     }
+    // luxuryとnaturalはクラスでグラデーション設定済み
     return {} 
+  }
+
+  // ロゴアイコンのスタイルを取得
+  const getLogoStyle = () => {
+    switch (settings.template_id) {
+      case 'simple': return 'bg-gray-50'
+      case 'elegant': return 'bg-[#F5F5F0]'
+      case 'pop': return 'bg-primary-100 text-primary-600'
+      case 'dark': return 'bg-slate-800 text-slate-400'
+      case 'luxury': return 'bg-stone-800/50 text-amber-400 border border-amber-600/20'
+      case 'natural': return 'bg-amber-100/60 text-amber-800 border border-amber-300/40'
+      default: return 'bg-gray-50'
+    }
   }
 
   return (
@@ -321,21 +339,48 @@ export default function MemberCardLIFF() {
         <div className={getCardStyle()} style={getCardBackground()}>
           {/* Background Accents */}
           {settings.template_id === 'simple' && (
-            <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: settings.color }}></div>
+            <>
+              <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: settings.color }}></div>
+              <div className="absolute bottom-0 left-0 w-full h-1" style={{ backgroundColor: settings.color, opacity: 0.3 }}></div>
+            </>
           )}
           {settings.template_id === 'elegant' && (
-            <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(#44403C 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+            <>
+              <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(#44403C 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+              <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: settings.color }}></div>
+              <div className="absolute bottom-0 left-0 w-full h-1" style={{ backgroundColor: settings.color, opacity: 0.3 }}></div>
+            </>
           )}
           {settings.template_id === 'pop' && (
             <>
               <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-200 rounded-bl-full opacity-50"></div>
-              <div className="absolute bottom-0 left-0 w-16 h-16 bg-primary-200 rounded-tr-full opacity-50"></div>
+              <div className="absolute bottom-0 left-0 w-16 h-16 rounded-tr-full opacity-50" style={{ backgroundColor: settings.color }}></div>
+              <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: settings.color }}></div>
             </>
           )}
           {settings.template_id === 'dark' && (
             <>
               <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.05)_50%,transparent_75%,transparent_100%)] bg-[length:20px_20px]"></div>
               <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-bl from-slate-800/50 to-transparent"></div>
+              <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: settings.color }}></div>
+              <div className="absolute bottom-0 left-0 w-full h-1" style={{ backgroundColor: settings.color, opacity: 0.3 }}></div>
+            </>
+          )}
+          {settings.template_id === 'luxury' && (
+            <>
+              <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(251,191,36,0.05)_50%,transparent_75%,transparent_100%)] bg-[length:20px_20px]"></div>
+              <div className="absolute top-0 left-0 w-full h-2" style={{ background: `linear-gradient(to right, ${settings.color}CC, ${settings.color}, ${settings.color}CC)` }}></div>
+              <div className="absolute bottom-0 right-0 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl"></div>
+              <div className="absolute top-0 left-0 w-24 h-24 bg-amber-400/5 rounded-full blur-2xl"></div>
+            </>
+          )}
+          {settings.template_id === 'natural' && (
+            <>
+              <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(circle at 30% 20%, rgba(132, 204, 22, 0.15) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(251, 191, 36, 0.1) 0%, transparent 50%)' }}></div>
+              <div className="absolute -top-6 -right-6 w-28 h-28 bg-lime-200/40 rounded-full blur-xl"></div>
+              <div className="absolute -bottom-4 -left-4 w-20 h-20 bg-amber-200/30 rounded-full blur-xl"></div>
+              <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: settings.color }}></div>
+              <div className="absolute bottom-0 left-0 w-full h-1" style={{ backgroundColor: settings.color, opacity: 0.3 }}></div>
             </>
           )}
 
@@ -346,12 +391,7 @@ export default function MemberCardLIFF() {
                 {settings.title}
               </h3>
               {settings.logo_url && (
-                <div className={`p-2 rounded-lg backdrop-blur-sm ${
-                  settings.template_id === 'simple' ? 'bg-gray-50' : 
-                  settings.template_id === 'elegant' ? 'bg-[#F5F5F0]' :
-                  settings.template_id === 'pop' ? 'bg-primary-100 text-primary-600' :
-                  'bg-slate-800 text-slate-400'
-                }`}>
+                <div className={`p-2 rounded-lg backdrop-blur-sm ${getLogoStyle()}`}>
                   <img src={settings.logo_url} alt="Logo" className="w-6 h-6 object-contain" />
                 </div>
               )}
@@ -370,21 +410,41 @@ export default function MemberCardLIFF() {
                     }, minmax(0, 1fr))`
                   }}
                 >
-                  {Array.from({ length: settings.stamp_config.total_slots }).map((_, i) => (
-                    <div key={i} className={`aspect-square rounded-full border flex items-center justify-center ${
-                      settings.stamp_config.total_slots > 30 ? 'text-[6px]' : 'text-[8px]'
-                    } ${
-                      i < customer.points 
-                        ? (settings.template_id === 'pop' ? 'border-primary-500 text-primary-500 bg-primary-50' : 'border-current opacity-80') 
-                        : (settings.template_id === 'dark' ? 'border-slate-700 text-slate-700' : 'border-gray-200 text-gray-300')
-                    }`}>
-                      {i < customer.points ? <Stamp className={settings.stamp_config.total_slots > 30 ? "w-2 h-2" : "w-2.5 h-2.5"} /> : i + 1}
+                  {Array.from({ length: settings.stamp_config.total_slots }).map((_, i) => {
+                    const isStamped = i < customer.points
+                    const stampedStyle = {
+                      borderColor: settings.color,
+                      color: settings.color,
+                      backgroundColor: `${settings.color}20`
+                    }
+                    
+                    return (
+                    <div 
+                      key={i} 
+                      className={`aspect-square rounded-full border flex items-center justify-center ${
+                        settings.stamp_config.total_slots > 30 ? 'text-[6px]' : 'text-[8px]'
+                      } ${
+                        isStamped ? 'opacity-100' : 
+                        (settings.template_id === 'dark' ? 'border-slate-700 text-slate-700' : 
+                         settings.template_id === 'luxury' ? 'border-amber-600/30 text-amber-200/30' :
+                         settings.template_id === 'natural' ? 'border-amber-300/50 text-amber-400/60' :
+                         'border-gray-200 text-gray-300')
+                      }`}
+                      style={isStamped ? stampedStyle : undefined}
+                    >
+                      {isStamped ? <Stamp className={settings.stamp_config.total_slots > 30 ? "w-2 h-2" : "w-2.5 h-2.5"} /> : i + 1}
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
                 
                 <div className="space-y-0.5 mt-auto">
-                  <div className={`text-right text-[10px] ${settings.template_id === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                  <div className={`text-right text-[10px] ${
+                    settings.template_id === 'dark' ? 'text-slate-400' : 
+                    settings.template_id === 'luxury' ? 'text-amber-200/60' :
+                    settings.template_id === 'natural' ? 'text-amber-700' :
+                    'text-gray-500'
+                  }`}>
                     あと {Math.max(0, settings.stamp_config.total_slots - customer.points)} 個で {settings.stamp_config.goal_reward}
                   </div>
 
@@ -404,6 +464,8 @@ export default function MemberCardLIFF() {
                       settings.template_id === 'simple' ? 'text-gray-500' :
                       settings.template_id === 'elegant' ? 'text-[#44403C]/80' :
                       settings.template_id === 'pop' ? 'text-gray-600' :
+                      settings.template_id === 'luxury' ? 'text-amber-200/50' :
+                      settings.template_id === 'natural' ? 'text-amber-800' :
                       'text-slate-400'
                     }`}>
                       {settings.show_member_no && <span>No. {customer.member_no}</span>}
@@ -425,7 +487,13 @@ export default function MemberCardLIFF() {
                   </div>
                   <div className="text-right">
                     <p className={`text-xs mb-1 ${settings.template_id === 'pop' ? 'opacity-75' : 'opacity-60'}`}>POINTS</p>
-                    <p className={`text-2xl font-bold ${settings.template_id === 'pop' ? 'text-primary-600' : settings.template_id === 'elegant' ? 'font-serif' : ''}`}>
+                    <p 
+                      className={`text-2xl font-bold ${
+                        settings.template_id === 'elegant' ? 'font-serif' : 
+                        settings.template_id === 'luxury' ? 'font-light tracking-wider' : ''
+                      }`}
+                      style={{ color: settings.color }}
+                    >
                       {customer.points.toLocaleString()} pt
                     </p>
                   </div>
@@ -436,6 +504,8 @@ export default function MemberCardLIFF() {
                     settings.template_id === 'simple' ? 'border-gray-100 text-gray-400' :
                     settings.template_id === 'elegant' ? 'border-[#E7E5E4]' :
                     settings.template_id === 'pop' ? 'border-gray-100 text-gray-500' :
+                    settings.template_id === 'luxury' ? 'border-amber-600/20 text-amber-200/50' :
+                    settings.template_id === 'natural' ? 'border-amber-300/40 text-amber-800' :
                     'border-slate-700 text-slate-500'
                   }`}>
                     {settings.show_member_no && <span>No. {customer.member_no}</span>}
@@ -448,17 +518,51 @@ export default function MemberCardLIFF() {
         </div>
 
         {/* QR Code Area */}
-        <div className="bg-white p-6 rounded-xl shadow-sm text-center space-y-4">
-          <p className="text-sm text-gray-500">会員QRコード</p>
+        <div className={`rounded-xl shadow-sm p-6 text-center space-y-4 ${
+          settings.template_id === 'dark' ? 'bg-slate-900 text-slate-200' :
+          settings.template_id === 'luxury' ? 'bg-stone-900 text-amber-100 border border-amber-600/20' :
+          settings.template_id === 'natural' ? 'bg-white text-amber-950 border border-amber-200' :
+          'bg-white text-gray-800'
+        }`}>
+          <p className={`text-sm ${
+            settings.template_id === 'dark' ? 'text-slate-400' :
+            settings.template_id === 'luxury' ? 'text-amber-200/60' :
+            settings.template_id === 'natural' ? 'text-amber-700' :
+            'text-gray-500'
+          }`}>
+            会員QRコード
+          </p>
           <div className="flex justify-center">
-            <img 
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${window.location.origin}/customers?customer_id=${customer.line_user_id}`)}`}
-              alt="Member QR Code"
-              className="w-32 h-32"
-            />
+            <div 
+              className="p-3 rounded-lg inline-block"
+              style={{
+                border: `2px solid ${settings.color}`,
+                backgroundColor: `${settings.color}08`
+              }}
+            >
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${window.location.origin}/customers?customer_id=${customer.line_user_id}`)}`}
+                alt="Member QR Code"
+                className="w-32 h-32"
+              />
+            </div>
           </div>
-          <p className="text-xs text-gray-400">{customer.member_no}</p>
-          <p className="text-[10px] text-gray-300">スタッフに提示してください</p>
+          <p className={`text-xs ${
+            settings.template_id === 'dark' ? 'text-slate-500' :
+            settings.template_id === 'luxury' ? 'text-amber-200/40' :
+            settings.template_id === 'natural' ? 'text-amber-600' :
+            'text-gray-400'
+          }`}>
+            {customer.member_no}
+          </p>
+          <p className={`text-[10px] ${
+            settings.template_id === 'dark' ? 'text-slate-600' :
+            settings.template_id === 'luxury' ? 'text-amber-200/30' :
+            settings.template_id === 'natural' ? 'text-amber-500' :
+            'text-gray-300'
+          }`}>
+            スタッフに提示してください
+          </p>
         </div>
 
       </motion.div>

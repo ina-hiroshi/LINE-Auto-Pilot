@@ -381,31 +381,33 @@ const handleScan = (data: string) => {
       />
 
       <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex flex-col gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">顧客一覧</h1>
-            <p className="text-sm text-gray-500">顧客情報の管理やメッセージ履歴の確認ができます。</p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2 w-full">
-            <div className="relative flex-1">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="text"
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                placeholder="名前で検索..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">顧客一覧</h1>
+              <p className="text-sm text-gray-500">顧客情報の管理やメッセージ履歴の確認ができます。</p>
             </div>
-            <button
-              onClick={() => setIsQRScannerOpen(true)}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors shadow-sm whitespace-nowrap shrink-0"
-            >
-              <QrCode className="w-4 h-4" />
-              <span className="text-sm font-bold">会員証読取</span>
-            </button>
+            <div className="flex gap-2 shrink-0">
+              <div className="relative w-64">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                  placeholder="名前で検索..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={() => setIsQRScannerOpen(true)}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors shadow-sm whitespace-nowrap"
+              >
+                <QrCode className="w-4 h-4" />
+                <span className="text-sm font-bold">会員証読取</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
