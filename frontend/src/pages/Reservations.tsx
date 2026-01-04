@@ -55,6 +55,8 @@ type GoogleEvent = {
   start: { dateTime?: string; date?: string }
   end: { dateTime?: string; date?: string }
   htmlLink: string
+  location?: string
+  description?: string
 }
 
 const toErrorMessage = (error: unknown): string => {
@@ -96,6 +98,10 @@ export default function Reservations() {
   const [modifyMemo, setModifyMemo] = useState<string>('')
   const [actionLoading, setActionLoading] = useState(false)
   const [isPro, setIsPro] = useState(false)
+
+  // Googleイベント詳細モーダル State
+  const [isGoogleEventModalOpen, setIsGoogleEventModalOpen] = useState(false)
+  const [selectedGoogleEvent, setSelectedGoogleEvent] = useState<GoogleEvent | null>(null)
 
   // 予約登録モーダル State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -535,7 +541,9 @@ export default function Reservations() {
       const { data, error } = await supabase.functions.invoke('booking', {
         body: {
           action: 'cancel_reservation',
-          reservation_id: selectedReservation.id
+          reservation_id: selectedReservation.id,
+          store_id: storeId,
+          is_manual: true
         }
       })
       if (error) throw error
@@ -562,6 +570,7 @@ export default function Reservations() {
           action: 'update_reservation',
           reservation_id: selectedReservation.id,
           store_id: storeId,
+          is_manual: true,
           line_user_id: selectedReservation.line_user_id,
           real_name: selectedReservation.customer?.real_name,
           furigana: selectedReservation.customer?.furigana,
@@ -1372,6 +1381,115 @@ export default function Reservations() {
                                   return isSameDay(start, d)
                                 })
 
+                                // --- 重なり計算ロジック ---
+                                // すべてのイベント（予約 + Googleイベント）を統合
+                                type CalendarItem = {
+                                  id: string
+                                  type: 'reservation' | 'google'
+                                  startMinutes: number
+                                  endMinutes: number
+                                  data: Reservation | GoogleEvent
+                                }
+
+                                const allItems: CalendarItem[] = []
+
+                                // 予約を追加
+                                dayReservations.forEach(r => {
+                                  const start = new Date(r.start_time)
+                                  const end = new Date(r.end_time)
+                                  const startMinutes = start.getHours() * 60 + start.getMinutes()
+                                  const endMinutes = end.getHours() * 60 + end.getMinutes()
+                                  if (startMinutes >= displayHours.start * 60) {
+                                    allItems.push({
+                                      id: r.id,
+                                      type: 'reservation',
+                                      startMinutes,
+                                      endMinutes,
+                                      data: r
+                                    })
+                                  }
+                                })
+
+                                // Googleイベントを追加
+                                dayGoogleEvents.forEach(e => {
+                                  if (!e.start.dateTime) return
+                                  const start = new Date(e.start.dateTime)
+                                  const end = e.end.dateTime ? new Date(e.end.dateTime) : new Date(start.getTime() + 60 * 60 * 1000)
+                                  const startMinutes = start.getHours() * 60 + start.getMinutes()
+                                  const endMinutes = end.getHours() * 60 + end.getMinutes()
+                                  if (startMinutes >= displayHours.start * 60) {
+                                    allItems.push({
+                                      id: e.id,
+                                      type: 'google',
+                                      startMinutes,
+                                      endMinutes,
+                                      data: e
+                                    })
+                                  }
+                                })
+
+                                // 開始時間でソート
+                                allItems.sort((a, b) => a.startMinutes - b.startMinutes)
+
+                                // 重なりグループを計算
+                                const itemPositions: Map<string, { column: number; totalColumns: number }> = new Map()
+                                
+                                // イベントが重なっているかチェック
+                                const isOverlapping = (item1: CalendarItem, item2: CalendarItem) => {
+                                  return item1.startMinutes < item2.endMinutes && item2.startMinutes < item1.endMinutes
+                                }
+
+                                // 重なりグループを見つけてカラム位置を割り当て
+                                const processedIds = new Set<string>()
+                                
+                                allItems.forEach((item, index) => {
+                                  if (processedIds.has(item.id)) return
+                                  
+                                  // このアイテムと重なるすべてのアイテムを見つける
+                                  const group: CalendarItem[] = [item]
+                                  processedIds.add(item.id)
+                                  
+                                  // 後続のアイテムで重なるものを探す
+                                  for (let i = index + 1; i < allItems.length; i++) {
+                                    const nextItem = allItems[i]
+                                    if (processedIds.has(nextItem.id)) continue
+                                    
+                                    // グループ内のいずれかと重なるかチェック
+                                    const overlapsWithGroup = group.some(g => isOverlapping(g, nextItem))
+                                    if (overlapsWithGroup) {
+                                      group.push(nextItem)
+                                      processedIds.add(nextItem.id)
+                                    }
+                                  }
+                                  
+                                  // グループ内のカラム位置を決定
+                                  const columns: CalendarItem[][] = []
+                                  
+                                  group.forEach(g => {
+                                    // 配置可能なカラムを見つける
+                                    let placed = false
+                                    for (let col = 0; col < columns.length; col++) {
+                                      const canPlace = columns[col].every(existing => !isOverlapping(existing, g))
+                                      if (canPlace) {
+                                        columns[col].push(g)
+                                        itemPositions.set(g.id, { column: col, totalColumns: 0 })
+                                        placed = true
+                                        break
+                                      }
+                                    }
+                                    if (!placed) {
+                                      columns.push([g])
+                                      itemPositions.set(g.id, { column: columns.length - 1, totalColumns: 0 })
+                                    }
+                                  })
+                                  
+                                  // 総カラム数を更新
+                                  group.forEach(g => {
+                                    const pos = itemPositions.get(g.id)!
+                                    pos.totalColumns = columns.length
+                                  })
+                                })
+
                                 return (
                                   <div key={colIdx} className="relative h-full">
                                     {/* Hour Lines */}
@@ -1379,64 +1497,68 @@ export default function Reservations() {
                                       <div key={i} className="h-[60px] border-b border-gray-100"></div>
                                     ))}
 
-                                    {/* Events */}
-                                    {dayReservations.map(r => {
-                                      const start = new Date(r.start_time)
-                                      const end = new Date(r.end_time)
-                                      const startMinutes = start.getHours() * 60 + start.getMinutes()
-                                      const duration = (end.getTime() - start.getTime()) / (1000 * 60)
-                                      const top = startMinutes - (displayHours.start * 60)
-                                      
-                                      if (top < 0) return null // Skip events before start time (or handle partial)
+                                    {/* Events with overlap handling */}
+                                    {allItems.map(item => {
+                                      const pos = itemPositions.get(item.id)
+                                      if (!pos) return null
 
-                                      return (
-                                        <div
-                                          key={r.id}
-                                          className="absolute left-1 right-1 bg-primary-100 border-l-4 border-primary-500 text-primary-800 text-xs p-1 rounded overflow-hidden cursor-pointer hover:opacity-90 z-10 flex flex-col"
-                                          style={{
-                                            top: `${top}px`,
-                                            height: `${Math.max(duration, 20)}px`
-                                          }}
-                                          onClick={() => openDetailModal(r)}
-                                        >
-                                          <div className="flex items-center gap-1 font-bold text-[10px] leading-tight">
-                                            <span>{start.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</span>
-                                            <span className="truncate">{r.customer?.real_name || r.customer?.display_name || 'ゲスト'}</span>
+                                      const top = item.startMinutes - (displayHours.start * 60)
+                                      const duration = item.endMinutes - item.startMinutes
+                                      const width = 100 / pos.totalColumns
+                                      const left = pos.column * width
+
+                                      if (item.type === 'reservation') {
+                                        const r = item.data as Reservation
+                                        const start = new Date(r.start_time)
+                                        
+                                        return (
+                                          <div
+                                            key={r.id}
+                                            className="absolute bg-primary-100 border-l-4 border-primary-500 text-primary-800 text-xs p-1 rounded overflow-hidden cursor-pointer hover:opacity-90 z-10 flex flex-col"
+                                            style={{
+                                              top: `${top}px`,
+                                              height: `${Math.max(duration, 20)}px`,
+                                              left: `calc(${left}% + 2px)`,
+                                              width: `calc(${width}% - 4px)`
+                                            }}
+                                            onClick={() => openDetailModal(r)}
+                                          >
+                                            <div className="flex items-center gap-1 font-bold text-[10px] leading-tight">
+                                              <span>{start.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</span>
+                                              <span className="truncate">{r.customer?.real_name || r.customer?.display_name || 'ゲスト'}</span>
+                                            </div>
+                                            {duration > 30 && (
+                                              <>
+                                                {r.menu?.name && <div className="truncate text-[10px] opacity-90 mt-0.5">{r.menu.name}</div>}
+                                                {r.staff?.name && <div className="truncate text-[10px] opacity-80">担当: {r.staff.name}</div>}
+                                              </>
+                                            )}
                                           </div>
-                                          {duration > 30 && (
-                                            <>
-                                              {r.menu?.name && <div className="truncate text-[10px] opacity-90 mt-0.5">{r.menu.name}</div>}
-                                              {r.staff?.name && <div className="truncate text-[10px] opacity-80">担当: {r.staff.name}</div>}
-                                            </>
-                                          )}
-                                        </div>
-                                      )
-                                    })}
-
-                                    {dayGoogleEvents.map(e => {
-                                      if (!e.start.dateTime) return null // Skip all-day events for now in time grid
-                                      
-                                      const start = new Date(e.start.dateTime)
-                                      const end = e.end.dateTime ? new Date(e.end.dateTime) : new Date(start.getTime() + 60 * 60 * 1000)
-                                      const startMinutes = start.getHours() * 60 + start.getMinutes()
-                                      const duration = (end.getTime() - start.getTime()) / (1000 * 60)
-                                      const top = startMinutes - (displayHours.start * 60)
-
-                                      if (top < 0) return null
-
-                                      return (
-                                        <div
-                                          key={e.id}
-                                          className="absolute left-1 right-1 bg-gray-100 border-l-4 border-gray-400 text-gray-600 text-xs p-1 rounded overflow-hidden z-0 opacity-80"
-                                          style={{
-                                            top: `${top}px`,
-                                            height: `${Math.max(duration, 20)}px`
-                                          }}
-                                        >
-                                          <div className="font-bold">{start.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</div>
-                                          <div className="truncate">{e.summary}</div>
-                                        </div>
-                                      )
+                                        )
+                                      } else {
+                                        const e = item.data as GoogleEvent
+                                        const start = new Date(e.start.dateTime!)
+                                        
+                                        return (
+                                          <div
+                                            key={e.id}
+                                            className="absolute bg-gray-100 border-l-4 border-gray-400 text-gray-600 text-xs p-1 rounded overflow-hidden cursor-pointer hover:bg-gray-200 transition z-0"
+                                            style={{
+                                              top: `${top}px`,
+                                              height: `${Math.max(duration, 20)}px`,
+                                              left: `calc(${left}% + 2px)`,
+                                              width: `calc(${width}% - 4px)`
+                                            }}
+                                            onClick={() => {
+                                              setSelectedGoogleEvent(e)
+                                              setIsGoogleEventModalOpen(true)
+                                            }}
+                                          >
+                                            <div className="font-bold text-[10px]">{start.toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</div>
+                                            <div className="truncate text-[10px]">{e.summary}</div>
+                                          </div>
+                                        )
+                                      }
                                     })}
                                   </div>
                                 )
@@ -1898,6 +2020,82 @@ export default function Reservations() {
             />
           </div>
         </div>
+      </Modal>
+
+      {/* Googleイベント詳細モーダル */}
+      <Modal
+        isOpen={isGoogleEventModalOpen}
+        onClose={() => {
+          setIsGoogleEventModalOpen(false)
+          setSelectedGoogleEvent(null)
+        }}
+        title="Googleカレンダーの予定"
+        showDefaultButtons={false}
+      >
+        {selectedGoogleEvent && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">{selectedGoogleEvent.summary || '(タイトルなし)'}</h3>
+            </div>
+
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Clock size={16} />
+              <span>
+                {selectedGoogleEvent.start.dateTime ? (
+                  <>
+                    {new Date(selectedGoogleEvent.start.dateTime).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })}
+                    {' '}
+                    {new Date(selectedGoogleEvent.start.dateTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                    {selectedGoogleEvent.end.dateTime && (
+                      <>
+                        {' - '}
+                        {new Date(selectedGoogleEvent.end.dateTime).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                      </>
+                    )}
+                  </>
+                ) : (
+                  '終日'
+                )}
+              </span>
+            </div>
+
+            {selectedGoogleEvent.location && (
+              <div className="flex items-start gap-2 text-sm text-gray-600">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>{selectedGoogleEvent.location}</span>
+              </div>
+            )}
+
+            {selectedGoogleEvent.description && (
+              <div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
+                <pre className="whitespace-pre-wrap font-sans">{selectedGoogleEvent.description}</pre>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-4 border-t border-gray-200">
+              <a
+                href={selectedGoogleEvent.htmlLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-2 px-4 bg-primary-600 text-white text-center text-sm font-medium rounded-lg hover:bg-primary-700 transition"
+              >
+                Googleカレンダーで開く
+              </a>
+              <button
+                onClick={() => {
+                  setIsGoogleEventModalOpen(false)
+                  setSelectedGoogleEvent(null)
+                }}
+                className="py-2 px-4 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
         </div>
       </div>

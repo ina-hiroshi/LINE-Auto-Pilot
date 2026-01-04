@@ -528,11 +528,18 @@ export default function Booking() {
   const checkCustomer = useCallback(async () => {
     setCheckingUser(true)
     try {
+      // Get access token for authentication
+      let accessToken: string | null = null
+      if (liff.isLoggedIn()) {
+        accessToken = liff.getAccessToken()
+      }
+
       const { data, error } = await supabase.functions.invoke('booking', {
         body: {
           action: 'check_customer',
           store_id: storeId,
-          line_user_id: lineUserId
+          line_user_id: lineUserId,
+          accessToken
         }
       })
       
@@ -548,7 +555,7 @@ export default function Booking() {
         setFurigana('')
       }
     } catch (e) {
-      console.error(e)
+      console.error('Failed to check customer:', e)
     } finally {
       setCheckingUser(false)
     }
@@ -556,11 +563,18 @@ export default function Booking() {
 
   const checkReservation = useCallback(async () => {
     try {
+      // Get access token for authentication
+      let accessToken: string | null = null
+      if (liff.isLoggedIn()) {
+        accessToken = liff.getAccessToken()
+      }
+
       const { data, error } = await supabase.functions.invoke('booking', {
         body: {
           action: 'get_active_reservation',
           store_id: storeId,
-          line_user_id: lineUserId
+          line_user_id: lineUserId,
+          accessToken
         }
       })
       
@@ -639,10 +653,19 @@ export default function Booking() {
         hideModal()
         setLoading(true)
         try {
+          // Get access token for authentication
+          let accessToken: string | null = null
+          if (liff.isLoggedIn()) {
+            accessToken = liff.getAccessToken()
+          }
+
           const { data, error } = await supabase.functions.invoke('booking', {
             body: {
               action: 'cancel_reservation',
-              reservation_id: reservationId
+              reservation_id: reservationId,
+              store_id: storeId,
+              line_user_id: lineUserId,
+              accessToken
             }
           })
 
@@ -692,7 +715,10 @@ export default function Booking() {
       let currentPictureUrl = pictureUrl
       let currentDisplayName = displayName
       
-      if (!currentPictureUrl && liff.isLoggedIn()) {
+      // Get access token for authentication
+      let accessToken: string | null = null
+      if (liff.isLoggedIn()) {
+        accessToken = liff.getAccessToken()
         try {
           const profile = await liff.getProfile()
           currentPictureUrl = profile.pictureUrl || ''
@@ -718,7 +744,8 @@ export default function Booking() {
           time,
           staff_id: selectedStaff?.id,
           menu_id: selectedMenu?.id,
-          reservation_id: modifyingReservationId // Only used if action is update_reservation
+          reservation_id: modifyingReservationId, // Only used if action is update_reservation
+          accessToken
         }
       })
 

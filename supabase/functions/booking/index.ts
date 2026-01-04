@@ -603,7 +603,8 @@ Deno.serve(async (req: Request) => {
         
         if (fetchError) throw fetchError
 
-        if (reservation.line_user_id !== line_user_id) {
+        // 管理画面からの操作（オーナー認証済み）か、自分の予約かをチェック
+        if (!isManualRegistration && reservation.line_user_id !== line_user_id) {
           throw new Error('Unauthorized: You can only cancel your own reservations')
         }
 
@@ -643,7 +644,8 @@ Deno.serve(async (req: Request) => {
       
       if (fetchError) throw fetchError
 
-      if (oldReservation.line_user_id !== line_user_id) {
+      // 管理画面からの操作（オーナー認証済み）か、自分の予約かをチェック
+      if (!isManualRegistration && oldReservation.line_user_id !== line_user_id) {
         throw new Error('Unauthorized: You can only update your own reservations')
       }
 
