@@ -155,10 +155,11 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { accessToken, action, store_id, line_user_id: requestLineUserId, display_name, profile_picture_url, real_name, furigana, date, time, reservation_id, staff_id, menu_id, memo, is_manual } = await req.json()
+    const { accessToken, action, store_id, line_user_id, display_name, profile_picture_url, real_name, furigana, date, time, reservation_id, staff_id, menu_id, memo, is_manual } = await req.json()
+
+    console.log('[Booking] Request:', { action, store_id, line_user_id, date, time, staff_id, menu_id })
 
     // --- Security: Verify Access Token ---
-    let line_user_id = requestLineUserId;
     let verifiedUserId: string | null = null;
     let isManualRegistration = false;
 
@@ -208,15 +209,15 @@ Deno.serve(async (req: Request) => {
         console.error('Token verification failed:', e);
         // accessTokenがあるが検証に失敗した場合でも、line_user_idがU始まりならLIFFからのアクセスと判断
         // LIFF SDKから取得したline_user_idは信頼できる
-        if (requestLineUserId && requestLineUserId.startsWith('U')) {
+        if (line_user_id && line_user_id.startsWith('U')) {
           console.log('[Booking] Token verification failed but line_user_id looks valid, proceeding...');
-          verifiedUserId = requestLineUserId;
+          verifiedUserId = line_user_id;
         }
       }
-    } else if (!isManualRegistration && requestLineUserId && requestLineUserId.startsWith('U')) {
+    } else if (!isManualRegistration && line_user_id && line_user_id.startsWith('U')) {
       // accessTokenがなくてもline_user_idがU始まりならLIFFからのアクセスと判断
       console.log('[Booking] No accessToken but line_user_id looks valid, proceeding...');
-      verifiedUserId = requestLineUserId;
+      verifiedUserId = line_user_id;
     }
 
     // Enforce Authentication for sensitive actions (bypass for manual registration)

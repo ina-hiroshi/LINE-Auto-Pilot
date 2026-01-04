@@ -749,22 +749,25 @@ export default function Booking() {
       }
 
       const action = modifyingReservationId ? 'update_reservation' : 'create_reservation'
+      const requestBody = {
+        action,
+        store_id: storeId,
+        line_user_id: lineUserId,
+        display_name: currentDisplayName,
+        profile_picture_url: currentPictureUrl,
+        real_name: realName,
+        furigana: furigana,
+        date,
+        time,
+        staff_id: selectedStaff?.id,
+        menu_id: selectedMenu?.id,
+        reservation_id: modifyingReservationId,
+        accessToken
+      }
+      console.log('[Booking] Request body:', requestBody)
+      
       const { data, error } = await supabase.functions.invoke('booking', {
-        body: {
-          action,
-          store_id: storeId,
-          line_user_id: lineUserId,
-          display_name: currentDisplayName,
-          profile_picture_url: currentPictureUrl,
-          real_name: realName,
-          furigana: furigana,
-          date,
-          time,
-          staff_id: selectedStaff?.id,
-          menu_id: selectedMenu?.id,
-          reservation_id: modifyingReservationId, // Only used if action is update_reservation
-          accessToken
-        }
+        body: requestBody
       })
 
       if (error) throw error
