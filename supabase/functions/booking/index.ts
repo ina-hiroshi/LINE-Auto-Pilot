@@ -411,7 +411,7 @@ Deno.serve(async (req: Request) => {
       // 担当者指定がある場合は、その担当者の予約のみをチェック
       let query = supabaseClient
         .from('reservations')
-        .select('start_time, end_time')
+        .select('start_time, end_time, status, line_user_id')
         .eq('store_id', store_id)
         .neq('status', 'cancelled')
         .lt('start_time', dayEnd)
@@ -537,8 +537,10 @@ Deno.serve(async (req: Request) => {
           const slotEnd = new Date(cursor.getTime() + durationMinutes * 60000)
           if (slotEnd > rangeEnd) continue
 
-          // Check Internal Reservations
+          // Check Internal Reservations (自分の仮予約は除外)
           const internalOverlapCount = (reservations || []).filter((r) => {
+            // 自分の仮予約は除外（他人の確定予約やキャンセルされていない予約のみカウント）
+            if (r.status === 'temporary' && r.line_user_id === line_user_id) return false
             const resStart = new Date(r.start_time)
             const resEnd = new Date(r.end_time)
             return isOverlapping(cursor, slotEnd, resStart, resEnd)
@@ -732,11 +734,13 @@ Deno.serve(async (req: Request) => {
       const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000)
 
       // 担当者指定がある場合は、その担当者の予約のみをチェック
+      // temporary（一時予約）は除外 - hold_slotで作成した予約は確定時に削除されるため
       let updateOverlapQuery = supabaseClient
         .from('reservations')
         .select('id')
         .eq('store_id', store_id)
         .neq('status', 'cancelled')
+        .neq('status', 'temporary')  // 一時予約を除外
         .lt('start_time', endDateTime.toISOString())
         .gt('end_time', startDateTime.toISOString())
       
@@ -786,6 +790,15 @@ Deno.serve(async (req: Request) => {
         .single()
 
       if (resError) throw resError
+
+      // --- Delete temporary reservation (hold_slot) for this user ---
+      // 同じユーザーの一時予約を削除（確定予約が作成されたため不要）
+      await supabaseClient
+        .from('reservations')
+        .delete()
+        .eq('store_id', store_id)
+        .eq('line_user_id', line_user_id)
+        .eq('status', 'temporary')
 
       // --- Google Calendar Create Event ---
       if (googleClient1 && newReservation) {
