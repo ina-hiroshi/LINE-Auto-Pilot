@@ -157,7 +157,9 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { accessToken, action, store_id, line_user_id, display_name, profile_picture_url, real_name, furigana, date, time, reservation_id, staff_id, menu_id, memo, is_manual } = await req.json()
+    const { accessToken, action, store_id, line_user_id: requestLineUserId, display_name, profile_picture_url, real_name, furigana, date, time, reservation_id, staff_id, menu_id, memo, is_manual } = await req.json()
+    // 再代入可能な変数として定義
+    let line_user_id = requestLineUserId
 
     console.log('[Booking] Request:', { action, store_id, line_user_id, date, time, staff_id, menu_id })
 
@@ -594,7 +596,7 @@ Deno.serve(async (req: Request) => {
           if (slotEnd > rangeEnd) continue
 
           // Check Internal Reservations (自分の仮予約は除外)
-          const internalOverlapCount = (reservations || []).filter((r) => {
+          const internalOverlapCount = (reservations || []).filter((r: { status: string; line_user_id: string; start_time: string; end_time: string }) => {
             // 自分の仮予約は除外（他人の確定予約やキャンセルされていない予約のみカウント）
             if (r.status === 'temporary' && r.line_user_id === line_user_id) return false
             const resStart = new Date(r.start_time)
@@ -603,7 +605,7 @@ Deno.serve(async (req: Request) => {
           }).length
 
           // Check Temporary Holds (自分の仮押さえは除外)
-          const holdOverlapCount = (holds || []).filter((h) => {
+          const holdOverlapCount = (holds || []).filter((h: { line_user_id: string; start_time: string; end_time: string }) => {
             if (h.line_user_id === line_user_id) return false // 自分の仮押さえは除外
             const holdStart = new Date(h.start_time)
             const holdEnd = new Date(h.end_time)
@@ -1027,7 +1029,7 @@ LINE ID: ${line_user_id}
       }
 
       const { data: conflictingHolds } = await holdCheckQuery
-      const otherUsersHold = (conflictingHolds || []).filter(h => h.line_user_id !== line_user_id)
+      const otherUsersHold = (conflictingHolds || []).filter((h: { line_user_id: string }) => h.line_user_id !== line_user_id)
       
       if ((overlapReservations?.length ?? 0) + otherUsersHold.length >= capacityLimit) {
         throw new Error('この時間帯の予約枠が埋まっています')
