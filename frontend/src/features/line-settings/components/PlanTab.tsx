@@ -8,7 +8,7 @@ import Toast from '../../../components/Toast'
 // false: 正式リリース（リリース記念キャンペーン）
 const IS_PRE_RELEASE_MODE = true
 
-const PRO_PRICE_ID = import.meta.env.VITE_STRIPE_PRO_PRICE_ID || 'price_1SkA8F9gqo1AslYsV0rVvBzF' 
+const PRO_PRICE_ID = import.meta.env.VITE_STRIPE_PRO_PRICE_ID || 'price_1SmKVC7JLpsQAtFkOSirIftK' 
 
 export function PlanTab() {
   const [loading, setLoading] = useState(true)

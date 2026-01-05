@@ -376,7 +376,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            price_id: import.meta.env.VITE_STRIPE_PRO_PRICE_ID || 'price_1SkA8F9gqo1AslYsV0rVvBzF',
+            price_id: import.meta.env.VITE_STRIPE_PRO_PRICE_ID || 'price_1SmKVC7JLpsQAtFkOSirIftK',
             return_url: window.location.origin + '/onboarding'
           }),
         })

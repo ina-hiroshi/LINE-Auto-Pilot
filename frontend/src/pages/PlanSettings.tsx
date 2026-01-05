@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { Loader2, Check, Shield } from 'lucide-react'
 import Toast from '../components/Toast'
 
-const PRO_PRICE_ID = import.meta.env.VITE_STRIPE_PRO_PRICE_ID || 'price_1SkA8F9gqo1AslYsV0rVvBzF' 
+const PRO_PRICE_ID = import.meta.env.VITE_STRIPE_PRO_PRICE_ID || 'price_1SmKVC7JLpsQAtFkOSirIftK' 
 
 export default function PlanSettings() {
   const [loading, setLoading] = useState(true)

@@ -3,7 +3,7 @@ import { Loader2, Crown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import Toast from './Toast'
 
-const PRO_PRICE_ID = 'price_1SkA8F9gqo1AslYsV0rVvBzF'
+const PRO_PRICE_ID = 'price_1SmKVC7JLpsQAtFkOSirIftK'
 
 interface ProUpgradeButtonProps {
   className?: string
