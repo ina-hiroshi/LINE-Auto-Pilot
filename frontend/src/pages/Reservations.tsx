@@ -140,6 +140,41 @@ export default function Reservations() {
       })
       
       const result = await response.json()
+      
+      // Google Calendar未接続の場合はエラーを表示しない
+      if (result.error === 'Google Calendar not connected') {
+        console.log('Google Calendar not connected yet')
+        setIsGoogleConnected(false)
+        return
+      }
+      
+      // トークンが期限切れの場合（バックエンド側で既にDBクリア済み）
+      if (result.error === 'TOKEN_EXPIRED') {
+        console.log('Google token expired, connection cleared by server')
+        setIsGoogleConnected(false)
+        setCalendars([])
+        setSelectedCalendarId('')
+        setGoogleEvents([])
+        setToast({ message: result.message || 'Googleカレンダーの認証が期限切れです。再連携してください。', type: 'error' })
+        return
+      }
+      
+      // トークンが期限切れまたは取り消された場合（旧エラーフォーマット対応）
+      if (result.error && (result.error.includes('expired or revoked') || result.error.includes('Token has been') || result.error.includes('invalid_grant'))) {
+        console.log('Google token expired, clearing connection')
+        await supabase
+          .from('google_calendar_settings')
+          .delete()
+          .eq('user_id', session.user.id)
+        
+        setIsGoogleConnected(false)
+        setCalendars([])
+        setSelectedCalendarId('')
+        setGoogleEvents([])
+        setToast({ message: 'Googleカレンダーの認証が期限切れです。再連携してください。', type: 'error' })
+        return
+      }
+      
       if (result.error) throw new Error(result.error)
 
       const calendarsResult: GoogleCalendar[] = result.calendars || []
@@ -156,7 +191,7 @@ export default function Reservations() {
       }
     } catch (error) {
       console.error('Fetch Calendars Error:', error)
-      setToast({ message: 'カレンダー一覧の取得に失敗しました', type: 'error' })
+      setToast({ message: `カレンダー一覧の取得に失敗しました: ${toErrorMessage(error)}`, type: 'error' })
     } finally {
       setCalendarLoading(false)
     }
@@ -168,14 +203,17 @@ export default function Reservations() {
 
     const { data: settings } = await supabase
       .from('google_calendar_settings')
-      .select('calendar_id')
+      .select('calendar_id, refresh_token')
       .eq('user_id', user.id)
       .maybeSingle()
     
-    if (settings) {
+    // refresh_tokenがある場合のみ接続済みとみなす
+    if (settings && settings.refresh_token) {
       setIsGoogleConnected(true)
       // setSelectedCalendarId(settings.calendar_id) // fetchCalendars内で設定するため削除
       await fetchCalendars(settings.calendar_id)
+    } else {
+      setIsGoogleConnected(false)
     }
   }, [fetchCalendars])
 

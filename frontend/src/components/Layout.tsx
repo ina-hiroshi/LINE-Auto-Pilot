@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User, Code, Calendar, CreditCard, Grid, CalendarCheck } from 'lucide-react'
 import Modal from './Modal'
 import iconImage from '../assets/icon.png'
+import { useUserFeatures } from '../hooks/useUserFeatures'
 
 type ProfileSummary = {
 	full_name: string | null
@@ -15,6 +16,7 @@ type StoreSummary = {
 
 export default function Layout() {
   const location = useLocation()
+  const { isAdmin } = useUserFeatures()
   const [profile, setProfile] = useState<ProfileSummary | null>(null)
   const [store, setStore] = useState<StoreSummary | null>(null)
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
@@ -46,7 +48,8 @@ export default function Layout() {
     return () => window.removeEventListener('profile-updated', fetchData)
   }, [])
   
-  const navItems = [
+  // 基本ナビゲーション項目
+  const baseNavItems = [
     { path: '/', label: 'ダッシュボード', icon: <LayoutDashboard size={20} /> },
     { path: '/reservations', label: '予約管理', icon: <Calendar size={20} /> },
     { path: '/customers', label: '顧客一覧', icon: <Users size={20} /> },
@@ -54,8 +57,12 @@ export default function Layout() {
     { path: '/membership-card', label: 'デジタル会員証', icon: <CreditCard size={20} /> },
     { path: '/rich-menu', label: 'リッチメニュー', icon: <Grid size={20} /> },
     { path: '/booking-settings', label: '予約ページ', icon: <CalendarCheck size={20} /> },
-    { path: '/dev', label: '開発', icon: <Code size={20} /> },
   ]
+
+  // 管理者専用メニュー（isAdminの場合のみ追加）
+  const navItems = isAdmin 
+    ? [...baseNavItems, { path: '/dev', label: '開発', icon: <Code size={20} /> }]
+    : baseNavItems
 
   const handleLogout = async () => {
     // 1. まずローカルストレージをクリア（これが最優先）

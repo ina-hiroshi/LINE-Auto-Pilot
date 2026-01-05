@@ -27,7 +27,7 @@ export default function Modal({
   variant = 'primary',
   isLoading = false,
   footerContent,
-  showDefaultButtons = false,
+  showDefaultButtons,
 }: ModalProps) {
   if (!isOpen) return null;
 
@@ -37,7 +37,9 @@ export default function Modal({
     ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
     : 'bg-primary-600 hover:bg-primary-700 text-white';
 
-  // showDefaultButtons が明示的に false の場合はデフォルトボタンを表示しない
+  // showDefaultButtons が明示的に指定されていない場合:
+  // - footerContent がある場合はデフォルトボタンを非表示
+  // - footerContent がない場合はデフォルトボタンを表示
   const shouldShowButtons = showDefaultButtons === true || (showDefaultButtons !== false && !footerContent);
 
   return (
@@ -51,7 +53,7 @@ export default function Modal({
         </div>
         <div className={`flex flex-col sm:flex-row items-stretch sm:items-center ${footerContent ? 'justify-between' : 'justify-end'} gap-4 p-4 bg-gray-50 shrink-0 border-t`}>
           {footerContent && (
-            <div className={showDefaultButtons ? "w-full sm:w-auto mr-auto" : "w-full"}>
+            <div className={shouldShowButtons ? "w-full sm:w-auto mr-auto" : "w-full"}>
               {footerContent}
             </div>
           )}

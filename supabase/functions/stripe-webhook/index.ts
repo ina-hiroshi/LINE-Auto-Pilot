@@ -129,6 +129,34 @@ Deno.serve(async (req: Request) => {
         if (error) console.error('Error updating profile in subscription update:', error);
         break;
       }
+      case 'payment_intent.succeeded': {
+        const paymentIntent = event.data.object;
+        const metadata = paymentIntent.metadata;
+        
+        // 設定代行サービスの決済完了処理
+        if (metadata.type === 'setup_service' && metadata.order_id) {
+          console.log(`Processing setup service payment for order: ${metadata.order_id}`);
+          
+          const { error } = await supabase
+            .from('setup_service_orders')
+            .update({
+              status: 'paid',
+              stripe_payment_intent_id: paymentIntent.id,
+              paid_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', metadata.order_id)
+          
+          if (error) {
+            console.error('Error updating setup order:', error)
+          } else {
+            console.log('Setup order marked as paid')
+            // TODO: 管理者に通知（Slack/Email）
+            // 例: await sendAdminNotification(metadata.order_id)
+          }
+        }
+        break;
+      }
     }
   } catch (error: unknown) {
     console.error('Error processing webhook:', error);

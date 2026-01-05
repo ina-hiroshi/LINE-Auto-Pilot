@@ -28,13 +28,21 @@ Deno.serve(async (req: Request) => {
     }
 
     // Get stored refresh token
-    const { data: settings } = await supabaseClient
+    const { data: settings, error: settingsError } = await supabaseClient
       .from('google_calendar_settings')
       .select('refresh_token, channel_id, resource_id, calendar_id')
       .eq('user_id', user.id)
-      .single()
+      .maybeSingle()
 
-    if (!settings?.refresh_token) {
+    if (settingsError) {
+      console.error('Settings fetch error:', settingsError)
+      return new Response(JSON.stringify({ error: 'Failed to fetch calendar settings' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      })
+    }
+
+    if (!settings || !settings.refresh_token) {
       return new Response(JSON.stringify({ error: 'Google Calendar not connected' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
@@ -58,6 +66,22 @@ Deno.serve(async (req: Request) => {
 
     const tokenData = await tokenResponse.json()
     if (tokenData.error) {
+      // トークンが期限切れまたは取り消された場合、設定を削除して再認証を促す
+      if (tokenData.error === 'invalid_grant') {
+        console.log('Token expired or revoked, clearing settings for user:', user.id)
+        await supabaseClient
+          .from('google_calendar_settings')
+          .delete()
+          .eq('user_id', user.id)
+        
+        return new Response(JSON.stringify({ 
+          error: 'TOKEN_EXPIRED',
+          message: 'Googleカレンダーの認証が期限切れです。再連携してください。'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401,
+        })
+      }
       throw new Error(`Failed to refresh token: ${tokenData.error_description || tokenData.error}`)
     }
 

@@ -14,7 +14,6 @@ import BookingSettings from './pages/BookingSettings'
 import Reservations from './pages/Reservations'
 import TopPage from './pages/TopPage'
 import Onboarding from './pages/Onboarding'
-import DevSandbox from './pages/DevSandbox'
 import Booking from './pages/Booking'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
@@ -24,6 +23,8 @@ import MemberCardLIFF from './pages/MemberCardLIFF'
 import FeatureAutoResponse from './pages/FeatureAutoResponse'
 import FeatureReservation from './pages/FeatureReservation'
 import FeatureMembership from './pages/FeatureMembership'
+import AdminDashboard from './pages/AdminDashboard'
+import { UserFeaturesProvider } from './hooks/useUserFeatures'
 
 import type { Session } from '@supabase/supabase-js'
 
@@ -173,6 +174,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <UserFeaturesProvider>
       <Routes>
         <Route path="/booking" element={<Booking />} />
         <Route path="/member-card" element={<MemberCardLIFF />} />
@@ -213,11 +215,12 @@ function App() {
             <Route path="/rich-menu" element={<RichMenu />} />
             <Route path="/booking-settings" element={<BookingSettings />} />
             <Route path="/plan-settings" element={<PlanSettings />} />
-            <Route path="/dev" element={<DevSandbox />} />
+            <Route path="/dev" element={<AdminDashboard />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         )}
       </Routes>
+      </UserFeaturesProvider>
     </BrowserRouter>
   )
 }

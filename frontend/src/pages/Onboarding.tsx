@@ -29,11 +29,12 @@ import {
 } from 'lucide-react'
 import Modal from '../components/Modal'
 import Toast from '../components/Toast'
+import SetupServiceModal, { type SetupServiceFormData } from '../components/SetupServiceModal'
 
 // プレリリースモード切り替えフラグ
 // true: プレリリースモニター募集中（2ヶ月無料、サポートなし）
 // false: 正式リリース（リリース記念キャンペーン）
-const IS_PRE_RELEASE_MODE = true
+const IS_PRE_RELEASE_MODE = false
 
 interface OnboardingProps {
   onComplete: () => void
@@ -93,11 +94,28 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   // トライアル利用済みフラグ
   const [hasUsedTrial, setHasUsedTrial] = useState<boolean>(false)
 
+  // 設定代行モーダル
+  const [isSetupServiceModalOpen, setIsSetupServiceModalOpen] = useState(false)
+  const [setupServiceSubmitting, setSetupServiceSubmitting] = useState(false)
+  const [userEmail, setUserEmail] = useState<string>('')
+
+  // ユーザーメールアドレスを取得
+  useEffect(() => {
+    const fetchUserEmail = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user?.email) {
+        setUserEmail(user.email)
+      }
+    }
+    fetchUserEmail()
+  }, [])
+
   // Stripe決済完了チェック
   useEffect(() => {
     const handleStripeReturn = async () => {
       const urlParams = new URLSearchParams(window.location.search)
       const sessionId = urlParams.get('session_id')
+      const setupOrderId = urlParams.get('setup_order_id')
       
       if (sessionId) {
         console.log('Stripe payment completed, updating plan to pro')
@@ -135,6 +153,21 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           console.error('Error updating plan:', error)
           setToast({ isVisible: true, message: 'プラン更新中にエラーが発生しました', type: 'error' })
         }
+      } else if (setupOrderId) {
+        console.log('Setup service payment completed')
+        
+        // URLからsetup_order_idを削除
+        window.history.replaceState({}, '', '/onboarding')
+        
+        // チュートリアルステップに進む（LINE設定はスキップ）
+        setCurrentStep('tutorial')
+        
+        // 成功メッセージ
+        setToast({ 
+          isVisible: true, 
+          message: '設定代行サービスのお申し込みが完了しました。2営業日以内に担当スタッフからご連絡いたします。', 
+          type: 'success' 
+        })
       }
     }
     
@@ -455,6 +488,35 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   // LINE設定をスキップ
   const handleSkipLineSetup = () => {
     setCurrentStep('tutorial')
+  }
+
+  // 設定代行サービスの申し込み
+  const handleSetupServiceSubmit = async (formData: SetupServiceFormData) => {
+    setSetupServiceSubmitting(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('create-setup-checkout', {
+        body: {
+          ...formData,
+          store_id: storeId,
+          return_url: `${window.location.origin}/onboarding`
+        }
+      })
+
+      if (error) throw error
+
+      if (data.url) {
+        // Stripe Checkoutにリダイレクト
+        window.location.href = data.url
+      } else {
+        throw new Error('決済URLの取得に失敗しました')
+      }
+    } catch (error: unknown) {
+      console.error('Setup service error:', error)
+      const message = error instanceof Error ? error.message : '申し込み処理に失敗しました'
+      setToast({ isVisible: true, message, type: 'error' })
+      setSetupServiceSubmitting(false)
+      setIsSetupServiceModalOpen(false)
+    }
   }
 
   // オンボーディング完了
@@ -1009,7 +1071,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                           専門スタッフがあなたの代わりにLINE接続設定を完了させます。
                         </p>
                       </div>
-                      <button className="bg-white text-amber-600 px-6 py-3 rounded-xl font-bold hover:bg-amber-50 transition whitespace-nowrap shadow-lg">
+                      <button 
+                        onClick={() => setIsSetupServiceModalOpen(true)}
+                        className="bg-white text-amber-600 px-6 py-3 rounded-xl font-bold hover:bg-amber-50 transition whitespace-nowrap shadow-lg"
+                      >
                         初期設定代行を依頼（¥9,980）
                       </button>
                     </div>
@@ -1389,6 +1454,14 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         message="ログアウトしてトップページに戻ります。よろしいですか？"
         confirmText="ログアウト"
         variant="danger"
+      />
+
+      <SetupServiceModal
+        isOpen={isSetupServiceModalOpen}
+        onClose={() => setIsSetupServiceModalOpen(false)}
+        onSubmit={handleSetupServiceSubmit}
+        submitting={setupServiceSubmitting}
+        defaultEmail={userEmail}
       />
 
       <Toast
