@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Building2, User, MapPin, Phone, Mail, CreditCard, DollarSign, Calendar, XCircle, FileText, Scale } from 'lucide-react'
+import { Building2, User, MapPin, Phone, Mail, CreditCard, DollarSign, Calendar, XCircle, FileText } from 'lucide-react'
 import iconImage from '../assets/icon.png'
 
 const SpecifiedCommercialTransactions: React.FC = () => {

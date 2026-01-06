@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Shield, Lock, Eye, Server, Key, Database, AlertCircle, CheckCircle, FileText } from 'lucide-react'
+import { Shield, Lock, Eye, Server, Key, Database, AlertCircle } from 'lucide-react'
 import iconImage from '../assets/icon.png'
 
 const SecurityPolicy: React.FC = () => {
