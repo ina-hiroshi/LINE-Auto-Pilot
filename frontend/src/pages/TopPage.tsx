@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { motion } from 'framer-motion'
-import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff, Loader2, AlertTriangle, Sparkles } from 'lucide-react'
+import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff, Loader2, AlertTriangle, Sparkles, Layout, Palette, Smartphone, MousePointerClick, Clock, Users, Crown } from 'lucide-react'
 import Toast from '../components/Toast'
 import topHeroImage from '../assets/top_hero.jpg'
 import smartAutoChatImage from '../assets/smartautochat.jpg'
@@ -207,6 +207,7 @@ export default function TopPage() {
             </div>
             <nav className="hidden md:flex space-x-8 items-center">
               <a href="#features" className="text-sm font-medium text-slate-600 hover:text-primary-600 transition">機能</a>
+              <a href="#customization" className="text-sm font-medium text-slate-600 hover:text-primary-600 transition">カスタマイズ</a>
               <a href="#pricing" className="text-sm font-medium text-slate-600 hover:text-primary-600 transition">料金</a>
               <a href="#auth" className="px-5 py-2.5 bg-primary-600 text-white rounded-full text-sm font-medium hover:bg-primary-700 transition shadow-md hover:shadow-lg">
                 ログイン / 登録
@@ -399,6 +400,443 @@ export default function TopPage() {
               </Link>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Customization Features Section - リッチメニュー・予約ページ編集 */}
+      <section id="customization" className="py-24 bg-slate-50 relative overflow-hidden">
+        {/* 背景装飾 */}
+        <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-gradient-to-bl from-primary-50/50 to-transparent rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-gradient-to-tr from-emerald-50/50 to-transparent rounded-full blur-3xl" />
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center mb-16">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="inline-block"
+            >
+              <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-100 border border-primary-200 text-primary-700 text-sm font-semibold">
+                直感的なカスタマイズ
+              </span>
+            </motion.div>
+            <motion.h2 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4"
+            >
+              あなたの店舗に合わせて、自由にデザイン
+            </motion.h2>
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2 }}
+              className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
+            >
+              専門知識不要。リッチメニューも予約ページも、<br className="hidden md:block" />
+              シンプルな操作で簡単にカスタマイズできます。
+            </motion.p>
+          </div>
+          
+          {/* リッチメニュー登録機能 */}
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mb-20"
+          >
+            <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+              <div className="grid lg:grid-cols-2 gap-0">
+                {/* 左側：機能説明 */}
+                <div className="p-8 lg:p-12 flex flex-col justify-center">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="bg-gradient-to-br from-primary-500 to-primary-600 p-3 rounded-2xl shadow-lg shadow-primary-200">
+                      <Layout className="w-7 h-7 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-slate-900">リッチメニュー登録</h3>
+                      <p className="text-sm text-slate-500">LINE画面下部のメニューをカスタマイズ</p>
+                    </div>
+                  </div>
+                  
+                  <p className="text-slate-600 mb-8 leading-relaxed">
+                    お客様がLINEを開いたときに最初に目に入るリッチメニュー。<br />
+                    あなたの店舗の個性を反映したデザインで、予約や問い合わせへの導線を作りましょう。
+                  </p>
+                  
+                  {/* アピールポイント */}
+                  <div className="grid sm:grid-cols-2 gap-4 mb-8">
+                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
+                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
+                        <Palette className="w-5 h-5 text-primary-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900 text-sm flex items-center gap-2">
+                          6種類のテーマ
+                          <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-bold flex items-center gap-0.5">
+                            <Crown className="w-3 h-3" />Pro
+                          </span>
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">シンプルは無料、他5種はPro</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
+                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
+                        <Layout className="w-5 h-5 text-primary-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900 text-sm flex items-center gap-2">
+                          柔軟なレイアウト
+                          <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-bold flex items-center gap-0.5">
+                            <Crown className="w-3 h-3" />Pro
+                          </span>
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">2×2、3×2、コンパクトなど</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
+                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
+                        <MousePointerClick className="w-5 h-5 text-primary-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900 text-sm">ワンクリック反映</p>
+                        <p className="text-xs text-slate-500 mt-0.5">設定後すぐにLINEに反映</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
+                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
+                        <Smartphone className="w-5 h-5 text-primary-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900 text-sm">リアルタイムプレビュー</p>
+                        <p className="text-xs text-slate-500 mt-0.5">編集しながら即確認</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: 'アイコン選択', pro: false },
+                      { label: 'ラベル編集', pro: false },
+                      { label: 'カスタム背景画像', pro: true },
+                      { label: 'スロット背景画像', pro: true },
+                    ].map((tag) => (
+                      <span key={tag.label} className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${tag.pro ? 'bg-amber-50 text-amber-700' : 'bg-primary-50 text-primary-700'}`}>
+                        {tag.label}
+                        {tag.pro && <Crown className="w-3 h-3" />}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* 右側：UIプレビュー */}
+                <div className="bg-gradient-to-br from-slate-100 to-slate-50 p-8 lg:p-12 flex items-center justify-center">
+                  <div className="relative">
+                    {/* スマホフレーム */}
+                    <div className="bg-slate-900 rounded-[3rem] p-3 shadow-2xl">
+                      <div className="bg-white rounded-[2.5rem] overflow-hidden w-[280px]">
+                        {/* ステータスバー */}
+                        <div className="bg-slate-100 px-6 py-3 flex items-center justify-between">
+                          <div className="text-xs font-semibold text-slate-600">9:41</div>
+                          <div className="flex gap-1">
+                            <div className="w-4 h-2 bg-slate-400 rounded-sm" />
+                            <div className="w-4 h-2 bg-slate-400 rounded-sm" />
+                            <div className="w-6 h-3 bg-slate-400 rounded-sm" />
+                          </div>
+                        </div>
+                        {/* LINEヘッダー */}
+                        <div className="bg-white px-4 py-3 border-b border-slate-100 flex items-center gap-3">
+                          <div className="w-2 h-2" />
+                          <div className="flex-1 text-center">
+                            <p className="font-bold text-slate-900 text-sm">サンプル店舗</p>
+                          </div>
+                          <div className="w-6 h-6 bg-slate-200 rounded-full" />
+                        </div>
+                        {/* トーク画面 */}
+                        <div className="bg-[#7494A5] p-4 min-h-[180px]">
+                          <div className="flex gap-2">
+                            <div className="w-8 h-8 rounded-full bg-white shrink-0 flex items-center justify-center">
+                              <div className="w-5 h-5 rounded-full bg-primary-200" />
+                            </div>
+                            <div className="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm max-w-[80%]">
+                              <p className="text-xs text-slate-700">いらっしゃいませ！🎉</p>
+                              <p className="text-xs text-slate-700 mt-1">下のメニューからご予約いただけます。</p>
+                            </div>
+                          </div>
+                        </div>
+                        {/* リッチメニュー */}
+                        <div className="bg-white border-t-2 border-slate-200">
+                          <div className="grid grid-cols-2 gap-[2px] p-[2px] bg-slate-200">
+                            <div className="bg-gradient-to-br from-primary-50 to-white p-4 flex flex-col items-center justify-center gap-2 min-h-[90px] hover:bg-primary-50 transition-colors cursor-pointer">
+                              <div className="bg-primary-100 p-2 rounded-full">
+                                <Smartphone className="w-5 h-5 text-primary-600" />
+                              </div>
+                              <span className="text-xs font-bold text-primary-700">予約する</span>
+                            </div>
+                            <div className="bg-gradient-to-br from-primary-50 to-white p-4 flex flex-col items-center justify-center gap-2 min-h-[90px] hover:bg-primary-50 transition-colors cursor-pointer">
+                              <div className="bg-primary-100 p-2 rounded-full">
+                                <MessageCircle className="w-5 h-5 text-primary-600" />
+                              </div>
+                              <span className="text-xs font-bold text-primary-700">メッセージ入力</span>
+                            </div>
+                            <div className="bg-gradient-to-br from-primary-50 to-white p-4 flex flex-col items-center justify-center gap-2 min-h-[90px] hover:bg-primary-50 transition-colors cursor-pointer">
+                              <div className="bg-primary-100 p-2 rounded-full">
+                                <CreditCard className="w-5 h-5 text-primary-600" />
+                              </div>
+                              <span className="text-xs font-bold text-primary-700">会員証</span>
+                            </div>
+                            <div className="bg-gradient-to-br from-primary-50 to-white p-4 flex flex-col items-center justify-center gap-2 min-h-[90px] hover:bg-primary-50 transition-colors cursor-pointer">
+                              <div className="bg-primary-100 p-2 rounded-full">
+                                <Calendar className="w-5 h-5 text-primary-600" />
+                              </div>
+                              <span className="text-xs font-bold text-primary-700">営業時間</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {/* 装飾バッジ */}
+                    <motion.div 
+                      initial={{ scale: 0, rotate: -10 }}
+                      whileInView={{ scale: 1, rotate: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: 0.3, type: "spring" }}
+                      className="absolute -top-4 -right-4 bg-white px-4 py-2 rounded-full shadow-lg border border-slate-100"
+                    >
+                      <span className="text-sm font-bold text-primary-600">リアルタイム反映!</span>
+                    </motion.div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* 予約ページ編集機能 */}
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+              <div className="grid lg:grid-cols-2 gap-0">
+                {/* 左側：UIプレビュー（モバイルでは下に表示） */}
+                <div className="bg-gradient-to-br from-primary-50 to-slate-50 p-8 lg:p-12 flex items-center justify-center order-2 lg:order-1">
+                  <div className="relative w-full max-w-[340px]">
+                    {/* 予約ページプレビュー */}
+                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+                      {/* ヘッダー */}
+                      <div className="bg-gradient-to-r from-primary-500 to-primary-600 p-4 text-center">
+                        <h4 className="text-white font-bold">予約フォーム</h4>
+                      </div>
+                      {/* コンテンツ */}
+                      <div className="p-4 space-y-4">
+                        {/* 日時選択テーブル */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-3">
+                            <Calendar className="w-4 h-4 text-primary-600" />
+                            <span className="text-sm font-bold text-slate-700">日時を選択</span>
+                          </div>
+                          {/* 実際の日時選択テーブルUI */}
+                          <div className="border border-slate-200 rounded-lg overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="bg-slate-50">
+                                  <th className="p-2 text-slate-500 font-medium border-r border-slate-200">時間</th>
+                                  <th className="p-2 text-center border-r border-slate-200">
+                                    <div className="text-[10px] text-slate-400">1/7</div>
+                                    <div className="font-bold text-slate-700">火</div>
+                                  </th>
+                                  <th className="p-2 text-center border-r border-slate-200">
+                                    <div className="text-[10px] text-slate-400">1/8</div>
+                                    <div className="font-bold text-slate-700">水</div>
+                                  </th>
+                                  <th className="p-2 text-center border-r border-slate-200">
+                                    <div className="text-[10px] text-slate-400">1/9</div>
+                                    <div className="font-bold text-slate-700">木</div>
+                                  </th>
+                                  <th className="p-2 text-center">
+                                    <div className="text-[10px] text-slate-400">1/10</div>
+                                    <div className="font-bold text-slate-700">金</div>
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr className="border-t border-slate-100">
+                                  <td className="p-2 text-slate-600 font-medium border-r border-slate-200 bg-slate-50">10:00</td>
+                                  <td className="p-1 text-center border-r border-slate-100">
+                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
+                                  </td>
+                                  <td className="p-1 text-center border-r border-slate-100">
+                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-primary-500 text-white font-bold shadow-md">✓</span>
+                                  </td>
+                                  <td className="p-1 text-center border-r border-slate-100">
+                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
+                                  </td>
+                                  <td className="p-1 text-center">
+                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-slate-100 text-slate-300 font-bold">×</span>
+                                  </td>
+                                </tr>
+                                <tr className="border-t border-slate-100">
+                                  <td className="p-2 text-slate-600 font-medium border-r border-slate-200 bg-slate-50">11:00</td>
+                                  <td className="p-1 text-center border-r border-slate-100">
+                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
+                                  </td>
+                                  <td className="p-1 text-center border-r border-slate-100">
+                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
+                                  </td>
+                                  <td className="p-1 text-center border-r border-slate-100">
+                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-slate-100 text-slate-300 font-bold">×</span>
+                                  </td>
+                                  <td className="p-1 text-center">
+                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
+                                  </td>
+                                </tr>
+                                <tr className="border-t border-slate-100">
+                                  <td className="p-2 text-slate-600 font-medium border-r border-slate-200 bg-slate-50">12:00</td>
+                                  <td className="p-1 text-center border-r border-slate-100">
+                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-slate-100 text-slate-300 font-bold">×</span>
+                                  </td>
+                                  <td className="p-1 text-center border-r border-slate-100">
+                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
+                                  </td>
+                                  <td className="p-1 text-center border-r border-slate-100">
+                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
+                                  </td>
+                                  <td className="p-1 text-center">
+                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                          {/* 選択中の表示 */}
+                          <div className="mt-3 p-2 bg-primary-50 border-2 border-primary-200 rounded-lg text-center">
+                            <span className="text-xs text-slate-500">選択中：</span>
+                            <span className="text-sm font-bold text-primary-600 ml-1">1月8日(水) 10:00</span>
+                          </div>
+                        </div>
+                        {/* 確定ボタン */}
+                        <button className="w-full bg-gradient-to-r from-primary-500 to-primary-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-primary-200 hover:shadow-xl transition-shadow">
+                          次へ進む
+                        </button>
+                      </div>
+                    </div>
+                    {/* 装飾 */}
+                    <motion.div 
+                      initial={{ scale: 0, rotate: 10 }}
+                      whileInView={{ scale: 1, rotate: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: 0.3, type: "spring" }}
+                      className="absolute -bottom-4 -left-4 bg-white px-4 py-2 rounded-full shadow-lg border border-slate-100"
+                    >
+                      <span className="text-sm font-bold text-primary-600">テーマ選択可能!</span>
+                    </motion.div>
+                  </div>
+                </div>
+                
+                {/* 右側：機能説明 */}
+                <div className="p-8 lg:p-12 flex flex-col justify-center order-1 lg:order-2">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="bg-gradient-to-br from-primary-500 to-primary-600 p-3 rounded-2xl shadow-lg shadow-primary-200">
+                      <Palette className="w-7 h-7 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-slate-900">予約ページ編集</h3>
+                      <p className="text-sm text-slate-500">予約フォームを自由にカスタマイズ</p>
+                    </div>
+                  </div>
+                  
+                  <p className="text-slate-600 mb-8 leading-relaxed">
+                    お客様が予約するページのデザインと機能を、あなたの店舗スタイルに合わせて設定。<br />
+                    業種ごとに最適化された予約フローを提供できます。
+                  </p>
+                  
+                  {/* アピールポイント */}
+                  <div className="grid sm:grid-cols-2 gap-4 mb-8">
+                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
+                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
+                        <Palette className="w-5 h-5 text-primary-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900 text-sm flex items-center gap-2">
+                          6種類のテーマ
+                          <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-bold flex items-center gap-0.5">
+                            <Crown className="w-3 h-3" />Pro
+                          </span>
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">シンプルは無料、他5種はPro</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
+                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
+                        <Clock className="w-5 h-5 text-primary-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900 text-sm">営業時間設定</p>
+                        <p className="text-xs text-slate-500 mt-0.5">曜日ごと・臨時休業も対応</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
+                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
+                        <Users className="w-5 h-5 text-primary-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900 text-sm">スタッフ・メニュー管理</p>
+                        <p className="text-xs text-slate-500 mt-0.5">サロン・飲食店向け機能</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
+                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
+                        <Smartphone className="w-5 h-5 text-primary-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900 text-sm">リアルタイムプレビュー</p>
+                        <p className="text-xs text-slate-500 mt-0.5">編集しながら即確認</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: '営業時間設定', pro: false },
+                      { label: 'スタッフ管理', pro: false },
+                      { label: 'テーマカラー変更', pro: true },
+                      { label: 'ロゴ設定', pro: true },
+                      { label: 'Googleカレンダー連携', pro: true },
+                    ].map((tag) => (
+                      <span key={tag.label} className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${tag.pro ? 'bg-amber-50 text-amber-700' : 'bg-primary-50 text-primary-700'}`}>
+                        {tag.label}
+                        {tag.pro && <Crown className="w-3 h-3" />}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* CTA */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mt-16"
+          >
+            <a 
+              href="#auth" 
+              className="inline-flex items-center gap-2 px-8 py-4 bg-primary-600 text-white rounded-full font-bold hover:bg-primary-700 transition shadow-lg hover:shadow-xl group"
+            >
+              無料で始める
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </a>
+            <p className="text-slate-500 text-sm mt-4">
+              専門知識不要で簡単に始められます
+            </p>
+          </motion.div>
         </div>
       </section>
 
