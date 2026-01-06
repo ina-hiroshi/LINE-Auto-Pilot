@@ -547,9 +547,65 @@ export default function Dashboard() {
       }
   }
 
+  // Load AI analysis from localStorage
+  const loadAIAnalysisFromStorage = useCallback(() => {
+    if (!storeId) return null
+    
+    try {
+      const storageKey = `ai-analysis-${storeId}`
+      const stored = localStorage.getItem(storageKey)
+      if (!stored) return null
+      
+      const parsed = JSON.parse(stored)
+      const now = Date.now()
+      const oneDayInMs = 24 * 60 * 60 * 1000 // 24時間
+      
+      // 24時間以内のデータのみ有効
+      if (parsed.timestamp && (now - parsed.timestamp) < oneDayInMs) {
+        return parsed.data
+      }
+      
+      // 古いデータは削除
+      localStorage.removeItem(storageKey)
+      return null
+    } catch (error) {
+      console.error('Error loading AI analysis from storage:', error)
+      return null
+    }
+  }, [storeId])
+
+  // Save AI analysis to localStorage
+  const saveAIAnalysisToStorage = useCallback((data: Omit<AIAnalysis, 'loading' | 'error'>) => {
+    if (!storeId) return
+    
+    try {
+      const storageKey = `ai-analysis-${storeId}`
+      const storageData = {
+        timestamp: Date.now(),
+        data: data
+      }
+      localStorage.setItem(storageKey, JSON.stringify(storageData))
+    } catch (error) {
+      console.error('Error saving AI analysis to storage:', error)
+    }
+  }, [storeId])
+
   // AI Analysis
-  const fetchAIAnalysis = async () => {
+  const fetchAIAnalysis = async (forceRefresh = false) => {
     if (!storeId || !isPro) return
+
+    // 強制更新でない場合、localStorageから読み込み
+    if (!forceRefresh) {
+      const cachedData = loadAIAnalysisFromStorage()
+      if (cachedData) {
+        setAiAnalysis({
+          ...cachedData,
+          loading: false,
+          error: null
+        })
+        return
+      }
+    }
 
     setAiAnalysis(prev => ({ ...prev, loading: true, error: null }))
     
@@ -560,7 +616,7 @@ export default function Dashboard() {
 
       if (error) throw error
 
-      setAiAnalysis({
+      const analysisData = {
         summary: data.summary || '',
         insights: data.insights || [],
         improvements: data.improvements || [],
@@ -572,6 +628,21 @@ export default function Dashboard() {
         staffStats: data.staffStats || [],
         loading: false,
         error: null
+      }
+
+      setAiAnalysis(analysisData)
+      
+      // localStorageに保存
+      saveAIAnalysisToStorage({
+        summary: analysisData.summary,
+        insights: analysisData.insights,
+        improvements: analysisData.improvements,
+        reservationAnalysis: analysisData.reservationAnalysis,
+        questionCategories: analysisData.questionCategories,
+        topCustomersByMessages: analysisData.topCustomersByMessages,
+        topCustomersByReservations: analysisData.topCustomersByReservations,
+        popularMenus: analysisData.popularMenus,
+        staffStats: analysisData.staffStats
       })
     } catch (error) {
       console.error('AI Analysis Error:', error)
@@ -583,10 +654,24 @@ export default function Dashboard() {
     }
   }
 
+  // Load from localStorage on mount
+  useEffect(() => {
+    if (storeId && isPro) {
+      const cachedData = loadAIAnalysisFromStorage()
+      if (cachedData) {
+        setAiAnalysis({
+          ...cachedData,
+          loading: false,
+          error: null
+        })
+      }
+    }
+  }, [storeId, isPro, loadAIAnalysisFromStorage])
+
   // Fetch AI analysis when tab changes to analysis
   useEffect(() => {
     if (activeTab === 'analysis' && isPro && !aiAnalysis.summary && !aiAnalysis.loading) {
-      fetchAIAnalysis()
+      fetchAIAnalysis(false) // localStorageから読み込みを試みる
     }
   }, [activeTab, isPro, storeId])
 
@@ -1660,7 +1745,7 @@ export default function Dashboard() {
                         </div>
                       </div>
                       <button
-                        onClick={fetchAIAnalysis}
+                        onClick={() => fetchAIAnalysis(true)}
                         disabled={aiAnalysis.loading}
                         className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-all text-sm font-medium disabled:opacity-50 flex items-center gap-2 shadow-sm"
                       >

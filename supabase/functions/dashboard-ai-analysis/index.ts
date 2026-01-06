@@ -322,8 +322,85 @@ Deno.serve(async (req: Request) => {
       .map(log => `- ${log.message_content}`)
       .join('\n')
 
+    // Get date range info for prompt
+    const now = new Date()
+    const startDate = new Date(thirtyDaysAgo)
+    const startDateStr = `${startDate.getFullYear()}年${startDate.getMonth() + 1}月${startDate.getDate()}日`
+    const endDateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`
+
     // Construct AI prompt
-    const analysisPrompt = `あなたはLINE公式アカウントの運用コンサルタントです。\n以下のメッセージログデータと予約データを分析し、店舗運営者に役立つインサイトを提供してください。\n\n【統計データ】\n- 総メッセージ数: ${totalMessages}件\n- 自動応答: ${statusCounts.auto_replied}件 (${autoReplyRate}%)\n- AI応答: ${statusCounts.ai_replied}件 (${aiReplyRate}%)\n- 要対応（未対応）: ${statusCounts.manual_reply_needed}件 (${manualNeededRate}%)\n- 手動返信済: ${statusCounts.manual_replied}件\n- 対応済: ${statusCounts.resolved}件\n\n【曜日別メッセージ分布】\n${Object.entries(weekdayCounts).map(([day, count]) => `${day}曜日: ${count}件`).join(', ')}\n\n【予約統計】\n- 総予約数: ${totalReservations}件\n- 有効予約: ${activeReservations}件\n- キャンセル率: ${cancelRate}%\n- 予約ソース別: ${Object.entries(sourceCounts).map(([source, count]) => `${source}: ${count}件`).join(', ')}\n- 曜日別予約分布: ${Object.entries(reservationWeekdayCounts).map(([day, count]) => `${day}曜日: ${count}件`).join(', ')}\n- 予約が多い時間帯: ${peakReservationHours}\n\n【人気メニュー】\n${popularMenusText}\n\n【担当者別予約数】\n${staffStatsText}\n\n【予約の売上・時間】\n- 予約売上合計（見込み）: ${totalRevenue.toLocaleString()}円\n- 平均施術時間: ${averageDuration.toFixed(0)}分\n\n【メッセージサンプル】\n${messageSamples}\n\n以下の形式でJSON形式で回答してください:\n{\n  "summary": "3-4文程度の今月の傾向サマリー。具体的な数字を含めて記述。",\n  "insights": ["気づき1（具体的なデータに基づいた発見）", "気づき2", "気づき3"],\n  "improvements": ["改善提案1（具体的なアクションを提案）", "改善提案2"],\n  "reservationAnalysis": "予約状況に関する詳細な分析（3-4文程度）。キャンセル率、人気メニュー、担当者、ピーク時間などを含める。",\n  "questionCategories": [\n    {"category": "カテゴリ名1", "count": 件数, "examples": ["質問例1", "質問例2"]},\n    {"category": "カテゴリ名2", "count": 件数, "examples": ["質問例1", "質問例2"]}\n  ],\n  "topCustomersByMessages": ${JSON.stringify(topCustomersByMessages)},\n  "topCustomersByReservations": ${JSON.stringify(topCustomersByReservations)},\n  "popularMenus": ${JSON.stringify(topMenus)},\n  "staffStats": ${JSON.stringify(topStaff)}\n}\n\n注意：\n- 日本語で回答\n- 具体的な数字や割合を活用\n- 実用的な改善提案を行う\n- questionCategoriesは、メッセージサンプルを分析して、よくある質問を5-8個のカテゴリに分類してください。各カテゴリには件数と質問例（2-3個）を含めてください。\n- JSON形式以外の余計なテキストは含めないでください。\n`
+    const analysisPrompt = `あなたはLINE公式アカウントの運用コンサルタントです。
+
+【重要：分析期間について】
+この分析は、${startDateStr}から${endDateStr}までの過去30日間（30日間）のデータに基づいています。
+「今月」「今月の」「今月は」という表現は絶対に使用しないでください。
+必ず「過去30日間」「過去30日」「直近30日間」という表現を使用してください。
+
+以下の過去30日間のメッセージログデータと予約データを分析し、店舗運営者に役立つインサイトを提供してください。
+
+【分析期間】
+- 開始日: ${startDateStr}
+- 終了日: ${endDateStr}
+- 期間: 過去30日間
+
+【統計データ（過去30日間）】
+- 総メッセージ数: ${totalMessages}件
+- 自動応答: ${statusCounts.auto_replied}件 (${autoReplyRate}%)
+- AI応答: ${statusCounts.ai_replied}件 (${aiReplyRate}%)
+- 要対応（未対応）: ${statusCounts.manual_reply_needed}件 (${manualNeededRate}%)
+- 手動返信済: ${statusCounts.manual_replied}件
+- 対応済: ${statusCounts.resolved}件
+
+【曜日別メッセージ分布（過去30日間）】
+${Object.entries(weekdayCounts).map(([day, count]) => `${day}曜日: ${count}件`).join(', ')}
+
+【予約統計（過去30日間）】
+- 総予約数: ${totalReservations}件
+- 有効予約: ${activeReservations}件
+- キャンセル率: ${cancelRate}%
+- 予約ソース別: ${Object.entries(sourceCounts).map(([source, count]) => `${source}: ${count}件`).join(', ')}
+- 曜日別予約分布: ${Object.entries(reservationWeekdayCounts).map(([day, count]) => `${day}曜日: ${count}件`).join(', ')}
+- 予約が多い時間帯: ${peakReservationHours}
+
+【人気メニュー（過去30日間）】
+${popularMenusText}
+
+【担当者別予約数（過去30日間）】
+${staffStatsText}
+
+【予約の売上・時間（過去30日間）】
+- 予約売上合計（見込み）: ${totalRevenue.toLocaleString()}円
+- 平均施術時間: ${averageDuration.toFixed(0)}分
+
+【メッセージサンプル（過去30日間）】
+${messageSamples}
+
+以下の形式でJSON形式で回答してください:
+{
+  "summary": "3-4文程度の過去30日間の傾向サマリー。必ず「過去30日間」という表現を使用し、「今月」という表現は絶対に使わない。具体的な数字を含めて記述。",
+  "insights": ["気づき1（具体的なデータに基づいた発見。「過去30日間」という表現を使用）", "気づき2", "気づき3"],
+  "improvements": ["改善提案1（具体的なアクションを提案）", "改善提案2"],
+  "reservationAnalysis": "予約状況に関する詳細な分析（3-4文程度）。必ず「過去30日間」という表現を使用し、「今月」という表現は絶対に使わない。キャンセル率、人気メニュー、担当者、ピーク時間などを含める。",
+  "questionCategories": [
+    {"category": "カテゴリ名1", "count": 件数, "examples": ["質問例1", "質問例2"]},
+    {"category": "カテゴリ名2", "count": 件数, "examples": ["質問例1", "質問例2"]}
+  ],
+  "topCustomersByMessages": ${JSON.stringify(topCustomersByMessages)},
+  "topCustomersByReservations": ${JSON.stringify(topCustomersByReservations)},
+  "popularMenus": ${JSON.stringify(topMenus)},
+  "staffStats": ${JSON.stringify(topStaff)}
+}
+
+【重要な注意事項】
+- 日本語で回答
+- 具体的な数字や割合を活用
+- 実用的な改善提案を行う
+- 「今月」「今月の」「今月は」という表現は絶対に使用しない
+- 必ず「過去30日間」「過去30日」「直近30日間」という表現を使用する
+- すべての分析は過去30日間（${startDateStr}から${endDateStr}まで）のデータに基づいて記述する
+- questionCategoriesは、メッセージサンプルを分析して、よくある質問を5-8個のカテゴリに分類してください。各カテゴリには件数と質問例（2-3個）を含めてください。
+- JSON形式以外の余計なテキストは含めないでください。
+`
 
     // Call Gemini API
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
