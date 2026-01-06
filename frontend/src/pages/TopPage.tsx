@@ -24,6 +24,10 @@ export default function TopPage() {
   const [showVerificationStep, setShowVerificationStep] = useState(false)
   const [verificationCode, setVerificationCode] = useState('')
   const [resendCooldown, setResendCooldown] = useState(0)
+  
+  // 利用規約・プライバシーポリシーへの同意
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
+  const [agreedToPrivacy, setAgreedToPrivacy] = useState(false)
 
   // トーストを自動的に消す
   useEffect(() => {
@@ -1291,9 +1295,60 @@ export default function TopPage() {
                 </div>
               )}
 
+              {!isLoginMode && (
+                <div className="space-y-3 mt-4">
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={agreedToTerms}
+                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                      className="mt-1 w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500 cursor-pointer"
+                      required
+                    />
+                    <span className="text-sm text-slate-600 leading-relaxed">
+                      <Link 
+                        to="/terms" 
+                        target="_blank"
+                        className="text-primary-600 hover:text-primary-700 underline font-medium"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          window.scrollTo(0, 0)
+                        }}
+                      >
+                        利用規約
+                      </Link>
+                      に同意します
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={agreedToPrivacy}
+                      onChange={(e) => setAgreedToPrivacy(e.target.checked)}
+                      className="mt-1 w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500 cursor-pointer"
+                      required
+                    />
+                    <span className="text-sm text-slate-600 leading-relaxed">
+                      <Link 
+                        to="/privacy" 
+                        target="_blank"
+                        className="text-primary-600 hover:text-primary-700 underline font-medium"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          window.scrollTo(0, 0)
+                        }}
+                      >
+                        プライバシーポリシー
+                      </Link>
+                      に同意します
+                    </span>
+                  </label>
+                </div>
+              )}
+
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (!isLoginMode && (!agreedToTerms || !agreedToPrivacy))}
                 className="w-full bg-primary-600 text-white py-3.5 rounded-xl font-bold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary-200 mt-2 flex items-center justify-center gap-2"
               >
                 {loading ? (
@@ -1306,27 +1361,6 @@ export default function TopPage() {
                 )}
               </button>
             </form>
-            )}
-            {!isLoginMode && !showVerificationStep && (
-              <p className="mt-6 text-xs text-center text-slate-400 leading-relaxed">
-                登録することで、
-                <Link 
-                  to="/terms" 
-                  className="underline hover:text-primary-600"
-                  onClick={() => window.scrollTo(0, 0)}
-                >
-                  利用規約
-                </Link>
-                と
-                <Link 
-                  to="/privacy" 
-                  className="underline hover:text-primary-600"
-                  onClick={() => window.scrollTo(0, 0)}
-                >
-                  プライバシーポリシー
-                </Link>
-                に同意したことになります。
-              </p>
             )}
           </motion.div>
         </div>
@@ -1356,8 +1390,7 @@ export default function TopPage() {
             <div>
               <h4 className="font-bold text-white mb-6">サポート</h4>
               <ul className="space-y-4">
-                <li><a href="#" className="hover:text-white transition">ヘルプセンター</a></li>
-                <li><a href="#" className="hover:text-white transition">お問い合わせ</a></li>
+                <li><a href="https://line.me/R/ti/p/@431cghfd" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">お問い合わせ</a></li>
                 <li>
                   <Link 
                     to="/terms" 
@@ -1374,6 +1407,24 @@ export default function TopPage() {
                     onClick={() => window.scrollTo(0, 0)}
                   >
                     プライバシーポリシー
+                  </Link>
+                </li>
+                <li>
+                  <Link 
+                    to="/specified-commercial-transactions" 
+                    className="hover:text-white transition"
+                    onClick={() => window.scrollTo(0, 0)}
+                  >
+                    特定商取引法に基づく表記
+                  </Link>
+                </li>
+                <li>
+                  <Link 
+                    to="/security" 
+                    className="hover:text-white transition"
+                    onClick={() => window.scrollTo(0, 0)}
+                  >
+                    セキュリティポリシー
                   </Link>
                 </li>
               </ul>

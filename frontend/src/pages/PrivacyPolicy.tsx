@@ -247,8 +247,7 @@ const PrivacyPolicy: React.FC = () => {
                 
               <h4 className="font-bold text-white mb-6">サポート</h4>
               <ul className="space-y-4">
-                <li><a href="#" className="hover:text-white transition">ヘルプセンター</a></li>
-                <li><a href="#" className="hover:text-white transition">お問い合わせ</a></li>
+                <li><a href="https://line.me/R/ti/p/@431cghfd" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">お問い合わせ</a></li>
                 <li>
                   <Link 
                     to="/terms" 
@@ -265,6 +264,24 @@ const PrivacyPolicy: React.FC = () => {
                     onClick={() => window.scrollTo(0, 0)}
                   >
                     プライバシーポリシー
+                  </Link>
+                </li>
+                <li>
+                  <Link 
+                    to="/specified-commercial-transactions" 
+                    className="hover:text-white transition"
+                    onClick={() => window.scrollTo(0, 0)}
+                  >
+                    特定商取引法に基づく表記
+                  </Link>
+                </li>
+                <li>
+                  <Link 
+                    to="/security" 
+                    className="hover:text-white transition"
+                    onClick={() => window.scrollTo(0, 0)}
+                  >
+                    セキュリティポリシー
                   </Link>
                 </li>
               </ul>

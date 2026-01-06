@@ -17,6 +17,8 @@ import Onboarding from './pages/Onboarding'
 import Booking from './pages/Booking'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
+import SpecifiedCommercialTransactions from './pages/SpecifiedCommercialTransactions'
+import SecurityPolicy from './pages/SecurityPolicy'
 import PlanSettings from './pages/PlanSettings'
 
 import MemberCardLIFF from './pages/MemberCardLIFF'
@@ -180,6 +182,8 @@ function App() {
         <Route path="/member-card" element={<MemberCardLIFF />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/specified-commercial-transactions" element={<SpecifiedCommercialTransactions />} />
+        <Route path="/security" element={<SecurityPolicy />} />
         <Route path="/feature/auto-response" element={<FeatureAutoResponse />} />
         <Route path="/feature/reservation" element={<FeatureReservation />} />
         <Route path="/feature/membership" element={<FeatureMembership />} />

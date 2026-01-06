@@ -221,6 +221,51 @@ const TermsOfService: React.FC = () => {
               </ol>
             </section>
 
+            {/* 第10条の2: 予約管理およびAI応答に関する責任 */}
+            <section className="bg-white rounded-2xl shadow-md border-l-4 border-red-500 p-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-8 opacity-5">
+                <AlertTriangle className="w-32 h-32 text-red-500" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-red-50 rounded-lg text-red-600">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <h2 className="text-xl font-bold text-slate-900">第10条の2（予約管理およびAI応答に関する責任）</h2>
+                </div>
+                <div className="bg-red-50/50 rounded-xl p-6 mb-6 border border-red-100">
+                  <p className="text-slate-700 font-medium mb-4">
+                    本サービスは予約管理やAI応答などの店舗運営支援機能を提供しますが、これらの機能の利用により生じた問題について、以下のとおり責任を制限します。
+                  </p>
+                </div>
+                <ol className="list-decimal list-outside pl-5 space-y-3 text-slate-600">
+                  <li><strong>予約管理機能に関する責任</strong>
+                    <ul className="list-disc pl-5 mt-2 space-y-1">
+                      <li>本サービスは予約情報の管理・表示機能を提供しますが、予約の受付、確認、キャンセル等の最終的な判断および実行は、ユーザー（店舗オーナー）の責任において行われるものとします。</li>
+                      <li>予約の重複（ダブルブッキング）、予約情報の誤り、予約の取り消し漏れ、営業時間外の予約受付等により生じた損害について、当サービスは一切の責任を負いません。</li>
+                      <li>Googleカレンダーとの連携機能において、同期の遅延や不整合により予約の重複等が発生した場合、当サービスは商業的に合理的な範囲で対策を行いますが、完全な整合性を保証するものではありません。</li>
+                      <li>ユーザーは、予約情報を定期的に確認し、必要に応じて手動で調整する責任を負います。</li>
+                    </ul>
+                  </li>
+                  <li><strong>AI応答機能に関する責任</strong>
+                    <ul className="list-disc pl-5 mt-2 space-y-1">
+                      <li>本サービスのAI応答機能は、ユーザーが提供した資料を学習して自動応答を生成しますが、応答内容の正確性、適切性、法的妥当性等について、当サービスは一切保証しません。</li>
+                      <li>AI応答により顧客に誤った情報が伝達された場合、顧客とのトラブルが発生した場合、または法的問題が生じた場合において、当サービスは一切の責任を負いません。</li>
+                      <li>ユーザーは、AI応答の内容を定期的に確認し、必要に応じて修正・改善する責任を負います。</li>
+                      <li>AI応答により生じた顧客からのクレーム、損害賠償請求等については、ユーザーが責任を負うものとし、当サービスは一切の責任を負いません。</li>
+                    </ul>
+                  </li>
+                  <li><strong>その他の店舗運営に関する責任</strong>
+                    <ul className="list-disc pl-5 mt-2 space-y-1">
+                      <li>本サービスは店舗運営を支援するツールを提供するものであり、店舗運営そのものに関する責任はユーザーが負うものとします。</li>
+                      <li>顧客との契約、取引、サービス提供等に関する一切の責任はユーザーが負うものとし、当サービスは一切の責任を負いません。</li>
+                      <li>本サービスの利用により生じた顧客からのクレーム、損害賠償請求等については、ユーザーが責任を負うものとします。</li>
+                    </ul>
+                  </li>
+                </ol>
+              </div>
+            </section>
+
             {/* 第11条 */}
             <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
               <div className="flex items-center gap-3 mb-6">
@@ -331,8 +376,7 @@ const TermsOfService: React.FC = () => {
             <div>
               <h4 className="font-bold text-white mb-6">サポート</h4>
               <ul className="space-y-4">
-                <li><a href="#" className="hover:text-white transition">ヘルプセンター</a></li>
-                <li><a href="#" className="hover:text-white transition">お問い合わせ</a></li>
+                <li><a href="https://line.me/R/ti/p/@431cghfd" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">お問い合わせ</a></li>
                 <li>
                   <Link 
                     to="/terms" 
@@ -349,6 +393,24 @@ const TermsOfService: React.FC = () => {
                     onClick={() => window.scrollTo(0, 0)}
                   >
                     プライバシーポリシー
+                  </Link>
+                </li>
+                <li>
+                  <Link 
+                    to="/specified-commercial-transactions" 
+                    className="hover:text-white transition"
+                    onClick={() => window.scrollTo(0, 0)}
+                  >
+                    特定商取引法に基づく表記
+                  </Link>
+                </li>
+                <li>
+                  <Link 
+                    to="/security" 
+                    className="hover:text-white transition"
+                    onClick={() => window.scrollTo(0, 0)}
+                  >
+                    セキュリティポリシー
                   </Link>
                 </li>
               </ul>
