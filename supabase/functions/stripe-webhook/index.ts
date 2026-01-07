@@ -34,6 +34,37 @@ Deno.serve(async (req: Request) => {
       case 'checkout.session.completed': {
         const session = event.data.object;
         console.log(`Processing checkout.session.completed for session: ${session.id}`);
+        
+        // 設定代行サービスの一回払い処理
+        if (session.mode === 'payment' && session.metadata?.type === 'setup_service') {
+          const orderId = session.metadata.order_id || session.client_reference_id;
+          console.log(`Processing setup service checkout completion for order: ${orderId}`);
+          
+          if (orderId) {
+            // Payment Intentを取得して決済情報を取得
+            const paymentIntentId = session.payment_intent;
+            
+            const { error } = await supabase
+              .from('setup_service_orders')
+              .update({
+                status: 'paid',
+                stripe_payment_intent_id: typeof paymentIntentId === 'string' ? paymentIntentId : null,
+                stripe_checkout_session_id: session.id,
+                paid_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', orderId)
+            
+            if (error) {
+              console.error('Error updating setup order in checkout.session.completed:', error)
+            } else {
+              console.log('Setup order marked as paid via checkout.session.completed')
+              // TODO: 管理者に通知（Slack/Email）
+            }
+          }
+        }
+        
+        // サブスクリプション処理
         if (session.mode === 'subscription') {
           const subscriptionId = session.subscription;
           const customerId = session.customer;
@@ -133,26 +164,38 @@ Deno.serve(async (req: Request) => {
         const paymentIntent = event.data.object;
         const metadata = paymentIntent.metadata;
         
-        // 設定代行サービスの決済完了処理
+        // 設定代行サービスの決済完了処理（フォールバック）
+        // 注: checkout.session.completedでも処理されるが、こちらは確実性のために残す
         if (metadata.type === 'setup_service' && metadata.order_id) {
-          console.log(`Processing setup service payment for order: ${metadata.order_id}`);
+          console.log(`Processing setup service payment_intent.succeeded for order: ${metadata.order_id}`);
           
-          const { error } = await supabase
+          // 既に'paid'ステータスでない場合のみ更新（冪等性を保つ）
+          const { data: existingOrder } = await supabase
             .from('setup_service_orders')
-            .update({
-              status: 'paid',
-              stripe_payment_intent_id: paymentIntent.id,
-              paid_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
+            .select('status')
             .eq('id', metadata.order_id)
+            .single()
           
-          if (error) {
-            console.error('Error updating setup order:', error)
+          if (existingOrder && existingOrder.status !== 'paid') {
+            const { error } = await supabase
+              .from('setup_service_orders')
+              .update({
+                status: 'paid',
+                stripe_payment_intent_id: paymentIntent.id,
+                paid_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', metadata.order_id)
+            
+            if (error) {
+              console.error('Error updating setup order in payment_intent.succeeded:', error)
+            } else {
+              console.log('Setup order marked as paid via payment_intent.succeeded')
+              // TODO: 管理者に通知（Slack/Email）
+              // 例: await sendAdminNotification(metadata.order_id)
+            }
           } else {
-            console.log('Setup order marked as paid')
-            // TODO: 管理者に通知（Slack/Email）
-            // 例: await sendAdminNotification(metadata.order_id)
+            console.log('Order already marked as paid, skipping update')
           }
         }
         break;

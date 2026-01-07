@@ -55,6 +55,37 @@ Deno.serve(async (req: Request) => {
         .from('profiles')
         .update({ stripe_customer_id: customerId })
         .eq('id', user.id)
+    } else {
+      // Verify that the customer exists in Stripe
+      let customerExists = false
+      try {
+        const retrievedCustomer = await stripe.customers.retrieve(customerId)
+        // Check if customer was deleted (deleted customers return an object with deleted: true)
+        customerExists = !(retrievedCustomer && typeof retrievedCustomer === 'object' && 'deleted' in retrievedCustomer && retrievedCustomer.deleted)
+      } catch (error: unknown) {
+        // If customer doesn't exist, mark as not existing
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        console.log(`Customer ${customerId} not found in Stripe (${errorMessage})`)
+        customerExists = false
+      }
+
+      if (!customerExists) {
+        // Create a new customer
+        console.log(`Creating new customer to replace invalid customer ID: ${customerId}`)
+        const customer = await stripe.customers.create({
+          email: user.email,
+          metadata: {
+            supabase_user_id: user.id,
+          },
+        })
+        customerId = customer.id
+
+        // Update profile with new stripe_customer_id
+        await supabaseClient
+          .from('profiles')
+          .update({ stripe_customer_id: customerId })
+          .eq('id', user.id)
+      }
     }
 
     // トライアル設定: 過去にトライアルを利用していない場合のみ適用
@@ -63,6 +94,8 @@ Deno.serve(async (req: Request) => {
       trial_settings?: { end_behavior: { missing_payment_method: string } }
     } = {}
 
+    console.log(`Trial check: hasUsedTrial=${hasUsedTrial}, IS_PRE_RELEASE_MODE=${IS_PRE_RELEASE_MODE}, TRIAL_DAYS=${TRIAL_DAYS}`)
+
     if (!hasUsedTrial) {
       subscriptionData.trial_period_days = TRIAL_DAYS
       subscriptionData.trial_settings = {
@@ -70,22 +103,73 @@ Deno.serve(async (req: Request) => {
           missing_payment_method: 'cancel', // 支払い方法がない場合はキャンセル
         },
       }
+      console.log(`Trial period set: ${TRIAL_DAYS} days`)
+    } else {
+      console.log('Trial period not applied: user has already used trial')
     }
 
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      client_reference_id: user.id,
-      line_items: [
-        {
-          price: price_id,
-          quantity: 1,
-        },
-      ],
-      mode: 'subscription',
-      success_url: `${return_url}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${return_url}`,
-      subscription_data: Object.keys(subscriptionData).length > 0 ? subscriptionData : undefined,
-    })
+    // Create checkout session with retry logic for customer errors
+    let session
+    try {
+      console.log(`Creating checkout session with subscription_data:`, subscriptionData)
+      session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        client_reference_id: user.id,
+        line_items: [
+          {
+            price: price_id,
+            quantity: 1,
+          },
+        ],
+        mode: 'subscription',
+        success_url: `${return_url}?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${return_url}`,
+        subscription_data: Object.keys(subscriptionData).length > 0 ? subscriptionData : undefined,
+      })
+      console.log(`Checkout session created: ${session.id}`)
+    } catch (checkoutError: unknown) {
+      const errorMessage = checkoutError instanceof Error ? checkoutError.message : String(checkoutError)
+      
+      // If error is related to customer not found, create a new customer and retry
+      if (errorMessage.includes('No such customer') || errorMessage.includes('customer')) {
+        console.log(`Checkout session creation failed due to customer error: ${errorMessage}, creating new customer and retrying`)
+        
+        // Create new customer
+        const newCustomer = await stripe.customers.create({
+          email: user.email,
+          metadata: {
+            supabase_user_id: user.id,
+          },
+        })
+        customerId = newCustomer.id
+
+        // Update profile with new stripe_customer_id
+        await supabaseClient
+          .from('profiles')
+          .update({ stripe_customer_id: customerId })
+          .eq('id', user.id)
+
+        // Retry checkout session creation with new customer
+        console.log(`Retrying checkout session creation with subscription_data:`, subscriptionData)
+        session = await stripe.checkout.sessions.create({
+          customer: customerId,
+          client_reference_id: user.id,
+          line_items: [
+            {
+              price: price_id,
+              quantity: 1,
+            },
+          ],
+          mode: 'subscription',
+          success_url: `${return_url}?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${return_url}`,
+          subscription_data: Object.keys(subscriptionData).length > 0 ? subscriptionData : undefined,
+        })
+      } else {
+        // Re-throw if it's not a customer-related error
+        throw checkoutError
+      }
+    }
 
     return new Response(
       JSON.stringify({ url: session.url }),
@@ -96,8 +180,18 @@ Deno.serve(async (req: Request) => {
     )
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Create checkout session error:', message, error);
+    
+    // ユーザーフレンドリーなエラーメッセージに変換
+    let userFriendlyMessage = '決済処理に失敗しました。再度お試しください。'
+    if (message.includes('No such customer')) {
+      userFriendlyMessage = '顧客情報の取得に失敗しました。再度お試しください。'
+    } else if (message.includes('customer')) {
+      userFriendlyMessage = '顧客情報の処理に失敗しました。再度お試しください。'
+    }
+    
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({ error: userFriendlyMessage }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,

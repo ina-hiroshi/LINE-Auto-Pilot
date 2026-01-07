@@ -34,7 +34,12 @@ import SetupServiceModal, { type SetupServiceFormData } from '../components/Setu
 // プレリリースモード切り替えフラグ
 // true: プレリリースモニター募集中（2ヶ月無料、サポートなし）
 // false: 正式リリース（リリース記念キャンペーン）
-const IS_PRE_RELEASE_MODE = false
+const IS_PRE_RELEASE_MODE = true
+
+// 初期設定代行バナーのバージョン切り替え
+// 'production': 正式リリース版（¥9,980の初期設定代行バナー）
+// 'prerelease': プレリリース版
+const SETUP_BANNER_VERSION = import.meta.env.VITE_SETUP_BANNER_VERSION || 'production'
 
 interface OnboardingProps {
   onComplete: () => void
@@ -154,20 +159,78 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           setToast({ isVisible: true, message: 'プラン更新中にエラーが発生しました', type: 'error' })
         }
       } else if (setupOrderId) {
-        console.log('Setup service payment completed')
+        console.log('Setup service payment completed, order ID:', setupOrderId)
         
         // URLからsetup_order_idを削除
         window.history.replaceState({}, '', '/onboarding')
         
-        // チュートリアルステップに進む（LINE設定はスキップ）
-        setCurrentStep('tutorial')
-        
-        // 成功メッセージ
-        setToast({ 
-          isVisible: true, 
-          message: '設定代行サービスのお申し込みが完了しました。2営業日以内に担当スタッフからご連絡いたします。', 
-          type: 'success' 
-        })
+        // 注文ステータスを確認
+        try {
+          const { data: order, error: orderError } = await supabase
+            .from('setup_service_orders')
+            .select('id, status, paid_at')
+            .eq('id', setupOrderId)
+            .single()
+          
+          if (orderError) {
+            console.error('Error fetching order:', orderError)
+          } else {
+            console.log('Order status:', order.status)
+            
+            // ステータスが'paid'でない場合、Webhookの処理を待つ（最大5回、1秒間隔）
+            if (order.status !== 'paid') {
+              const maxRetries = 5
+              
+              const checkOrderStatus = async (retryCount: number) => {
+                const { data: updatedOrder } = await supabase
+                  .from('setup_service_orders')
+                  .select('id, status, paid_at')
+                  .eq('id', setupOrderId)
+                  .single()
+                
+                if (updatedOrder?.status === 'paid') {
+                  console.log('Order status updated to paid')
+                  setToast({ 
+                    isVisible: true, 
+                    message: '設定代行サービスのお申し込みが完了しました。2営業日以内に担当スタッフからご連絡いたします。', 
+                    type: 'success' 
+                  })
+                  setCurrentStep('tutorial')
+                } else if (retryCount < maxRetries) {
+                  setTimeout(() => checkOrderStatus(retryCount + 1), 1000)
+                } else {
+                  // リトライ上限に達した場合でも続行（Webhookが後で処理する可能性がある）
+                  console.warn('Order status check timeout, proceeding anyway')
+                  setToast({ 
+                    isVisible: true, 
+                    message: '設定代行サービスのお申し込みが完了しました。2営業日以内に担当スタッフからご連絡いたします。', 
+                    type: 'success' 
+                  })
+                  setCurrentStep('tutorial')
+                }
+              }
+              
+              setTimeout(() => checkOrderStatus(1), 1000)
+            } else {
+              // 既に'paid'ステータスの場合
+              setToast({ 
+                isVisible: true, 
+                message: '設定代行サービスのお申し込みが完了しました。2営業日以内に担当スタッフからご連絡いたします。', 
+                type: 'success' 
+              })
+              setCurrentStep('tutorial')
+            }
+          }
+        } catch (error) {
+          console.error('Error checking order status:', error)
+          // エラーが発生しても続行
+          setToast({ 
+            isVisible: true, 
+            message: '設定代行サービスのお申し込みが完了しました。2営業日以内に担当スタッフからご連絡いたします。', 
+            type: 'success' 
+          })
+          setCurrentStep('tutorial')
+        }
       }
     }
     
@@ -414,10 +477,24 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           }),
         })
 
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+          throw new Error(errorData.error || `HTTP error: ${response.status}`)
+        }
+
         const { url, error } = await response.json()
         console.log('Stripe response:', { url, error })
         
-        if (error) throw new Error(error)
+        if (error) {
+          // エラーメッセージをユーザーフレンドリーに変換
+          let userFriendlyMessage = '決済処理に失敗しました'
+          if (error.includes('No such customer')) {
+            userFriendlyMessage = '顧客情報の取得に失敗しました。再度お試しください。'
+          } else if (error.includes('customer')) {
+            userFriendlyMessage = '顧客情報の処理に失敗しました。再度お試しください。'
+          }
+          throw new Error(userFriendlyMessage)
+        }
         if (!url) throw new Error('Checkoutセッションの作成に失敗しました')
 
         // Stripe Checkoutへリダイレクト
@@ -1031,10 +1108,20 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 </button>
                 <button
                   onClick={handlePlanSelect}
-                  className="flex items-center gap-2 bg-primary-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-primary-700 transition shadow-lg shadow-primary-200"
+                  disabled={loading}
+                  className="flex items-center gap-2 bg-primary-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-primary-700 transition shadow-lg shadow-primary-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  次へ進む
-                  <ArrowRight size={20} />
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      {progressMsg || '処理中...'}
+                    </>
+                  ) : (
+                    <>
+                      次へ進む
+                      <ArrowRight size={20} />
+                    </>
+                  )}
                 </button>
               </div>
             </motion.div>
@@ -1060,35 +1147,61 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
                 {/* 初期設定代行バナー（プレリリースモードでは非表示） */}
                 {!IS_PRE_RELEASE_MODE && (
-                  <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-6 mb-8">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <HelpCircle size={20} />
-                          <span className="font-bold">設定が難しいですか？</span>
+                  <>
+                    {/* 正式リリース版 */}
+                    {SETUP_BANNER_VERSION === 'production' && (
+                      <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-6 mb-8">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <HelpCircle size={20} />
+                              <span className="font-bold">設定が難しいですか？</span>
+                            </div>
+                            <p className="text-sm text-white/90">
+                              専門スタッフがあなたの代わりにLINE接続設定を完了させます。
+                            </p>
+                          </div>
+                          <button 
+                            onClick={() => setIsSetupServiceModalOpen(true)}
+                            className="bg-white text-amber-600 px-6 py-3 rounded-xl font-bold hover:bg-amber-50 transition whitespace-nowrap shadow-lg"
+                          >
+                            初期設定代行を依頼（¥9,980）
+                          </button>
                         </div>
-                        <p className="text-sm text-white/90">
-                          専門スタッフがあなたの代わりにLINE接続設定を完了させます。
-                        </p>
                       </div>
-                      <button 
-                        onClick={() => setIsSetupServiceModalOpen(true)}
-                        className="bg-white text-amber-600 px-6 py-3 rounded-xl font-bold hover:bg-amber-50 transition whitespace-nowrap shadow-lg"
-                      >
-                        初期設定代行を依頼（¥9,980）
-                      </button>
-                    </div>
-                  </div>
+                    )}
+                    
+                    {/* プレリリース版 */}
+                    {SETUP_BANNER_VERSION === 'prerelease' && (
+                      <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-6 mb-8">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <AlertTriangle size={20} />
+                              <span className="font-bold">プレリリースモニターの方へ</span>
+                            </div>
+                            <p className="text-sm text-white/90">
+                              プレリリース期間中は初期設定代行サービスをご利用いただけません。以下の手順に沿ってご自身で設定をお願いいたします。
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {/* プレリリースモード時の注意バナー */}
                 {IS_PRE_RELEASE_MODE && (
-                  <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 mb-8">
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                      <div className="text-sm text-slate-600">
-                        <p className="font-bold text-slate-800 mb-1">プレリリースモニターの方へ</p>
-                        <p>プレリリース期間中は初期設定代行サービスをご利用いただけません。以下の手順に沿ってご自身で設定をお願いいたします。</p>
+                  <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-6 mb-8">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle size={20} />
+                          <span className="font-bold">プレリリースモニターの方へ</span>
+                        </div>
+                        <p className="text-sm text-white/90">
+                          プレリリース期間中は初期設定代行サービスをご利用いただけません。以下の手順に沿ってご自身で設定をお願いいたします。
+                        </p>
                       </div>
                     </div>
                   </div>
