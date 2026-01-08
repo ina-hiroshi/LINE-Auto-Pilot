@@ -195,7 +195,9 @@ export default function AdminDashboard() {
             .select('id, email, full_name')
             .in('id', userIds)
           
-          if (profilesData) {
+          if (profilesError) {
+            console.error('Error fetching profiles:', profilesError)
+          } else if (profilesData) {
             profilesData.forEach(p => {
               profilesMap.set(p.id, { email: p.email, full_name: p.full_name })
             })
