@@ -112,20 +112,12 @@ export default function AdminDashboard() {
         return
       }
 
-      console.log('Loading orders for user:', user.id, 'email:', user.email)
-
       // 管理者権限を確認
-      const { data: profile, error: profileError } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
         .select('is_admin')
         .eq('id', user.id)
         .single()
-
-      if (profileError) {
-        console.error('Profile check error:', profileError)
-      } else {
-        console.log('Profile is_admin:', profile?.is_admin)
-      }
 
       // 注文を取得（リレーションを使わずに）
       const { data: ordersData, error } = await supabase
@@ -134,62 +126,93 @@ export default function AdminDashboard() {
         .order('created_at', { ascending: false })
 
       if (error) {
-        console.error('Load orders error:', error)
-        // エラーの詳細をログに出力
-        console.error('Error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        })
-        
-        // エラーメッセージを詳細に表示
-        let errorMessage = `注文の読み込みに失敗しました: ${error.message}`
-        if (error.code === 'PGRST301' || error.message.includes('permission') || error.message.includes('policy') || error.message.includes('RLS')) {
-          errorMessage = `RLSポリシーエラー: 管理者権限が正しく設定されていない可能性があります。エラーコード: ${error.code}`
-        }
-        
-        setToast({ isVisible: true, message: errorMessage, type: 'error' })
+        setToast({ isVisible: true, message: '注文の読み込みに失敗しました', type: 'error' })
         return
       }
       
       if (!ordersData || ordersData.length === 0) {
-        console.log('注文は0件です（正常）')
+        setOrders([])
+        return
+      }
+      
+      // 未決済（pending）の注文を除外
+      const filteredOrdersData = ordersData.filter(order => order.status !== 'pending')
+      
+      if (filteredOrdersData.length === 0) {
         setOrders([])
         return
       }
       
       // ユーザーIDとストアIDのリストを取得
-      const userIds = [...new Set(ordersData.map(o => o.user_id).filter(Boolean))]
-      const storeIds = [...new Set(ordersData.map(o => o.store_id).filter(Boolean))]
+      const userIds = [...new Set(filteredOrdersData.map(o => o.user_id).filter(Boolean))]
+      const storeIds = [...new Set(filteredOrdersData.map(o => o.store_id).filter(Boolean))]
       
       // profilesとstoresを別々に取得
       const profilesMap = new Map()
       const storesMap = new Map()
       
-      if (userIds.length > 0) {
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('id, email, full_name')
-          .in('id', userIds)
-        
-        if (profilesData) {
-          profilesData.forEach(p => {
-            profilesMap.set(p.id, { email: p.email, full_name: p.full_name })
-          })
-        }
-      }
+      // 管理者の場合はEdge Functionを使用してデータを取得
+      const isAdmin = profile?.is_admin || false
       
-      if (storeIds.length > 0) {
-        const { data: storesData } = await supabase
-          .from('stores')
-          .select('id, store_name')
-          .in('id', storeIds)
+      if (isAdmin) {
+        // 管理者の場合はEdge Functionを使用
+        if (userIds.length > 0) {
+          try {
+            const { data: profilesResponse, error: profilesError } = await supabase.functions.invoke('get-admin-data', {
+              body: { type: 'profiles', userIds }
+            })
+            
+            if (!profilesError && profilesResponse?.data) {
+              profilesResponse.data.forEach((p: { id: string; email: string; full_name: string | null }) => {
+                profilesMap.set(p.id, { email: p.email, full_name: p.full_name })
+              })
+            }
+          } catch (error) {
+            // エラーは無視（データ取得に失敗しても続行）
+          }
+        }
         
-        if (storesData) {
-          storesData.forEach(s => {
-            storesMap.set(s.id, { store_name: s.store_name })
-          })
+        if (storeIds.length > 0) {
+          try {
+            const { data: storesResponse, error: storesError } = await supabase.functions.invoke('get-admin-data', {
+              body: { type: 'stores', storeIds }
+            })
+            
+            if (!storesError && storesResponse?.data) {
+              storesResponse.data.forEach((s: { id: string; name: string }) => {
+                storesMap.set(s.id, { store_name: s.name })
+              })
+            }
+          } catch (error) {
+            // エラーは無視（データ取得に失敗しても続行）
+          }
+        }
+      } else {
+        // 通常ユーザーの場合は直接クエリ
+        if (userIds.length > 0) {
+          const { data: profilesData, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, email, full_name')
+            .in('id', userIds)
+          
+          if (profilesData) {
+            profilesData.forEach(p => {
+              profilesMap.set(p.id, { email: p.email, full_name: p.full_name })
+            })
+          }
+        }
+        
+        if (storeIds.length > 0) {
+          const { data: storesData } = await supabase
+            .from('stores')
+            .select('id, name')
+            .in('id', storeIds)
+          
+          if (storesData) {
+            storesData.forEach(s => {
+              storesMap.set(s.id, { store_name: s.name })
+            })
+          }
         }
       }
       
@@ -200,23 +223,9 @@ export default function AdminDashboard() {
         stores: order.store_id ? (storesMap.get(order.store_id) || null) : null
       }))
       
-      console.log('Orders loaded successfully:', ordersWithRelations.length, '件')
       setOrders(ordersWithRelations)
     } catch (error) {
-      console.error('Load orders catch error:', error)
-      
-      // エラーの詳細を確認
-      let errorMessage = '注文の読み込みに失敗しました'
-      if (error instanceof Error) {
-        errorMessage = `注文の読み込みに失敗しました: ${error.message}`
-        
-        // RLSポリシーエラーの場合、より詳細なメッセージを表示
-        if (error.message.includes('permission') || error.message.includes('policy') || error.message.includes('RLS')) {
-          errorMessage = '管理者権限が正しく設定されていない可能性があります。ページをリロードしてください。'
-        }
-      }
-      
-      setToast({ isVisible: true, message: errorMessage, type: 'error' })
+      setToast({ isVisible: true, message: '注文の読み込みに失敗しました', type: 'error' })
     } finally {
       setLoading(false)
     }
@@ -348,23 +357,77 @@ export default function AdminDashboard() {
 
     setSaving(true)
     try {
-      const { error: lineError } = await supabase
+      // 既存のレコードを確認
+      const { data: existingLineAccount } = await supabase
         .from('line_accounts')
-        .upsert({
-          user_id: selectedOrder.user_id,
-          store_id: selectedOrder.store_id,
-          channel_id: lineSettings.channel_id,
-          channel_secret: lineSettings.channel_secret,
-          channel_access_token: lineSettings.channel_token,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' })
+        .select('id')
+        .eq('store_id', selectedOrder.store_id)
+        .maybeSingle()
 
-      if (lineError) throw lineError
+      let lineError
+      if (existingLineAccount) {
+        // 既存のレコードを更新
+        const { error } = await supabase
+          .from('line_accounts')
+          .update({
+            channel_id: lineSettings.channel_id,
+            channel_secret: lineSettings.channel_secret,
+            channel_access_token: lineSettings.channel_token,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('store_id', selectedOrder.store_id)
+        lineError = error
+      } else {
+        // 新規レコードを挿入
+        const { error } = await supabase
+          .from('line_accounts')
+          .insert({
+            user_id: selectedOrder.user_id,
+            store_id: selectedOrder.store_id,
+            channel_id: lineSettings.channel_id,
+            channel_secret: lineSettings.channel_secret,
+            channel_access_token: lineSettings.channel_token,
+            updated_at: new Date().toISOString(),
+          })
+        lineError = error
+      }
 
+      if (lineError) {
+        console.error('LINE account save error:', lineError)
+        throw new Error(`LINE設定の保存に失敗しました: ${lineError.message}`)
+      }
+
+      // Bot情報の取得とbot_id、line_user_idの保存
       try {
-        await supabase.functions.invoke('get-line-bot-info', {
+        const { data: botInfoData, error: funcError } = await supabase.functions.invoke('get-line-bot-info', {
           body: { storeId: selectedOrder.store_id }
         })
+        
+        if (funcError) {
+          console.warn('Bot info fetch warning:', funcError)
+        } else if (botInfoData) {
+          // bot_idとline_user_idを更新
+          const updateData: Record<string, unknown> = {}
+          if (botInfoData.basicId) {
+            updateData.bot_id = botInfoData.basicId
+          }
+          if (botInfoData.userId) {
+            updateData.line_user_id = botInfoData.userId
+          }
+          
+          if (Object.keys(updateData).length > 0) {
+            const { error: updateError } = await supabase
+              .from('line_accounts')
+              .update(updateData)
+              .eq('store_id', selectedOrder.store_id)
+            
+            if (updateError) {
+              console.warn('Failed to update bot_id/line_user_id:', updateError)
+            } else {
+              console.log('Updated bot_id and line_user_id successfully')
+            }
+          }
+        }
       } catch (e) {
         console.warn('Bot info fetch warning:', e)
       }
@@ -380,7 +443,27 @@ export default function AdminDashboard() {
 
       if (updateError) throw updateError
 
-      setToast({ isVisible: true, message: 'LINE設定を保存し、注文を完了にしました', type: 'success' })
+      // 完了メールを送信
+      try {
+        const { data: emailResponse, error: emailError } = await supabase.functions.invoke('send-setup-service-email', {
+          body: {
+            order_id: selectedOrder.id,
+            email_type: 'completion'
+          }
+        })
+
+        if (emailError) {
+          console.error('Failed to send completion email:', emailError)
+          setToast({ isVisible: true, message: '設定代行サービスを完了しました。ただし、完了メールの送信に失敗しました。', type: 'error' })
+        } else {
+          console.log('Completion email sent successfully:', emailResponse)
+        }
+      } catch (emailError) {
+        console.error('Error sending completion email:', emailError)
+        setToast({ isVisible: true, message: '設定代行サービスを完了しました。ただし、完了メールの送信に失敗しました。', type: 'error' })
+      }
+
+      setToast({ isVisible: true, message: '設定代行サービスを完了しました。顧客に完了メールを送信しました。', type: 'success' })
       loadOrders()
       setSelectedOrder(null)
     } catch (error: unknown) {
@@ -405,7 +488,36 @@ export default function AdminDashboard() {
 
       if (error) throw error
 
-      setToast({ isVisible: true, message: `ステータスを${newStatus}に更新しました`, type: 'success' })
+      // ステータスがcompletedになった場合、完了メールを送信
+      if (newStatus === 'completed') {
+        try {
+          const { error: emailError } = await supabase.functions.invoke('send-setup-service-email', {
+            body: {
+              order_id: orderId,
+              email_type: 'completion'
+            }
+          })
+
+          if (emailError) {
+            console.error('Failed to send completion email:', emailError)
+            // メール送信エラーは警告のみ（ステータス更新は成功）
+          } else {
+            console.log('Completion email sent successfully')
+          }
+        } catch (emailError) {
+          console.error('Error sending completion email:', emailError)
+          // メール送信エラーは警告のみ（ステータス更新は成功）
+        }
+      }
+
+      const statusMessages: Record<string, string> = {
+        pending: 'ステータスを未決済に更新しました',
+        paid: 'ステータスを決済済みに更新しました',
+        in_progress: 'ステータスを作業中に更新しました',
+        completed: '設定代行サービスを完了しました。顧客に完了メールを送信しました。',
+        cancelled: 'ステータスをキャンセルに更新しました'
+      }
+      setToast({ isVisible: true, message: statusMessages[newStatus] || `ステータスを${newStatus}に更新しました`, type: 'success' })
       loadOrders()
       if (selectedOrder?.id === orderId) {
         setSelectedOrder({ ...selectedOrder, status: newStatus })
@@ -417,10 +529,17 @@ export default function AdminDashboard() {
   }
 
   const filteredOrders = orders.filter(order => {
-    const matchesSearch = 
-      order.profiles?.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    // 未決済（pending）の注文は表示しない
+    if (order.status === 'pending') {
+      return false
+    }
+    
+    // 検索クエリが空の場合は全てマッチ
+    const matchesSearch = searchQuery === '' || 
+      order.profiles?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.profiles?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.stores?.store_name?.toLowerCase().includes(searchQuery.toLowerCase())
+      order.stores?.store_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.contact_email?.toLowerCase().includes(searchQuery.toLowerCase())
     
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter
 
@@ -590,7 +709,7 @@ export default function AdminDashboard() {
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <p className="font-medium text-gray-900">{order.profiles?.full_name || order.profiles?.email}</p>
-                          <p className="text-sm text-gray-500">{order.stores?.store_name || '店舗未登録'}</p>
+                          <p className="text-sm text-gray-500">{order.stores?.store_name || (order.store_id ? '店舗情報取得中...' : '店舗情報未設定')}</p>
                         </div>
                         {getStatusBadge(order.status)}
                       </div>

@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { Loader2, Crown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import Toast from './Toast'
-
-const PRO_PRICE_ID = 'price_1SmKVC7JLpsQAtFkOSirIftK'
+import { PRO_PRICE_ID } from '../constants/stripe'
 
 interface ProUpgradeButtonProps {
   className?: string

@@ -170,25 +170,74 @@ export default function AdminSetupService() {
 
     setSaving(true)
     try {
-      // LINE設定を保存
-      const { error: lineError } = await supabase
+      // 既存のレコードを確認
+      const { data: existingLineAccount } = await supabase
         .from('line_accounts')
-        .upsert({
-          user_id: selectedOrder.user_id,
-          store_id: selectedOrder.store_id,
-          channel_id: lineSettings.channel_id,
-          channel_secret: lineSettings.channel_secret,
-          channel_access_token: lineSettings.channel_token,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' })
+        .select('id')
+        .eq('store_id', selectedOrder.store_id)
+        .maybeSingle()
+
+      let lineError
+      if (existingLineAccount) {
+        // 既存のレコードを更新
+        const { error } = await supabase
+          .from('line_accounts')
+          .update({
+            channel_id: lineSettings.channel_id,
+            channel_secret: lineSettings.channel_secret,
+            channel_access_token: lineSettings.channel_token,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('store_id', selectedOrder.store_id)
+        lineError = error
+      } else {
+        // 新規レコードを挿入
+        const { error } = await supabase
+          .from('line_accounts')
+          .insert({
+            user_id: selectedOrder.user_id,
+            store_id: selectedOrder.store_id,
+            channel_id: lineSettings.channel_id,
+            channel_secret: lineSettings.channel_secret,
+            channel_access_token: lineSettings.channel_token,
+            updated_at: new Date().toISOString(),
+          })
+        lineError = error
+      }
 
       if (lineError) throw lineError
 
-      // Bot情報の取得
+      // Bot情報の取得とbot_id、line_user_idの保存
       try {
-        await supabase.functions.invoke('get-line-bot-info', {
+        const { data: botInfoData, error: funcError } = await supabase.functions.invoke('get-line-bot-info', {
           body: { storeId: selectedOrder.store_id }
         })
+        
+        if (funcError) {
+          console.warn('Bot info fetch warning:', funcError)
+        } else if (botInfoData) {
+          // bot_idとline_user_idを更新
+          const updateData: Record<string, unknown> = {}
+          if (botInfoData.basicId) {
+            updateData.bot_id = botInfoData.basicId
+          }
+          if (botInfoData.userId) {
+            updateData.line_user_id = botInfoData.userId
+          }
+          
+          if (Object.keys(updateData).length > 0) {
+            const { error: updateError } = await supabase
+              .from('line_accounts')
+              .update(updateData)
+              .eq('store_id', selectedOrder.store_id)
+            
+            if (updateError) {
+              console.warn('Failed to update bot_id/line_user_id:', updateError)
+            } else {
+              console.log('Updated bot_id and line_user_id successfully')
+            }
+          }
+        }
       } catch (e) {
         console.warn('Bot info fetch warning:', e)
       }
@@ -205,7 +254,27 @@ export default function AdminSetupService() {
 
       if (updateError) throw updateError
 
-      setToast({ isVisible: true, message: 'LINE設定を保存し、注文を完了にしました', type: 'success' })
+      // 完了メールを送信
+      try {
+        const { error: emailError } = await supabase.functions.invoke('send-setup-service-email', {
+          body: {
+            order_id: selectedOrder.id,
+            email_type: 'completion'
+          }
+        })
+
+        if (emailError) {
+          console.error('Failed to send completion email:', emailError)
+          // メール送信エラーは警告のみ（ステータス更新は成功）
+        } else {
+          console.log('Completion email sent successfully')
+        }
+      } catch (emailError) {
+        console.error('Error sending completion email:', emailError)
+        // メール送信エラーは警告のみ（ステータス更新は成功）
+      }
+
+      setToast({ isVisible: true, message: '設定代行サービスを完了しました。顧客に完了メールを送信しました。', type: 'success' })
       loadOrders()
       setSelectedOrder(null)
     } catch (error: unknown) {
@@ -230,7 +299,36 @@ export default function AdminSetupService() {
 
       if (error) throw error
 
-      setToast({ isVisible: true, message: `ステータスを${newStatus}に更新しました`, type: 'success' })
+      // ステータスがcompletedになった場合、完了メールを送信
+      if (newStatus === 'completed') {
+        try {
+          const { error: emailError } = await supabase.functions.invoke('send-setup-service-email', {
+            body: {
+              order_id: orderId,
+              email_type: 'completion'
+            }
+          })
+
+          if (emailError) {
+            console.error('Failed to send completion email:', emailError)
+            // メール送信エラーは警告のみ（ステータス更新は成功）
+          } else {
+            console.log('Completion email sent successfully')
+          }
+        } catch (emailError) {
+          console.error('Error sending completion email:', emailError)
+          // メール送信エラーは警告のみ（ステータス更新は成功）
+        }
+      }
+
+      const statusMessages: Record<string, string> = {
+        pending: 'ステータスを未決済に更新しました',
+        paid: 'ステータスを決済済みに更新しました',
+        in_progress: 'ステータスを作業中に更新しました',
+        completed: '設定代行サービスを完了しました。顧客に完了メールを送信しました。',
+        cancelled: 'ステータスをキャンセルに更新しました'
+      }
+      setToast({ isVisible: true, message: statusMessages[newStatus] || `ステータスを${newStatus}に更新しました`, type: 'success' })
       loadOrders()
       if (selectedOrder?.id === orderId) {
         setSelectedOrder({ ...selectedOrder, status: newStatus })

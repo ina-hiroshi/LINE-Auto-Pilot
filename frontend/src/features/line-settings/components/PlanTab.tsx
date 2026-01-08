@@ -2,13 +2,12 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { Loader2, Check, Shield, Gift, AlertTriangle } from 'lucide-react'
 import Toast from '../../../components/Toast'
+import { PRO_PRICE_ID } from '../../../constants/stripe'
 
 // プレリリースモード切り替えフラグ
 // true: プレリリースモニター募集中（2ヶ月無料、サポートなし）
 // false: 正式リリース（リリース記念キャンペーン）
-const IS_PRE_RELEASE_MODE = true
-
-const PRO_PRICE_ID = import.meta.env.VITE_STRIPE_PRO_PRICE_ID || 'price_1SmKVC7JLpsQAtFkOSirIftK' 
+const IS_PRE_RELEASE_MODE = true 
 
 export function PlanTab() {
   const [loading, setLoading] = useState(true)

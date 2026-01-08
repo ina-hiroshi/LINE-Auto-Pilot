@@ -18,15 +18,30 @@ export function ConnectionTab({ lineSettings, saving, webhookUrl, onSubmit, onCh
         <h2 className="text-xl font-bold text-gray-800">接続設定</h2>
       </div>
       <form className="space-y-4" onSubmit={onSubmit} autoComplete="off">
-        {lineSettings.bot_id && (
-          <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg mb-2 flex items-center gap-3">
-            <div className="bg-[#06C755] p-2 rounded-full text-white">
-              <MessageSquare size={20} />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">連携中のアカウント (Basic ID)</p>
-              <p className="text-lg font-bold text-gray-800">{lineSettings.bot_id}</p>
-            </div>
+        {(lineSettings.bot_id || lineSettings.line_user_id) && (
+          <div className="space-y-2 mb-4">
+            {lineSettings.bot_id && (
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-center gap-3">
+                <div className="bg-[#06C755] p-2 rounded-full text-white">
+                  <MessageSquare size={20} />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">連携中のアカウント (Basic ID)</p>
+                  <p className="text-lg font-bold text-gray-800">{lineSettings.bot_id}</p>
+                </div>
+              </div>
+            )}
+            {lineSettings.line_user_id && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-3">
+                <div className="bg-blue-600 p-2 rounded-full text-white">
+                  <MessageSquare size={20} />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">LINE ID (Bot User ID)</p>
+                  <p className="text-lg font-bold text-gray-800 font-mono">{lineSettings.line_user_id}</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
         <div>

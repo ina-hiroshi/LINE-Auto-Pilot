@@ -34,6 +34,9 @@ Deno.serve(async (req: Request) => {
       case 'checkout.session.completed': {
         const session = event.data.object;
         console.log(`Processing checkout.session.completed for session: ${session.id}`);
+        console.log(`Session mode: ${session.mode}`);
+        console.log(`Session metadata:`, JSON.stringify(session.metadata));
+        console.log(`Session client_reference_id: ${session.client_reference_id}`);
         
         // 設定代行サービスの一回払い処理
         if (session.mode === 'payment' && session.metadata?.type === 'setup_service') {
@@ -44,24 +47,95 @@ Deno.serve(async (req: Request) => {
             // Payment Intentを取得して決済情報を取得
             const paymentIntentId = session.payment_intent;
             
-            const { error } = await supabase
+            // 更新前の状態を確認
+            const { data: beforeUpdate } = await supabase
               .from('setup_service_orders')
-              .update({
-                status: 'paid',
-                stripe_payment_intent_id: typeof paymentIntentId === 'string' ? paymentIntentId : null,
-                stripe_checkout_session_id: session.id,
-                paid_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              })
+              .select('id, status, user_id, store_id')
               .eq('id', orderId)
+              .single()
+            console.log(`Order before update:`, JSON.stringify(beforeUpdate));
+            
+            // store_idがnullの場合、ユーザーの店舗情報を取得して設定
+            let storeIdToUpdate = beforeUpdate?.store_id
+            if (!storeIdToUpdate && beforeUpdate?.user_id) {
+              const { data: storeData } = await supabase
+                .from('stores')
+                .select('id')
+                .eq('owner_id', beforeUpdate.user_id)
+                .maybeSingle()
+              
+              if (storeData?.id) {
+                storeIdToUpdate = storeData.id
+                console.log(`Found store_id for user ${beforeUpdate.user_id}: ${storeIdToUpdate}`)
+              }
+            }
+            
+            // 既にcompletedの場合は、ステータスを更新しない（冪等性を保つ）
+            const currentStatus = beforeUpdate?.status
+            const shouldUpdateStatus = currentStatus !== 'completed' && currentStatus !== 'cancelled'
+            
+            const updateData: Record<string, unknown> = {
+              stripe_payment_intent_id: typeof paymentIntentId === 'string' ? paymentIntentId : null,
+              stripe_checkout_session_id: session.id,
+              updated_at: new Date().toISOString(),
+              ...(storeIdToUpdate ? { store_id: storeIdToUpdate } : {})
+            }
+            
+            // ステータスがcompletedまたはcancelledでない場合のみ、paidに更新
+            if (shouldUpdateStatus) {
+              updateData.status = 'paid'
+              // paid_atは初回のみ設定（既に設定されている場合は更新しない）
+              if (!beforeUpdate?.paid_at) {
+                updateData.paid_at = new Date().toISOString()
+              }
+            }
+            
+            const { data: updatedOrder, error } = await supabase
+              .from('setup_service_orders')
+              .update(updateData)
+              .eq('id', orderId)
+              .select()
             
             if (error) {
               console.error('Error updating setup order in checkout.session.completed:', error)
+              console.error('Error details:', JSON.stringify(error))
             } else {
               console.log('Setup order marked as paid via checkout.session.completed')
-              // TODO: 管理者に通知（Slack/Email）
+              console.log('Updated order:', JSON.stringify(updatedOrder))
+              
+              // 決済確認メールを送信
+              try {
+                const emailResponse = await fetch(
+                  `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-setup-service-email`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                    },
+                    body: JSON.stringify({
+                      order_id: orderId,
+                      email_type: 'payment_confirmation'
+                    })
+                  }
+                )
+                
+                if (!emailResponse.ok) {
+                  const errorText = await emailResponse.text()
+                  console.error('Failed to send payment confirmation email:', errorText)
+                } else {
+                  console.log('Payment confirmation email sent successfully')
+                }
+              } catch (emailError) {
+                console.error('Error sending payment confirmation email:', emailError)
+                // メール送信エラーは決済処理を止めない
+              }
             }
+          } else {
+            console.log(`No orderId found. metadata.order_id: ${session.metadata?.order_id}, client_reference_id: ${session.client_reference_id}`)
           }
+        } else {
+          console.log(`Skipping setup service processing. mode: ${session.mode}, metadata.type: ${session.metadata?.type}`)
         }
         
         // サブスクリプション処理
@@ -191,8 +265,34 @@ Deno.serve(async (req: Request) => {
               console.error('Error updating setup order in payment_intent.succeeded:', error)
             } else {
               console.log('Setup order marked as paid via payment_intent.succeeded')
-              // TODO: 管理者に通知（Slack/Email）
-              // 例: await sendAdminNotification(metadata.order_id)
+              
+              // 決済確認メールを送信（フォールバック）
+              try {
+                const emailResponse = await fetch(
+                  `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-setup-service-email`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                    },
+                    body: JSON.stringify({
+                      order_id: metadata.order_id,
+                      email_type: 'payment_confirmation'
+                    })
+                  }
+                )
+                
+                if (!emailResponse.ok) {
+                  const errorText = await emailResponse.text()
+                  console.error('Failed to send payment confirmation email:', errorText)
+                } else {
+                  console.log('Payment confirmation email sent successfully')
+                }
+              } catch (emailError) {
+                console.error('Error sending payment confirmation email:', emailError)
+                // メール送信エラーは決済処理を止めない
+              }
             }
           } else {
             console.log('Order already marked as paid, skipping update')
@@ -204,8 +304,22 @@ Deno.serve(async (req: Request) => {
   } catch (error: unknown) {
     console.error('Error processing webhook:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: message }), { status: 500 })
+    // エラーが発生しても200 OKを返す（Stripeの再送を防ぐため）
+    // エラーはログに記録されているので、後で確認可能
+    return new Response(
+      JSON.stringify({ received: true, error: message }), 
+      { 
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    )
   }
 
-  return new Response(JSON.stringify({ received: true }), { status: 200 })
+  return new Response(
+    JSON.stringify({ received: true }), 
+    { 
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    }
+  )
 })

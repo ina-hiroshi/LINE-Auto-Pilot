@@ -25,16 +25,25 @@
 ### フロントエンド（`.env`）
 
 ```bash
-VITE_STRIPE_PRICE_ID_PRO=price_xxxxxxxxxx
+VITE_STRIPE_PRO_PRICE_ID=price_xxxxxxxxxx
+VITE_STRIPE_SETUP_SERVICE_PRICE_ID=price_xxxxxxxxxx
 ```
+
+**注意**: 環境変数の設定は必須です。未設定の場合、アプリケーションは起動時にエラーを表示します。
 
 ### Supabase Edge Functions（Secrets）
 
 ```bash
 supabase secrets set STRIPE_SECRET_KEY="sk_test_xxxxxxxxxx"
 supabase secrets set STRIPE_WEBHOOK_SECRET="whsec_xxxxxxxxxx"
-supabase secrets set STRIPE_PRICE_ID_PRO="price_xxxxxxxxxx"
+supabase secrets set STRIPE_PRICE_ID_SETUP_SERVICE="price_xxxxxxxxxx"
 ```
+
+**注意**: 
+- `STRIPE_SECRET_KEY`: Stripe APIキー（必須）
+- `STRIPE_WEBHOOK_SECRET`: Webhook署名検証用（必須）
+- `STRIPE_PRICE_ID_SETUP_SERVICE`: 初期設定代行サービスの価格ID（必須）
+- Proプランの価格IDはフロントエンドからリクエストボディで送信されるため、Supabase Edge Functions側での環境変数設定は不要です
 
 ## 4. APIキーの取得
 

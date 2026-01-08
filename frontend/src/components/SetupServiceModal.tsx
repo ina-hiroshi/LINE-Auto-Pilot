@@ -154,7 +154,6 @@ export default function SetupServiceModal({ isOpen, onClose, onSubmit, submittin
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <p className="text-xs text-gray-600 space-y-1">
               <strong className="block mb-2">ご注意事項：</strong>
-              • 決済完了後、2営業日以内に担当スタッフからメールでご連絡いたします<br />
               • メールでのやり取りを通じて設定を完了させます（通話不要）<br />
               • LINE公式アカウントをお持ちでない場合は、作成方法もご案内いたします<br />
               • 設定完了まで通常3〜5営業日程度かかります

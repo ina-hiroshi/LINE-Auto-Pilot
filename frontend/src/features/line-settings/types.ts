@@ -26,6 +26,7 @@ export interface LineSettingsState {
   channel_secret: string
   channel_token: string
   bot_id: string
+  line_user_id?: string
 }
 
 export interface BookingSettings {

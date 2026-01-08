@@ -29,6 +29,7 @@ const DEFAULT_LINE_SETTINGS: LineSettingsState = {
 	channel_secret: '',
 	channel_token: '',
 	bot_id: '',
+	line_user_id: '',
 }
 
 const DEFAULT_PASSWORD_DATA = {
@@ -109,6 +110,7 @@ export default function LineSettings() {
 					channel_secret: lineAccount.channel_secret || '',
 					channel_token: lineAccount.channel_access_token || '',
 					bot_id: lineAccount.bot_id || '',
+					line_user_id: lineAccount.line_user_id || '',
 				})
 			}
 
@@ -155,10 +157,33 @@ export default function LineSettings() {
 				setStoreId(newStore.id)
 			}
 
-			// 2. LINEアカウントの更新
-			const { error: lineError } = await supabase
+		// 2. LINEアカウントの更新
+		// 既存のレコードを確認
+		const { data: existingLineAccount } = await supabase
+			.from('line_accounts')
+			.select('id')
+			.eq('store_id', currentStoreId)
+			.maybeSingle()
+
+		let lineError
+		if (existingLineAccount) {
+			// 既存のレコードを更新
+			const { error } = await supabase
 				.from('line_accounts')
-				.upsert({
+				.update({
+					channel_id: lineSettings.channel_id,
+					channel_secret: lineSettings.channel_secret,
+					channel_access_token: lineSettings.channel_token,
+					bot_id: lineSettings.bot_id,
+					updated_at: new Date().toISOString(),
+				})
+				.eq('store_id', currentStoreId)
+			lineError = error
+		} else {
+			// 新規レコードを挿入
+			const { error } = await supabase
+				.from('line_accounts')
+				.insert({
 					user_id: user.id,
 					store_id: currentStoreId,
 					channel_id: lineSettings.channel_id,
@@ -166,18 +191,40 @@ export default function LineSettings() {
 					channel_access_token: lineSettings.channel_token,
 					bot_id: lineSettings.bot_id,
 					updated_at: new Date().toISOString(),
-				}, { onConflict: 'user_id' })
+				})
+			lineError = error
+		}
 
-			if (lineError) throw lineError
+		if (lineError) throw lineError
 
-			// 3. Webhook URLの更新 (Edge Function)
-			const { error: funcError } = await supabase.functions.invoke('get-line-bot-info', {
+			// 3. Bot情報の取得とline_user_idの保存 (Edge Function)
+			// LINE設定を保存した後、少し待ってからBot情報を取得
+			await new Promise(resolve => setTimeout(resolve, 500))
+			
+			const { data: botInfoData, error: funcError } = await supabase.functions.invoke('get-line-bot-info', {
 				body: { storeId: currentStoreId }
 			})
 			
 			if (funcError) {
-				console.warn('Webhook update warning:', funcError)
-				// Webhook設定エラーは致命的ではないので警告のみ
+				console.warn('Bot info fetch warning:', funcError)
+				// Bot情報取得エラーは致命的ではないので警告のみ
+				// ただし、LINE設定が正しく保存されていない可能性がある
+				if (funcError.message?.includes('LINE account not found')) {
+					console.warn('LINE account may not be saved yet. Please try saving again.')
+				}
+			} else if (botInfoData) {
+				console.log('Bot info received:', botInfoData)
+				// Edge Functionが既にデータベースを更新しているので、状態のみ更新
+				const updates: Partial<typeof lineSettings> = {}
+				if (botInfoData.userId) {
+					updates.line_user_id = botInfoData.userId
+				}
+				if (botInfoData.basicId) {
+					updates.bot_id = botInfoData.basicId
+				}
+				if (Object.keys(updates).length > 0) {
+					setLineSettings(prev => ({ ...prev, ...updates }))
+				}
 			}
 
 			setMessage({ type: 'success', text: 'LINE設定を保存しました' })

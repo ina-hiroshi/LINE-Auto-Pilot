@@ -2,13 +2,12 @@ import { useState } from 'react'
 import { Crown, Loader2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import Toast from './Toast'
+import { PRO_PRICE_ID } from '../constants/stripe'
 
 interface ProLockOverlayProps {
   title?: string
   description?: React.ReactNode
 }
-
-const PRO_PRICE_ID = 'price_1SkA8F9gqo1AslYsV0rVvBzF'
 
 export default function ProLockOverlay({ 
   title = "Proプラン限定機能", 

@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { Loader2, Check, Shield } from 'lucide-react'
 import Toast from '../components/Toast'
-
-const PRO_PRICE_ID = import.meta.env.VITE_STRIPE_PRO_PRICE_ID || 'price_1SmKVC7JLpsQAtFkOSirIftK' 
+import { PRO_PRICE_ID } from '../constants/stripe' 
 
 export default function PlanSettings() {
   const [loading, setLoading] = useState(true)

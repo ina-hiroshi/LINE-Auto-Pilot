@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
+import { PRO_PRICE_ID } from '../constants/stripe'
 import {
   User,
   Store,
@@ -34,12 +35,18 @@ import SetupServiceModal, { type SetupServiceFormData } from '../components/Setu
 // プレリリースモード切り替えフラグ
 // true: プレリリースモニター募集中（2ヶ月無料、サポートなし）
 // false: 正式リリース（リリース記念キャンペーン）
-const IS_PRE_RELEASE_MODE = true
+// デバッグ用: 一時的にfalseに変更（初期設定代行サービスのバナーを表示）
+const IS_PRE_RELEASE_MODE = false
 
 // 初期設定代行バナーのバージョン切り替え
 // 'production': 正式リリース版（¥9,980の初期設定代行バナー）
 // 'prerelease': プレリリース版
-const SETUP_BANNER_VERSION = import.meta.env.VITE_SETUP_BANNER_VERSION || 'production'
+const envBannerVersion = import.meta.env.VITE_SETUP_BANNER_VERSION
+const SETUP_BANNER_VERSION = (envBannerVersion && envBannerVersion.trim() !== '') ? envBannerVersion.trim() : 'production'
+
+// デバッグ用: バナーバージョンの値をコンソールに出力
+console.log('[Onboarding] SETUP_BANNER_VERSION:', SETUP_BANNER_VERSION)
+console.log('[Onboarding] VITE_SETUP_BANNER_VERSION (env):', envBannerVersion)
 
 interface OnboardingProps {
   onComplete: () => void
@@ -103,6 +110,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [isSetupServiceModalOpen, setIsSetupServiceModalOpen] = useState(false)
   const [setupServiceSubmitting, setSetupServiceSubmitting] = useState(false)
   const [userEmail, setUserEmail] = useState<string>('')
+  const [hasSetupServiceOrder, setHasSetupServiceOrder] = useState<boolean>(false)
 
   // ユーザーメールアドレスを取得
   useEffect(() => {
@@ -190,9 +198,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 
                 if (updatedOrder?.status === 'paid') {
                   console.log('Order status updated to paid')
+                  setHasSetupServiceOrder(true)
                   setToast({ 
                     isVisible: true, 
-                    message: '設定代行サービスのお申し込みが完了しました。2営業日以内に担当スタッフからご連絡いたします。', 
+                    message: '設定代行サービスのお申し込みが完了しました。メールでご案内いたします。', 
                     type: 'success' 
                   })
                   setCurrentStep('tutorial')
@@ -201,9 +210,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 } else {
                   // リトライ上限に達した場合でも続行（Webhookが後で処理する可能性がある）
                   console.warn('Order status check timeout, proceeding anyway')
+                  setHasSetupServiceOrder(true)
                   setToast({ 
                     isVisible: true, 
-                    message: '設定代行サービスのお申し込みが完了しました。2営業日以内に担当スタッフからご連絡いたします。', 
+                    message: '設定代行サービスのお申し込みが完了しました。メールでご案内いたします。', 
                     type: 'success' 
                   })
                   setCurrentStep('tutorial')
@@ -213,9 +223,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               setTimeout(() => checkOrderStatus(1), 1000)
             } else {
               // 既に'paid'ステータスの場合
+              setHasSetupServiceOrder(true)
               setToast({ 
                 isVisible: true, 
-                message: '設定代行サービスのお申し込みが完了しました。2営業日以内に担当スタッフからご連絡いたします。', 
+                message: '設定代行サービスのお申し込みが完了しました。メールでご案内いたします。', 
                 type: 'success' 
               })
               setCurrentStep('tutorial')
@@ -224,9 +235,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         } catch (error) {
           console.error('Error checking order status:', error)
           // エラーが発生しても続行
+          setHasSetupServiceOrder(true)
           setToast({ 
             isVisible: true, 
-            message: '設定代行サービスのお申し込みが完了しました。2営業日以内に担当スタッフからご連絡いたします。', 
+            message: '設定代行サービスのお申し込みが完了しました。メールでご案内いたします。', 
             type: 'success' 
           })
           setCurrentStep('tutorial')
@@ -269,12 +281,32 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           console.log('Has used trial:', profileData.has_used_trial)
         }
 
+        // 設定代行サービスの注文状況を確認
+        const { data: setupOrders } = await supabase
+          .from('setup_service_orders')
+          .select('id, status')
+          .eq('user_id', user.id)
+          .in('status', ['paid', 'in_progress', 'completed'])
+          .limit(1)
+        
+        setHasSetupServiceOrder((setupOrders && setupOrders.length > 0) || false)
+
         // 店舗情報を取得
-        const { data: storeData } = await supabase
+        const { data: storeData, error: storeError } = await supabase
           .from('stores')
           .select('id, name, postal_code, address, phone_number, industry')
           .eq('owner_id', user.id)
-          .single()
+          .maybeSingle()
+
+        if (storeError) {
+          console.error('Store fetch error:', storeError)
+          console.error('Error details:', {
+            message: storeError.message,
+            details: storeError.details,
+            hint: storeError.hint,
+            code: storeError.code
+          })
+        }
 
         let hasLineAccount = false
 
@@ -291,11 +323,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           }))
 
           // LINE設定を取得
-          const { data: lineData } = await supabase
+          const { data: lineData, error: lineError } = await supabase
             .from('line_accounts')
             .select('channel_id, channel_secret, channel_access_token')
             .eq('store_id', storeData.id)
             .maybeSingle()
+
+          if (lineError) {
+            console.error('LINE account fetch error:', lineError)
+          }
 
           if (lineData && lineData.channel_id && lineData.channel_secret && lineData.channel_access_token) {
             hasLineAccount = true
@@ -305,6 +341,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               channel_token: lineData.channel_access_token || ''
             })
           }
+        } else {
+          console.log('No store data found for user:', user.id)
         }
 
         // 店舗情報があるがLINE連携が未設定の場合、LINE設定ステップから開始
@@ -314,6 +352,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         }
       } catch (error) {
         console.error('Error loading existing data:', error)
+        // エラーの詳細をログに出力
+        if (error instanceof Error) {
+          console.error('Error message:', error.message)
+          console.error('Error stack:', error.stack)
+        }
       }
     }
 
@@ -472,7 +515,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            price_id: import.meta.env.VITE_STRIPE_PRO_PRICE_ID || 'price_1SmKVC7JLpsQAtFkOSirIftK',
+            price_id: PRO_PRICE_ID,
             return_url: window.location.origin + '/onboarding'
           }),
         })
@@ -528,16 +571,40 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) throw new Error('認証エラー')
 
-      const { error: lineError } = await supabase
+      // 既存のレコードを確認
+      const { data: existingLineAccount } = await supabase
         .from('line_accounts')
-        .upsert({
-          user_id: user.id,
-          store_id: storeId,
-          channel_id: lineSettings.channel_id,
-          channel_secret: lineSettings.channel_secret,
-          channel_access_token: lineSettings.channel_token,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' })
+        .select('id')
+        .eq('store_id', storeId)
+        .maybeSingle()
+
+      let lineError
+      if (existingLineAccount) {
+        // 既存のレコードを更新
+        const { error } = await supabase
+          .from('line_accounts')
+          .update({
+            channel_id: lineSettings.channel_id,
+            channel_secret: lineSettings.channel_secret,
+            channel_access_token: lineSettings.channel_token,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('store_id', storeId)
+        lineError = error
+      } else {
+        // 新規レコードを挿入
+        const { error } = await supabase
+          .from('line_accounts')
+          .insert({
+            user_id: user.id,
+            store_id: storeId,
+            channel_id: lineSettings.channel_id,
+            channel_secret: lineSettings.channel_secret,
+            channel_access_token: lineSettings.channel_token,
+            updated_at: new Date().toISOString(),
+          })
+        lineError = error
+      }
       
       if (lineError) throw new Error(`LINE設定の保存に失敗しました: ${lineError.message}`)
 
@@ -571,10 +638,30 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const handleSetupServiceSubmit = async (formData: SetupServiceFormData) => {
     setSetupServiceSubmitting(true)
     try {
+      // storeIdがnullの場合、店舗情報を取得
+      let finalStoreId = storeId
+      if (!finalStoreId) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error('ユーザー情報が見つかりません')
+        
+        const { data: storeData, error: storeError } = await supabase
+          .from('stores')
+          .select('id')
+          .eq('owner_id', user.id)
+          .maybeSingle()
+        
+        if (storeError) {
+          console.error('Store fetch error:', storeError)
+        } else if (storeData) {
+          finalStoreId = storeData.id
+          setStoreId(storeData.id)
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke('create-setup-checkout', {
         body: {
           ...formData,
-          store_id: storeId,
+          store_id: finalStoreId,
           return_url: `${window.location.origin}/onboarding`
         }
       })
@@ -1145,53 +1232,47 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   <p className="text-slate-500">ステップごとに丁寧にご案内します。ゆっくり進めてください。</p>
                 </div>
 
-                {/* 初期設定代行バナー（プレリリースモードでは非表示） */}
-                {!IS_PRE_RELEASE_MODE && (
-                  <>
-                    {/* 正式リリース版 */}
-                    {SETUP_BANNER_VERSION === 'production' && (
-                      <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-6 mb-8">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <HelpCircle size={20} />
-                              <span className="font-bold">設定が難しいですか？</span>
-                            </div>
-                            <p className="text-sm text-white/90">
-                              専門スタッフがあなたの代わりにLINE接続設定を完了させます。
-                            </p>
-                          </div>
-                          <button 
-                            onClick={() => setIsSetupServiceModalOpen(true)}
-                            className="bg-white text-amber-600 px-6 py-3 rounded-xl font-bold hover:bg-amber-50 transition whitespace-nowrap shadow-lg"
-                          >
-                            初期設定代行を依頼（¥9,980）
-                          </button>
+                {/* 初期設定代行バナー（環境変数VITE_SETUP_BANNER_VERSIONで制御） */}
+                {/* 正式リリース版 - 決済済みの場合は別のメッセージを表示 */}
+                {SETUP_BANNER_VERSION === 'production' && !hasSetupServiceOrder && (
+                  <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-6 mb-8">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <HelpCircle size={20} />
+                          <span className="font-bold">設定が難しいですか？</span>
                         </div>
+                        <p className="text-sm text-white/90">
+                          専門スタッフがあなたの代わりにLINE接続設定を完了させます。
+                        </p>
                       </div>
-                    )}
-                    
-                    {/* プレリリース版 */}
-                    {SETUP_BANNER_VERSION === 'prerelease' && (
-                      <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-6 mb-8">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                          <div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <AlertTriangle size={20} />
-                              <span className="font-bold">プレリリースモニターの方へ</span>
-                            </div>
-                            <p className="text-sm text-white/90">
-                              プレリリース期間中は初期設定代行サービスをご利用いただけません。以下の手順に沿ってご自身で設定をお願いいたします。
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </>
+                      <button 
+                        onClick={() => setIsSetupServiceModalOpen(true)}
+                        className="bg-white text-amber-600 px-6 py-3 rounded-xl font-bold hover:bg-amber-50 transition whitespace-nowrap shadow-lg"
+                      >
+                        初期設定代行を依頼（¥9,980）
+                      </button>
+                    </div>
+                  </div>
                 )}
-
-                {/* プレリリースモード時の注意バナー */}
-                {IS_PRE_RELEASE_MODE && (
+                {SETUP_BANNER_VERSION === 'production' && hasSetupServiceOrder && (
+                  <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-2xl p-6 mb-8">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Check size={20} />
+                          <span className="font-bold">初期設定代行サービスにお申し込みいただきありがとうございます</span>
+                        </div>
+                        <p className="text-sm text-white/90">
+                          決済が完了しました。メールでご案内いたしますので、しばらくお待ちください。
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* プレリリース版 */}
+                {SETUP_BANNER_VERSION === 'prerelease' && (
                   <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-6 mb-8">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                       <div>
