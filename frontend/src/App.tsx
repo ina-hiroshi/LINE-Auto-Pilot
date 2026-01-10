@@ -25,6 +25,7 @@ import MemberCardLIFF from './pages/MemberCardLIFF'
 import FeatureAutoResponse from './pages/FeatureAutoResponse'
 import FeatureReservation from './pages/FeatureReservation'
 import FeatureMembership from './pages/FeatureMembership'
+import FeatureAI from './pages/FeatureAI'
 import AdminDashboard from './pages/AdminDashboard'
 import { UserFeaturesProvider } from './hooks/useUserFeatures'
 
@@ -187,6 +188,7 @@ function App() {
         <Route path="/feature/auto-response" element={<FeatureAutoResponse />} />
         <Route path="/feature/reservation" element={<FeatureReservation />} />
         <Route path="/feature/membership" element={<FeatureMembership />} />
+        <Route path="/feature/ai" element={<FeatureAI />} />
         {!session ? (
           <Route path="*" element={<TopPage />} />
         ) : hasStore === null ? (

@@ -2,13 +2,56 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { motion } from 'framer-motion'
-import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff, Loader2, AlertTriangle, Sparkles, Layout, Palette, Smartphone, MousePointerClick, Clock, Users, Crown } from 'lucide-react'
+import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff, Loader2, AlertTriangle, Sparkles, Layout, Palette, Smartphone, MousePointerClick, Clock, Users, Crown, Code, Zap, HelpCircle, Star, MessageSquare, ChevronDown, Scissors, HeartPulse, Utensils, Dumbbell, Gem, Flower2 } from 'lucide-react'
 import Toast from '../components/Toast'
 import topHeroImage from '../assets/top_hero.jpg'
 import smartAutoChatImage from '../assets/smartautochat.jpg'
 import yoyakuImage from '../assets/yoyaku.png'
 import membersImage from '../assets/members.png'
 import iconImage from '../assets/icon.png'
+import itoguchiaiImage from '../assets/itoguchiai.png'
+
+// FAQ Item Component
+function FAQItem({ question, answer }: { question: string; answer: string }) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden hover:shadow-md transition-all"
+    >
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-slate-100 transition-colors"
+      >
+        <div className="flex items-center gap-3 flex-1">
+          <div className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center shrink-0">
+            <HelpCircle className="w-5 h-5 text-primary-600" />
+          </div>
+          <span className="font-bold text-slate-900 text-sm sm:text-base">{question}</span>
+        </div>
+        <div className={`ml-4 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}>
+          <ChevronDown className="w-5 h-5 text-slate-400" />
+        </div>
+      </button>
+      {isOpen && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="overflow-hidden"
+        >
+          <div className="px-6 pb-4 pl-16 text-slate-600 text-sm sm:text-base leading-relaxed">
+            {answer}
+          </div>
+        </motion.div>
+      )}
+    </motion.div>
+  )
+}
 
 export default function TopPage() {
   const location = useLocation()
@@ -347,6 +390,178 @@ export default function TopPage() {
         </div>
       </section>
 
+      {/* Why IToguchi Section - 選ばれる理由 */}
+      <section className="py-24 bg-white relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
+          <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] rounded-full bg-primary-50/30 blur-3xl"></div>
+          <div className="absolute bottom-[20%] left-[10%] w-[40%] h-[40%] rounded-full bg-emerald-50/30 blur-3xl"></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center mb-16">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="inline-block"
+            >
+              <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-50 border border-primary-200 text-primary-700 text-sm font-semibold">
+                IToguchiが選ばれる理由
+              </span>
+            </motion.div>
+            <motion.h2 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4"
+            >
+              他の予約システムとは、ここが違う
+            </motion.h2>
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2 }}
+              className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
+            >
+              専門知識不要で、LINEひとつで完結。<br className="hidden md:block" />
+              個人の店主が本業に集中できる環境を作ります。
+            </motion.p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              {
+                icon: Code,
+                title: 'No-Code',
+                description: '専門知識不要で誰でも設定可能。プログラミングの知識は一切不要です。'
+              },
+              {
+                icon: Zap,
+                title: 'オールインワン',
+                description: '予約・会員証・自動応答が1つに統合。複数のツールを使い分ける必要がありません。'
+              },
+              {
+                icon: Smartphone,
+                title: 'LINE完結',
+                description: 'お客様は新しいアプリをダウンロードする必要がありません。LINEだけで完結します。'
+              },
+              {
+                icon: CreditCard,
+                title: '低コスト',
+                description: '無料プランから始められます。月額¥4,980のProプランで全機能が使えます。'
+              }
+            ].map((reason, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+                className="bg-slate-50 rounded-2xl p-6 hover:bg-white hover:shadow-lg transition-all border border-slate-100"
+              >
+                <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center mb-4">
+                  <reason.icon className="w-6 h-6 text-primary-600" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">{reason.title}</h3>
+                <p className="text-slate-600 text-sm leading-relaxed">{reason.description}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* AI Section - AI特設ページへの誘導 */}
+      <section className="py-24 bg-slate-50 relative overflow-hidden">
+        {/* 背景装飾 */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
+          <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] rounded-full bg-blue-50/50 blur-3xl"></div>
+          <div className="absolute bottom-[20%] left-[10%] w-[40%] h-[40%] rounded-full bg-primary-50/50 blur-3xl"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1/2 h-1/2 rounded-full bg-purple-50/30 blur-3xl"></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
+            {/* 左側: テキストコンテンツ */}
+            <motion.div 
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8 }}
+              className="lg:w-1/2 text-left w-full"
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="inline-block mb-6"
+              >
+                <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-50 border border-primary-200 text-primary-700 text-sm font-semibold">
+                  AI Powered
+                </span>
+              </motion.div>
+              <motion.h2 
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.1 }}
+                className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4 sm:mb-6 leading-[1.15] tracking-tight"
+              >
+                AIがあなたの代わりに<br />
+                <span className="text-primary-600">24時間接客</span>
+              </motion.h2>
+              <motion.p 
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.2 }}
+                className="text-sm sm:text-base lg:text-lg text-slate-600 mb-6 sm:mb-8 max-w-2xl leading-relaxed"
+              >
+                営業時間外でも24時間、お客様に寄り添う接客を実現します。
+                キーワード応答で対応できない質問にもAIが即座に回答。
+                店舗独自の情報を学習させれば、より正確な回答が可能です。
+              </motion.p>
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.3 }}
+                className="flex flex-col sm:flex-row gap-3 sm:gap-4"
+              >
+                <Link 
+                  to="/feature/ai" 
+                  className="px-6 sm:px-8 py-3 sm:py-4 bg-primary-600 text-white rounded-full font-bold hover:bg-primary-700 transition shadow-lg hover:shadow-xl flex items-center justify-center gap-2 group text-sm sm:text-base"
+                >
+                  AI機能をもっと詳しく見る
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </motion.div>
+            </motion.div>
+            
+            {/* 右側: 画像 */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="lg:w-1/2 relative"
+            >
+              <Link to="/feature/ai" className="block group">
+                <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white transition-transform group-hover:scale-105">
+                  <img 
+                    src={itoguchiaiImage}
+                    alt="AIがあなたの代わりに接客" 
+                    className="w-full h-auto object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent group-hover:from-black/30 transition-all"></div>
+                </div>
+              </Link>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
       {/* Features Section */}
       <section id="features" className="py-24 bg-white relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -403,6 +618,73 @@ export default function TopPage() {
                 </motion.div>
               </Link>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Target Industries Section - 対象業種 */}
+      <section className="py-24 bg-slate-50 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-gradient-to-bl from-primary-50/50 to-transparent rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-gradient-to-tr from-emerald-50/50 to-transparent rounded-full blur-3xl" />
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center mb-16">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="inline-block"
+            >
+              <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-100 border border-primary-200 text-primary-700 text-sm font-semibold">
+                こんなお店にぴったり
+              </span>
+            </motion.div>
+            <motion.h2 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4"
+            >
+              個人経営のお店を応援します
+            </motion.h2>
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2 }}
+              className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
+            >
+              予約が必要なお店、リピート客を大切にしたいお店に最適です。
+            </motion.p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              { name: '美容室・ヘアサロン', icon: Scissors, color: 'text-pink-600', bgColor: 'bg-pink-100' },
+              { name: 'ネイルサロン・まつエクサロン', icon: Gem, color: 'text-purple-600', bgColor: 'bg-purple-100' },
+              { name: 'エステ・リラクゼーション', icon: Flower2, color: 'text-rose-600', bgColor: 'bg-rose-100' },
+              { name: '整体・整骨院', icon: HeartPulse, color: 'text-red-600', bgColor: 'bg-red-100' },
+              { name: '個人経営の飲食店', icon: Utensils, color: 'text-orange-600', bgColor: 'bg-orange-100' },
+              { name: 'パーソナルジム・ヨガスタジオ', icon: Dumbbell, color: 'text-blue-600', bgColor: 'bg-blue-100' }
+            ].map((industry, index) => {
+              const IconComponent = industry.icon
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.1 }}
+                  className="bg-white rounded-xl p-6 hover:shadow-lg transition-all border border-slate-100 flex items-center gap-4 group"
+                >
+                  <div className={`w-14 h-14 rounded-xl ${industry.bgColor} flex items-center justify-center group-hover:scale-110 transition-transform shrink-0`}>
+                    <IconComponent className={`w-7 h-7 ${industry.color}`} />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900">{industry.name}</h3>
+                </motion.div>
+              )
+            })}
           </div>
         </div>
       </section>
@@ -844,6 +1126,183 @@ export default function TopPage() {
         </div>
       </section>
 
+      {/* Onboarding Steps Section - 導入の流れ */}
+      <section className="py-24 bg-white relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
+          <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] rounded-full bg-primary-50/30 blur-3xl"></div>
+          <div className="absolute bottom-[20%] left-[10%] w-[40%] h-[40%] rounded-full bg-emerald-50/30 blur-3xl"></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center mb-16">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="inline-block"
+            >
+              <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-50 border border-primary-200 text-primary-700 text-sm font-semibold">
+                簡単3ステップ
+              </span>
+            </motion.div>
+            <motion.h2 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4"
+            >
+              始めるまでたった3ステップ
+            </motion.h2>
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2 }}
+              className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
+            >
+              専門知識不要。最短3分で設定完了。<br className="hidden md:block" />
+              すぐに運用を始められます。
+            </motion.p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {[
+              {
+                step: 1,
+                title: '無料アカウント作成',
+                description: 'メールアドレスとパスワードを入力するだけ。認証コードで本人確認を済ませます。',
+                time: '約3分',
+                icon: Users
+              },
+              {
+                step: 2,
+                title: 'LINE公式アカウントと連携',
+                description: 'LINE公式アカウントの設定情報を入力。ワンクリックで連携完了です。',
+                time: '約5分',
+                icon: MessageCircle
+              },
+              {
+                step: 3,
+                title: '設定完了、運用開始！',
+                description: '予約枠や応答ルールを設定すれば、すぐに運用を開始できます。',
+                time: '約10分',
+                icon: Check
+              }
+            ].map((item, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.15 }}
+                className="relative"
+              >
+                <div className="bg-slate-50 rounded-2xl p-8 hover:bg-white hover:shadow-lg transition-all border border-slate-100 h-full">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="w-16 h-16 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold text-xl relative z-10">
+                      {item.step}
+                    </div>
+                    {index < 2 && (
+                      <div className="hidden md:block absolute left-full top-1/2 -translate-y-1/2 w-8 h-0.5 bg-primary-200 z-0" style={{ marginLeft: '-1rem' }}>
+                        <ArrowRight className="w-4 h-4 text-primary-400 absolute right-0 top-1/2 -translate-y-1/2" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center mb-4">
+                    <item.icon className="w-6 h-6 text-primary-600" />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-3">{item.title}</h3>
+                  <p className="text-slate-600 leading-relaxed mb-4">{item.description}</p>
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <Clock className="w-4 h-4" />
+                    <span>{item.time}</span>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mt-12"
+          >
+            <a 
+              href="#auth" 
+              className="inline-flex items-center gap-2 px-8 py-4 bg-primary-600 text-white rounded-full font-bold hover:bg-primary-700 transition shadow-lg hover:shadow-xl group"
+            >
+              今すぐ無料で始める
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </a>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Testimonials Section - お客様の声 */}
+      <section className="py-24 bg-slate-50 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-gradient-to-bl from-primary-50/50 to-transparent rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-gradient-to-tr from-emerald-50/50 to-transparent rounded-full blur-3xl" />
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center mb-16">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="inline-block"
+            >
+              <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-100 border border-primary-200 text-primary-700 text-sm font-semibold">
+                導入事例
+              </span>
+            </motion.div>
+            <motion.h2 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4"
+            >
+              お客様の声
+            </motion.h2>
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2 }}
+              className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
+            >
+              実際にIToguchiをご利用いただいているお客様の声をご紹介します。
+            </motion.p>
+          </div>
+
+          {/* Coming Soon プレースホルダー */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="bg-white rounded-3xl p-12 border-2 border-dashed border-slate-200 text-center"
+          >
+            <div className="w-20 h-20 rounded-full bg-primary-50 flex items-center justify-center mx-auto mb-6">
+              <Star className="w-10 h-10 text-primary-400" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">導入事例を募集中</h3>
+            <p className="text-slate-600 mb-6">
+              プレリリースモニターとしてご利用いただいたお客様の声を、<br className="hidden md:block" />
+              順次掲載予定です。
+            </p>
+            <a 
+              href="#pre-release" 
+              className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-full font-bold hover:bg-primary-700 transition shadow-md hover:shadow-lg text-sm"
+            >
+              モニターに参加する
+              <ArrowRight className="w-4 h-4" />
+            </a>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Pre-Release Monitor Section */}
       <section id="pre-release" className="py-20 bg-linear-to-br from-primary-600 to-primary-800 text-white relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-20">
@@ -1137,6 +1596,112 @@ export default function TopPage() {
               </a>
             </motion.div>
           </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="py-24 bg-white relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
+          <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] rounded-full bg-primary-50/30 blur-3xl"></div>
+          <div className="absolute bottom-[20%] left-[10%] w-[40%] h-[40%] rounded-full bg-emerald-50/30 blur-3xl"></div>
+        </div>
+        
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center mb-16">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="inline-block"
+            >
+              <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-50 border border-primary-200 text-primary-700 text-sm font-semibold">
+                FAQ
+              </span>
+            </motion.div>
+            <motion.h2 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4"
+            >
+              よくある質問
+            </motion.h2>
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2 }}
+              className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
+            >
+              検討中のよくあるご質問にお答えします。
+            </motion.p>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              {
+                question: '専門知識がなくても設定できますか？',
+                answer: 'はい、専門知識は一切不要です。IToguchiはNo-Code設計のため、プログラミングの知識がなくても直感的な操作で設定できます。管理画面のガイドに従って進めるだけで、最短3分で設定完了です。'
+              },
+              {
+                question: 'LINE公式アカウントを持っていなくても始められますか？',
+                answer: 'いいえ、LINE公式アカウントが必要です。IToguchiはLINE公式アカウントと連携して動作するサービスです。まだお持ちでない場合は、LINE公式アカウントの開設から始めてください。開設は無料です。'
+              },
+              {
+                question: '無料プランでどこまで使えますか？',
+                answer: '無料プランでも予約管理（無制限）、キーワード応答（10件まで）、ポイントカード基本機能が使えます。Proプランにアップグレードすると、Googleカレンダー連携、AI自動応答、デジタル会員証のカスタマイズなど、全機能が使えるようになります。'
+              },
+              {
+                question: 'データは安全ですか？',
+                answer: 'はい、安全です。IToguchiはSupabase（PostgreSQL）による堅牢なデータ管理、SSL/TLS暗号化通信、Row Level Security（RLS）によるデータ分離を実装しています。お客様のデータは厳重に保護されています。'
+              },
+              {
+                question: '解約はいつでもできますか？',
+                answer: 'はい、いつでも解約可能です。解約は管理画面から簡単に行えます。解約後もデータは一定期間保持されますので、再開時にスムーズに復帰できます。'
+              }
+            ].map((faq, index) => (
+              <FAQItem key={index} question={faq.question} answer={faq.answer} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Contact CTA Section */}
+      <section className="py-20 bg-linear-to-br from-primary-50 to-emerald-50 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-30">
+          <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] rounded-full bg-primary-200 blur-3xl"></div>
+          <div className="absolute bottom-[20%] left-[10%] w-[40%] h-[40%] rounded-full bg-emerald-200 blur-3xl"></div>
+        </div>
+        
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="bg-white rounded-3xl p-8 md:p-12 shadow-xl border border-slate-100 text-center"
+          >
+            <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center mx-auto mb-6">
+              <MessageSquare className="w-8 h-8 text-primary-600" />
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
+              ご質問がありますか？
+            </h2>
+            <p className="text-slate-600 mb-8 max-w-2xl mx-auto">
+              LINE公式アカウントで気軽にお問い合わせください。<br className="hidden md:block" />
+              お客様のご質問にお答えします。
+            </p>
+            <a 
+              href="https://line.me/R/ti/p/@431cghfd" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-[#06C755] text-white rounded-full font-bold hover:bg-[#05B048] transition shadow-lg hover:shadow-xl group"
+            >
+              <MessageSquare className="w-5 h-5" />
+              LINEでお問い合わせ
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            </a>
+          </motion.div>
         </div>
       </section>
 

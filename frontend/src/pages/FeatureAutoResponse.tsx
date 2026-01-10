@@ -438,6 +438,7 @@ export default function FeatureAutoResponse() {
               <Link to="/feature/auto-response" className="hover:text-white transition">スマート自動応答</Link>
               <Link to="/feature/reservation" className="hover:text-white transition">かんたん予約管理</Link>
               <Link to="/feature/membership" className="hover:text-white transition">デジタル会員証</Link>
+              <Link to="/feature/ai" className="hover:text-white transition">AI機能</Link>
             </div>
           </div>
           <div className="border-t border-slate-800 mt-8 pt-8 text-center text-slate-500 text-sm">
