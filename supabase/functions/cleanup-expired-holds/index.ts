@@ -67,33 +67,51 @@ Deno.serve(async (req: Request) => {
     let deletedCount = 0
 
     for (const storeId of storeIds) {
-      // Google Calendar認証情報を取得
-      const { data: lineAccount } = await supabaseClient
-        .from('line_accounts')
-        .select('google_calendar_id, google_refresh_token')
-        .eq('store_id', storeId)
+      // 店舗のオーナーIDを取得
+      const { data: store } = await supabaseClient
+        .from('stores')
+        .select('owner_id')
+        .eq('id', storeId)
         .maybeSingle()
 
-      if (!lineAccount?.google_calendar_id || !lineAccount?.google_refresh_token) {
+      if (!store?.owner_id) {
+        console.log(`[Cleanup] Store not found: ${storeId}`)
+        continue
+      }
+
+      // Google Calendar認証情報を取得（google_calendar_settingsテーブルから）
+      const { data: calendarSettings } = await supabaseClient
+        .from('google_calendar_settings')
+        .select('refresh_token, calendar_id')
+        .eq('user_id', store.owner_id)
+        .maybeSingle()
+
+      if (!calendarSettings?.refresh_token) {
         console.log(`[Cleanup] No Google Calendar credentials for store ${storeId}`)
         continue
       }
+
+      const calendarId = calendarSettings.calendar_id || 'primary'
 
       // アクセストークンを取得
       let accessToken: string | null = null
       try {
         const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            client_id: Deno.env.get('GOOGLE_CLIENT_ID'),
-            client_secret: Deno.env.get('GOOGLE_CLIENT_SECRET'),
-            refresh_token: lineAccount.google_refresh_token,
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: Deno.env.get('GOOGLE_CLIENT_ID') ?? '',
+            client_secret: Deno.env.get('GOOGLE_CLIENT_SECRET') ?? '',
+            refresh_token: calendarSettings.refresh_token,
             grant_type: 'refresh_token',
           }),
         })
 
         const tokenData = await tokenResponse.json()
+        if (tokenData.error) {
+          console.error(`[Cleanup] Token refresh error for store ${storeId}:`, tokenData.error)
+          continue
+        }
         if (tokenData.access_token) {
           accessToken = tokenData.access_token
         }
@@ -109,7 +127,7 @@ Deno.serve(async (req: Request) => {
       
       for (const hold of storeHolds) {
         if (hold.google_event_id) {
-          const deleted = await deleteGoogleEvent(accessToken, lineAccount.google_calendar_id, hold.google_event_id)
+          const deleted = await deleteGoogleEvent(accessToken, calendarId, hold.google_event_id)
           if (deleted) {
             console.log(`[Cleanup] Deleted Google event ${hold.google_event_id}`)
             deletedCount++

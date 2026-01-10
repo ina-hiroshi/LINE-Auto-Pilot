@@ -33,6 +33,572 @@ const toJstDate = (date: string, time: string) => {
 
 const isOverlapping = (startA: Date, endA: Date, startB: Date, endB: Date) => startA < endB && endA > startB
 
+// --- Input Validation Helpers ---
+
+/**
+ * UUID形式の検証
+ */
+function isValidUUID(uuid: string | null | undefined): boolean {
+  if (!uuid) return false
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  return uuidRegex.test(uuid)
+}
+
+/**
+ * 日付形式の検証 (YYYY-MM-DD)
+ */
+function isValidDate(date: string | null | undefined): boolean {
+  if (!date) return false
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+  if (!dateRegex.test(date)) return false
+  
+  const [year, month, day] = date.split('-').map(Number)
+  const dateObj = new Date(year, month - 1, day)
+  return dateObj.getFullYear() === year && 
+         dateObj.getMonth() === month - 1 && 
+         dateObj.getDate() === day
+}
+
+/**
+ * 時間形式の検証 (HH:MM)
+ */
+function isValidTime(time: string | null | undefined): boolean {
+  if (!time) return false
+  const timeRegex = /^\d{2}:\d{2}$/
+  if (!timeRegex.test(time)) return false
+  
+  const [hours, minutes] = time.split(':').map(Number)
+  return hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60
+}
+
+/**
+ * 過去日付のチェック
+ */
+function isPastDate(date: string, time: string): boolean {
+  const dateTime = new Date(`${date}T${time}:00+09:00`)
+  const now = new Date()
+  return dateTime < now
+}
+
+/**
+ * 最大予約日数のチェック
+ */
+function isWithinMaxBookingDays(date: string, maxDays: number): boolean {
+  const targetDate = new Date(`${date}T00:00:00+09:00`)
+  const maxDate = new Date()
+  maxDate.setDate(maxDate.getDate() + maxDays)
+  return targetDate <= maxDate
+}
+
+// --- Reservation Creation Helpers ---
+
+type CreateReservationParams = {
+  supabaseClient: SupabaseClientType
+  store_id: string
+  line_user_id: string
+  date: string
+  time: string
+  staff_id: string | null
+  menu_id: string | null
+  memo: string
+  display_name?: string
+  profile_picture_url?: string
+  real_name?: string
+  furigana?: string
+  isManualRegistration: boolean
+  excludeReservationId?: string // update_reservationの場合、古い予約IDを除外
+}
+
+/**
+ * 予約作成の共通ロジック（容量チェック + RPC関数呼び出し）
+ */
+async function createReservationWithCapacityCheck(params: CreateReservationParams): Promise<string> {
+  const {
+    supabaseClient,
+    store_id,
+    line_user_id,
+    date,
+    time,
+    staff_id,
+    menu_id,
+    memo,
+    display_name,
+    profile_picture_url,
+    real_name,
+    furigana,
+    isManualRegistration,
+    excludeReservationId
+  } = params
+
+  // 0. Get line_account_id
+  const { data: lineAccount, error: laError } = await supabaseClient
+    .from('line_accounts')
+    .select('id')
+    .eq('store_id', store_id)
+    .maybeSingle()
+  
+  if (laError) throw laError
+  if (!lineAccount) throw new Error('LINE Account not found for this store')
+
+  // 1. Upsert Customer
+  const { error: custError } = await supabaseClient
+    .from('customers')
+    .upsert({
+      store_id,
+      line_user_id,
+      display_name,
+      profile_picture_url,
+      real_name,
+      furigana,
+    }, { onConflict: 'store_id, line_user_id' })
+
+  if (custError) throw custError
+
+  // 2. Calculate datetime
+  const startDateTime = new Date(`${date}T${time}:00+09:00`)
+  const storeSettings = await getStoreSettings(store_id)
+  let durationMinutes = storeSettings?.slot_interval_minutes ?? 60
+  
+  if (menu_id) {
+    const { data: menu } = await supabaseClient
+      .from('booking_menus')
+      .select('duration_minutes')
+      .eq('id', menu_id)
+      .maybeSingle()
+    if (menu?.duration_minutes) durationMinutes = menu.duration_minutes
+  }
+  if (!durationMinutes || durationMinutes <= 0) durationMinutes = storeSettings?.slot_interval_minutes ?? 60
+
+  const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000)
+
+  // 3. Get Google Calendar Client
+  const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
+
+  // 4. Capacity Check with Staff Logic
+  if (staff_id) {
+    // 担当者指定あり → その担当者の枠のみチェック
+    const capacityLimit = 1
+    
+    let overlapQuery = supabaseClient
+      .from('reservations')
+      .select('id')
+      .eq('store_id', store_id)
+      .eq('staff_id', staff_id)
+      .neq('status', 'cancelled')
+      .neq('status', 'temporary')
+      .lt('start_time', endDateTime.toISOString())
+      .gt('end_time', startDateTime.toISOString())
+    
+    if (excludeReservationId) {
+      overlapQuery = overlapQuery.neq('id', excludeReservationId)
+    }
+    
+    const { data: overlapReservations, error: overlapError } = await overlapQuery
+    if (overlapError) throw overlapError
+    
+    // 仮押さえチェック
+    const { data: conflictingHolds } = await supabaseClient
+      .from('temporary_holds')
+      .select('id, line_user_id')
+      .eq('store_id', store_id)
+      .eq('staff_id', staff_id)
+      .gt('expires_at', new Date().toISOString())
+      .lt('start_time', endDateTime.toISOString())
+      .gt('end_time', startDateTime.toISOString())
+    
+    const otherUsersHold = (conflictingHolds || []).filter((h: { line_user_id?: string }) => h.line_user_id !== line_user_id)
+    
+    // Googleカレンダーチェック（そのスタッフの外部予約）
+    let googleConflictCount = 0
+    if (googleClient) {
+      const { data: staffInfo } = await supabaseClient
+        .from('staff_members')
+        .select('id, name')
+        .eq('id', staff_id)
+        .maybeSingle()
+      
+      if (staffInfo) {
+        const googleEvents = await listGoogleEvents(googleClient, startDateTime.toISOString(), endDateTime.toISOString())
+        const staffGoogleEvents = googleEvents.filter(e => {
+          if (!e.start?.dateTime || !e.end?.dateTime) return false
+          const eventStart = new Date(e.start.dateTime)
+          const eventEnd = new Date(e.end.dateTime)
+          if (!isOverlapping(startDateTime, endDateTime, eventStart, eventEnd)) return false
+          
+          // 自分の仮予約は除外
+          if (line_user_id && e.summary?.startsWith('【仮予約】')) {
+            if (e.description && e.description.includes(line_user_id)) return false
+          }
+          
+          const foundStaff = extractStaffFromGoogleEvent(e, [staffInfo])
+          return foundStaff !== null
+        })
+        googleConflictCount = staffGoogleEvents.length
+      }
+    }
+    
+    if ((overlapReservations?.length ?? 0) + otherUsersHold.length + googleConflictCount >= capacityLimit) {
+      throw new Error('この時間帯の予約枠が埋まっています')
+    }
+  } else {
+    // 担当者指定なし → 対応可能スタッフ数を計算
+    const workingStaff = await getWorkingStaffForTimeSlot(
+      supabaseClient,
+      store_id,
+      date,
+      startDateTime,
+      endDateTime
+    )
+    
+    if (workingStaff.length === 0) {
+      throw new Error('この時間帯に対応可能なスタッフがいません')
+    }
+    
+    // 内部予約で埋まっているスタッフID
+    let overlapQuery = supabaseClient
+      .from('reservations')
+      .select('staff_id')
+      .eq('store_id', store_id)
+      .neq('status', 'cancelled')
+      .neq('status', 'temporary')
+      .lt('start_time', endDateTime.toISOString())
+      .gt('end_time', startDateTime.toISOString())
+    
+    if (excludeReservationId) {
+      overlapQuery = overlapQuery.neq('id', excludeReservationId)
+    }
+    
+    const { data: overlapReservations, error: overlapError } = await overlapQuery
+    if (overlapError) throw overlapError
+    
+    const internalBookedStaffIds = (overlapReservations || [])
+      .map((r: { staff_id?: string }) => r.staff_id)
+      .filter(Boolean) as string[]
+    
+    // 仮押さえで埋まっているスタッフID
+    const { data: conflictingHolds } = await supabaseClient
+      .from('temporary_holds')
+      .select('staff_id')
+      .eq('store_id', store_id)
+      .gt('expires_at', new Date().toISOString())
+      .lt('start_time', endDateTime.toISOString())
+      .gt('end_time', startDateTime.toISOString())
+    
+    const holdBookedStaffIds = (conflictingHolds || [])
+      .filter((h: { line_user_id?: string }) => h.line_user_id !== line_user_id)
+      .map((h: { staff_id?: string }) => h.staff_id)
+      .filter(Boolean) as string[]
+    
+    // Googleカレンダーで埋まっているスタッフ
+    const { data: staffList } = await supabaseClient
+      .from('staff_members')
+      .select('id, name')
+      .eq('store_id', store_id)
+      .eq('is_active', true)
+    
+    let googleBookedStaffIds: string[] = []
+    let unknownEventCount = 0
+    
+    if (googleClient && staffList) {
+      // 自分の仮予約を除外
+      const googleEvents = (await listGoogleEvents(googleClient, startDateTime.toISOString(), endDateTime.toISOString()))
+        .filter(e => {
+          if (line_user_id && e.summary?.startsWith('【仮予約】')) {
+            if (e.description && e.description.includes(line_user_id)) return false
+          }
+          return true
+        })
+      
+      const { identifiedStaffIds, unknownEventCount: unknown } = analyzeGoogleEventsForStaff(
+        googleEvents,
+        staffList,
+        startDateTime,
+        endDateTime
+      )
+      googleBookedStaffIds = identifiedStaffIds
+      unknownEventCount = unknown
+    }
+    
+    // 対応可能スタッフ数
+    const bookedStaffSet = new Set([...internalBookedStaffIds, ...holdBookedStaffIds, ...googleBookedStaffIds])
+    const availableStaffCount = workingStaff.length - bookedStaffSet.size - unknownEventCount
+    
+    if (availableStaffCount <= 0) {
+      throw new Error('この時間帯の予約枠が埋まっています')
+    }
+  }
+
+  // 5. Delete temporary holds
+  const { data: userHolds } = await supabaseClient
+    .from('temporary_holds')
+    .select('google_event_id')
+    .eq('store_id', store_id)
+    .eq('line_user_id', line_user_id)
+  
+  if (googleClient && userHolds && userHolds.length > 0) {
+    for (const hold of userHolds) {
+      if (hold.google_event_id) {
+        try {
+          await deleteGoogleEvent(googleClient, hold.google_event_id)
+          console.log(`[Booking] Deleted temporary Google event: ${hold.google_event_id}`)
+        } catch (e) {
+          console.error(`[Booking] Failed to delete temporary Google event ${hold.google_event_id}:`, e)
+        }
+      }
+    }
+  }
+
+  await supabaseClient
+    .from('temporary_holds')
+    .delete()
+    .eq('store_id', store_id)
+    .eq('line_user_id', line_user_id)
+
+  // 6. Create reservation using RPC function (race condition protection)
+  const { data: reservationId, error: rpcError } = await supabaseClient.rpc('create_reservation_atomic', {
+    p_store_id: store_id,
+    p_line_account_id: lineAccount.id,
+    p_line_user_id: line_user_id,
+    p_start_time: startDateTime.toISOString(),
+    p_end_time: endDateTime.toISOString(),
+    p_staff_id: staff_id || null,
+    p_menu_id: menu_id || null,
+    p_memo: memo || '',
+    p_registration_type: isManualRegistration ? 'manual' : 'line'
+  })
+
+  if (rpcError) {
+    throw new Error(rpcError.message || '予約の作成に失敗しました')
+  }
+
+  if (!reservationId) {
+    throw new Error('予約の作成に失敗しました')
+  }
+
+  return reservationId
+}
+
+/**
+ * Googleカレンダーイベントを作成して予約に紐付け
+ */
+async function createGoogleCalendarEventForReservation(
+  supabaseClient: SupabaseClientType,
+  reservationId: string,
+  store_id: string,
+  startDateTime: Date,
+  endDateTime: Date,
+  staff_id: string | null,
+  menu_id: string | null,
+  real_name: string | undefined,
+  display_name: string | undefined,
+  line_user_id: string,
+  memo: string
+): Promise<void> {
+  const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
+  if (!googleClient) return
+
+  try {
+    // Fetch Staff Name
+    let staffName = '指定なし'
+    if (staff_id) {
+      const { data: staff } = await supabaseClient
+        .from('staff_members')
+        .select('name')
+        .eq('id', staff_id)
+        .maybeSingle()
+      if (staff) staffName = staff.name
+    }
+
+    // Fetch Menu Name
+    let menuName = '指定なし'
+    let menuPrice = ''
+    if (menu_id) {
+      const { data: menu } = await supabaseClient
+        .from('booking_menus')
+        .select('name, price')
+        .eq('id', menu_id)
+        .maybeSingle()
+      if (menu) {
+        menuName = menu.name
+        if (menu.price) menuPrice = `(¥${menu.price.toLocaleString()})`
+      }
+    }
+
+    const summary = `予約: ${real_name || display_name || 'LINE User'} 様`
+    const description = `
+■予約詳細
+------------------
+【お名前】 ${real_name || display_name || 'ゲスト'} 様
+【担当】 ${staffName}
+【メニュー】 ${menuName} ${menuPrice}
+【メモ】
+${memo || 'なし'}
+------------------
+LINE ID: ${line_user_id}
+`.trim()
+
+    const eventId = await createGoogleEvent(googleClient, {
+      summary,
+      description,
+      start: { dateTime: startDateTime.toISOString() },
+      end: { dateTime: endDateTime.toISOString() }
+    })
+    
+    if (eventId) {
+      await supabaseClient
+        .from('reservations')
+        .update({ google_event_id: eventId })
+        .eq('id', reservationId)
+    }
+  } catch (gError) {
+    console.error('Failed to create Google Calendar event:', gError)
+  }
+}
+
+// --- Staff Helpers ---
+
+type StaffInfo = { id: string; name: string }
+
+/**
+ * 指定時間帯に出勤しているスタッフを取得
+ */
+async function getWorkingStaffForTimeSlot(
+  supabaseClient: SupabaseClientType,
+  store_id: string,
+  date: string,
+  slotStart: Date,
+  slotEnd: Date
+): Promise<StaffInfo[]> {
+  const dayOfWeek = new Date(`${date}T00:00:00`).getDay()
+  
+  // 1. その店舗の全スタッフを取得
+  const { data: allStaff } = await supabaseClient
+    .from('staff_members')
+    .select('id, name')
+    .eq('store_id', store_id)
+    .eq('is_active', true)
+  
+  if (!allStaff || allStaff.length === 0) return []
+  
+  // 2. その曜日の勤務パターンを取得
+  const { data: workPatterns } = await supabaseClient
+    .from('staff_work_patterns')
+    .select('staff_id, start_time, end_time, slots, is_active')
+    .eq('day_of_week', dayOfWeek)
+    .eq('is_active', true)
+    .in('staff_id', allStaff.map(s => s.id))
+  
+  // 3. 特別スケジュール（欠勤・時間変更）を取得
+  const { data: specialSchedules } = await supabaseClient
+    .from('staff_special_schedules')
+    .select('staff_id, is_absent, override_start, override_end')
+    .eq('date', date)
+    .in('staff_id', allStaff.map(s => s.id))
+  
+  // 4. 該当時間帯に勤務しているスタッフをフィルタ
+  const workingStaffIds = new Set<string>()
+  
+  for (const staff of allStaff) {
+    const special = specialSchedules?.find(s => s.staff_id === staff.id)
+    
+    // 欠勤チェック
+    if (special?.is_absent) continue
+    
+    const pattern = workPatterns?.find(p => p.staff_id === staff.id)
+    if (!pattern) continue
+    
+    // 特別スケジュールで上書きされている場合
+    if (special?.override_start && special?.override_end) {
+      const workStart = toJstDate(date, special.override_start)
+      const workEnd = toJstDate(date, special.override_end)
+      if (isOverlapping(slotStart, slotEnd, workStart, workEnd)) {
+        workingStaffIds.add(staff.id)
+      }
+      continue
+    }
+    
+    // slotsカラム（JSONB）がある場合はそちらを優先
+    if (pattern.slots && Array.isArray(pattern.slots) && pattern.slots.length > 0) {
+      for (const slot of pattern.slots) {
+        if (slot.start && slot.end) {
+          const workStart = toJstDate(date, slot.start)
+          const workEnd = toJstDate(date, slot.end)
+          if (isOverlapping(slotStart, slotEnd, workStart, workEnd)) {
+            workingStaffIds.add(staff.id)
+            break
+          }
+        }
+      }
+      continue
+    }
+    
+    // 旧形式（start_time/end_time）のフォールバック
+    if (pattern.start_time && pattern.end_time) {
+      const workStart = toJstDate(date, pattern.start_time)
+      const workEnd = toJstDate(date, pattern.end_time)
+      if (isOverlapping(slotStart, slotEnd, workStart, workEnd)) {
+        workingStaffIds.add(staff.id)
+      }
+    }
+  }
+  
+  // 5. スタッフ情報を返す
+  return allStaff.filter(s => workingStaffIds.has(s.id))
+}
+
+/**
+ * Googleカレンダーイベントから担当者名を検索
+ */
+function extractStaffFromGoogleEvent(
+  event: { summary?: string; description?: string },
+  staffList: StaffInfo[]
+): StaffInfo | null {
+  const searchText = `${event.summary || ''} ${event.description || ''}`.toLowerCase()
+  
+  for (const staff of staffList) {
+    // スタッフ名で検索（部分一致）
+    if (staff.name && searchText.includes(staff.name.toLowerCase())) {
+      return staff
+    }
+  }
+  return null // 担当者不明
+}
+
+/**
+ * Googleカレンダーイベントを分析して、担当者が特定できたスタッフIDと不明イベント数を返す
+ */
+function analyzeGoogleEventsForStaff(
+  googleEvents: { start?: { dateTime?: string }; end?: { dateTime?: string }; summary?: string; description?: string }[],
+  staffList: StaffInfo[],
+  slotStart: Date,
+  slotEnd: Date
+): { identifiedStaffIds: string[]; unknownEventCount: number } {
+  const identifiedStaffIds: string[] = []
+  let unknownEventCount = 0
+  
+  for (const event of googleEvents) {
+    if (!event.start?.dateTime || !event.end?.dateTime) continue
+    
+    const eventStart = new Date(event.start.dateTime)
+    const eventEnd = new Date(event.end.dateTime)
+    
+    if (!isOverlapping(slotStart, slotEnd, eventStart, eventEnd)) continue
+    
+    // 自分の仮予約は除外（既存ロジック）
+    // ここでは担当者検索のみ実施
+    
+    const staff = extractStaffFromGoogleEvent(event, staffList)
+    if (staff) {
+      identifiedStaffIds.push(staff.id)
+    } else {
+      // 担当者不明 = 店舗全体の枠を消費
+      unknownEventCount++
+    }
+  }
+  
+  return { identifiedStaffIds, unknownEventCount }
+}
+
 // --- Google Calendar Helpers ---
 
 import type { SupabaseClientType } from '../_shared/types.ts'
@@ -225,11 +791,19 @@ Deno.serve(async (req: Request) => {
     }
 
     // Enforce Authentication for sensitive actions (bypass for manual registration)
-    // check_customer, get_active_reservation は認証なしでも許可（読み取りのみ、line_user_idが一致すれば問題ない）
-    // 書き込み系アクション（予約作成/キャンセル/更新）のみ認証必須
-    const sensitiveActions = ['create_reservation', 'cancel_reservation', 'update_reservation'];
-    if (sensitiveActions.includes(action) && !verifiedUserId && !isManualRegistration) {
-      throw new Error('Unauthorized: Valid Access Token is required for this action');
+    // 全てのアクションでline_user_idの検証を必須（get_available_slotsは公開情報のため除外）
+    const publicActions = ['get_available_slots']
+    const sensitiveActions = ['create_reservation', 'cancel_reservation', 'update_reservation', 'hold_slot', 'release_hold', 'check_customer', 'get_active_reservation']
+    
+    if (!publicActions.includes(action) && sensitiveActions.includes(action)) {
+      // line_user_idがUで始まる場合、またはアクセストークンで検証済みの場合のみ許可
+      if (!verifiedUserId && !isManualRegistration) {
+        if (!line_user_id || !line_user_id.startsWith('U')) {
+          throw new Error('Unauthorized: Valid Access Token or valid line_user_id is required for this action')
+        }
+        // Uで始まる場合はLIFFからのアクセスと判断して許可
+        verifiedUserId = line_user_id
+      }
     }
     // -------------------------------------
 
@@ -265,6 +839,20 @@ Deno.serve(async (req: Request) => {
     // 時間枠の仮押さえ
     if (action === 'hold_slot') {
       if (!store_id || !date || !time) throw new Error('store_id, date, and time are required')
+      
+      // 入力検証
+      if (!isValidUUID(store_id)) throw new Error('Invalid store_id format')
+      if (!isValidDate(date)) throw new Error('Invalid date format (expected YYYY-MM-DD)')
+      if (!isValidTime(time)) throw new Error('Invalid time format (expected HH:MM)')
+      if (staff_id && !isValidUUID(staff_id)) throw new Error('Invalid staff_id format')
+      if (menu_id && !isValidUUID(menu_id)) throw new Error('Invalid menu_id format')
+      
+      const storeSettings = await getStoreSettings(store_id)
+      if (isPastDate(date, time)) throw new Error('過去の日付は予約できません')
+      const maxDays = storeSettings?.max_booking_days ?? 60
+      if (!isWithinMaxBookingDays(date, maxDays)) {
+        throw new Error(`予約可能日は${maxDays}日後までです`)
+      }
 
       const storeSettings = await getStoreSettings(store_id)
       let durationMinutes = storeSettings?.slot_interval_minutes ?? 60
@@ -390,6 +978,12 @@ Deno.serve(async (req: Request) => {
     if (action === 'get_available_slots') {
       if (!store_id || !date) throw new Error('store_id and date are required')
       
+      // 入力検証
+      if (!isValidUUID(store_id)) throw new Error('Invalid store_id format')
+      if (!isValidDate(date)) throw new Error('Invalid date format (expected YYYY-MM-DD)')
+      if (staff_id && !isValidUUID(staff_id)) throw new Error('Invalid staff_id format')
+      if (menu_id && !isValidUUID(menu_id)) throw new Error('Invalid menu_id format')
+      
       // --- 期限切れの仮予約を削除（Google Calendarからも削除）---
       const { data: expiredHolds } = await supabaseClient
         .from('temporary_holds')
@@ -460,16 +1054,22 @@ Deno.serve(async (req: Request) => {
         durationMinutes = slotInterval || 60
       }
 
-      // 担当者指定がある場合は、その担当者は1人までしか同時に受付不可
-      // 担当者指定がない場合は店舗の基本受付上限を使用
-      const capacityLimit = staff_id ? 1 : (menuCapacity ?? storeSettings?.capacity_per_slot ?? 1)
       const dayStart = toJstDate(date, '00:00').toISOString()
       const dayEnd = toJstDate(date, '23:59').toISOString()
+
+      // スタッフリストを取得（Googleカレンダーイベントの担当者検索用）
+      const { data: staffList } = await supabaseClient
+        .from('staff_members')
+        .select('id, name')
+        .eq('store_id', store_id)
+        .eq('is_active', true)
+      
+      const staffInfoList: StaffInfo[] = staffList || []
 
       // 担当者指定がある場合は、その担当者の予約のみをチェック
       let query = supabaseClient
         .from('reservations')
-        .select('start_time, end_time, status, line_user_id')
+        .select('start_time, end_time, status, line_user_id, staff_id')
         .eq('store_id', store_id)
         .neq('status', 'cancelled')
         .lt('start_time', dayEnd)
@@ -486,7 +1086,7 @@ Deno.serve(async (req: Request) => {
       // --- 仮押さえのチェック（期限切れは除外） ---
       let holdQuery = supabaseClient
         .from('temporary_holds')
-        .select('start_time, end_time, line_user_id')
+        .select('start_time, end_time, line_user_id, staff_id')
         .eq('store_id', store_id)
         .gt('expires_at', new Date().toISOString()) // 有効期限内のみ
         .lt('start_time', dayEnd)
@@ -614,13 +1214,13 @@ Deno.serve(async (req: Request) => {
 
           // Check Google Calendar Events (自分の仮予約のみ除外)
           type GoogleEvent = { start?: { dateTime?: string }; end?: { dateTime?: string }; summary?: string; description?: string }
-          const googleOverlapCount = googleEvents.filter((e: GoogleEvent) => {
-            if (!e.start?.dateTime || !e.end?.dateTime) return false // Skip all-day events for now or handle them differently
+          
+          // 自分の仮予約を除外したGoogleイベント
+          const relevantGoogleEvents = googleEvents.filter((e: GoogleEvent) => {
+            if (!e.start?.dateTime || !e.end?.dateTime) return false
             
             // 仮予約イベントで、自分のline_user_idが含まれている場合は除外
-            // line_user_idが指定されている場合のみチェック
             if (line_user_id && e.summary?.startsWith('【仮予約】')) {
-              // descriptionにline_user_idが含まれているかチェック
               if (e.description && e.description.includes(line_user_id)) {
                 console.log(`[Booking] Excluding own temporary event: ${e.summary}`)
                 return false
@@ -630,25 +1230,93 @@ Deno.serve(async (req: Request) => {
             const resStart = new Date(e.start.dateTime)
             const resEnd = new Date(e.end.dateTime)
             return isOverlapping(cursor, slotEnd, resStart, resEnd)
-          }).length
-
-          // If ANY Google event overlaps, the slot is blocked (assuming Google Calendar events block availability completely)
-          // Or should we treat them as consuming 1 capacity? Usually Google Calendar events mean "busy".
-          // Let's assume Google Calendar event consumes 1 capacity unit, or blocks it entirely?
-          // Requirement says "Google Calendar events are treated as busy slots".
-          // If capacity > 1, maybe we just subtract 1?
-          // For safety, let's assume Google Event blocks 1 slot.
+          })
           
-          const totalOverlap = internalOverlapCount + holdOverlapCount + googleOverlapCount
+          // 枠計算ロジック
+          let capacityLimit: number
+          let totalOverlap: number
+          
+          if (staff_id) {
+            // 担当者指定あり → その担当者の枠のみチェック（capacity = 1）
+            capacityLimit = 1
+            
+            // 内部予約でそのスタッフが埋まっているか
+            const staffReservationCount = internalOverlapCount
+            
+            // 仮押さえでそのスタッフが埋まっているか
+            const staffHoldCount = holdOverlapCount
+            
+            // Googleカレンダーでそのスタッフが埋まっているか
+            const staffInfo = staffInfoList.find(s => s.id === staff_id)
+            const staffGoogleEvents = staffInfo
+              ? relevantGoogleEvents.filter(e => {
+                  const foundStaff = extractStaffFromGoogleEvent(e, [staffInfo])
+                  return foundStaff !== null
+                })
+              : []
+            
+            totalOverlap = staffReservationCount + staffHoldCount + staffGoogleEvents.length
+          } else {
+            // 担当者指定なし → 対応可能スタッフ数を計算
+            const workingStaff = await getWorkingStaffForTimeSlot(
+              supabaseClient,
+              store_id,
+              date,
+              cursor,
+              slotEnd
+            )
+            
+            if (workingStaff.length === 0) {
+              // 出勤スタッフがいない場合は予約不可
+              slots.push({ time: `${hh}:${mm}`, available: false })
+              continue
+            }
+            
+            // 内部予約で埋まっているスタッフID
+            const internalBookedStaffIds = (reservations || [])
+              .filter((r: { status: string; line_user_id: string; start_time: string; end_time: string; staff_id?: string }) => {
+                if (r.status === 'temporary' && r.line_user_id === line_user_id) return false
+                const resStart = new Date(r.start_time)
+                const resEnd = new Date(r.end_time)
+                return isOverlapping(cursor, slotEnd, resStart, resEnd) && r.staff_id
+              })
+              .map((r: { staff_id?: string }) => r.staff_id)
+              .filter(Boolean) as string[]
+            
+            // 仮押さえで埋まっているスタッフID
+            const holdBookedStaffIds = (holds || [])
+              .filter((h: { line_user_id: string; start_time: string; end_time: string; staff_id?: string }) => {
+                if (h.line_user_id === line_user_id) return false
+                const holdStart = new Date(h.start_time)
+                const holdEnd = new Date(h.end_time)
+                return isOverlapping(cursor, slotEnd, holdStart, holdEnd) && h.staff_id
+              })
+              .map((h: { staff_id?: string }) => h.staff_id)
+              .filter(Boolean) as string[]
+            
+            // Googleカレンダーで埋まっているスタッフ
+            const { identifiedStaffIds, unknownEventCount } = analyzeGoogleEventsForStaff(
+              relevantGoogleEvents,
+              staffInfoList,
+              cursor,
+              slotEnd
+            )
+            
+            // 対応可能スタッフ数 = 出勤数 - 予約済み - 担当者不明イベント数
+            const bookedStaffSet = new Set([...internalBookedStaffIds, ...holdBookedStaffIds, ...identifiedStaffIds])
+            const availableStaffCount = workingStaff.length - bookedStaffSet.size - unknownEventCount
+            
+            capacityLimit = Math.max(0, availableStaffCount)
+            totalOverlap = 0 // 既にcapacityLimitに反映済み
+          }
+          
           const available = totalOverlap < capacityLimit
           
-          // Convert to JST for display (Shift UTC+9)
-          // cursor is a Date object representing the correct absolute time.
-          // getHours() returns UTC hour in Deno Deploy.
-          // We want the hour in JST.
-          const jstDate = new Date(cursor.getTime() + 9 * 60 * 60 * 1000)
-          const hh = jstDate.getUTCHours().toString().padStart(2, '0')
-          const mm = jstDate.getUTCMinutes().toString().padStart(2, '0')
+          // Convert to JST time string for display
+          // cursor is already in JST timezone (created with +09:00)
+          // Extract hours and minutes directly
+          const hh = cursor.getHours().toString().padStart(2, '0')
+          const mm = cursor.getMinutes().toString().padStart(2, '0')
           slots.push({ time: `${hh}:${mm}`, available })
         }
       }
@@ -678,6 +1346,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === 'cancel_reservation') {
         if (!reservation_id) throw new Error('Reservation ID is required')
+        if (!isValidUUID(reservation_id)) throw new Error('Invalid reservation_id format')
         console.log(`[Booking] Cancelling reservation: ${reservation_id}`)
 
         // Fetch reservation to get google_event_id
@@ -720,6 +1389,16 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'update_reservation') {
+      // 入力検証
+      if (!reservation_id) throw new Error('reservation_id is required')
+      if (!store_id || !date || !time) throw new Error('store_id, date, and time are required')
+      if (!isValidUUID(reservation_id)) throw new Error('Invalid reservation_id format')
+      if (!isValidUUID(store_id)) throw new Error('Invalid store_id format')
+      if (!isValidDate(date)) throw new Error('Invalid date format (expected YYYY-MM-DD)')
+      if (!isValidTime(time)) throw new Error('Invalid time format (expected HH:MM)')
+      if (staff_id && !isValidUUID(staff_id)) throw new Error('Invalid staff_id format')
+      if (menu_id && !isValidUUID(menu_id)) throw new Error('Invalid menu_id format')
+      
       // 1. Cancel old reservation
       // Fetch old reservation to get google_event_id
       const { data: oldReservation, error: fetchError } = await supabaseClient
@@ -733,6 +1412,14 @@ Deno.serve(async (req: Request) => {
       // 管理画面からの操作（オーナー認証済み）か、自分の予約かをチェック
       if (!isManualRegistration && oldReservation.line_user_id !== line_user_id) {
         throw new Error('Unauthorized: You can only update your own reservations')
+      }
+      
+      // 日付検証（過去日付・最大予約日数）
+      const storeSettings = await getStoreSettings(store_id)
+      if (isPastDate(date, time)) throw new Error('過去の日付は予約できません')
+      const maxDays = storeSettings?.max_booking_days ?? 60
+      if (!isWithinMaxBookingDays(date, maxDays)) {
+        throw new Error(`予約可能日は${maxDays}日後までです`)
       }
 
       const { error: cancelError } = await supabaseClient
@@ -755,130 +1442,48 @@ Deno.serve(async (req: Request) => {
       }
       // ----------------------------------------
 
-      // 2. Create new reservation (Same logic as create_reservation)
-      // 0. Get line_account_id
-      const { data: lineAccount, error: laError } = await supabaseClient
-        .from('line_accounts')
-        .select('id')
-        .eq('store_id', store_id)
-        .maybeSingle()
-      
-      if (laError) throw laError
-      if (!lineAccount) throw new Error('LINE Account not found for this store')
-
-      // 1. Upsert Customer
-      const { error: custError } = await supabaseClient
-        .from('customers')
-        .upsert({
-          store_id,
-          line_user_id,
-          display_name,
-          profile_picture_url,
-          real_name,
-          furigana,
-        }, { onConflict: 'store_id, line_user_id' })
-
-      if (custError) throw custError
-
-      // 2. Create Reservation
-      // Treat input time as JST (+09:00)
+      // 2. Create new reservation using common function
       const startDateTime = new Date(`${date}T${time}:00+09:00`)
-
       const storeSettings = await getStoreSettings(store_id)
       let durationMinutes = storeSettings?.slot_interval_minutes ?? 60
-      let menuCapacity: number | null = null
       if (menu_id) {
         const { data: menu } = await supabaseClient
           .from('booking_menus')
-          .select('duration_minutes, capacity_per_slot')
+          .select('duration_minutes')
           .eq('id', menu_id)
           .maybeSingle()
         if (menu?.duration_minutes) durationMinutes = menu.duration_minutes
-        if (typeof menu?.capacity_per_slot === 'number') menuCapacity = menu.capacity_per_slot
       }
       if (!durationMinutes || durationMinutes <= 0) durationMinutes = storeSettings?.slot_interval_minutes ?? 60
-      // 担当者指定がある場合は、その担当者は1人までしか同時に受付不可
-      const capacityLimit = staff_id ? 1 : (menuCapacity ?? storeSettings?.capacity_per_slot ?? 1)
-
       const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000)
 
-      // 担当者指定がある場合は、その担当者の予約のみをチェック
-      // temporary（一時予約）は除外 - hold_slotで作成した予約は確定時に削除されるため
-      let updateOverlapQuery = supabaseClient
+      const reservationId = await createReservationWithCapacityCheck({
+        supabaseClient,
+        store_id,
+        line_user_id,
+        date,
+        time,
+        staff_id: staff_id || null,
+        menu_id: menu_id || null,
+        memo: memo || '',
+        display_name,
+        profile_picture_url,
+        real_name,
+        furigana,
+        isManualRegistration,
+        excludeReservationId: reservation_id // 古い予約を除外
+      })
+
+      // 作成された予約を取得
+      const { data: newReservation, error: fetchError } = await supabaseClient
         .from('reservations')
-        .select('id')
-        .eq('store_id', store_id)
-        .neq('status', 'cancelled')
-        .neq('status', 'temporary')  // 一時予約を除外
-        .lt('start_time', endDateTime.toISOString())
-        .gt('end_time', startDateTime.toISOString())
-      
-      if (staff_id) {
-        updateOverlapQuery = updateOverlapQuery.eq('staff_id', staff_id)
-      }
-
-      const { data: overlapReservations, error: overlapError } = await updateOverlapQuery
-      if (overlapError) throw overlapError
-      if ((overlapReservations?.length ?? 0) >= capacityLimit) {
-        throw new Error('この時間帯の予約枠が埋まっています')
-      }
-
-      // --- Get Google Calendar Client (if available) ---
-      const googleClient1 = await getGoogleCalendarClient(supabaseClient, store_id)
-
-      // --- Delete temporary hold Google events for this user BEFORE checking Google Calendar ---
-      // 確定予約作成前に、そのユーザーの仮押さえGoogleイベントを削除
-      const { data: userHolds } = await supabaseClient
-        .from('temporary_holds')
-        .select('google_event_id')
-        .eq('store_id', store_id)
-        .eq('line_user_id', line_user_id)
-      
-      if (googleClient1 && userHolds && userHolds.length > 0) {
-        for (const hold of userHolds) {
-          if (hold.google_event_id) {
-            try {
-              await deleteGoogleEvent(googleClient1, hold.google_event_id)
-              console.log(`[Booking] Deleted temporary Google event: ${hold.google_event_id}`)
-            } catch (e) {
-              console.error(`[Booking] Failed to delete temporary Google event ${hold.google_event_id}:`, e)
-            }
-          }
-        }
-      }
-
-      // temporary_holdsテーブルからも削除
-      await supabaseClient
-        .from('temporary_holds')
-        .delete()
-        .eq('store_id', store_id)
-        .eq('line_user_id', line_user_id)
-      // --------------------------------------------
-
-      // 注: Googleカレンダーの重複チェックは不要
-      // hold_slot時点で既にチェック済み + 仮予約で枠を確保済みのため
-
-      const { data: newReservation, error: resError } = await supabaseClient
-        .from('reservations')
-        .insert({
-          store_id,
-          line_account_id: lineAccount.id,
-          line_user_id,
-          reservation_datetime: startDateTime.toISOString(),
-          start_time: startDateTime.toISOString(),
-          end_time: endDateTime.toISOString(),
-          status: 'confirmed',
-          memo: memo || '',
-          staff_id: staff_id || null,
-          menu_id: menu_id || null
-        })
-        .select()
+        .select('*')
+        .eq('id', reservationId)
         .single()
 
-      if (resError) throw resError
+      if (fetchError) throw fetchError
 
-      // --- Delete temporary reservation (hold_slot) for this user ---
-      // 同じユーザーの一時予約を削除（確定予約が作成されたため不要）
+      // Delete temporary reservation (hold_slot) for this user
       await supabaseClient
         .from('reservations')
         .delete()
@@ -886,62 +1491,20 @@ Deno.serve(async (req: Request) => {
         .eq('line_user_id', line_user_id)
         .eq('status', 'temporary')
 
-      // --- Google Calendar Create Event ---
-      if (googleClient1 && newReservation) {
-        try {
-            // Fetch Staff Name
-            let staffName = '指定なし'
-            if (staff_id) {
-               const { data: staff } = await supabaseClient.from('staff_members').select('name').eq('id', staff_id).maybeSingle()
-               if (staff) staffName = staff.name
-            }
-
-            // Fetch Menu Name
-            let menuName = '指定なし'
-            let menuPrice = ''
-            if (menu_id) {
-              const { data: menu } = await supabaseClient
-                .from('booking_menus')
-                .select('name, price')
-                .eq('id', menu_id)
-                .maybeSingle()
-              if (menu) {
-                  menuName = menu.name
-                  if (menu.price) menuPrice = `(¥${menu.price.toLocaleString()})`
-              }
-            }
-
-            const summary = `予約: ${real_name || display_name || 'LINE User'} 様`
-            const description = `
-■予約詳細
-------------------
-【お名前】 ${real_name || display_name || 'ゲスト'} 様
-【担当】 ${staffName}
-【メニュー】 ${menuName} ${menuPrice}
-【メモ】
-${memo || 'なし'}
-------------------
-LINE ID: ${line_user_id}
-`.trim()
-
-            const eventId = await createGoogleEvent(googleClient1, {
-                summary,
-                description,
-                start: { dateTime: startDateTime.toISOString() },
-                end: { dateTime: endDateTime.toISOString() }
-            })
-            
-            if (eventId) {
-                await supabaseClient
-                    .from('reservations')
-                    .update({ google_event_id: eventId })
-                    .eq('id', newReservation.id)
-            }
-        } catch (gError) {
-            console.error('Failed to create Google Calendar event:', gError)
-        }
-      }
-      // ------------------------------------
+      // Create Google Calendar Event
+      await createGoogleCalendarEventForReservation(
+        supabaseClient,
+        reservationId,
+        store_id,
+        startDateTime,
+        endDateTime,
+        staff_id || null,
+        menu_id || null,
+        real_name,
+        display_name,
+        line_user_id,
+        memo || ''
+      )
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -949,6 +1512,14 @@ LINE ID: ${line_user_id}
     }
 
     if (action === 'create_reservation') {
+      // 入力検証
+      if (!store_id || !date || !time) throw new Error('store_id, date, and time are required')
+      if (!isValidUUID(store_id)) throw new Error('Invalid store_id format')
+      if (!isValidDate(date)) throw new Error('Invalid date format (expected YYYY-MM-DD)')
+      if (!isValidTime(time)) throw new Error('Invalid time format (expected HH:MM)')
+      if (staff_id && !isValidUUID(staff_id)) throw new Error('Invalid staff_id format')
+      if (menu_id && !isValidUUID(menu_id)) throw new Error('Invalid menu_id format')
+      
       // 0. Get line_account_id
       const { data: lineAccount, error: laError } = await supabaseClient
         .from('line_accounts')
@@ -958,189 +1529,76 @@ LINE ID: ${line_user_id}
       
       if (laError) throw laError
       if (!lineAccount) throw new Error('LINE Account not found for this store')
-
-      // Google Calendar Client を取得
-      const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
-
-      // 1. Upsert Customer
-      const { error: custError } = await supabaseClient
-        .from('customers')
-        .upsert({
-          store_id,
-          line_user_id,
-          display_name,
-          profile_picture_url,
-          real_name,
-          furigana,
-        }, { onConflict: 'store_id, line_user_id' })
-
-      if (custError) throw custError
-
-      // 2. Create Reservation
-      // Treat input time as JST (+09:00)
-      const startDateTime = new Date(`${date}T${time}:00+09:00`)
-
-      // Menu-specific duration & capacity
+      
+      // 日付検証（過去日付・最大予約日数）
       const storeSettings = await getStoreSettings(store_id)
+      if (isPastDate(date, time)) throw new Error('過去の日付は予約できません')
+      const maxDays = storeSettings?.max_booking_days ?? 60
+      if (!isWithinMaxBookingDays(date, maxDays)) {
+        throw new Error(`予約可能日は${maxDays}日後までです`)
+      }
+
+      // Create reservation using common function
+      const startDateTime = new Date(`${date}T${time}:00+09:00`)
       let durationMinutes = storeSettings?.slot_interval_minutes ?? 60
-      let menuCapacity: number | null = null
       if (menu_id) {
         const { data: menu } = await supabaseClient
           .from('booking_menus')
-          .select('duration_minutes, capacity_per_slot')
+          .select('duration_minutes')
           .eq('id', menu_id)
           .maybeSingle()
         if (menu?.duration_minutes) durationMinutes = menu.duration_minutes
-        if (typeof menu?.capacity_per_slot === 'number') menuCapacity = menu.capacity_per_slot
       }
       if (!durationMinutes || durationMinutes <= 0) durationMinutes = storeSettings?.slot_interval_minutes ?? 60
-      // 担当者指定がある場合は、その担当者は1人までしか同時に受付不可
-      const capacityLimit = staff_id ? 1 : (menuCapacity ?? storeSettings?.capacity_per_slot ?? 1)
-
       const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000)
 
-      // Capacity check (overlap) - 担当者指定がある場合は、その担当者の予約のみをチェック
-      let overlapQuery = supabaseClient
+      const reservationId = await createReservationWithCapacityCheck({
+        supabaseClient,
+        store_id,
+        line_user_id,
+        date,
+        time,
+        staff_id: staff_id || null,
+        menu_id: menu_id || null,
+        memo: memo || '',
+        display_name,
+        profile_picture_url,
+        real_name,
+        furigana,
+        isManualRegistration
+      })
+
+      // 作成された予約を取得
+      const { data: newReservation, error: fetchError } = await supabaseClient
         .from('reservations')
-        .select('id')
-        .eq('store_id', store_id)
-        .neq('status', 'cancelled')
-        .lt('start_time', endDateTime.toISOString())
-        .gt('end_time', startDateTime.toISOString())
-      
-      if (staff_id) {
-        overlapQuery = overlapQuery.eq('staff_id', staff_id)
-      }
-
-      const { data: overlapReservations, error: overlapError } = await overlapQuery
-      if (overlapError) throw overlapError
-
-      // --- 仮押さえチェック（他のユーザーの仮押さえがないか確認） ---
-      let holdCheckQuery = supabaseClient
-        .from('temporary_holds')
-        .select('id, line_user_id')
-        .eq('store_id', store_id)
-        .gt('expires_at', new Date().toISOString())
-        .lt('start_time', endDateTime.toISOString())
-        .gt('end_time', startDateTime.toISOString())
-      
-      if (staff_id) {
-        holdCheckQuery = holdCheckQuery.eq('staff_id', staff_id)
-      }
-
-      const { data: conflictingHolds } = await holdCheckQuery
-      const otherUsersHold = (conflictingHolds || []).filter((h: { line_user_id: string }) => h.line_user_id !== line_user_id)
-      
-      if ((overlapReservations?.length ?? 0) + otherUsersHold.length >= capacityLimit) {
-        throw new Error('この時間帯の予約枠が埋まっています')
-      }
-      // -------------------------------------------------------------
-
-      // 注: Googleカレンダーの重複チェックは不要
-      // hold_slot時点で既にチェック済み + 仮予約で枠を確保済みのため
-
-      const { data: newReservation, error: resError } = await supabaseClient
-        .from('reservations')
-        .insert({
-          store_id,
-          line_account_id: lineAccount.id,
-          line_user_id,
-          reservation_datetime: startDateTime.toISOString(), // For backward compatibility
-          start_time: startDateTime.toISOString(),
-          end_time: endDateTime.toISOString(),
-          status: 'confirmed',
-          memo: memo || '',
-          staff_id: staff_id || null,
-          menu_id: menu_id || null,
-          registration_type: isManualRegistration ? 'manual' : 'line'
-        })
-        .select()
+        .select('*')
+        .eq('id', reservationId)
         .single()
 
-      if (resError) throw resError
+      if (fetchError) throw fetchError
 
-      // --- 仮押さえを削除し、Google Calendarの仮予約イベントも削除 ---
-      const { data: userHolds } = await supabaseClient
-        .from('temporary_holds')
-        .select('*')
-        .eq('line_user_id', line_user_id)
+      // Delete temporary reservation (hold_slot) for this user
+      await supabaseClient
+        .from('reservations')
+        .delete()
         .eq('store_id', store_id)
+        .eq('line_user_id', line_user_id)
+        .eq('status', 'temporary')
 
-      if (userHolds && userHolds.length > 0) {
-        for (const hold of userHolds) {
-          if (hold.google_event_id && googleClient) {
-            try {
-              await deleteGoogleEvent(googleClient, hold.google_event_id)
-            } catch (e) {
-              console.error('Failed to delete temporary Google event:', e)
-            }
-          }
-        }
-        
-        await supabaseClient
-          .from('temporary_holds')
-          .delete()
-          .eq('line_user_id', line_user_id)
-          .eq('store_id', store_id)
-      }
-      // ---------------------------------------------------------------
-
-      // --- Google Calendar Create Event ---
-      if (googleClient && newReservation) {
-        try {
-            // Fetch Staff Name
-            let staffName = '指定なし'
-            if (staff_id) {
-               const { data: staff } = await supabaseClient.from('staff_members').select('name').eq('id', staff_id).maybeSingle()
-               if (staff) staffName = staff.name
-            }
-
-            // Fetch Menu Name
-            let menuName = '指定なし'
-            let menuPrice = ''
-            if (menu_id) {
-              const { data: menu } = await supabaseClient
-                .from('booking_menus')
-                .select('name, price')
-                .eq('id', menu_id)
-                .maybeSingle()
-              if (menu) {
-                  menuName = menu.name
-                  if (menu.price) menuPrice = `(¥${menu.price.toLocaleString()})`
-              }
-            }
-
-            const summary = `予約: ${real_name || display_name || 'LINE User'} 様`
-            const description = `
-■予約詳細
-------------------
-【お名前】 ${real_name || display_name || 'ゲスト'} 様
-【担当】 ${staffName}
-【メニュー】 ${menuName} ${menuPrice}
-【メモ】
-${memo || 'なし'}
-------------------
-LINE ID: ${line_user_id}
-`.trim()
-
-            const eventId = await createGoogleEvent(googleClient, {
-                summary,
-                description,
-                start: { dateTime: startDateTime.toISOString() },
-                end: { dateTime: endDateTime.toISOString() }
-            })
-            
-            if (eventId) {
-                await supabaseClient
-                    .from('reservations')
-                    .update({ google_event_id: eventId })
-                    .eq('id', newReservation.id)
-            }
-        } catch (gError) {
-            console.error('Failed to create Google Calendar event:', gError)
-        }
-      }
-      // ------------------------------------
+      // Create Google Calendar Event
+      await createGoogleCalendarEventForReservation(
+        supabaseClient,
+        reservationId,
+        store_id,
+        startDateTime,
+        endDateTime,
+        staff_id || null,
+        menu_id || null,
+        real_name,
+        display_name,
+        line_user_id,
+        memo || ''
+      )
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
