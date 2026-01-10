@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Bot, ArrowLeft, ArrowRight, Check, Settings, Clock, TrendingUp, BookOpen, RefreshCw, Send, Crown, Upload, FileText, Link as LinkIcon, BarChart3, Smartphone, Loader2, Search, Lightbulb, Target, FolderOpen, Calendar, User, MessageSquare } from 'lucide-react'
+import { Bot, ArrowLeft, ArrowRight, Check, Settings, Clock, TrendingUp, BookOpen, RefreshCw, Send, Crown, Upload, FileText, Link as LinkIcon, BarChart3, Smartphone, Search, Lightbulb, Target, FolderOpen, MessageSquare } from 'lucide-react'
 import itoguchiaiImage from '../assets/itoguchiai.png'
 import iconImage from '../assets/icon.png'
 
