@@ -90,7 +90,7 @@ Deno.serve(async (req: Request) => {
     const botInfo = await response.json()
     console.log('LINE Bot Info:', JSON.stringify(botInfo))
     
-    // line_user_id (Bot User ID) と bot_id (Basic ID) をデータベースに保存
+    // line_user_id (Bot User ID)、bot_id (Basic ID)、bot_picture_url をデータベースに保存
     const updateData: Record<string, string> = {}
     
     if (botInfo.userId) {
@@ -99,6 +99,10 @@ Deno.serve(async (req: Request) => {
     
     if (botInfo.basicId) {
       updateData.bot_id = botInfo.basicId
+    }
+    
+    if (botInfo.pictureUrl) {
+      updateData.bot_picture_url = botInfo.pictureUrl
     }
     
     if (Object.keys(updateData).length > 0) {
