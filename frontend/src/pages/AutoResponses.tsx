@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, X, Save, MessageSquare, Tag, Loader2, Upload, FileText, Settings, BookOpen, Search, Crown, Smartphone, RefreshCw, Send, Link as LinkIcon } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, MessageSquare, Tag, Loader2, Upload, FileText, Settings, BookOpen, Search, Crown, Smartphone, RefreshCw, Send, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import ProBadge from '../components/ProBadge';
 import { supabase } from '../lib/supabase';
 import { extractTextFromFile, extractTextFromPdfBuffer } from '../lib/fileParser';
@@ -22,7 +22,6 @@ type AiSettings = {
   is_enabled: boolean
   tone: 'polite' | 'friendly'
   persona_prompt: string
-  fixed_replies: { question: string; answer: string }[]
 }
 
 type KnowledgeDoc = {
@@ -33,6 +32,7 @@ type KnowledgeDoc = {
   file_type: string
   is_active: boolean
   created_at: string
+  extracted_text?: string
 }
 
 type TabType = 'keyword' | 'ai_settings' | 'knowledge';
@@ -166,8 +166,7 @@ export default function AutoResponses() {
     id: '',
     is_enabled: false,
     tone: 'polite',
-    persona_prompt: '',
-    fixed_replies: []
+    persona_prompt: ''
   });
   const [documents, setDocuments] = useState<KnowledgeDoc[]>([]);
   const [savingAi, setSavingAi] = useState(false);
@@ -413,7 +412,6 @@ export default function AutoResponses() {
           is_enabled: aiSettings.is_enabled,
           tone: aiSettings.tone,
           persona_prompt: aiSettings.persona_prompt,
-          fixed_replies: aiSettings.fixed_replies,
           updated_at: new Date().toISOString()
         })
         .eq('id', aiSettings.id);
@@ -446,6 +444,11 @@ export default function AutoResponses() {
       });
 
       if (error) throw error;
+      
+      // Check if Edge Function returned an error in the response body
+      if (data?.error) {
+        throw new Error(data.error);
+      }
 
       let extractedText = '';
       const title = data.title || urlInput;
@@ -460,11 +463,11 @@ export default function AutoResponses() {
         }
         extractedText = await extractTextFromPdfBuffer(bytes.buffer);
       } else {
-        extractedText = data.content;
+        extractedText = data.content || '';
       }
 
-      if (!extractedText) {
-        throw new Error('No text could be extracted from this URL');
+      if (!extractedText || extractedText.trim().length === 0) {
+        throw new Error('No text could be extracted from this URL. The page may not contain readable text content.');
       }
 
       // Insert into DB
@@ -489,7 +492,29 @@ export default function AutoResponses() {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       console.error('Error adding URL:', message);
-      setToast({ isVisible: true, message: 'URLからの追加に失敗しました: ' + message, type: 'error' });
+      
+      // Check if it's a SPA/JavaScript-rendered page error
+      const isSpaError = message.includes('JavaScript') || 
+                        message.includes('SPA') || 
+                        message.includes('テキストを抽出できません') ||
+                        message.includes('JavaScriptでレンダリング') ||
+                        (message.includes('No text could be extracted') && message.includes('JavaScript'));
+      
+      if (isSpaError) {
+        setToast({ 
+          isVisible: true, 
+          message: 'このURLからはテキストを取得できませんでした。PDFファイルや、テキストが含まれるページのURLをご利用ください。', 
+          type: 'error' 
+        });
+      } else if (message.includes('No text could be extracted') || message.includes('テキストを抽出できません')) {
+        setToast({ 
+          isVisible: true, 
+          message: 'このURLからはテキストを取得できませんでした。PDFファイルや、テキストが含まれるページのURLをご利用ください。', 
+          type: 'error' 
+        });
+      } else {
+        setToast({ isVisible: true, message: 'URLからの追加に失敗しました。URLが正しいか、アクセス可能かご確認ください。', type: 'error' });
+      }
     } finally {
       setIsAddingUrl(false);
     }
@@ -640,6 +665,42 @@ export default function AutoResponses() {
     }
   };
 
+  const handleToggleDocActive = async (doc: KnowledgeDoc) => {
+    if (!storeId) return;
+    
+    // Optimistic update: 先にローカル状態を更新
+    const newIsActive = !doc.is_active;
+    setDocuments(prevDocs => 
+      prevDocs.map(d => d.id === doc.id ? { ...d, is_active: newIsActive } : d)
+    );
+    
+    try {
+      const { error } = await supabase
+        .from('knowledge_base')
+        .update({ is_active: newIsActive })
+        .eq('id', doc.id);
+
+      if (error) throw error;
+
+      setToast({ isVisible: true, message: newIsActive ? '資料を有効にしました' : '資料を無効にしました', type: 'success' });
+    } catch (error) {
+      // エラー時は元に戻す
+      setDocuments(prevDocs => 
+        prevDocs.map(d => d.id === doc.id ? { ...d, is_active: doc.is_active } : d)
+      );
+      console.error('Error toggling doc:', error);
+      setToast({ isVisible: true, message: '更新に失敗しました', type: 'error' });
+    }
+  };
+
+  // Calculate total character count for active documents
+  const KNOWLEDGE_BASE_MAX_CHARS = 30000;
+  const totalChars = documents
+    .filter(doc => doc.is_active)
+    .reduce((sum, doc) => sum + (doc.extracted_text?.length || 0), 0);
+  const charUsagePercent = (totalChars / KNOWLEDGE_BASE_MAX_CHARS) * 100;
+  const isOverLimit = totalChars > KNOWLEDGE_BASE_MAX_CHARS;
+
   const handleSendTestChat = async () => {
     if (!testChatMessage.trim()) return;
     
@@ -691,7 +752,7 @@ export default function AutoResponses() {
   return (
     <div className="flex flex-col h-full">
       <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4">
+        <div className="px-4 sm:px-8 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">自動応答設定</h1>
@@ -702,7 +763,7 @@ export default function AutoResponses() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {/* Tabs */}
         <div className="flex items-center gap-1 border-b border-gray-200 px-2 md:px-6 pt-2 md:pt-4">
@@ -1002,10 +1063,41 @@ export default function AutoResponses() {
               )}
               <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 ${!isPro ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 <div className="space-y-6">
+                  {/* Character Count Display */}
+                  <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-bold text-gray-900 text-lg">使用量</h3>
+                      <span className={`text-lg font-bold ${isOverLimit ? 'text-red-600' : charUsagePercent >= 80 ? 'text-orange-600' : 'text-gray-900'}`}>
+                        {totalChars.toLocaleString()} / {KNOWLEDGE_BASE_MAX_CHARS.toLocaleString()} 文字
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+                      <div
+                        className={`h-3 rounded-full transition-all ${
+                          isOverLimit
+                            ? 'bg-red-500'
+                            : charUsagePercent >= 80
+                            ? 'bg-orange-500'
+                            : 'bg-primary-500'
+                        }`}
+                        style={{ width: `${Math.min(charUsagePercent, 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {isOverLimit ? (
+                        <span className="text-red-600 font-bold">制限を超過しています。資料を無効にするか削除してください。</span>
+                      ) : charUsagePercent >= 80 ? (
+                        <span className="text-orange-600">制限に近づいています。</span>
+                      ) : (
+                        <span>有効な資料の合計文字数</span>
+                      )}
+                    </p>
+                  </div>
+
                   {/* Upload Area */}
                   <div 
-                    onClick={() => !uploading && fileInputRef.current?.click()}
-                    className={`border-2 border-dashed border-gray-300 rounded-xl p-10 text-center hover:bg-gray-50 transition-colors cursor-pointer group bg-gray-50/30 ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    onClick={() => !uploading && !isOverLimit && fileInputRef.current?.click()}
+                    className={`border-2 border-dashed border-gray-300 rounded-xl p-10 text-center hover:bg-gray-50 transition-colors cursor-pointer group bg-gray-50/30 ${uploading || isOverLimit ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <input
                       type="file"
@@ -1046,7 +1138,7 @@ export default function AutoResponses() {
                       />
                       <button
                         onClick={handleAddUrl}
-                        disabled={isAddingUrl || !urlInput}
+                        disabled={isAddingUrl || !urlInput || isOverLimit}
                         className="px-6 py-2.5 bg-primary-600 text-white rounded-lg font-bold hover:bg-primary-700 disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap"
                       >
                         {isAddingUrl ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />}
@@ -1056,6 +1148,18 @@ export default function AutoResponses() {
                     <p className="text-xs text-gray-500 mt-2">
                       WebページやPDFのURLを入力して、その内容をAI学習データに追加します。
                     </p>
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-xs text-blue-800 font-medium mb-1">ご注意</p>
+                          <p className="text-xs text-blue-700">
+                            一部のWebページは、URLから直接テキストを取得できない場合があります。<br />
+                            <strong>推奨：</strong>PDFファイルや、テキストが含まれるページのURLをご利用ください。
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Document List */}
@@ -1085,18 +1189,25 @@ export default function AutoResponses() {
                                   <span className="bg-gray-100 px-2 py-0.5 rounded text-gray-600">
                                     {doc.file_type.split('/')[1].toUpperCase()}
                                   </span>
-                                  <span>{(doc.file_size / 1024).toFixed(1)} KB</span>
+                                  <span>{(doc.extracted_text?.length || 0).toLocaleString()} 文字</span>
                                   <span>•</span>
                                   <span>{new Date(doc.created_at).toLocaleDateString()}</span>
                                 </div>
                               </div>
                             </div>
                             <div className="flex items-center gap-3">
-                              <div className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                doc.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                              }`}>
-                                {doc.is_active ? '学習中' : '無効'}
-                              </div>
+                              <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  className="sr-only peer"
+                                  checked={doc.is_active}
+                                  onChange={() => handleToggleDocActive(doc)}
+                                />
+                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                              </label>
+                              <span className={`text-xs font-bold ${doc.is_active ? 'text-green-700' : 'text-gray-600'}`}>
+                                {doc.is_active ? '有効' : '無効'}
+                              </span>
 
                               {doc.file_path.startsWith('http') && (
                                 <button

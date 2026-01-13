@@ -113,7 +113,7 @@ export default function FeatureAI() {
             >
               <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 rounded-full bg-primary-50 border border-primary-100 text-primary-600 text-sm font-semibold">
                 <Bot className="w-4 h-4" />
-                AI Powered
+                AIで進化
               </div>
               <h1 className="text-2xl sm:text-3xl lg:text-5xl font-bold text-slate-900 mb-4 sm:mb-6 leading-[1.15] tracking-tight">
                 AIがあなたの代わりに<br />

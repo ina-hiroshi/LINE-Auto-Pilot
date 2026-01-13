@@ -497,9 +497,9 @@ export default function TopPage() {
                 viewport={{ once: true }}
                 className="inline-block mb-6"
               >
-                <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-50 border border-primary-200 text-primary-700 text-sm font-semibold">
-                  AI Powered
-                </span>
+              <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-50 border border-primary-200 text-primary-700 text-sm font-semibold">
+                AIで進化
+              </span>
               </motion.div>
               <motion.h2 
                 initial={{ opacity: 0, y: 20 }}

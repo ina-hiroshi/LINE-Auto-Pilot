@@ -351,7 +351,7 @@ export default function LineSettings() {
 			/>
 
 			<div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
-				<div className="max-w-7xl mx-auto px-4 sm:px-8 py-4">
+				<div className="px-4 sm:px-8 py-4">
 					<div className="flex items-center justify-between gap-4">
 						<div className="min-w-0 flex-1">
 							<h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">LINE連携・設定</h1>
@@ -362,7 +362,7 @@ export default function LineSettings() {
 			</div>
 
 			<div className="flex-1 overflow-y-auto p-4 sm:p-8">
-				<div className="max-w-7xl mx-auto">
+				<div className="w-full">
 					{/* Tabs Navigation */}
 					<div className="flex overflow-x-auto border-b border-gray-200 mb-6 no-scrollbar">
 				<button

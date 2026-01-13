@@ -10,7 +10,7 @@ const CONFIG = {
   /** Gemini API の最大出力トークン数 */
   GEMINI_MAX_OUTPUT_TOKENS: 500,
   /** Gemini API の温度パラメータ */
-  GEMINI_TEMPERATURE: 0.7,
+  GEMINI_TEMPERATURE: 0.4,
   /** 自動応答スコアリング */
   SCORING: {
     /** キーワード完全一致時のスコア */
@@ -20,7 +20,7 @@ const CONFIG = {
     /** サブキーワード一致時のスコア */
     SUB_KEYWORD_MATCH: 10,
     /** 自動応答を発動するしきい値 */
-    THRESHOLD: 20,
+    THRESHOLD: 25,
   },
 } as const;
 
@@ -110,9 +110,27 @@ async function startLoadingAnimation(accessToken: string, userId: string) {
   }
 }
 
+// Helper to normalize text for keyword matching
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFKC')
+    .replace(/\s+/g, '')
+    .replace(/[？！。、]/g, '');
+}
+
 // Helper to generate AI response using Gemini API
 import type { SupabaseClientType, AISettings } from '../_shared/types.ts'
-async function generateAIResponse(apiKey: string, message: string, settings: AISettings, storeId: string, supabase: SupabaseClientType): Promise<string> {
+import { generateSystemPrompt } from '../_shared/ai-prompt.ts'
+
+async function generateAIResponse(
+  apiKey: string,
+  message: string,
+  settings: AISettings,
+  storeId: string,
+  supabase: SupabaseClientType,
+  userId?: string
+): Promise<string> {
   try {
     // 1. Fetch Knowledge Base
     const { data: docs } = await supabase
@@ -127,82 +145,45 @@ async function generateAIResponse(apiKey: string, message: string, settings: AIS
       context = docs.map((d: { extracted_text?: string }) => d.extracted_text || "").join("\n\n").substring(0, CONFIG.KNOWLEDGE_BASE_MAX_CHARS);
     }
 
-    // 2. Construct System Prompt
-    let systemPrompt = `あなたはLINE公式アカウントのAIアシスタントです。
-以下の「店舗情報（AI学習データ）」に基づいて、ユーザーの質問に答えてください。
-AI学習データに情報がない場合は、正直に「わかりません」と答えるか、店舗への問い合わせを促してください。
-嘘の情報は絶対に答えないでください。
-
-【重要：回答不可時の対応】
-情報が不足していて回答できない場合は、「AI学習データ」「ナレッジベース」「データベース」「システム」といった内部用語は使わず、
-「申し訳ありませんが、その件については担当者が確認して返信いたします。少々お待ちください。」のように、
-担当者からの手動返信を待つよう促すメッセージを返してください。
-
-【重要：エスカレーション（要対応）の判断基準】
-回答の最後に [MANUAL_REPLY_NEEDED] タグをつけるのは、以下の「回答不能」なケース**のみ**です。
-
-1. AI学習データに情報がなく、質問に答えられない場合。
-2. 「担当者に確認します」「スタッフが対応します」といった、人間の介入を約束する場合。
-
-以下のケースでは、タグを**絶対に付けないでください**（AI回答済みとして処理します）：
-1. 「その機能はありません」「できません」といった、否定的な回答をする場合。
-2. 「〜については、〜をご覧ください」と案内する場合。
-3. ユーザーの要望を断る場合。
-4. 「ご不明な点があればお問い合わせください」といった、一般的な結びの言葉がある場合。
-これらは「回答できた」とみなされます。
-
-【判断の具体例】
-ケース1: ユーザー「予約ページの背景を変えたい」
-AI回答: 「申し訳ありませんが、予約ページのデザイン変更機能はありません。」
-判定: 回答できている（否定回答） -> タグ不要
-
-ケース2: ユーザー「来週の火曜日に貸切できますか？」
-AI回答: 「貸切については担当者が確認してご連絡します。少々お待ちください。[MANUAL_REPLY_NEEDED]」
-判定: 人間の介入が必要 -> タグ必要
-
-ケース3: ユーザー「駐車場はありますか？」
-AI回答: 「はい、店舗裏に3台分ございます。ご不明な点はお問い合わせください。」
-判定: 回答できている（結びの言葉） -> タグ不要
-
-【重要：フォーマット（絶対遵守）】
-LINEのメッセージはMarkdownをサポートしていません。
-以下の記法は**絶対に使用しないでください**：
-- **太字** (アスタリスク2つ)
-- # 見出し (シャープ)
-- [リンクテキスト](URL) (リンク記法)
-
-代わりに以下のようにプレーンテキストで表現してください：
-- 太字の代わりに、隅付き括弧【 】や「 」を使う。
-- 見出しの代わりに、■や◆などの記号を使う。
-- リストは「・」や数字を使って手動で改行する。
-
-悪い例: **スタッフ登録**
-良い例: 【スタッフ登録】
-
-口調: ${settings.tone === 'friendly' ? 'フレンドリー、親しみやすい' : '丁寧、フォーマル'}
-`;
-
-    if (settings.persona_prompt) {
-      systemPrompt += `\n追加の役割指示: ${settings.persona_prompt}`;
+    // 2. Fetch conversation history (last 5 messages)
+    let conversationHistory: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+    if (userId) {
+      const { data: history } = await supabase
+        .from('customer_logs')
+        .select('message_content, reply_content')
+        .eq('store_id', storeId)
+        .eq('line_user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      
+      if (history && history.length > 0) {
+        // Reverse to chronological order
+        for (const h of history.reverse()) {
+          conversationHistory.push({ role: 'user', parts: [{ text: h.message_content }] });
+          if (h.reply_content) {
+            conversationHistory.push({ role: 'model', parts: [{ text: h.reply_content }] });
+          }
+        }
+      }
     }
 
-    if (context) {
-      systemPrompt += `\n\n[店舗情報（AI学習データ）]\n${context}`;
-    }
+    // 3. Generate System Prompt using shared function
+    const systemPrompt = generateSystemPrompt(settings, context);
 
-    // 3. Call Gemini API
+    // 4. Call Gemini API with optimized format
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    
+    const contents = [
+      ...conversationHistory,
+      { role: 'user' as const, parts: [{ text: message }] }
+    ];
     
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: systemPrompt + "\n\nユーザーのメッセージ: " + message }]
-          }
-        ],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: contents,
         generationConfig: {
           maxOutputTokens: CONFIG.GEMINI_MAX_OUTPUT_TOKENS,
           temperature: CONFIG.GEMINI_TEMPERATURE
@@ -380,24 +361,42 @@ Deno.serve(async (req: Request) => {
                         .eq('store_id', storeId)
                         .eq('is_active', true)
                     
-                    // 2. Scoring Logic
+                    // 2. Scoring Logic (improved with normalization and length weighting)
                     let bestScore = 0
                     let bestRule = null
+                    let bestKeywordLength = 0
 
                     if (rules && rules.length > 0) {
+                        const normalizedText = normalizeText(text);
+                        
                         for (const rule of rules) {
                             let score = 0
-                            if (text === rule.keyword) score = CONFIG.SCORING.EXACT_MATCH
-                            else if (text.includes(rule.keyword)) score += CONFIG.SCORING.PARTIAL_MATCH
+                            const normalizedKeyword = normalizeText(rule.keyword);
+                            
+                            // Exact match check
+                            if (normalizedText === normalizedKeyword) {
+                                score = CONFIG.SCORING.EXACT_MATCH
+                            } else if (normalizedText.includes(normalizedKeyword)) {
+                                // Partial match with length bonus
+                                const lengthBonus = Math.min(rule.keyword.length * 2, 20);
+                                score += CONFIG.SCORING.PARTIAL_MATCH + lengthBonus;
+                            }
 
+                            // Sub-keyword matching
                             if (rule.sub_keywords && Array.isArray(rule.sub_keywords)) {
                                 for (const sub of rule.sub_keywords) {
-                                    if (text.includes(sub)) score += CONFIG.SCORING.SUB_KEYWORD_MATCH
+                                    const normalizedSub = normalizeText(sub);
+                                    if (normalizedText.includes(normalizedSub)) {
+                                        score += CONFIG.SCORING.SUB_KEYWORD_MATCH
+                                    }
                                 }
                             }
-                            if (score > bestScore) {
+                            
+                            // Select best rule (higher score, or same score but longer keyword)
+                            if (score > bestScore || (score === bestScore && rule.keyword.length > bestKeywordLength)) {
                                 bestScore = score
                                 bestRule = rule
+                                bestKeywordLength = rule.keyword.length
                             }
                         }
                     }
@@ -414,7 +413,7 @@ Deno.serve(async (req: Request) => {
                             // Start loading animation
                             await startLoadingAnimation(channelAccessToken, userId)
                             
-                            replyText = await generateAIResponse(geminiApiKey, text, aiSettings, storeId, supabase)
+                            replyText = await generateAIResponse(geminiApiKey, text, aiSettings, storeId, supabase, userId)
                             status = 'ai_replied'
 
                             // Check for manual reply needed tag

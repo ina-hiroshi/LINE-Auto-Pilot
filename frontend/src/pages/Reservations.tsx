@@ -819,7 +819,7 @@ export default function Reservations() {
   return (
     <div className="flex flex-col h-full">
       <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-4">
+        <div className="px-4 sm:px-8 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">予約管理</h1>
@@ -857,7 +857,7 @@ export default function Reservations() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full">
       {viewMode === 'list' ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="p-4 sm:p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
