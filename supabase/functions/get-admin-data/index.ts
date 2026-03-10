@@ -1,6 +1,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { safeErrorResponse } from '../_shared/error-utils.ts'
+import { isAdminUser } from '../_shared/admin-check.ts'
 
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get('Origin')
@@ -24,14 +25,8 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // 管理者権限を確認
-    const { data: profile } = await supabaseClient
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile?.is_admin) {
+    const admin = await isAdminUser(supabaseClient, user.id, user.email)
+    if (!admin) {
       return new Response(
         JSON.stringify({ error: 'Forbidden' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

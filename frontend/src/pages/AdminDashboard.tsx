@@ -224,53 +224,29 @@ export default function AdminDashboard() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // profiles.is_adminを確認
-      const { data: profile, error: profileError } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
         .select('is_admin')
         .eq('id', user.id)
         .single()
 
-      if (profileError) {
-        console.error('Profile check error:', profileError)
-        setToast({ 
-          isVisible: true, 
-          message: `プロフィールの確認に失敗しました: ${profileError.message}`, 
-          type: 'error' 
-        })
-        return
-      }
-
-      // 管理者メールアドレスなのにis_adminがfalseの場合、設定する
       if (isAdmin && !profile?.is_admin) {
-        console.log('管理者メールアドレスですが、is_adminがfalseです。設定を更新します。')
         const { error: updateError } = await supabase
           .from('profiles')
           .update({ is_admin: true })
           .eq('id', user.id)
 
         if (updateError) {
-          console.error('Failed to update is_admin:', updateError)
-          setToast({ 
-            isVisible: true, 
-            message: `管理者権限の設定に失敗しました: ${updateError.message}`, 
-            type: 'error' 
-          })
-          return
+          console.warn('Failed to update is_admin (non-blocking):', updateError)
         }
-        console.log('管理者権限を設定しました')
       }
 
-      // データを読み込む
       loadOrders()
       fetchCurrentPlan()
     } catch (error) {
       console.error('Admin permission check error:', error)
-      setToast({ 
-        isVisible: true, 
-        message: `管理者権限の確認に失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`, 
-        type: 'error' 
-      })
+      loadOrders()
+      fetchCurrentPlan()
     }
   }, [isAdmin, loadOrders, fetchCurrentPlan])
 

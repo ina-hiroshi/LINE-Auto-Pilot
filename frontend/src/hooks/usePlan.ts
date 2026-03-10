@@ -5,10 +5,10 @@ import { isPaidPlan } from '../lib/planUtils'
 export function usePlan() {
   const [isPro, setIsPro] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
-    let userId: string | null = null
 
     const checkPlan = async () => {
       try {
@@ -17,13 +17,17 @@ export function usePlan() {
           if (mounted) setLoading(false)
           return
         }
-        userId = user.id
+        if (mounted) setUserId(user.id)
 
-        const { data: profile } = await supabase
+        const { data: profile, error } = await supabase
           .from('profiles')
           .select('plan')
           .eq('id', user.id)
           .single()
+
+        if (error) {
+          console.error('Error fetching plan:', error)
+        }
         
         if (mounted) {
           setIsPro(isPaidPlan(profile?.plan))
@@ -39,13 +43,19 @@ export function usePlan() {
 
     checkPlan()
 
+    return () => { mounted = false }
+  }, [])
+
+  useEffect(() => {
+    if (!userId) return
+
     const channel = supabase
       .channel('plan-changes')
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: userId ? `id=eq.${userId}` : undefined },
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
         (payload) => {
-          if (mounted && payload.new) {
+          if (payload.new) {
             const newPlan = (payload.new as { plan?: string }).plan
             setIsPro(isPaidPlan(newPlan))
           }
@@ -53,11 +63,8 @@ export function usePlan() {
       )
       .subscribe()
 
-    return () => {
-      mounted = false
-      supabase.removeChannel(channel)
-    }
-  }, [])
+    return () => { supabase.removeChannel(channel) }
+  }, [userId])
 
   return { isPro, loading }
 }

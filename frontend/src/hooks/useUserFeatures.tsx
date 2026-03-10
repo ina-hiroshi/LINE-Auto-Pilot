@@ -68,12 +68,15 @@ export function UserFeaturesProvider({ children }: UserFeaturesProviderProps) {
         const userEmail = user.email || null
         const userId = user.id
 
-        // Check admin: DB is_admin flag first, email list as fallback
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('is_admin')
           .eq('id', userId)
           .single()
+
+        if (profileError) {
+          console.error('Error fetching profile for features:', profileError)
+        }
 
         const isAdmin = profile?.is_admin === true || (userEmail ? ADMIN_EMAILS.includes(userEmail) : false)
 
@@ -83,12 +86,15 @@ export function UserFeaturesProvider({ children }: UserFeaturesProviderProps) {
           features.push('admin_panel', 'setup_service_orders', 'plan_switcher')
         }
 
-        // Load DB-based feature flags
-        const { data: dbFeatures } = await supabase
+        const { data: dbFeatures, error: featuresError } = await supabase
           .from('user_features')
           .select('feature_flag')
           .eq('user_id', userId)
           .eq('enabled', true)
+
+        if (featuresError) {
+          console.error('Error fetching user_features:', featuresError)
+        }
 
         if (dbFeatures) {
           for (const row of dbFeatures) {

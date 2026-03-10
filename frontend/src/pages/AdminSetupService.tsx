@@ -39,7 +39,7 @@ interface SetupOrder {
     full_name: string | null
   }
   stores?: {
-    store_name: string
+    name: string
   }
 }
 
@@ -112,7 +112,7 @@ export default function AdminSetupService() {
         .select(`
           *,
           profiles:user_id (email, full_name),
-          stores:store_id (store_name)
+          stores:store_id (name)
         `)
         .order('created_at', { ascending: false })
 
@@ -343,7 +343,7 @@ export default function AdminSetupService() {
     const matchesSearch = 
       order.profiles?.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.profiles?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.stores?.store_name?.toLowerCase().includes(searchQuery.toLowerCase())
+      order.stores?.name?.toLowerCase().includes(searchQuery.toLowerCase())
     
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter
 
@@ -453,7 +453,7 @@ export default function AdminSetupService() {
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <p className="font-medium text-gray-900">{order.profiles?.full_name || order.profiles?.email}</p>
-                        <p className="text-sm text-gray-500">{order.stores?.store_name || '店舗未登録'}</p>
+                        <p className="text-sm text-gray-500">{order.stores?.name || '店舗未登録'}</p>
                       </div>
                       {getStatusBadge(order.status)}
                     </div>

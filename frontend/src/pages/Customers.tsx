@@ -219,12 +219,12 @@ export default function Customers() {
 
       if (error) throw error
 
-      const history: ReservationHistory[] = data.map((r: { id: string; start_time: string; status: string; menu?: { name: string } | null; staff?: { name: string } | null }) => ({
+      const history: ReservationHistory[] = data.map((r) => ({
         id: r.id,
         start_time: r.start_time,
         status: r.status,
-        menu_name: r.menu?.name || null,
-        staff_name: r.staff?.name || null
+        menu_name: r.menu?.[0]?.name || null,
+        staff_name: r.staff?.[0]?.name || null,
       }))
       setReservationHistory(history)
     } catch (error) {
