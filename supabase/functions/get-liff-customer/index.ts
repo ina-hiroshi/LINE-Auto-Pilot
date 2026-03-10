@@ -1,13 +1,13 @@
 // Using Deno.serve instead of @std/http/server
 import { createClient } from '@supabase/supabase-js'
+import { getCorsHeaders } from '../_shared/cors.ts'
 import { verifyLineToken } from '../_shared/line-auth.ts'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { safeErrorResponse } from '../_shared/error-utils.ts'
 
 Deno.serve(async (req: Request) => {
+  const origin = req.headers.get('Origin')
+  const corsHeaders = getCorsHeaders(origin)
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -73,14 +73,6 @@ Deno.serve(async (req: Request) => {
     )
 
   } catch (error: unknown) {
-    console.error('Error:', error)
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return new Response(
-      JSON.stringify({ error: message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      }
-    )
+    return safeErrorResponse(error, corsHeaders, 400, 'Internal server error')
   }
 })

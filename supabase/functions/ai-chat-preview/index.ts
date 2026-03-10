@@ -1,10 +1,8 @@
 // Using Deno.serve instead of @std/http/server
 import { createClient } from '@supabase/supabase-js'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { getCorsHeaders } from '../_shared/cors.ts'
+import { safeErrorResponse } from '../_shared/error-utils.ts'
+import { getGeminiUrl } from '../_shared/ai-config.ts'
 
 // Helper to generate AI response using Gemini API
 import type { SupabaseClientType, AISettings } from '../_shared/types.ts'
@@ -29,7 +27,7 @@ async function generateAIResponse(apiKey: string, message: string, settings: AIS
     const systemPrompt = generateSystemPrompt(settings, context);
 
     // 3. Call Gemini API with optimized format
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const url = getGeminiUrl(apiKey);
     
     const response = await fetch(url, {
       method: 'POST',
@@ -66,6 +64,9 @@ async function generateAIResponse(apiKey: string, message: string, settings: AIS
 }
 
 Deno.serve(async (req: Request) => {
+  const origin = req.headers.get('Origin')
+  const corsHeaders = getCorsHeaders(origin)
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -95,11 +96,6 @@ Deno.serve(async (req: Request) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error: unknown) {
-    console.error('Preview Error:', error)
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return new Response(
-      JSON.stringify({ error: message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    return safeErrorResponse(error, corsHeaders, 400, 'Invalid request')
   }
 })

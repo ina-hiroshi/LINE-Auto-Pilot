@@ -3,6 +3,7 @@ import { DOMParser } from "deno-dom";
 import { encodeBase64 } from "@std/encoding/base64";
 import { createClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
+import { safeErrorResponse } from '../_shared/error-utils.ts'
 
 // URLホワイトリスト（許可するドメイン）
 const ALLOWED_URL_PATTERNS = [
@@ -294,11 +295,6 @@ Deno.serve(async (req: Request) => {
     }
 
   } catch (error: unknown) {
-    console.error(error);
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return new Response(
-      JSON.stringify({ error: message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-    )
+    return safeErrorResponse(error, corsHeaders)
   }
 })

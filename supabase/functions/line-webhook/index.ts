@@ -1,5 +1,12 @@
 // Using Deno.serve instead of @std/http/server
 import { createClient } from '@supabase/supabase-js'
+import { getCorsHeaders } from '../_shared/cors.ts'
+import { safeErrorResponse } from '../_shared/error-utils.ts'
+import { getGeminiUrl } from '../_shared/ai-config.ts'
+import { createLogger } from '../_shared/logger.ts'
+import { isPaidPlan } from '../_shared/plan-utils.ts'
+
+const log = createLogger('line-webhook')
 
 // ============ 定数定義 ============
 const CONFIG = {
@@ -171,7 +178,7 @@ async function generateAIResponse(
     const systemPrompt = generateSystemPrompt(settings, context);
 
     // 4. Call Gemini API with optimized format
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const url = getGeminiUrl(apiKey);
     
     const contents = [
       ...conversationHistory,
@@ -315,11 +322,10 @@ Deno.serve(async (req: Request) => {
                     
                     if (settings) {
                         aiSettings = settings
-                        // Only enable AI if plan is pro/executive AND settings is enabled
-                        const isPlanValid = (plan === 'pro' || plan === 'executive')
-                        isAiEnabled = settings.is_enabled && isPlanValid
+                        const planValid = isPaidPlan(plan)
+                        isAiEnabled = settings.is_enabled && planValid
 
-                        if (settings.is_enabled && !isPlanValid) {
+                        if (settings.is_enabled && !planValid) {
                             console.log(`AI is enabled in settings but plan is ${plan}. Disabling AI.`)
                         }
                     }
@@ -348,7 +354,7 @@ Deno.serve(async (req: Request) => {
 
                 if (!replyToken || !text || !userId) continue
                 
-                console.log(`Received message: ${text} from ${userId}`)
+                console.log(`Received message from user ${userId?.slice(0, 8)}...`)
 
                 let replyText = null
                 let status = 'manual_reply_needed'
@@ -481,11 +487,7 @@ Deno.serve(async (req: Request) => {
       { headers: { "Content-Type": "application/json" } },
     )
   } catch (error: unknown) {
-    console.error('Error processing request:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
-    )
+    const corsHeaders = getCorsHeaders(req.headers.get('Origin'))
+    return safeErrorResponse(error, corsHeaders, 500, 'Webhook processing failed')
   }
 })

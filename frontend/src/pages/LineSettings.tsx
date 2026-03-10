@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import Toast from '../components/Toast'
 import { supabase } from '../lib/supabase'
+import { toErrorMessage } from '../lib/errorUtils'
 import { ConnectionTab } from '../features/line-settings/components/ConnectionTab'
 import { GuideTab } from '../features/line-settings/components/GuideTab'
 import { BasicInfoTab } from '../features/line-settings/components/BasicInfoTab'
@@ -39,15 +40,6 @@ const DEFAULT_PASSWORD_DATA = {
 
 const WEBHOOK_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/line-webhook`
 
-// ---- 共通ヘルパー ----
-const toErrorMessage = (error: unknown): string => {
-	if (error instanceof Error) return error.message
-	if (typeof error === 'object' && error && 'message' in error) {
-		const maybeMessage = (error as { message?: unknown }).message
-		if (typeof maybeMessage === 'string') return maybeMessage
-	}
-	return '不明なエラー'
-}
 
 export default function LineSettings() {
 // const location = useLocation()

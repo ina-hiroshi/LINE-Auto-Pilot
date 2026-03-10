@@ -37,8 +37,11 @@ export default function Customers() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [storeId, setStoreId] = useState<string | null>(null)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [storeSettings, setStoreSettings] = useState<any>(null)
+  const [storeSettings, setStoreSettings] = useState<{
+    card_type?: string
+    stamp_config?: { total_slots?: number; goal_reward?: string }
+    [key: string]: unknown
+  } | null>(null)
 
   // Modal State
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerData | null>(null)
@@ -216,8 +219,7 @@ export default function Customers() {
 
       if (error) throw error
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const history: ReservationHistory[] = data.map((r: any) => ({
+      const history: ReservationHistory[] = data.map((r: { id: string; start_time: string; status: string; menu?: { name: string } | null; staff?: { name: string } | null }) => ({
         id: r.id,
         start_time: r.start_time,
         status: r.status,

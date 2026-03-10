@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, Edit2, Trash2, X, Save, MessageSquare, Tag, Loader2, Upload, FileText, Settings, BookOpen, Search, Crown, Smartphone, RefreshCw, Send, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import ProBadge from '../components/ProBadge';
 import { supabase } from '../lib/supabase';
+import { isPaidPlan } from '../lib/planUtils';
 import { extractTextFromFile, extractTextFromPdfBuffer } from '../lib/fileParser';
 import Modal from '../components/Modal';
 import Toast from '../components/Toast';
@@ -210,7 +211,7 @@ export default function AutoResponses() {
         .eq('id', user.id)
         .single();
       
-      setIsPro(profile?.plan === 'pro' || profile?.plan === 'executive');
+      setIsPro(isPaidPlan(profile?.plan));
 
       // Get store_id
       const { data: store } = await supabase

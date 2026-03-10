@@ -54,9 +54,8 @@ function App() {
         .eq('owner_id', userId)
         .maybeSingle()
       
-      const result = await Promise.race([checkStorePromise, timeoutPromise])
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: storeData, error: storeError } = result as any
+      const result = await Promise.race([checkStorePromise, timeoutPromise]) as Awaited<typeof checkStorePromise>
+      const { data: storeData, error: storeError } = result
       
       if (storeError) {
         console.warn('Store check failed:', storeError.message)
@@ -73,9 +72,8 @@ function App() {
           .eq('store_id', storeData.id)
           .maybeSingle()
         
-        const lineResult = await Promise.race([checkLinePromise, timeoutPromise])
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: lineData, error: lineError } = lineResult as any
+        const lineResult = await Promise.race([checkLinePromise, timeoutPromise]) as Awaited<typeof checkLinePromise>
+        const { data: lineData, error: lineError } = lineResult
         
         if (lineError) {
           console.warn('LINE account check failed:', lineError.message)

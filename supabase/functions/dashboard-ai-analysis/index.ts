@@ -1,11 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { getCorsHeaders } from '../_shared/cors.ts'
+import { safeErrorResponse } from '../_shared/error-utils.ts'
+import { getGeminiUrl } from '../_shared/ai-config.ts'
 
 Deno.serve(async (req: Request) => {
+  const origin = req.headers.get('Origin')
+  const corsHeaders = getCorsHeaders(origin)
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -411,7 +412,7 @@ ${messageSamples}
       )
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`
+    const url = getGeminiUrl(geminiApiKey)
     
     const response = await fetch(url, {
       method: 'POST',
@@ -471,11 +472,7 @@ ${messageSamples}
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
-  } catch (error) {
-    console.error('Error:', error)
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+  } catch (error: unknown) {
+    return safeErrorResponse(error, corsHeaders)
   }
 })

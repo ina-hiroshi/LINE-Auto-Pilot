@@ -1,30 +1,23 @@
 /**
  * ユーザー機能フラグシステム
  * 
- * 今後ユーザーごとに独自機能を実装できるようにするための基盤。
- * 機能フラグはデータベースで管理し、ベースシステムは一つに保つ。
- * 
- * 使用例:
- * const { isAdmin, hasFeature, features } = useUserFeatures()
- * if (isAdmin) { ... }
- * if (hasFeature('custom_dashboard')) { ... }
+ * DB (user_features テーブル) + profiles.is_admin で管理。
+ * ADMIN_EMAILS はフォールバックとして残す。
  */
 
 import { useState, useEffect, createContext, useContext } from 'react'
 import type { ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 
-// 管理者メールアドレス（環境変数で管理することを推奨）
 const ADMIN_EMAILS = ['sky.voltric424@gmail.com']
 
-// 利用可能な機能フラグの定義
 export type FeatureFlag = 
-  | 'admin_panel'           // 管理者パネル
-  | 'setup_service_orders'  // 設定代行注文管理
-  | 'plan_switcher'         // プラン切り替え（デバッグ用）
-  | 'custom_dashboard'      // カスタムダッシュボード（将来用）
-  | 'advanced_analytics'    // 高度な分析機能（将来用）
-  | 'white_label'           // ホワイトラベル機能（将来用）
+  | 'admin_panel'
+  | 'setup_service_orders'
+  | 'plan_switcher'
+  | 'custom_dashboard'
+  | 'advanced_analytics'
+  | 'white_label'
 
 interface UserFeatures {
   isLoading: boolean
@@ -33,7 +26,6 @@ interface UserFeatures {
   userId: string | null
   features: FeatureFlag[]
   hasFeature: (feature: FeatureFlag) => boolean
-  // 将来的にユーザーごとの設定を追加
   userConfig: Record<string, unknown>
 }
 
@@ -75,32 +67,37 @@ export function UserFeaturesProvider({ children }: UserFeaturesProviderProps) {
 
         const userEmail = user.email || null
         const userId = user.id
-        const isAdmin = userEmail ? ADMIN_EMAILS.includes(userEmail) : false
 
-        // 基本機能フラグを設定
+        // Check admin: DB is_admin flag first, email list as fallback
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', userId)
+          .single()
+
+        const isAdmin = profile?.is_admin === true || (userEmail ? ADMIN_EMAILS.includes(userEmail) : false)
+
         const features: FeatureFlag[] = []
         
-        // 管理者の場合は管理者機能を追加
         if (isAdmin) {
           features.push('admin_panel', 'setup_service_orders', 'plan_switcher')
         }
 
-        // 将来的にはデータベースからユーザーごとの機能フラグを取得
-        // const { data: userFeatures } = await supabase
-        //   .from('user_features')
-        //   .select('feature_flag')
-        //   .eq('user_id', userId)
-        // 
-        // if (userFeatures) {
-        //   userFeatures.forEach(f => features.push(f.feature_flag))
-        // }
+        // Load DB-based feature flags
+        const { data: dbFeatures } = await supabase
+          .from('user_features')
+          .select('feature_flag')
+          .eq('user_id', userId)
+          .eq('enabled', true)
 
-        // 将来的にはユーザーごとの設定も取得
-        // const { data: configData } = await supabase
-        //   .from('user_configs')
-        //   .select('config')
-        //   .eq('user_id', userId)
-        //   .single()
+        if (dbFeatures) {
+          for (const row of dbFeatures) {
+            const flag = row.feature_flag as FeatureFlag
+            if (!features.includes(flag)) {
+              features.push(flag)
+            }
+          }
+        }
 
         setState({
           isLoading: false,
@@ -118,7 +115,6 @@ export function UserFeaturesProvider({ children }: UserFeaturesProviderProps) {
 
     loadUserFeatures()
 
-    // 認証状態の変更を監視
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
       loadUserFeatures()
     })
@@ -145,7 +141,6 @@ export function useUserFeatures(): UserFeatures {
   return context
 }
 
-// 管理者専用コンポーネントをラップするHOC
 export function withAdminOnly<P extends object>(
   Component: React.ComponentType<P>,
   FallbackComponent?: React.ComponentType
@@ -168,7 +163,6 @@ export function withAdminOnly<P extends object>(
   }
 }
 
-// 特定の機能フラグを持つユーザーのみ表示するコンポーネント
 interface FeatureGateProps {
   feature: FeatureFlag
   children: ReactNode

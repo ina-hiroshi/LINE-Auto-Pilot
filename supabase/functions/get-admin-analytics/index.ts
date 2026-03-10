@@ -1,16 +1,11 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
+import { safeErrorResponse } from '../_shared/error-utils.ts'
 
 Deno.serve(async (req: Request) => {
-  // #region agent log
-  await fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'get-admin-analytics:entry',message:'Edge function called',data:{method:req.method,hasAuth:!!req.headers.get('Authorization'),origin:req.headers.get('Origin')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
   if (req.method === 'OPTIONS') {
     const origin = req.headers.get('Origin')
     const headers = getCorsHeaders(origin)
-    // #region agent log
-    await fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'get-admin-analytics:options',message:'OPTIONS request handled',data:{origin,headers:Object.keys(headers)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     return new Response('ok', { status: 200, headers })
   }
 
@@ -20,18 +15,9 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
-    // #region agent log
-    await fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'get-admin-analytics:after-client',message:'Supabase client created',data:{hasUrl:!!Deno.env.get('SUPABASE_URL'),hasAnonKey:!!Deno.env.get('SUPABASE_ANON_KEY')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
 
     const { data: { user } } = await supabaseClient.auth.getUser()
-    // #region agent log
-    await fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'get-admin-analytics:after-getUser',message:'getUser completed',data:{hasUser:!!user,userId:user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     if (!user) {
-      // #region agent log
-      await fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'get-admin-analytics:no-user',message:'No user found',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       const origin = req.headers.get('Origin')
       const headers = getCorsHeaders(origin)
       return new Response(
@@ -46,14 +32,8 @@ Deno.serve(async (req: Request) => {
       .select('is_admin')
       .eq('id', user.id)
       .single()
-    // #region agent log
-    await fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'get-admin-analytics:after-profile',message:'Profile check completed',data:{hasProfile:!!profile,isAdmin:profile?.is_admin},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
 
     if (!profile?.is_admin) {
-      // #region agent log
-      await fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'get-admin-analytics:not-admin',message:'User is not admin',data:{userId:user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       const origin = req.headers.get('Origin')
       const headers = getCorsHeaders(origin)
       return new Response(
@@ -64,9 +44,6 @@ Deno.serve(async (req: Request) => {
 
     // Service Role Keyを使用して全てのデータを取得
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    // #region agent log
-    await fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'get-admin-analytics:before-admin-client',message:'Creating admin client',data:{hasServiceRoleKey:!!serviceRoleKey},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       serviceRoleKey ?? '',
@@ -79,21 +56,12 @@ Deno.serve(async (req: Request) => {
     )
 
     // 1. 登録者統計
-    // #region agent log
-    await fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'get-admin-analytics:before-profiles-query',message:'About to query profiles',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     const { data: allProfiles, error: profilesError } = await supabaseAdmin
       .from('profiles')
       .select('id, created_at, plan')
       .order('created_at', { ascending: true })
-    // #region agent log
-    await fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'get-admin-analytics:after-profiles-query',message:'Profiles query completed',data:{hasData:!!allProfiles,dataLength:allProfiles?.length,hasError:!!profilesError,errorMessage:profilesError?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
 
     if (profilesError) {
-      // #region agent log
-      await fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'get-admin-analytics:profiles-error',message:'Profiles query error',data:{errorMessage:profilesError.message,errorDetails:JSON.stringify(profilesError)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       throw profilesError
     }
 
@@ -319,8 +287,6 @@ Deno.serve(async (req: Request) => {
     })
 
     // LINE Bot情報を取得（アイコンURL用）
-    // データベースにキャッシュされたbot_picture_urlを使用
-    // キャッシュがない場合はLINE APIから取得して保存（フォールバック）
     const { data: lineAccountsWithPicture } = await supabaseAdmin
       .from('line_accounts')
       .select('store_id, bot_picture_url, channel_access_token')
@@ -328,21 +294,17 @@ Deno.serve(async (req: Request) => {
 
     const botPictureMap = new Map<string, string | null>()
     
-    // データベースから取得したbot_picture_urlをマップに格納
     if (lineAccountsWithPicture && lineAccountsWithPicture.length > 0) {
-      // キャッシュがない店舗を特定
       const storesNeedingFetch = lineAccountsWithPicture.filter(
         account => !account.bot_picture_url && account.channel_access_token
       )
       
-      // キャッシュ済みのURLをマップに格納
       lineAccountsWithPicture.forEach(account => {
         if (account.bot_picture_url) {
           botPictureMap.set(account.store_id, account.bot_picture_url)
         }
       })
       
-      // キャッシュがない店舗に対してLINE APIから取得（フォールバック）
       if (storesNeedingFetch.length > 0) {
         const botInfoPromises = storesNeedingFetch.map(async (account) => {
           if (!account.channel_access_token) {
@@ -364,7 +326,6 @@ Deno.serve(async (req: Request) => {
             const botInfo = await response.json()
             const pictureUrl = botInfo.pictureUrl || null
             
-            // データベースに保存
             if (pictureUrl) {
               await supabaseAdmin
                 .from('line_accounts')
@@ -412,9 +373,6 @@ Deno.serve(async (req: Request) => {
       }
     })
 
-    // #region agent log
-    await fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'get-admin-analytics:before-response',message:'About to return success response',data:{totalUsers,hasRegistrations:!!dailyRegistrationData,hasPlans:!!planData},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-    // #endregion
     const origin = req.headers.get('Origin')
     const headers = getCorsHeaders(origin)
     return new Response(
@@ -454,16 +412,7 @@ Deno.serve(async (req: Request) => {
       { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } }
     )
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    // #region agent log
-    await fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'get-admin-analytics:catch',message:'Exception caught',data:{errorMessage:message,errorType:error?.constructor?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-    // #endregion
-    console.error('Get admin analytics error:', message)
-    const origin = req.headers.get('Origin')
-    const headers = getCorsHeaders(origin)
-    return new Response(
-      JSON.stringify({ error: message }),
-      { status: 500, headers: { ...headers, 'Content-Type': 'application/json' } }
-    )
+    const headers = getCorsHeaders(req.headers.get('Origin'))
+    return safeErrorResponse(error, headers, 500, 'Internal server error')
   }
 })

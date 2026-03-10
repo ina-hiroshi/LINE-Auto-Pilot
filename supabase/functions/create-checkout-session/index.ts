@@ -1,7 +1,8 @@
 // Using Deno.serve instead of @std/http/server
 import { createClient } from '@supabase/supabase-js'
 import { stripe } from '../_shared/stripe-client.ts'
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
+import { safeErrorResponse } from '../_shared/error-utils.ts'
 
 // プレリリースモード: 2ヶ月無料トライアル
 // 正式リリース時は false に変更するか、トライアル日数を調整
@@ -9,6 +10,8 @@ const IS_PRE_RELEASE_MODE = true
 const TRIAL_DAYS = IS_PRE_RELEASE_MODE ? 60 : 30 // プレリリース: 60日、正式リリース: 30日
 
 Deno.serve(async (req: Request) => {
+  const origin = req.headers.get('Origin')
+  const corsHeaders = getCorsHeaders(origin)
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -179,23 +182,6 @@ Deno.serve(async (req: Request) => {
       }
     )
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Create checkout session error:', message, error);
-    
-    // ユーザーフレンドリーなエラーメッセージに変換
-    let userFriendlyMessage = '決済処理に失敗しました。再度お試しください。'
-    if (message.includes('No such customer')) {
-      userFriendlyMessage = '顧客情報の取得に失敗しました。再度お試しください。'
-    } else if (message.includes('customer')) {
-      userFriendlyMessage = '顧客情報の処理に失敗しました。再度お試しください。'
-    }
-    
-    return new Response(
-      JSON.stringify({ error: userFriendlyMessage }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      }
-    )
+    return safeErrorResponse(error, corsHeaders, 400, '決済処理に失敗しました。再度お試しください。')
   }
 })

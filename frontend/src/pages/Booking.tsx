@@ -157,8 +157,7 @@ export default function Booking() {
       const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
       const dayKey = days[dayIndex]
       
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const hours = (storeSettings.business_hours as any)[dayKey]
+      const hours = (storeSettings.business_hours as Record<string, { start: string; end: string }[]>)[dayKey]
       if (Array.isArray(hours) && hours.length > 0) {
         return hours.filter((h: { start: string; end: string }) => h.start && h.end)
       }
@@ -465,66 +464,66 @@ export default function Booking() {
   }, [step, storeId, fetchMultiDateSlots])
 
   // Listen for settings updates from parent window (LineSettings.tsx)
+  // Only accept messages from trusted origins; defer changes while user is mid-flow.
   useEffect(() => {
+    const TRUSTED_ORIGINS = [
+      window.location.origin,
+      'https://itoguchi.vercel.app',
+      'https://line-auto-pilot.vercel.app',
+      'http://localhost:5173',
+    ]
+
+    const activeFlowSteps = new Set(['info', 'confirm', 'complete'])
+
     const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'UPDATE_SETTINGS' && event.data?.settings) {
-        console.log('Received settings update:', event.data)
-        
-        const newSettings = event.data.settings
-        
-        // フラグの値を取得（undefined の場合は false）
-        const newEnablePartySize = newSettings.booking_enable_party_size ?? false
-        const newEnableStaff = newSettings.booking_enable_staff ?? false
-        const newEnableMenu = newSettings.booking_enable_menu ?? false
-        
-        setStoreSettings(prev => {
-          // Check if feature flags changed
-          const flagsChanged = 
-            prev.booking_enable_party_size !== newEnablePartySize ||
-            prev.booking_enable_staff !== newEnableStaff ||
-            prev.booking_enable_menu !== newEnableMenu ||
-            prev.booking_system_type !== newSettings.booking_system_type
+      if (!TRUSTED_ORIGINS.includes(event.origin)) return
+      if (event.data?.type !== 'UPDATE_SETTINGS' || !event.data?.settings) return
 
-          // Always reset step based on new feature flags when they change
-          if (flagsChanged) {
-            // Reset step based on new feature flags
-            setTimeout(() => {
-              if (newEnableStaff) {
-                setStep('staff_select')
-              } else if (newEnableMenu) {
-                setStep('menu_select')
-              } else {
-                setStep('date')
-              }
-              // Reset selections
-              setSelectedStaff(null)
-              setSelectedMenu(null)
-              setPartySize(1)
-            }, 0)
-          }
-          return { 
-            ...prev, 
-            ...newSettings,
-            booking_enable_party_size: newEnablePartySize,
-            booking_enable_staff: newEnableStaff,
-            booking_enable_menu: newEnableMenu,
-          }
-        })
-
-        // Update Staff & Menu Lists
-        if (event.data.staffList) setStaffList(event.data.staffList)
-        if (event.data.menuList) setMenuList(event.data.menuList)
+      // Defer settings changes while user is filling in info or confirming
+      if (activeFlowSteps.has(step)) return
         
-        // Update Special Dates
-        if (event.data.specialDates) {
-          setSpecialDates(event.data.specialDates)
+      const newSettings = event.data.settings
+      
+      const newEnablePartySize = newSettings.booking_enable_party_size ?? false
+      const newEnableStaff = newSettings.booking_enable_staff ?? false
+      const newEnableMenu = newSettings.booking_enable_menu ?? false
+      
+      setStoreSettings(prev => {
+        const flagsChanged = 
+          prev.booking_enable_party_size !== newEnablePartySize ||
+          prev.booking_enable_staff !== newEnableStaff ||
+          prev.booking_enable_menu !== newEnableMenu ||
+          prev.booking_system_type !== newSettings.booking_system_type
+
+        if (flagsChanged) {
+          if (newEnableStaff) {
+            setStep('staff_select')
+          } else if (newEnableMenu) {
+            setStep('menu_select')
+          } else {
+            setStep('date')
+          }
+          setSelectedStaff(null)
+          setSelectedMenu(null)
+          setPartySize(1)
         }
-      }
+        return { 
+          ...prev, 
+          ...newSettings,
+          booking_enable_party_size: newEnablePartySize,
+          booking_enable_staff: newEnableStaff,
+          booking_enable_menu: newEnableMenu,
+        }
+      })
+
+      if (event.data.staffList) setStaffList(event.data.staffList)
+      if (event.data.menuList) setMenuList(event.data.menuList)
+      if (event.data.specialDates) setSpecialDates(event.data.specialDates)
     }
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [setStaffList, setMenuList])
+  }, [step, setStaffList, setMenuList])
 
   const checkCustomer = useCallback(async () => {
     setCheckingUser(true)

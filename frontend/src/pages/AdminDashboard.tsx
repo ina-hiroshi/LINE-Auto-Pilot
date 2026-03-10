@@ -11,97 +11,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { 
-  Search, 
-  Loader2, 
-  Check, 
-  X, 
-  ExternalLink,
-  MessageSquare,
-  User,
-  Mail,
-  AlertTriangle,
-  Crown,
-  Zap,
-  Shield,
-  ClipboardList,
-  Users,
-  TrendingUp,
-  BarChart3,
-  Calendar
-} from 'lucide-react'
+import { Loader2, Crown, ClipboardList, Users } from 'lucide-react'
 import Toast from '../components/Toast'
-import Modal from '../components/Modal'
 import { useUserFeatures } from '../hooks/useUserFeatures'
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar
-} from 'recharts'
+import { SetupOrdersTab } from '../features/admin/components/SetupOrdersTab'
+import { PlanSwitcherTab } from '../features/admin/components/PlanSwitcherTab'
+import { UserAnalyticsTab } from '../features/admin/components/UserAnalyticsTab'
+import type { SetupOrder, LineSettings, StoreDetail, AnalyticsData } from '../features/admin/types'
 
-// タブの定義
 type AdminTab = 'setup_orders' | 'plan_switcher' | 'user_analytics'
-
-interface SetupOrder {
-  id: string
-  user_id: string
-  store_id: string | null
-  status: string
-  amount: number
-  contact_email: string | null
-  has_line_account: boolean
-  line_account_basic_id: string | null
-  additional_notes: string | null
-  admin_notes: string | null
-  assigned_to: string | null
-  paid_at: string | null
-  completed_at: string | null
-  created_at: string
-  profiles?: {
-    email: string
-    full_name: string | null
-  }
-  stores?: {
-    store_name: string
-  }
-}
-
-interface LineSettings {
-  channel_id: string
-  channel_secret: string
-  channel_token: string
-}
-
-type StoreDetail = {
-  store_id: string
-  store_name: string
-  owner_id: string
-  has_line_connection: boolean
-  bot_id: string | null
-  channel_id: string | null
-  line_connected_at: string | null
-  store_created_at: string
-  user_email: string | null
-  user_name: string | null
-  user_created_at: string | null
-  plan: string
-  bot_picture_url: string | null
-  store_message_count: number
-  store_auto_reply_count: number
-  store_ai_reply_count: number
-  store_reservation_count: number
-}
-
-const WEBHOOK_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/line-webhook`
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
@@ -128,57 +46,7 @@ export default function AdminDashboard() {
   
   // ユーザー統計の状態
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
-  const [analyticsData, setAnalyticsData] = useState<{
-    summary: {
-      totalUsers: number
-      paidPlanRate: string
-      lineConnectionRate: string
-      autoResponseRate: string
-    }
-    registrations: {
-      daily: Array<{ date: string; count: number }>
-    }
-    plans: {
-      distribution: Array<{ name: string; value: number; color: string }>
-      counts: Record<string, number>
-    }
-    messages: {
-      total: number
-      daily: Array<{ date: string; count: number }>
-      statusCounts: Record<string, number>
-      autoResponseRate: string
-    }
-    reservations: {
-      total: number
-      daily: Array<{ date: string; count: number }>
-      statusCounts: Record<string, number>
-      registrationTypeCounts: Record<string, number>
-    }
-    lineConnections: {
-      totalStores: number
-      connectedStoresCount: number
-      connectionRate: string
-      details: Array<{
-        store_id: string
-        store_name: string
-        owner_id: string
-        has_line_connection: boolean
-        bot_id: string | null
-        channel_id: string | null
-        line_connected_at: string | null
-        store_created_at: string
-        user_email: string | null
-        user_name: string | null
-        user_created_at: string | null
-        plan: string
-        bot_picture_url: string | null
-        store_message_count: number
-        store_auto_reply_count: number
-        store_ai_reply_count: number
-        store_reservation_count: number
-      }>
-    }
-  } | null>(null)
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
   const [lineConnectionSearch, setLineConnectionSearch] = useState('')
   const [lineConnectionFilter, setLineConnectionFilter] = useState<'all' | 'connected' | 'not_connected'>('all')
   const [selectedStoreDetail, setSelectedStoreDetail] = useState<StoreDetail | null>(null)
@@ -645,28 +513,6 @@ export default function AdminDashboard() {
     return matchesSearch && matchesStatus
   })
 
-  const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
-      pending: 'bg-gray-100 text-gray-700',
-      paid: 'bg-blue-100 text-blue-700',
-      in_progress: 'bg-yellow-100 text-yellow-700',
-      completed: 'bg-green-100 text-green-700',
-      cancelled: 'bg-red-100 text-red-700'
-    }
-    const labels: Record<string, string> = {
-      pending: '未決済',
-      paid: '決済済み',
-      in_progress: '作業中',
-      completed: '完了',
-      cancelled: 'キャンセル'
-    }
-    return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status] || ''}`}>
-        {labels[status] || status}
-      </span>
-    )
-  }
-
   const updatePlan = async (newPlan: string) => {
     setPlanLoading(true)
     try {
@@ -702,39 +548,17 @@ export default function AdminDashboard() {
 
   // ===== ユーザー統計データ取得 =====
   const fetchAnalytics = useCallback(async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AdminDashboard.tsx:fetchAnalytics:entry',message:'fetchAnalytics called',data:{activeTab,isAdmin},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     try {
       setAnalyticsLoading(true)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AdminDashboard.tsx:fetchAnalytics:before-invoke',message:'About to invoke get-admin-analytics',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       const { data, error } = await supabase.functions.invoke('get-admin-analytics')
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AdminDashboard.tsx:fetchAnalytics:after-invoke',message:'get-admin-analytics response received',data:{hasData:!!data,hasError:!!error,errorMessage:error?.message,dataKeys:data?Object.keys(data):null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
 
       if (error) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AdminDashboard.tsx:fetchAnalytics:error-branch',message:'Error from invoke',data:{errorMessage:error.message,errorDetails:JSON.stringify(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
         throw error
       }
       if (data) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AdminDashboard.tsx:fetchAnalytics:set-data',message:'Setting analytics data',data:{hasSummary:!!data.summary,hasRegistrations:!!data.registrations,hasPlans:!!data.plans},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         setAnalyticsData(data)
-      } else {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AdminDashboard.tsx:fetchAnalytics:no-data',message:'No data received',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
       }
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AdminDashboard.tsx:fetchAnalytics:catch',message:'Exception caught',data:{errorMessage:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       console.error('Error fetching analytics:', error)
       setToast({
         isVisible: true,
@@ -743,9 +567,6 @@ export default function AdminDashboard() {
       })
     } finally {
       setAnalyticsLoading(false)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/53798b6c-10bb-4120-910e-ec2e7190d1cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AdminDashboard.tsx:fetchAnalytics:finally',message:'fetchAnalytics completed',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
     }
   }, [activeTab, isAdmin])
 
@@ -812,664 +633,58 @@ export default function AdminDashboard() {
             </div>
 
             {/* タブコンテンツ */}
-            {/* 初期設定依頼タブ */}
         {activeTab === 'setup_orders' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 注文一覧 */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-              <div className="p-4 border-b">
-                <h2 className="font-bold text-gray-900 mb-3">注文一覧 ({filteredOrders.length})</h2>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="検索..."
-                      className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                    />
-                  </div>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                  >
-                    <option value="all">すべて</option>
-                    <option value="paid">決済済み</option>
-                    <option value="in_progress">作業中</option>
-                    <option value="completed">完了</option>
-                  </select>
-                </div>
-              </div>
-              <div className="divide-y max-h-[calc(100vh-350px)] overflow-y-auto">
-                {loading ? (
-                  <div className="p-8 text-center">
-                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-gray-400" />
-                  </div>
-                ) : filteredOrders.length === 0 ? (
-                  <div className="p-8 text-center text-gray-500">
-                    <AlertTriangle className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                    注文がありません
-                  </div>
-                ) : (
-                  filteredOrders.map((order) => (
-                    <button
-                      key={order.id}
-                      onClick={() => selectOrder(order)}
-                      className={`w-full text-left p-4 hover:bg-gray-50 transition-colors ${
-                        selectedOrder?.id === order.id ? 'bg-primary-50 border-l-4 border-primary-500' : ''
-                      }`}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <p className="font-medium text-gray-900">{order.profiles?.full_name || order.profiles?.email}</p>
-                          <p className="text-sm text-gray-500">{order.stores?.store_name || (order.store_id ? '店舗情報取得中...' : '店舗情報未設定')}</p>
-                        </div>
-                        {getStatusBadge(order.status)}
-                      </div>
-                      <div className="flex items-center gap-4 text-xs text-gray-500">
-                        <span>{new Date(order.created_at).toLocaleDateString('ja-JP')}</span>
-                        <span>¥{order.amount.toLocaleString()}</span>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* 設定代行フォーム */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-              {selectedOrder ? (
-                <div>
-                  <div className="p-4 border-b">
-                    <div className="flex items-center justify-between">
-                      <h2 className="font-bold text-gray-900">設定代行</h2>
-                      <button onClick={() => setSelectedOrder(null)} className="text-gray-400 hover:text-gray-600">
-                        <X size={20} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="p-6 space-y-6 max-h-[calc(100vh-350px)] overflow-y-auto">
-                    {/* 顧客情報 */}
-                    <section>
-                      <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
-                        <User size={18} />
-                        顧客情報
-                      </h3>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Mail size={16} className="text-gray-400" />
-                          <span>{selectedOrder.profiles?.email || selectedOrder.contact_email}</span>
-                        </div>
-                        {selectedOrder.has_line_account && (
-                          <div className="p-3 bg-blue-50 rounded-lg mt-2">
-                            <p className="text-xs text-blue-700 font-medium mb-1">LINE公式アカウント所有</p>
-                            {selectedOrder.line_account_basic_id && (
-                              <p className="text-sm text-blue-900">Basic ID: {selectedOrder.line_account_basic_id}</p>
-                            )}
-                          </div>
-                        )}
-                        {selectedOrder.additional_notes && (
-                          <div className="p-3 bg-gray-50 rounded-lg mt-2">
-                            <p className="text-xs text-gray-500 font-medium mb-1">その他要望</p>
-                            <p className="text-sm text-gray-700">{selectedOrder.additional_notes}</p>
-                          </div>
-                        )}
-                      </div>
-                    </section>
-
-                    {/* LINE連携設定 */}
-                    <section>
-                      <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
-                        <MessageSquare size={18} className="text-[#06C755]" />
-                        LINE連携設定
-                      </h3>
-                      <div className="space-y-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Channel ID</label>
-                          <input
-                            type="text"
-                            value={lineSettings.channel_id}
-                            onChange={(e) => setLineSettings({ ...lineSettings, channel_id: e.target.value })}
-                            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
-                            placeholder="1234567890"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Channel Secret</label>
-                          <input
-                            type="password"
-                            value={lineSettings.channel_secret}
-                            onChange={(e) => setLineSettings({ ...lineSettings, channel_secret: e.target.value })}
-                            className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
-                            placeholder="••••••••"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Channel Access Token</label>
-                          <textarea
-                            value={lineSettings.channel_token}
-                            onChange={(e) => setLineSettings({ ...lineSettings, channel_token: e.target.value })}
-                            className="w-full p-2 border rounded-lg h-24 focus:ring-2 focus:ring-primary-500 outline-none"
-                            placeholder="Long lived access token..."
-                          />
-                        </div>
-
-                        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                          <p className="text-xs font-medium text-gray-700 mb-1">Webhook URL</p>
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              readOnly
-                              value={WEBHOOK_URL}
-                              className="flex-1 p-2 border rounded-lg bg-white text-gray-600 text-xs"
-                            />
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(WEBHOOK_URL)
-                                setToast({ isVisible: true, message: 'コピーしました', type: 'success' })
-                              }}
-                              className="px-3 py-1 bg-white border text-gray-600 rounded-lg hover:bg-gray-50 text-xs"
-                            >
-                              コピー
-                            </button>
-                          </div>
-                        </div>
-
-                        <a
-                          href="https://developers.line.biz/console/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 text-sm text-primary-600 hover:underline"
-                        >
-                          LINE Developers Console <ExternalLink size={14} />
-                        </a>
-                      </div>
-                    </section>
-
-                    {/* 管理メモ */}
-                    <section>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">管理メモ</label>
-                      <textarea
-                        value={adminNotes}
-                        onChange={(e) => setAdminNotes(e.target.value)}
-                        className="w-full p-2 border rounded-lg h-24 focus:ring-2 focus:ring-primary-500 outline-none"
-                        placeholder="作業内容や気づいた点をメモ..."
-                      />
-                    </section>
-
-                    {/* アクション */}
-                    <div className="flex flex-col gap-3 pt-4 border-t">
-                      <button
-                        onClick={handleSaveLineSettings}
-                        disabled={saving}
-                        className="w-full flex items-center justify-center gap-2 bg-[#06C755] text-white px-6 py-3 rounded-lg hover:bg-[#05b34c] transition-colors disabled:opacity-50"
-                      >
-                        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check size={18} />}
-                        LINE設定を保存して完了にする
-                      </button>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        {selectedOrder.status !== 'in_progress' && (
-                          <button
-                            onClick={() => handleUpdateStatus(selectedOrder.id, 'in_progress')}
-                            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm"
-                          >
-                            作業中にする
-                          </button>
-                        )}
-                        {selectedOrder.status !== 'cancelled' && (
-                          <button
-                            onClick={() => handleUpdateStatus(selectedOrder.id, 'cancelled')}
-                            className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 text-sm"
-                          >
-                            キャンセル
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-12 text-center text-gray-500">
-                  <ClipboardList className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                  <p>左の一覧から注文を選択してください</p>
-                </div>
-              )}
-            </div>
-          </div>
+          <SetupOrdersTab
+            orders={filteredOrders}
+            loading={loading}
+            selectedOrder={selectedOrder}
+            lineSettings={lineSettings}
+            adminNotes={adminNotes}
+            saving={saving}
+            searchQuery={searchQuery}
+            statusFilter={statusFilter}
+            onSelectOrder={selectOrder}
+            onCloseOrder={() => setSelectedOrder(null)}
+            onLineSettingsChange={setLineSettings}
+            onAdminNotesChange={setAdminNotes}
+            onSaveLineSettings={handleSaveLineSettings}
+            onUpdateStatus={handleUpdateStatus}
+            onSearchQueryChange={setSearchQuery}
+            onStatusFilterChange={setStatusFilter}
+            onCopyWebhook={() => {
+              navigator.clipboard.writeText(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/line-webhook`)
+              setToast({ isVisible: true, message: 'コピーしました', type: 'success' })
+            }}
+          />
         )}
 
-        {/* プラン変更タブ */}
         {activeTab === 'plan_switcher' && (
-          <div className="max-w-2xl mx-auto">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <Crown size={20} className="text-yellow-500" />
-                プラン切り替え（デバッグ用）
-              </h2>
-              <p className="text-sm text-gray-600 mb-6">
-                現在のプラン: <span className="font-bold uppercase text-primary-600">{currentPlan}</span>
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <button
-                  onClick={() => updatePlan('free')}
-                  disabled={planLoading || currentPlan === 'free'}
-                  className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${
-                    currentPlan === 'free'
-                      ? 'border-gray-300 bg-gray-50 text-gray-400 cursor-not-allowed'
-                      : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                    <Shield size={20} className="text-gray-600" />
-                  </div>
-                  <div className="text-center">
-                    <div className="font-bold text-gray-900">Free Plan</div>
-                    <div className="text-xs text-gray-500">無料プラン</div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => updatePlan('pro')}
-                  disabled={planLoading || currentPlan === 'pro'}
-                  className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${
-                    currentPlan === 'pro'
-                      ? 'border-primary-200 bg-primary-50 text-primary-400 cursor-not-allowed'
-                      : 'border-gray-200 hover:border-primary-400 hover:bg-primary-50'
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
-                    <Zap size={20} className="text-primary-600" />
-                  </div>
-                  <div className="text-center">
-                    <div className="font-bold text-gray-900">Pro Plan</div>
-                    <div className="text-xs text-gray-500">AI応答・無制限</div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => updatePlan('executive')}
-                  disabled={planLoading || currentPlan === 'executive'}
-                  className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${
-                    currentPlan === 'executive'
-                      ? 'border-yellow-200 bg-yellow-50 text-yellow-400 cursor-not-allowed'
-                      : 'border-gray-200 hover:border-yellow-400 hover:bg-yellow-50'
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
-                    <Crown size={20} className="text-yellow-600" />
-                  </div>
-                  <div className="text-center">
-                    <div className="font-bold text-gray-900">Executive Plan</div>
-                    <div className="text-xs text-gray-500">全機能・優先サポート</div>
-                  </div>
-                </button>
-              </div>
-            </div>
-          </div>
+          <PlanSwitcherTab
+            currentPlan={currentPlan}
+            planLoading={planLoading}
+            onPlanChange={updatePlan}
+          />
         )}
 
-        {/* ユーザー情報タブ */}
         {activeTab === 'user_analytics' && (
-          <div className="space-y-6">
-            {analyticsLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
-              </div>
-            ) : analyticsData ? (
-              <>
-                {/* サマリーカード */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-xs font-semibold text-gray-500 uppercase">総登録者数</h3>
-                      <Users size={18} className="text-primary-600" />
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900">{analyticsData.summary.totalUsers.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500 mt-1">ユーザー</p>
-                  </div>
-
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-xs font-semibold text-gray-500 uppercase">有料プラン率</h3>
-                      <Crown size={18} className="text-yellow-500" />
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900">{analyticsData.summary.paidPlanRate}%</p>
-                    <p className="text-xs text-gray-500 mt-1">Pro + Executive</p>
-                  </div>
-
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-xs font-semibold text-gray-500 uppercase">LINE連携完了率</h3>
-                      <MessageSquare size={18} className="text-[#06C755]" />
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900">{analyticsData.summary.lineConnectionRate}%</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {analyticsData.lineConnections.connectedStoresCount} / {analyticsData.lineConnections.totalStores}店舗
-                    </p>
-                  </div>
-
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-xs font-semibold text-gray-500 uppercase">自動応答率</h3>
-                      <Zap size={18} className="text-blue-500" />
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900">{analyticsData.summary.autoResponseRate}%</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {analyticsData.messages.total.toLocaleString()}件中
-                    </p>
-                  </div>
-                </div>
-
-                {/* グラフセクション */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* 登録者推移 */}
-                  <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                    <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                      <TrendingUp size={16} className="text-primary-600" />
-                      登録者推移（過去30日）
-                    </h3>
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={analyticsData.registrations.daily}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                          <XAxis 
-                            dataKey="date" 
-                            tick={{ fontSize: 11, fill: '#6B7280' }}
-                            tickLine={false}
-                            axisLine={false}
-                          />
-                          <YAxis 
-                            tick={{ fontSize: 11, fill: '#6B7280' }}
-                            tickLine={false}
-                            axisLine={false}
-                            allowDecimals={false}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: 'rgba(255, 255, 255, 0.98)', 
-                              border: 'none',
-                              borderRadius: '8px',
-                              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-                            }}
-                            formatter={(value: number | undefined) => [`${value ?? 0}人`, '新規登録']}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="count" 
-                            stroke="#00a3b8"
-                            strokeWidth={2}
-                            dot={{ fill: '#00a3b8', r: 3 }}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                  {/* プラン比率 */}
-                  <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                    <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                      <BarChart3 size={16} className="text-primary-600" />
-                      プラン比率
-                    </h3>
-                    <div className="h-64">
-                      {analyticsData.plans.distribution.some(p => p.value > 0) ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={analyticsData.plans.distribution}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={60}
-                              outerRadius={90}
-                              paddingAngle={4}
-                              dataKey="value"
-                              label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                            >
-                              {analyticsData.plans.distribution.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <Tooltip 
-                              contentStyle={{ 
-                                backgroundColor: 'rgba(255, 255, 255, 0.98)', 
-                                border: 'none',
-                                borderRadius: '8px'
-                              }}
-                              formatter={(value: number | undefined) => [`${value ?? 0}人`, '']}
-                            />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="h-full flex items-center justify-center text-gray-400">
-                          データがありません
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* メッセージ数推移 */}
-                  <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                    <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                      <MessageSquare size={16} className="text-primary-600" />
-                      メッセージ数推移（過去30日）
-                    </h3>
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={analyticsData.messages.daily}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                          <XAxis 
-                            dataKey="date" 
-                            tick={{ fontSize: 11, fill: '#6B7280' }}
-                            tickLine={false}
-                            axisLine={false}
-                          />
-                          <YAxis 
-                            tick={{ fontSize: 11, fill: '#6B7280' }}
-                            tickLine={false}
-                            axisLine={false}
-                            allowDecimals={false}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: 'rgba(255, 255, 255, 0.98)', 
-                              border: 'none',
-                              borderRadius: '8px'
-                            }}
-                            formatter={(value: number | undefined) => [`${value ?? 0}件`, 'メッセージ']}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="count" 
-                            stroke="#2563eb"
-                            strokeWidth={2}
-                            dot={{ fill: '#2563eb', r: 3 }}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                  {/* 予約数推移 */}
-                  <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                    <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                      <Calendar size={16} className="text-primary-600" />
-                      予約数推移（過去30日）
-                    </h3>
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={analyticsData.reservations.daily}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                          <XAxis 
-                            dataKey="date" 
-                            tick={{ fontSize: 11, fill: '#6B7280' }}
-                            tickLine={false}
-                            axisLine={false}
-                          />
-                          <YAxis 
-                            tick={{ fontSize: 11, fill: '#6B7280' }}
-                            tickLine={false}
-                            axisLine={false}
-                            allowDecimals={false}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: 'rgba(255, 255, 255, 0.98)', 
-                              border: 'none',
-                              borderRadius: '8px'
-                            }}
-                            formatter={(value: number | undefined) => [`${value ?? 0}件`, '予約']}
-                          />
-                          <Bar dataKey="count" fill="#00a3b8" radius={[8, 8, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                </div>
-
-                {/* LINE連携一覧テーブル */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-                  <div className="p-4 border-b">
-                    <h2 className="font-bold text-gray-900 mb-3">LINE連携状況一覧</h2>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input
-                          type="text"
-                          value={lineConnectionSearch}
-                          onChange={(e) => setLineConnectionSearch(e.target.value)}
-                          placeholder="ユーザー名、メール、店舗名で検索..."
-                          className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                        />
-                      </div>
-                      <select
-                        value={lineConnectionFilter}
-                        onChange={(e) => setLineConnectionFilter(e.target.value as 'all' | 'connected' | 'not_connected')}
-                        className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                      >
-                        <option value="all">すべて</option>
-                        <option value="connected">連携済み</option>
-                        <option value="not_connected">未連携</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50 border-b">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">アイコン</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">ユーザー</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">店舗名</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">LINE連携</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Bot ID</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">登録日</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {analyticsData.lineConnections.details
-                          .filter(detail => {
-                            const matchesSearch = lineConnectionSearch === '' ||
-                              detail.user_name?.toLowerCase().includes(lineConnectionSearch.toLowerCase()) ||
-                              detail.user_email?.toLowerCase().includes(lineConnectionSearch.toLowerCase()) ||
-                              detail.store_name?.toLowerCase().includes(lineConnectionSearch.toLowerCase())
-                            
-                            const matchesFilter = lineConnectionFilter === 'all' ||
-                              (lineConnectionFilter === 'connected' && detail.has_line_connection) ||
-                              (lineConnectionFilter === 'not_connected' && !detail.has_line_connection)
-                            
-                            return matchesSearch && matchesFilter
-                          })
-                          .map((detail) => (
-                            <tr 
-                              key={detail.store_id} 
-                              className="hover:bg-gray-50 cursor-pointer transition-colors"
-                              onClick={() => {
-                                setSelectedStoreDetail(detail)
-                                setStoreDetailModalOpen(true)
-                              }}
-                            >
-                              <td className="px-4 py-3">
-                                {detail.bot_picture_url ? (
-                                  <img 
-                                    src={detail.bot_picture_url} 
-                                    alt="LINE Bot" 
-                                    className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
-                                    onError={(e) => {
-                                      const target = e.target as HTMLImageElement
-                                      target.style.display = 'none'
-                                      if (target.nextElementSibling) {
-                                        (target.nextElementSibling as HTMLElement).style.display = 'flex'
-                                      }
-                                    }}
-                                  />
-                                ) : null}
-                                {!detail.bot_picture_url && (
-                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#06C755] to-[#00B900] flex items-center justify-center border-2 border-gray-200">
-                                    <MessageSquare size={20} className="text-white" />
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-sm">
-                                <div>
-                                  <p className="font-medium text-gray-900">{detail.user_name || '未設定'}</p>
-                                  <p className="text-xs text-gray-500">{detail.user_email || '-'}</p>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-sm text-gray-900">{detail.store_name || '-'}</td>
-                              <td className="px-4 py-3 text-sm">
-                                {detail.has_line_connection ? (
-                                  <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                                    連携済み
-                                  </span>
-                                ) : (
-                                  <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
-                                    未連携
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-gray-600 font-mono text-xs">
-                                {detail.bot_id || '-'}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-gray-500">
-                                {detail.user_created_at 
-                                  ? new Date(detail.user_created_at).toLocaleDateString('ja-JP')
-                                  : '-'}
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                    {analyticsData.lineConnections.details.filter(detail => {
-                      const matchesSearch = lineConnectionSearch === '' ||
-                        detail.user_name?.toLowerCase().includes(lineConnectionSearch.toLowerCase()) ||
-                        detail.user_email?.toLowerCase().includes(lineConnectionSearch.toLowerCase()) ||
-                        detail.store_name?.toLowerCase().includes(lineConnectionSearch.toLowerCase())
-                      
-                      const matchesFilter = lineConnectionFilter === 'all' ||
-                        (lineConnectionFilter === 'connected' && detail.has_line_connection) ||
-                        (lineConnectionFilter === 'not_connected' && !detail.has_line_connection)
-                      
-                      return matchesSearch && matchesFilter
-                    }).length === 0 && (
-                      <div className="p-8 text-center text-gray-500">
-                        <AlertTriangle className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                        該当するデータがありません
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-12 text-gray-500">
-                <AlertTriangle className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                データを読み込めませんでした
-              </div>
-            )}
-          </div>
+          <UserAnalyticsTab
+            loading={analyticsLoading}
+            data={analyticsData}
+            lineConnectionSearch={lineConnectionSearch}
+            lineConnectionFilter={lineConnectionFilter}
+            selectedStoreDetail={selectedStoreDetail}
+            storeDetailModalOpen={storeDetailModalOpen}
+            onLineConnectionSearchChange={setLineConnectionSearch}
+            onLineConnectionFilterChange={setLineConnectionFilter}
+            onStoreRowClick={(detail) => {
+              setSelectedStoreDetail(detail)
+              setStoreDetailModalOpen(true)
+            }}
+            onCloseStoreDetailModal={() => {
+              setStoreDetailModalOpen(false)
+              setSelectedStoreDetail(null)
+            }}
+          />
         )}
           </div>
         </div>
@@ -1481,210 +696,6 @@ export default function AdminDashboard() {
         type={toast.type}
         onClose={() => setToast({ ...toast, isVisible: false })}
       />
-
-      {/* 店舗詳細モーダル */}
-      <Modal
-        isOpen={storeDetailModalOpen}
-        onClose={() => {
-          setStoreDetailModalOpen(false)
-          setSelectedStoreDetail(null)
-        }}
-        title="店舗詳細情報"
-        showDefaultButtons={false}
-        footerContent={
-          <button
-            onClick={() => {
-              setStoreDetailModalOpen(false)
-              setSelectedStoreDetail(null)
-            }}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            閉じる
-          </button>
-        }
-      >
-        {selectedStoreDetail && (
-          <div className="space-y-6">
-            {/* ユーザー情報セクション */}
-            <section>
-              <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <User size={18} />
-                ユーザー情報
-              </h3>
-              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">名前</span>
-                  <span className="text-sm font-medium text-gray-900">{selectedStoreDetail.user_name || '未設定'}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">メールアドレス</span>
-                  <span className="text-sm font-medium text-gray-900">{selectedStoreDetail.user_email || '-'}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">登録日</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    {selectedStoreDetail.user_created_at 
-                      ? new Date(selectedStoreDetail.user_created_at).toLocaleDateString('ja-JP', { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })
-                      : '-'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">プラン</span>
-                  <span className={`text-sm font-medium px-2 py-1 rounded ${
-                    selectedStoreDetail.plan === 'executive' ? 'bg-yellow-100 text-yellow-800' :
-                    selectedStoreDetail.plan === 'pro' ? 'bg-blue-100 text-blue-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {selectedStoreDetail.plan === 'executive' ? 'Executive' :
-                     selectedStoreDetail.plan === 'pro' ? 'Pro' :
-                     'Free'}
-                  </span>
-                </div>
-              </div>
-            </section>
-
-            {/* 店舗情報セクション */}
-            <section>
-              <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <ClipboardList size={18} />
-                店舗情報
-              </h3>
-              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">店舗名</span>
-                  <span className="text-sm font-medium text-gray-900">{selectedStoreDetail.store_name || '-'}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">作成日</span>
-                  <span className="text-sm font-medium text-gray-900">
-                    {selectedStoreDetail.store_created_at 
-                      ? new Date(selectedStoreDetail.store_created_at).toLocaleDateString('ja-JP', { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })
-                      : '-'}
-                  </span>
-                </div>
-              </div>
-            </section>
-
-            {/* LINE連携セクション */}
-            <section>
-              <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <MessageSquare size={18} className="text-[#06C755]" />
-                LINE連携情報
-              </h3>
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <div className="flex items-center gap-3">
-                  {selectedStoreDetail.bot_picture_url ? (
-                    <img 
-                      src={selectedStoreDetail.bot_picture_url} 
-                      alt="LINE Bot" 
-                      className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement
-                        target.style.display = 'none'
-                        if (target.nextElementSibling) {
-                          (target.nextElementSibling as HTMLElement).style.display = 'flex'
-                        }
-                      }}
-                    />
-                  ) : null}
-                  {!selectedStoreDetail.bot_picture_url && (
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#06C755] to-[#00B900] flex items-center justify-center border-2 border-gray-200">
-                      <MessageSquare size={32} className="text-white" />
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        selectedStoreDetail.has_line_connection 
-                          ? 'bg-green-100 text-green-700' 
-                          : 'bg-gray-100 text-gray-700'
-                      }`}>
-                        {selectedStoreDetail.has_line_connection ? '連携済み' : '未連携'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                {selectedStoreDetail.has_line_connection && (
-                  <>
-                    <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-                      <span className="text-sm text-gray-600">Bot ID</span>
-                      <span className="text-sm font-mono font-medium text-gray-900">{selectedStoreDetail.bot_id || '-'}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Channel ID</span>
-                      <span className="text-sm font-mono font-medium text-gray-900">{selectedStoreDetail.channel_id || '-'}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">連携日</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {selectedStoreDetail.line_connected_at 
-                          ? new Date(selectedStoreDetail.line_connected_at).toLocaleDateString('ja-JP', { 
-                              year: 'numeric', 
-                              month: 'long', 
-                              day: 'numeric' 
-                            })
-                          : '-'}
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </section>
-
-            {/* メッセージ統計セクション */}
-            <section>
-              <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <MessageSquare size={18} />
-                メッセージ統計
-              </h3>
-              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">総メッセージ数</span>
-                  <span className="text-sm font-bold text-gray-900">{selectedStoreDetail.store_message_count.toLocaleString()}件</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">自動応答</span>
-                  <span className="text-sm font-medium text-gray-900">{selectedStoreDetail.store_auto_reply_count.toLocaleString()}件</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">AI応答</span>
-                  <span className="text-sm font-medium text-gray-900">{selectedStoreDetail.store_ai_reply_count.toLocaleString()}件</span>
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-                  <span className="text-sm text-gray-600">自動応答率</span>
-                  <span className="text-sm font-bold text-primary-600">
-                    {selectedStoreDetail.store_message_count > 0
-                      ? (((selectedStoreDetail.store_auto_reply_count + selectedStoreDetail.store_ai_reply_count) / selectedStoreDetail.store_message_count) * 100).toFixed(1)
-                      : '0.0'}%
-                  </span>
-                </div>
-              </div>
-            </section>
-
-            {/* 予約統計セクション */}
-            <section>
-              <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <Calendar size={18} />
-                予約統計
-              </h3>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">総予約数</span>
-                  <span className="text-sm font-bold text-gray-900">{selectedStoreDetail.store_reservation_count.toLocaleString()}件</span>
-                </div>
-              </div>
-            </section>
-          </div>
-        )}
-      </Modal>
     </div>
   )
 }

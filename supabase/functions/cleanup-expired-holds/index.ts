@@ -1,9 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { getCorsHeaders } from '../_shared/cors.ts'
+import { safeErrorResponse } from '../_shared/error-utils.ts'
 
 // Google Calendar Event削除関数
 async function deleteGoogleEvent(accessToken: string, calendarId: string, eventId: string) {
@@ -30,6 +27,9 @@ async function deleteGoogleEvent(accessToken: string, calendarId: string, eventI
 }
 
 Deno.serve(async (req: Request) => {
+  const origin = req.headers.get('Origin')
+  const corsHeaders = getCorsHeaders(origin)
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -160,11 +160,6 @@ Deno.serve(async (req: Request) => {
       }
     )
   } catch (error: unknown) {
-    console.error('Cleanup Function Error:', error)
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return safeErrorResponse(error, corsHeaders)
   }
 })
