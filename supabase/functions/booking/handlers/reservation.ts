@@ -20,6 +20,8 @@ import {
   deleteGoogleEvent,
 } from './google-calendar.ts'
 
+type GoogleClientType = { accessToken: string; calendarId: string } | null
+
 type CreateReservationWithCapacityCheckParams = {
   supabaseClient: SupabaseClientType
   store_id: string
@@ -35,6 +37,7 @@ type CreateReservationWithCapacityCheckParams = {
   furigana?: string
   isManualRegistration: boolean
   excludeReservationId?: string
+  preloadedGoogleClient?: GoogleClientType
 }
 
 async function createReservationWithCapacityCheck(params: CreateReservationWithCapacityCheckParams): Promise<string> {
@@ -52,7 +55,8 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
     real_name,
     furigana,
     isManualRegistration,
-    excludeReservationId
+    excludeReservationId,
+    preloadedGoogleClient,
   } = params
 
   const { data: lineAccount, error: laError } = await supabaseClient
@@ -93,7 +97,9 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
 
   const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000)
 
-  const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
+  const googleClient = preloadedGoogleClient !== undefined
+    ? preloadedGoogleClient
+    : await getGoogleCalendarClient(supabaseClient, store_id)
 
   if (staff_id) {
     const capacityLimit = 1
@@ -297,9 +303,12 @@ async function createGoogleCalendarEventForReservation(
   real_name: string | undefined,
   display_name: string | undefined,
   line_user_id: string,
-  memo: string
+  memo: string,
+  preloadedGoogleClient?: GoogleClientType
 ): Promise<void> {
-  const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
+  const googleClient = preloadedGoogleClient !== undefined
+    ? preloadedGoogleClient
+    : await getGoogleCalendarClient(supabaseClient, store_id)
   if (!googleClient) return
 
   try {
@@ -429,6 +438,8 @@ export async function handleCreateReservation(
   if (!durationMinutes || durationMinutes <= 0) durationMinutes = storeSettings?.slot_interval_minutes ?? 60
   const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000)
 
+  const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
+
   const reservationId = await createReservationWithCapacityCheck({
     supabaseClient,
     store_id,
@@ -442,7 +453,8 @@ export async function handleCreateReservation(
     profile_picture_url,
     real_name,
     furigana,
-    isManualRegistration
+    isManualRegistration,
+    preloadedGoogleClient: googleClient,
   })
 
   await supabaseClient
@@ -463,7 +475,8 @@ export async function handleCreateReservation(
     real_name,
     display_name,
     line_user_id!,
-    memo || ''
+    memo || '',
+    googleClient,
   )
 
   return new Response(JSON.stringify({ success: true }), {
@@ -589,24 +602,6 @@ export async function handleUpdateReservation(
     throw new Error(`予約可能日は${maxDays}日後までです`)
   }
 
-  const { error: cancelError } = await supabaseClient
-    .from('reservations')
-    .update({ status: 'cancelled' })
-    .eq('id', reservation_id)
-
-  if (cancelError) throw cancelError
-
-  if (oldReservation?.google_event_id) {
-    const googleClient = await getGoogleCalendarClient(supabaseClient, oldReservation.store_id)
-    if (googleClient) {
-      try {
-        await deleteGoogleEvent(googleClient, oldReservation.google_event_id)
-      } catch (gError) {
-        console.error('Failed to delete old Google Calendar event:', gError)
-      }
-    }
-  }
-
   const startDateTime = new Date(`${date}T${time}:00+09:00`)
   let durationMinutes = storeSettings?.slot_interval_minutes ?? 60
   if (menu_id) {
@@ -620,7 +615,11 @@ export async function handleUpdateReservation(
   if (!durationMinutes || durationMinutes <= 0) durationMinutes = storeSettings?.slot_interval_minutes ?? 60
   const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000)
 
-  const reservationId = await createReservationWithCapacityCheck({
+  const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
+
+  // 新予約を先に作成（旧予約は excludeReservationId で容量チェックから除外）
+  // 失敗した場合でも旧予約は残るため、予約消失を防ぐ
+  const newReservationId = await createReservationWithCapacityCheck({
     supabaseClient,
     store_id,
     line_user_id: line_user_id!,
@@ -634,8 +633,27 @@ export async function handleUpdateReservation(
     real_name,
     furigana,
     isManualRegistration,
-    excludeReservationId: reservation_id
+    excludeReservationId: reservation_id,
+    preloadedGoogleClient: googleClient,
   })
+
+  // 新予約が成功したので旧予約をキャンセル
+  const { error: cancelError } = await supabaseClient
+    .from('reservations')
+    .update({ status: 'cancelled' })
+    .eq('id', reservation_id)
+
+  if (cancelError) {
+    console.error('Failed to cancel old reservation after new one created:', cancelError)
+  }
+
+  if (oldReservation?.google_event_id && googleClient) {
+    try {
+      await deleteGoogleEvent(googleClient, oldReservation.google_event_id)
+    } catch (gError) {
+      console.error('Failed to delete old Google Calendar event:', gError)
+    }
+  }
 
   await supabaseClient
     .from('reservations')
@@ -646,7 +664,7 @@ export async function handleUpdateReservation(
 
   await createGoogleCalendarEventForReservation(
     supabaseClient,
-    reservationId,
+    newReservationId,
     store_id,
     startDateTime,
     endDateTime,
@@ -655,7 +673,8 @@ export async function handleUpdateReservation(
     real_name,
     display_name,
     line_user_id!,
-    memo || ''
+    memo || '',
+    googleClient,
   )
 
   return new Response(JSON.stringify({ success: true }), {

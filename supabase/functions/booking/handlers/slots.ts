@@ -98,7 +98,8 @@ export async function handleGetAvailableSlots(
   }
 
   const dayStart = toJstDate(date, '00:00').toISOString()
-  const dayEnd = toJstDate(date, '23:59').toISOString()
+  const nextDay = new Date(toJstDate(date, '00:00').getTime() + 24 * 60 * 60 * 1000)
+  const dayEnd = nextDay.toISOString()
 
   const { data: staffList } = await supabaseClient
     .from('staff_members')

@@ -528,17 +528,7 @@ export default function Booking() {
   const checkCustomer = useCallback(async () => {
     setCheckingUser(true)
     try {
-      // Get access token for authentication
-      let accessToken: string | null = null
-      try {
-        // LIFFが初期化されているか確認
-        if (liff.isInClient() || liff.isLoggedIn()) {
-          accessToken = liff.getAccessToken()
-          console.log('[Booking] checkCustomer - accessToken:', accessToken ? 'obtained' : 'null')
-        }
-      } catch (liffError) {
-        console.warn('[Booking] LIFF not initialized yet:', liffError)
-      }
+      const accessToken = getLiffAccessToken()
 
       console.log('[Booking] checkCustomer - store_id:', storeId, 'line_user_id:', lineUserId)
 
@@ -575,11 +565,7 @@ export default function Booking() {
 
   const checkReservation = useCallback(async () => {
     try {
-      // Get access token for authentication
-      let accessToken: string | null = null
-      if (liff.isLoggedIn()) {
-        accessToken = liff.getAccessToken()
-      }
+      const accessToken = getLiffAccessToken()
 
       const { data, error } = await supabase.functions.invoke('booking', {
         body: {
@@ -611,6 +597,17 @@ export default function Booking() {
     return window.self !== window.top || lineUserId === 'PREVIEW_USER'
   }, [lineUserId])
 
+  const getLiffAccessToken = useCallback((): string | null => {
+    try {
+      if (liff.isInClient() || liff.isLoggedIn()) {
+        return liff.getAccessToken()
+      }
+    } catch {
+      // LIFF 未初期化
+    }
+    return null
+  }, [])
+
   // 仮押さえ解除のヘルパー関数
   const releaseHold = useCallback(async () => {
     // プレビューモードでは仮押さえをスキップ
@@ -624,14 +621,15 @@ export default function Booking() {
         body: {
           action: 'release_hold',
           store_id: storeId,
-          line_user_id: lineUserId
+          line_user_id: lineUserId,
+          accessToken: getLiffAccessToken(),
         }
       })
       console.log('Hold released')
     } catch (e) {
       console.error('Failed to release hold:', e)
     }
-  }, [storeId, lineUserId, isPreviewMode])
+  }, [storeId, lineUserId, isPreviewMode, getLiffAccessToken])
 
   // ページ離脱時に仮押さえを解除
   useEffect(() => {
@@ -665,11 +663,7 @@ export default function Booking() {
         hideModal()
         setLoading(true)
         try {
-          // Get access token for authentication
-          let accessToken: string | null = null
-          if (liff.isLoggedIn()) {
-            accessToken = liff.getAccessToken()
-          }
+          const accessToken = getLiffAccessToken()
 
           const { data, error } = await supabase.functions.invoke('booking', {
             body: {
@@ -723,29 +717,20 @@ export default function Booking() {
     if (!storeId) return
     setLoading(true)
     try {
-      // Ensure we have the latest profile info
       let currentPictureUrl = pictureUrl
       let currentDisplayName = displayName
-      
-      // Get access token for authentication
-      let accessToken: string | null = null
+      const accessToken = getLiffAccessToken()
+
       try {
-        // LIFFが初期化されているか確認（isInClient または isLoggedIn）
         if (liff.isInClient() || liff.isLoggedIn()) {
-          accessToken = liff.getAccessToken()
-          console.log('[Booking] handleSubmit - accessToken:', accessToken ? 'obtained' : 'null')
-          try {
-            const profile = await liff.getProfile()
-            currentPictureUrl = profile.pictureUrl || ''
-            currentDisplayName = profile.displayName || ''
-            setPictureUrl(currentPictureUrl)
-            setDisplayName(currentDisplayName)
-          } catch (e) {
-            console.error('Failed to refresh profile:', e)
-          }
+          const profile = await liff.getProfile()
+          currentPictureUrl = profile.pictureUrl || ''
+          currentDisplayName = profile.displayName || ''
+          setPictureUrl(currentPictureUrl)
+          setDisplayName(currentDisplayName)
         }
-      } catch (liffError) {
-        console.warn('[Booking] LIFF not available:', liffError)
+      } catch {
+        // プロフィール更新失敗は無視
       }
 
       const action = modifyingReservationId ? 'update_reservation' : 'create_reservation'
@@ -1715,6 +1700,7 @@ export default function Booking() {
                                                 time: timeStr,
                                                 staff_id: selectedStaff?.id || null,
                                                 menu_id: selectedMenu?.id || null,
+                                                accessToken: getLiffAccessToken(),
                                               }
                                             })
                                             console.log('Slot held successfully')

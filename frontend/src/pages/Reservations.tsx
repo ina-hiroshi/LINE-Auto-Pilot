@@ -706,12 +706,14 @@ export default function Reservations() {
 
     setCreateLoading(true)
     try {
-      // 予約作成
+      const lineUserId = selectedCustomer?.line_user_id || `MANUAL_${Date.now()}`
+
+      // 予約作成（バックエンド側で顧客 upsert も実行される）
       const { data, error } = await supabase.functions.invoke('booking', {
         body: {
           action: 'create_reservation',
           store_id: storeId,
-          line_user_id: selectedCustomer?.line_user_id || `MANUAL_${Date.now()}`,
+          line_user_id: lineUserId,
           display_name: selectedCustomer?.display_name || newCustomerName,
           real_name: selectedCustomer?.real_name || newCustomerName,
           furigana: selectedCustomer?.furigana || newCustomerFurigana,
@@ -720,24 +722,12 @@ export default function Reservations() {
           staff_id: createStaffId || null,
           menu_id: createMenuId || null,
           memo: createMemo || null,
-          is_manual: true, // 手動登録フラグ
+          is_manual: true,
         }
       })
 
       if (error) throw error
       if (data?.error) throw new Error(data.error)
-
-      // 新規顧客の場合、顧客テーブルにも登録
-      if (isNewCustomer && newCustomerName) {
-        const newLineUserId = `MANUAL_${Date.now()}`
-        await supabase.from('customers').upsert({
-          store_id: storeId,
-          line_user_id: newLineUserId,
-          display_name: newCustomerName,
-          real_name: newCustomerName,
-          furigana: newCustomerFurigana || null,
-        }, { onConflict: 'store_id, line_user_id' })
-      }
 
       setToast({ message: '予約を登録しました', type: 'success' })
       setIsCreateModalOpen(false)
