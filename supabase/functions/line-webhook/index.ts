@@ -5,6 +5,7 @@ import { safeErrorResponse } from '../_shared/error-utils.ts'
 import { getGeminiUrl } from '../_shared/ai-config.ts'
 import { createLogger } from '../_shared/logger.ts'
 import { isPaidPlan } from '../_shared/plan-utils.ts'
+import { checkAiRateLimit, recordAiUsage, maybeCleanupRateLimits } from '../_shared/rate-limiter.ts'
 
 const log = createLogger('line-webhook')
 
@@ -29,6 +30,7 @@ const CONFIG = {
     /** 自動応答を発動するしきい値 */
     THRESHOLD: 25,
   },
+  RATE_LIMIT_FALLBACK: "お問い合わせありがとうございます。\nただいま多くのお問い合わせをいただいております。\n担当者が確認次第、返信させていただきます。",
 } as const;
 
 type LineTextMessage = { type: 'text'; text: string }
@@ -415,21 +417,34 @@ Deno.serve(async (req: Request) => {
                     } else {
                         // Fallback
                         if (isAiEnabled && geminiApiKey) {
-                            console.log('Fallback to AI')
-                            // Start loading animation
-                            await startLoadingAnimation(channelAccessToken, userId)
-                            
-                            replyText = await generateAIResponse(geminiApiKey, text, aiSettings, storeId, supabase, userId)
-                            status = 'ai_replied'
+                            // レート制限チェック（AI呼び出し前）
+                            const rateResult = await checkAiRateLimit(supabase, storeId, userId, text)
+                            if (!rateResult.allowed) {
+                                log.warn(`Rate limited: ${rateResult.reason} for user ${userId?.slice(0, 8)}...`)
+                                if (rateResult.reason === 'duplicate_message') {
+                                    // 重複メッセージはサイレントスキップ（応答なし）
+                                    replyText = null
+                                    status = 'rate_limited_duplicate'
+                                } else {
+                                    replyText = CONFIG.RATE_LIMIT_FALLBACK
+                                    status = 'rate_limited'
+                                }
+                            } else {
+                                console.log('Fallback to AI')
+                                await startLoadingAnimation(channelAccessToken, userId)
+                                
+                                replyText = await generateAIResponse(geminiApiKey, text, aiSettings, storeId, supabase, userId)
+                                status = 'ai_replied'
 
-                            // Check for manual reply needed tag
-                            if (replyText.includes('[MANUAL_REPLY_NEEDED]')) {
-                                status = 'manual_reply_needed'
-                                replyText = replyText.replace('[MANUAL_REPLY_NEEDED]', '').trim()
+                                if (replyText.includes('[MANUAL_REPLY_NEEDED]')) {
+                                    status = 'manual_reply_needed'
+                                    replyText = replyText.replace('[MANUAL_REPLY_NEEDED]', '').trim()
+                                }
+
+                                // AI応答成功を記録
+                                await recordAiUsage(supabase, storeId, userId, text)
                             }
                         } else {
-                            // Manual Reply Needed
-                            // Fallback to fixed message when AI is disabled or not applicable
                             replyText = "お問い合わせありがとうございます。\n担当者が確認次第、返信させていただきます。\n今しばらくお待ちください。"
                             status = 'manual_reply_needed'
                             console.log('Fallback to Manual Reply (Fixed Message Sent)')
@@ -448,30 +463,35 @@ Deno.serve(async (req: Request) => {
                         }
                     }
 
-                    // 5. Save Log
-                    let displayName = null
-                    let pictureUrl = null
-                    if (channelAccessToken) {
-                        const profile = await getProfile(channelAccessToken, userId)
-                        if (profile) {
-                            displayName = profile.displayName
-                            pictureUrl = profile.pictureUrl
+                    // 5. Save Log（重複スキップ時はログ不要）
+                    if (status !== 'rate_limited_duplicate') {
+                        let displayName = null
+                        let pictureUrl = null
+                        if (channelAccessToken) {
+                            const profile = await getProfile(channelAccessToken, userId)
+                            if (profile) {
+                                displayName = profile.displayName
+                                pictureUrl = profile.pictureUrl
+                            }
                         }
-                    }
 
-                    await supabase.from('customer_logs').insert({
-                        store_id: storeId,
-                        line_user_id: userId,
-                        display_name: displayName,
-                        profile_picture_url: pictureUrl,
-                        message_content: text,
-                        reply_content: replyText,
-                        status: status
-                    })
+                        await supabase.from('customer_logs').insert({
+                            store_id: storeId,
+                            line_user_id: userId,
+                            display_name: displayName,
+                            profile_picture_url: pictureUrl,
+                            message_content: text,
+                            reply_content: replyText,
+                            status: status
+                        })
+                    }
                 }
             }
         }
     }
+
+    // 古いレート制限レコードの確率的クリーンアップ
+    await maybeCleanupRateLimits(supabase)
 
     // Execute async processing
     // @ts-ignore: EdgeRuntime is a Supabase Edge Function specific global
