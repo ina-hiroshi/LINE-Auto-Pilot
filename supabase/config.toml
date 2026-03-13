@@ -359,6 +359,81 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
+# Per-function JWT verification settings.
+# External webhooks and pre-auth functions must skip JWT verification.
+
+[functions.line-webhook]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.google-calendar-webhook]
+verify_jwt = false
+
+[functions.booking]
+verify_jwt = false
+
+[functions.send-verification-code]
+verify_jwt = false
+
+[functions.verify-code]
+verify_jwt = false
+
+[functions.get-liff-customer]
+verify_jwt = false
+
+[functions.cleanup-expired-holds]
+verify_jwt = false
+
+[functions.apply-rich-menu]
+verify_jwt = false
+
+[functions.ai-chat-preview]
+verify_jwt = false
+
+[functions.create-checkout-session]
+verify_jwt = false
+
+[functions.create-portal-session]
+verify_jwt = false
+
+[functions.create-setup-checkout]
+verify_jwt = false
+
+[functions.dashboard-ai-analysis]
+verify_jwt = false
+
+[functions.fetch-url-content]
+verify_jwt = false
+
+[functions.get-admin-analytics]
+verify_jwt = false
+
+[functions.get-admin-data]
+verify_jwt = false
+
+[functions.get-line-bot-info]
+verify_jwt = false
+
+[functions.get-line-quota]
+verify_jwt = false
+
+[functions.google-auth]
+verify_jwt = false
+
+[functions.google-calendar]
+verify_jwt = false
+
+[functions.manual-reply]
+verify_jwt = false
+
+[functions.send-setup-service-email]
+verify_jwt = false
+
+[functions.debug-db]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
