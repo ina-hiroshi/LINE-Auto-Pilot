@@ -16,7 +16,7 @@ import Toast from '../components/Toast'
 import { useUserFeatures } from '../hooks/useUserFeatures'
 import { SetupOrdersTab } from '../features/admin/components/SetupOrdersTab'
 import { PlanSwitcherTab } from '../features/admin/components/PlanSwitcherTab'
-import { UserAnalyticsTab } from '../features/admin/components/UserAnalyticsTab'
+import { UserAnalyticsTab, type AdminUserPlan } from '../features/admin/components/UserAnalyticsTab'
 import type { SetupOrder, LineSettings, StoreDetail, AnalyticsData } from '../features/admin/types'
 
 type AdminTab = 'setup_orders' | 'plan_switcher' | 'user_analytics'
@@ -546,6 +546,41 @@ export default function AdminDashboard() {
     }
   }, [activeTab, isAdmin])
 
+  const handleUpdateUserPlan = useCallback(
+    async (userId: string, plan: AdminUserPlan) => {
+      const { data, error } = await supabase.functions.invoke('admin-update-user-plan', {
+        body: { userId, plan },
+      })
+
+      if (error) {
+        console.error('admin-update-user-plan:', error)
+        setToast({ isVisible: true, message: 'プランの更新に失敗しました', type: 'error' })
+        throw error
+      }
+
+      const payload = data as { ok?: boolean; error?: string; warning?: string } | null
+      if (payload?.error) {
+        setToast({ isVisible: true, message: payload.error, type: 'error' })
+        throw new Error(payload.error)
+      }
+
+      if (payload?.warning) {
+        setToast({
+          isVisible: true,
+          message: `プランを更新しました。${payload.warning}`,
+          type: 'success',
+        })
+      } else {
+        setToast({ isVisible: true, message: 'プランを更新しました', type: 'success' })
+      }
+
+      await fetchAnalytics()
+      setSelectedStoreDetail((prev) => (prev && prev.owner_id === userId ? { ...prev, plan } : prev))
+      window.dispatchEvent(new Event('profile-updated'))
+    },
+    [fetchAnalytics],
+  )
+
   useEffect(() => {
     if (activeTab === 'user_analytics' && isAdmin && !analyticsData) {
       fetchAnalytics()
@@ -660,6 +695,7 @@ export default function AdminDashboard() {
               setStoreDetailModalOpen(false)
               setSelectedStoreDetail(null)
             }}
+            onUpdateUserPlan={handleUpdateUserPlan}
           />
         )}
           </div>

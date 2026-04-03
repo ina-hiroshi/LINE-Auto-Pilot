@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import {
   Search,
   Loader2,
@@ -29,6 +30,8 @@ import {
 import Modal from '../../../components/Modal'
 import type { AnalyticsData, StoreDetail } from '../types'
 
+export type AdminUserPlan = 'free' | 'pro' | 'executive'
+
 export interface UserAnalyticsTabProps {
   loading: boolean
   data: AnalyticsData | null
@@ -40,6 +43,8 @@ export interface UserAnalyticsTabProps {
   onLineConnectionFilterChange: (filter: 'all' | 'connected' | 'not_connected') => void
   onStoreRowClick: (detail: StoreDetail) => void
   onCloseStoreDetailModal: () => void
+  /** 管理者のみ: 対象ユーザーのプランを更新（Edge Function 経由） */
+  onUpdateUserPlan?: (userId: string, plan: AdminUserPlan) => Promise<{ warning?: string } | void>
 }
 
 export function UserAnalyticsTab(props: UserAnalyticsTabProps) {
@@ -54,7 +59,18 @@ export function UserAnalyticsTab(props: UserAnalyticsTabProps) {
     onLineConnectionFilterChange,
     onStoreRowClick,
     onCloseStoreDetailModal,
+    onUpdateUserPlan,
   } = props
+
+  const [planDraft, setPlanDraft] = useState<AdminUserPlan>('free')
+  const [planSaving, setPlanSaving] = useState(false)
+
+  useEffect(() => {
+    if (selectedStoreDetail) {
+      const p = selectedStoreDetail.plan
+      setPlanDraft(p === 'pro' || p === 'executive' ? p : 'free')
+    }
+  }, [selectedStoreDetail])
 
   const filteredDetails =
     data?.lineConnections.details.filter((detail) => {
@@ -267,6 +283,7 @@ export function UserAnalyticsTab(props: UserAnalyticsTabProps) {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">アイコン</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">ユーザー</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">店舗名</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">プラン</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">LINE連携</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Bot ID</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">登録日</th>
@@ -307,6 +324,19 @@ export function UserAnalyticsTab(props: UserAnalyticsTabProps) {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900">{detail.store_name || '-'}</td>
+                  <td className="px-4 py-3 text-sm">
+                    <span
+                      className={`inline-flex px-2 py-1 rounded text-xs font-medium ${
+                        detail.plan === 'executive'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : detail.plan === 'pro'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {detail.plan === 'executive' ? 'Executive' : detail.plan === 'pro' ? 'Pro' : 'Free'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-sm">
                     {detail.has_line_connection ? (
                       <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
@@ -377,24 +407,76 @@ export function UserAnalyticsTab(props: UserAnalyticsTabProps) {
                       : '-'}
                   </span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-sm text-gray-600">プラン</span>
-                  <span
-                    className={`text-sm font-medium px-2 py-1 rounded ${
-                      selectedStoreDetail.plan === 'executive'
-                        ? 'bg-yellow-100 text-yellow-800'
+                  {onUpdateUserPlan ? (
+                    <div className="flex flex-wrap items-center gap-2 justify-end">
+                      <select
+                        value={planDraft}
+                        onChange={(e) => setPlanDraft(e.target.value as AdminUserPlan)}
+                        disabled={planSaving}
+                        className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50"
+                      >
+                        <option value="free">Free</option>
+                        <option value="pro">Pro</option>
+                        <option value="executive">Executive</option>
+                      </select>
+                      <button
+                        type="button"
+                        disabled={(() => {
+                          const normalized =
+                            selectedStoreDetail.plan === 'pro' || selectedStoreDetail.plan === 'executive'
+                              ? selectedStoreDetail.plan
+                              : 'free'
+                          return planSaving || planDraft === normalized
+                        })()}
+                        onClick={async () => {
+                          if (!selectedStoreDetail.owner_id) return
+                          setPlanSaving(true)
+                          try {
+                            await onUpdateUserPlan(selectedStoreDetail.owner_id, planDraft)
+                          } catch {
+                            /* トーストは親で表示済み */
+                          } finally {
+                            setPlanSaving(false)
+                          }
+                        }}
+                        className="text-sm font-medium px-3 py-1.5 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {planSaving ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            保存中
+                          </span>
+                        ) : (
+                          'プランを保存'
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <span
+                      className={`text-sm font-medium px-2 py-1 rounded ${
+                        selectedStoreDetail.plan === 'executive'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : selectedStoreDetail.plan === 'pro'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {selectedStoreDetail.plan === 'executive'
+                        ? 'Executive'
                         : selectedStoreDetail.plan === 'pro'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-gray-100 text-gray-800'
-                    }`}
-                  >
-                    {selectedStoreDetail.plan === 'executive'
-                      ? 'Executive'
-                      : selectedStoreDetail.plan === 'pro'
-                        ? 'Pro'
-                        : 'Free'}
-                  </span>
+                          ? 'Pro'
+                          : 'Free'}
+                    </span>
+                  )}
                 </div>
+                {onUpdateUserPlan && (
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-2">
+                    管理者向け操作です。Stripe
+                    で課金しているユーザーは、請求・Webhookによりプランが再同期される場合があります。
+                  </p>
+                )}
               </div>
             </section>
             <section>

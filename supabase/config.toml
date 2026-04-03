@@ -413,6 +413,9 @@ verify_jwt = false
 [functions.get-admin-data]
 verify_jwt = false
 
+[functions.admin-update-user-plan]
+verify_jwt = true
+
 [functions.get-line-bot-info]
 verify_jwt = false
 

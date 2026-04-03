@@ -142,7 +142,8 @@ export async function handleGetAvailableSlots(
   const { data: holds } = await holdQuery
 
   const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
-  let googleEvents: { start: { dateTime?: string }; end: { dateTime?: string } }[] = []
+  type GoogleEventRow = { start?: { dateTime?: string }; end?: { dateTime?: string }; summary?: string; description?: string }
+  let googleEvents: GoogleEventRow[] = []
   if (googleClient) {
     googleEvents = await listGoogleEvents(googleClient, dayStart, dayEnd)
   }
@@ -235,9 +236,7 @@ export async function handleGetAvailableSlots(
         return isOverlapping(cursor, slotEnd, holdStart, holdEnd)
       }).length
 
-      type GoogleEvent = { start?: { dateTime?: string }; end?: { dateTime?: string }; summary?: string; description?: string }
-
-      const relevantGoogleEvents = googleEvents.filter((e: GoogleEvent) => {
+      const relevantGoogleEvents = googleEvents.filter((e: GoogleEventRow) => {
         if (!e.start?.dateTime || !e.end?.dateTime) return false
         if (line_user_id && e.summary?.startsWith('【仮予約】')) {
           if (e.description && e.description.includes(line_user_id)) {
@@ -265,6 +264,26 @@ export async function handleGetAvailableSlots(
             })
           : []
         totalOverlap = staffReservationCount + staffHoldCount + staffGoogleEvents.length
+      } else if (staffInfoList.length === 0) {
+        // スタッフ未登録: create_reservation_atomic と同様に店舗枠 (capacity_per_slot) で判定
+        capacityLimit = storeSettings?.capacity_per_slot ?? 10
+        const nullStaffReservationCount = (reservations || []).filter((r: { status: string; line_user_id: string; start_time: string; end_time: string; staff_id?: string | null }) => {
+          if (r.status === 'temporary' && r.line_user_id === line_user_id) return false
+          if (r.staff_id) return false
+          const resStart = new Date(r.start_time)
+          const resEnd = new Date(r.end_time)
+          return isOverlapping(cursor, slotEnd, resStart, resEnd)
+        }).length
+
+        const nullStaffHoldCount = (holds || []).filter((h: { line_user_id: string; start_time: string; end_time: string; staff_id?: string | null }) => {
+          if (h.line_user_id === line_user_id) return false
+          if (h.staff_id) return false
+          const holdStart = new Date(h.start_time)
+          const holdEnd = new Date(h.end_time)
+          return isOverlapping(cursor, slotEnd, holdStart, holdEnd)
+        }).length
+
+        totalOverlap = nullStaffReservationCount + nullStaffHoldCount
       } else {
         const workingStaff = await getWorkingStaffForTimeSlot(
           supabaseClient,

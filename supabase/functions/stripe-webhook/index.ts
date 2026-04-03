@@ -228,6 +228,8 @@ Deno.serve(async (req: Request) => {
             plan: plan,
             price_id: priceId,
             current_period_end: currentPeriodEnd,
+            subscription_status: status,
+            subscription_id: subscription.id,
           })
           .eq('stripe_customer_id', customerId);
           

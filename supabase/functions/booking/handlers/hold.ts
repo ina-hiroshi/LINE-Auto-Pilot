@@ -10,7 +10,6 @@ import {
   isOverlapping,
   getStoreSettings,
   getWorkingStaffForTimeSlot,
-  type StaffInfo,
 } from './utils.ts'
 import { getGoogleCalendarClient, createGoogleEvent, deleteGoogleEvent } from './google-calendar.ts'
 
@@ -86,41 +85,78 @@ export async function handleHoldSlot(
       throw new ClientVisibleError('この時間帯の予約枠が埋まっています')
     }
   } else {
-    const workingStaff = await getWorkingStaffForTimeSlot(supabaseClient, store_id, date!, startDateTime, endDateTime)
-    if (workingStaff.length === 0) {
-      throw new ClientVisibleError('この時間帯に対応可能なスタッフがいません')
-    }
-
-    const { data: overlapReservations } = await supabaseClient
-      .from('reservations')
-      .select('staff_id')
+    const { data: activeStaffMembers } = await supabaseClient
+      .from('staff_members')
+      .select('id')
       .eq('store_id', store_id)
-      .neq('status', 'cancelled')
-      .neq('status', 'temporary')
-      .lt('start_time', endDateTime.toISOString())
-      .gt('end_time', startDateTime.toISOString())
+      .eq('is_active', true)
+      .limit(1)
 
-    const bookedStaffIds = (overlapReservations || [])
-      .map((r: { staff_id?: string }) => r.staff_id)
-      .filter(Boolean) as string[]
+    const hasNoStaffRegistered = !activeStaffMembers || activeStaffMembers.length === 0
 
-    const { data: conflictingHolds } = await supabaseClient
-      .from('temporary_holds')
-      .select('staff_id, line_user_id')
-      .eq('store_id', store_id)
-      .gt('expires_at', new Date().toISOString())
-      .lt('start_time', endDateTime.toISOString())
-      .gt('end_time', startDateTime.toISOString())
+    if (hasNoStaffRegistered) {
+      const capacityLimit = storeSettings?.capacity_per_slot ?? 10
 
-    const holdBookedStaffIds = (conflictingHolds || [])
-      .filter((h: { line_user_id?: string }) => h.line_user_id !== line_user_id)
-      .map((h: { staff_id?: string }) => h.staff_id)
-      .filter(Boolean) as string[]
+      const { data: overlapReservations } = await supabaseClient
+        .from('reservations')
+        .select('id')
+        .eq('store_id', store_id)
+        .is('staff_id', null)
+        .neq('status', 'cancelled')
+        .neq('status', 'temporary')
+        .lt('start_time', endDateTime.toISOString())
+        .gt('end_time', startDateTime.toISOString())
 
-    const bookedStaffSet = new Set([...bookedStaffIds, ...holdBookedStaffIds])
-    const availableStaffCount = workingStaff.length - bookedStaffSet.size
-    if (availableStaffCount <= 0) {
-      throw new ClientVisibleError('この時間帯の予約枠が埋まっています')
+      const { data: conflictingHolds } = await supabaseClient
+        .from('temporary_holds')
+        .select('id, line_user_id')
+        .eq('store_id', store_id)
+        .is('staff_id', null)
+        .gt('expires_at', new Date().toISOString())
+        .lt('start_time', endDateTime.toISOString())
+        .gt('end_time', startDateTime.toISOString())
+
+      const otherHoldCount = (conflictingHolds || []).filter(h => h.line_user_id !== line_user_id).length
+      if ((overlapReservations?.length ?? 0) + otherHoldCount >= capacityLimit) {
+        throw new ClientVisibleError('この時間帯の予約枠が埋まっています')
+      }
+    } else {
+      const workingStaff = await getWorkingStaffForTimeSlot(supabaseClient, store_id, date!, startDateTime, endDateTime)
+      if (workingStaff.length === 0) {
+        throw new ClientVisibleError('この時間帯に対応可能なスタッフがいません')
+      }
+
+      const { data: overlapReservations } = await supabaseClient
+        .from('reservations')
+        .select('staff_id')
+        .eq('store_id', store_id)
+        .neq('status', 'cancelled')
+        .neq('status', 'temporary')
+        .lt('start_time', endDateTime.toISOString())
+        .gt('end_time', startDateTime.toISOString())
+
+      const bookedStaffIds = (overlapReservations || [])
+        .map((r: { staff_id?: string }) => r.staff_id)
+        .filter(Boolean) as string[]
+
+      const { data: conflictingHolds } = await supabaseClient
+        .from('temporary_holds')
+        .select('staff_id, line_user_id')
+        .eq('store_id', store_id)
+        .gt('expires_at', new Date().toISOString())
+        .lt('start_time', endDateTime.toISOString())
+        .gt('end_time', startDateTime.toISOString())
+
+      const holdBookedStaffIds = (conflictingHolds || [])
+        .filter((h: { line_user_id?: string }) => h.line_user_id !== line_user_id)
+        .map((h: { staff_id?: string }) => h.staff_id)
+        .filter(Boolean) as string[]
+
+      const bookedStaffSet = new Set([...bookedStaffIds, ...holdBookedStaffIds])
+      const availableStaffCount = workingStaff.length - bookedStaffSet.size
+      if (availableStaffCount <= 0) {
+        throw new ClientVisibleError('この時間帯の予約枠が埋まっています')
+      }
     }
   }
 
@@ -199,6 +235,7 @@ export async function handleReleaseHold(
   corsHeaders: CorsHeaders
 ): Promise<Response> {
   const { store_id, line_user_id } = params
+  if (!store_id || !line_user_id) throw new ClientVisibleError('store_id and line_user_id are required')
 
   const { data: holds } = await supabaseClient
     .from('temporary_holds')

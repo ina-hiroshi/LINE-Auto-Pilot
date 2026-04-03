@@ -153,7 +153,7 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
 
       if (staffInfo) {
         const googleEvents = await listGoogleEvents(googleClient, startDateTime.toISOString(), endDateTime.toISOString())
-        const staffGoogleEvents = googleEvents.filter(e => {
+        const staffGoogleEvents = googleEvents.filter((e: { start?: { dateTime?: string }; end?: { dateTime?: string }; summary?: string; description?: string }) => {
           if (!e.start?.dateTime || !e.end?.dateTime) return false
           const eventStart = new Date(e.start.dateTime)
           const eventEnd = new Date(e.end.dateTime)
@@ -174,84 +174,130 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
       throw new ClientVisibleError('この時間帯の予約枠が埋まっています')
     }
   } else {
-    const workingStaff = await getWorkingStaffForTimeSlot(
-      supabaseClient,
-      store_id,
-      date,
-      startDateTime,
-      endDateTime
-    )
-
-    if (workingStaff.length === 0) {
-      throw new ClientVisibleError('この時間帯に対応可能なスタッフがいません')
-    }
-
-    let overlapQuery = supabaseClient
-      .from('reservations')
-      .select('staff_id')
-      .eq('store_id', store_id)
-      .neq('status', 'cancelled')
-      .neq('status', 'temporary')
-      .lt('start_time', endDateTime.toISOString())
-      .gt('end_time', startDateTime.toISOString())
-
-    if (excludeReservationId) {
-      overlapQuery = overlapQuery.neq('id', excludeReservationId)
-    }
-
-    const { data: overlapReservations, error: overlapError } = await overlapQuery
-    if (overlapError) throw new ClientVisibleError(toErrorMessage(overlapError))
-
-    const internalBookedStaffIds = (overlapReservations || [])
-      .map((r: { staff_id?: string }) => r.staff_id)
-      .filter(Boolean) as string[]
-
-    const { data: conflictingHolds } = await supabaseClient
-      .from('temporary_holds')
-      .select('staff_id')
-      .eq('store_id', store_id)
-      .gt('expires_at', new Date().toISOString())
-      .lt('start_time', endDateTime.toISOString())
-      .gt('end_time', startDateTime.toISOString())
-
-    const holdBookedStaffIds = (conflictingHolds || [])
-      .filter((h: { line_user_id?: string }) => h.line_user_id !== line_user_id)
-      .map((h: { staff_id?: string }) => h.staff_id)
-      .filter(Boolean) as string[]
-
-    const { data: staffList } = await supabaseClient
+    const { data: activeStaffMembers } = await supabaseClient
       .from('staff_members')
-      .select('id, name')
+      .select('id')
       .eq('store_id', store_id)
       .eq('is_active', true)
+      .limit(1)
 
-    let googleBookedStaffIds: string[] = []
-    let unknownEventCount = 0
+    const hasNoStaffRegistered = !activeStaffMembers || activeStaffMembers.length === 0
 
-    if (googleClient && staffList) {
-      const googleEvents = (await listGoogleEvents(googleClient, startDateTime.toISOString(), endDateTime.toISOString()))
-        .filter((e: { summary?: string; description?: string }) => {
-          if (line_user_id && e.summary?.startsWith('【仮予約】')) {
-            if (e.description && e.description.includes(line_user_id)) return false
-          }
-          return true
-        })
+    if (hasNoStaffRegistered) {
+      // create_reservation_atomic と同じ: スタッフ未登録店舗は担当なしで店舗枠 (capacity_per_slot) のみ
+      const capacityLimit = storeSettings?.capacity_per_slot ?? 10
 
-      const { identifiedStaffIds, unknownEventCount: unknown } = analyzeGoogleEventsForStaff(
-        googleEvents,
-        staffList as StaffInfo[],
+      let overlapQuery = supabaseClient
+        .from('reservations')
+        .select('id')
+        .eq('store_id', store_id)
+        .is('staff_id', null)
+        .neq('status', 'cancelled')
+        .neq('status', 'temporary')
+        .lt('start_time', endDateTime.toISOString())
+        .gt('end_time', startDateTime.toISOString())
+
+      if (excludeReservationId) {
+        overlapQuery = overlapQuery.neq('id', excludeReservationId)
+      }
+
+      const { data: overlapReservations, error: overlapError } = await overlapQuery
+      if (overlapError) throw new ClientVisibleError(toErrorMessage(overlapError))
+
+      const { data: conflictingHolds } = await supabaseClient
+        .from('temporary_holds')
+        .select('id, line_user_id')
+        .eq('store_id', store_id)
+        .is('staff_id', null)
+        .gt('expires_at', new Date().toISOString())
+        .lt('start_time', endDateTime.toISOString())
+        .gt('end_time', startDateTime.toISOString())
+
+      const otherUsersHold = (conflictingHolds || []).filter((h: { line_user_id?: string }) => h.line_user_id !== line_user_id)
+
+      if ((overlapReservations?.length ?? 0) + otherUsersHold.length >= capacityLimit) {
+        throw new ClientVisibleError('この時間帯の予約枠が埋まっています')
+      }
+    } else {
+      const workingStaff = await getWorkingStaffForTimeSlot(
+        supabaseClient,
+        store_id,
+        date,
         startDateTime,
         endDateTime
       )
-      googleBookedStaffIds = identifiedStaffIds
-      unknownEventCount = unknown
-    }
 
-    const bookedStaffSet = new Set([...internalBookedStaffIds, ...holdBookedStaffIds, ...googleBookedStaffIds])
-    const availableStaffCount = workingStaff.length - bookedStaffSet.size - unknownEventCount
+      if (workingStaff.length === 0) {
+        throw new ClientVisibleError('この時間帯に対応可能なスタッフがいません')
+      }
 
-    if (availableStaffCount <= 0) {
-      throw new ClientVisibleError('この時間帯の予約枠が埋まっています')
+      let overlapQuery = supabaseClient
+        .from('reservations')
+        .select('staff_id')
+        .eq('store_id', store_id)
+        .neq('status', 'cancelled')
+        .neq('status', 'temporary')
+        .lt('start_time', endDateTime.toISOString())
+        .gt('end_time', startDateTime.toISOString())
+
+      if (excludeReservationId) {
+        overlapQuery = overlapQuery.neq('id', excludeReservationId)
+      }
+
+      const { data: overlapReservations, error: overlapError } = await overlapQuery
+      if (overlapError) throw new ClientVisibleError(toErrorMessage(overlapError))
+
+      const internalBookedStaffIds = (overlapReservations || [])
+        .map((r: { staff_id?: string }) => r.staff_id)
+        .filter(Boolean) as string[]
+
+      const { data: conflictingHolds } = await supabaseClient
+        .from('temporary_holds')
+        .select('staff_id, line_user_id')
+        .eq('store_id', store_id)
+        .gt('expires_at', new Date().toISOString())
+        .lt('start_time', endDateTime.toISOString())
+        .gt('end_time', startDateTime.toISOString())
+
+      const holdBookedStaffIds = (conflictingHolds || [])
+        .filter((h: { line_user_id?: string }) => h.line_user_id !== line_user_id)
+        .map((h: { staff_id?: string }) => h.staff_id)
+        .filter(Boolean) as string[]
+
+      const { data: staffList } = await supabaseClient
+        .from('staff_members')
+        .select('id, name')
+        .eq('store_id', store_id)
+        .eq('is_active', true)
+
+      let googleBookedStaffIds: string[] = []
+      let unknownEventCount = 0
+
+      if (googleClient && staffList) {
+        const googleEvents = (await listGoogleEvents(googleClient, startDateTime.toISOString(), endDateTime.toISOString()))
+          .filter((e: { summary?: string; description?: string }) => {
+            if (line_user_id && e.summary?.startsWith('【仮予約】')) {
+              if (e.description && e.description.includes(line_user_id)) return false
+            }
+            return true
+          })
+
+        const { identifiedStaffIds, unknownEventCount: unknown } = analyzeGoogleEventsForStaff(
+          googleEvents,
+          staffList as StaffInfo[],
+          startDateTime,
+          endDateTime
+        )
+        googleBookedStaffIds = identifiedStaffIds
+        unknownEventCount = unknown
+      }
+
+      const bookedStaffSet = new Set([...internalBookedStaffIds, ...holdBookedStaffIds, ...googleBookedStaffIds])
+      const availableStaffCount = workingStaff.length - bookedStaffSet.size - unknownEventCount
+
+      if (availableStaffCount <= 0) {
+        throw new ClientVisibleError('この時間帯の予約枠が埋まっています')
+      }
     }
   }
 
