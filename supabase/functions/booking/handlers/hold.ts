@@ -1,4 +1,5 @@
 import type { SupabaseClientType } from '../../_shared/types.ts'
+import { ClientVisibleError, toErrorMessage } from '../../_shared/error-utils.ts'
 import type { CorsHeaders } from './types.ts'
 import {
   isValidUUID,
@@ -30,18 +31,18 @@ export async function handleHoldSlot(
 ): Promise<Response> {
   const { store_id, line_user_id, date, time, staff_id, menu_id, display_name } = params
 
-  if (!store_id || !date || !time) throw new Error('store_id, date, and time are required')
-  if (!isValidUUID(store_id)) throw new Error('Invalid store_id format')
-  if (!isValidDate(date)) throw new Error('Invalid date format (expected YYYY-MM-DD)')
-  if (!isValidTime(time)) throw new Error('Invalid time format (expected HH:MM)')
-  if (staff_id && !isValidUUID(staff_id)) throw new Error('Invalid staff_id format')
-  if (menu_id && !isValidUUID(menu_id)) throw new Error('Invalid menu_id format')
+  if (!store_id || !date || !time) throw new ClientVisibleError('store_id, date, and time are required')
+  if (!isValidUUID(store_id)) throw new ClientVisibleError('Invalid store_id format')
+  if (!isValidDate(date)) throw new ClientVisibleError('Invalid date format (expected YYYY-MM-DD)')
+  if (!isValidTime(time)) throw new ClientVisibleError('Invalid time format (expected HH:MM)')
+  if (staff_id && !isValidUUID(staff_id)) throw new ClientVisibleError('Invalid staff_id format')
+  if (menu_id && !isValidUUID(menu_id)) throw new ClientVisibleError('Invalid menu_id format')
 
   const storeSettings = await getStoreSettings(supabaseClient, store_id)
-  if (isPastDate(date, time)) throw new Error('過去の日付は予約できません')
+  if (isPastDate(date, time)) throw new ClientVisibleError('過去の日付は予約できません')
   const maxDays = storeSettings?.max_booking_days ?? 60
   if (!isWithinMaxBookingDays(date, maxDays)) {
-    throw new Error(`予約可能日は${maxDays}日後までです`)
+    throw new ClientVisibleError(`予約可能日は${maxDays}日後までです`)
   }
 
   let durationMinutes = storeSettings?.slot_interval_minutes ?? 60
@@ -82,12 +83,12 @@ export async function handleHoldSlot(
 
     const otherHoldCount = (conflictingHolds || []).filter(h => h.line_user_id !== line_user_id).length
     if ((overlapReservations?.length ?? 0) + otherHoldCount >= 1) {
-      throw new Error('この時間帯の予約枠が埋まっています')
+      throw new ClientVisibleError('この時間帯の予約枠が埋まっています')
     }
   } else {
     const workingStaff = await getWorkingStaffForTimeSlot(supabaseClient, store_id, date!, startDateTime, endDateTime)
     if (workingStaff.length === 0) {
-      throw new Error('この時間帯に対応可能なスタッフがいません')
+      throw new ClientVisibleError('この時間帯に対応可能なスタッフがいません')
     }
 
     const { data: overlapReservations } = await supabaseClient
@@ -119,7 +120,7 @@ export async function handleHoldSlot(
     const bookedStaffSet = new Set([...bookedStaffIds, ...holdBookedStaffIds])
     const availableStaffCount = workingStaff.length - bookedStaffSet.size
     if (availableStaffCount <= 0) {
-      throw new Error('この時間帯の予約枠が埋まっています')
+      throw new ClientVisibleError('この時間帯の予約枠が埋まっています')
     }
   }
 
@@ -180,7 +181,7 @@ export async function handleHoldSlot(
     .select()
     .single()
 
-  if (holdError) throw holdError
+  if (holdError) throw new ClientVisibleError(toErrorMessage(holdError))
 
   return new Response(JSON.stringify({ hold_id: hold.id, expires_at: hold.expires_at }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },

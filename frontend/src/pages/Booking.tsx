@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { toErrorMessageAsync } from '../lib/errorUtils'
 import { useStoreResources } from '../hooks/useStoreResources'
 import type { StoreMenu, StoreStaff } from '../types/storeResources'
 import { Calendar, User, CheckCircle, Loader2, AlertCircle, Grid, Clock, Edit2, XCircle } from 'lucide-react'
@@ -665,7 +666,7 @@ export default function Booking() {
         try {
           const accessToken = getLiffAccessToken()
 
-          const { data, error } = await supabase.functions.invoke('booking', {
+          const { data, error, response } = await supabase.functions.invoke('booking', {
             body: {
               action: 'cancel_reservation',
               reservation_id: reservationId,
@@ -675,8 +676,18 @@ export default function Booking() {
             }
           })
 
-          if (error) throw error
-          if (data?.error) throw new Error(data.error)
+          if (error) {
+            const msg = await toErrorMessageAsync(error, response)
+            showToast(`キャンセルに失敗しました。\n${msg}`, 'error')
+            return
+          }
+          if (data && typeof data === 'object' && data !== null && 'error' in data) {
+            const errMsg = (data as { error: unknown }).error
+            if (typeof errMsg === 'string' && errMsg.length > 0) {
+              showToast(`キャンセルに失敗しました。\n${errMsg}`, 'error')
+              return
+            }
+          }
 
           const updated = activeReservations.filter(r => r.id !== reservationId)
           setActiveReservations(updated)
@@ -687,7 +698,8 @@ export default function Booking() {
           }
         } catch (e) {
           console.error('Failed to cancel reservation:', e)
-          showToast('キャンセルに失敗しました。', 'error')
+          const msg = await toErrorMessageAsync(e)
+          showToast(`キャンセルに失敗しました。\n${msg}`, 'error')
         } finally {
           setLoading(false)
         }
@@ -751,18 +763,28 @@ export default function Booking() {
       }
       console.log('[Booking] Request body:', requestBody)
       
-      const { data, error } = await supabase.functions.invoke('booking', {
+      const { data, error, response } = await supabase.functions.invoke('booking', {
         body: requestBody
       })
 
-      if (error) throw error
-      if (data?.error) throw new Error(data.error)
+      if (error) {
+        const errorMessage = await toErrorMessageAsync(error, response)
+        showToast(`予約に失敗しました。\n詳細: ${errorMessage}`, 'error')
+        return
+      }
+      if (data && typeof data === 'object' && data !== null && 'error' in data) {
+        const errMsg = (data as { error: unknown }).error
+        if (typeof errMsg === 'string' && errMsg.length > 0) {
+          showToast(`予約に失敗しました。\n詳細: ${errMsg}`, 'error')
+          return
+        }
+      }
 
       setStep('complete')
       setModifyingReservationId(null) // Reset modification state
     } catch (error: unknown) {
       console.error('Booking failed:', error)
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = await toErrorMessageAsync(error)
       showToast(`予約に失敗しました。\n詳細: ${errorMessage}`, 'error')
     } finally {
       setLoading(false)

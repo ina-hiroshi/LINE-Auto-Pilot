@@ -1,4 +1,5 @@
 import type { SupabaseClientType } from '../../_shared/types.ts'
+import { ClientVisibleError, toErrorMessage } from '../../_shared/error-utils.ts'
 import type { CorsHeaders } from './types.ts'
 import {
   isValidUUID,
@@ -21,6 +22,20 @@ import {
 } from './google-calendar.ts'
 
 type GoogleClientType = { accessToken: string; calendarId: string } | null
+
+async function fetchFirstLineAccountId(
+  supabaseClient: SupabaseClientType,
+  store_id: string,
+): Promise<string | null> {
+  const { data, error } = await supabaseClient
+    .from('line_accounts')
+    .select('id')
+    .eq('store_id', store_id)
+    .order('id', { ascending: false })
+    .limit(1)
+  if (error) throw new ClientVisibleError(toErrorMessage(error))
+  return data?.[0]?.id ?? null
+}
 
 type CreateReservationWithCapacityCheckParams = {
   supabaseClient: SupabaseClientType
@@ -59,14 +74,10 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
     preloadedGoogleClient,
   } = params
 
-  const { data: lineAccount, error: laError } = await supabaseClient
-    .from('line_accounts')
-    .select('id')
-    .eq('store_id', store_id)
-    .maybeSingle()
-
-  if (laError) throw laError
-  if (!lineAccount) throw new Error('LINE Account not found for this store')
+  const lineAccountId = await fetchFirstLineAccountId(supabaseClient, store_id)
+  if (!lineAccountId && !isManualRegistration) {
+    throw new ClientVisibleError('この店舗に LINE アカウントが登録されていません')
+  }
 
   const { error: custError } = await supabaseClient
     .from('customers')
@@ -79,7 +90,7 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
       furigana,
     }, { onConflict: 'store_id, line_user_id' })
 
-  if (custError) throw custError
+  if (custError) throw new ClientVisibleError(toErrorMessage(custError))
 
   const startDateTime = new Date(`${date}T${time}:00+09:00`)
   const storeSettings = await getStoreSettings(supabaseClient, store_id)
@@ -119,7 +130,7 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
     }
 
     const { data: overlapReservations, error: overlapError } = await overlapQuery
-    if (overlapError) throw overlapError
+    if (overlapError) throw new ClientVisibleError(toErrorMessage(overlapError))
 
     const { data: conflictingHolds } = await supabaseClient
       .from('temporary_holds')
@@ -160,7 +171,7 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
     }
 
     if ((overlapReservations?.length ?? 0) + otherUsersHold.length + googleConflictCount >= capacityLimit) {
-      throw new Error('この時間帯の予約枠が埋まっています')
+      throw new ClientVisibleError('この時間帯の予約枠が埋まっています')
     }
   } else {
     const workingStaff = await getWorkingStaffForTimeSlot(
@@ -172,7 +183,7 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
     )
 
     if (workingStaff.length === 0) {
-      throw new Error('この時間帯に対応可能なスタッフがいません')
+      throw new ClientVisibleError('この時間帯に対応可能なスタッフがいません')
     }
 
     let overlapQuery = supabaseClient
@@ -189,7 +200,7 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
     }
 
     const { data: overlapReservations, error: overlapError } = await overlapQuery
-    if (overlapError) throw overlapError
+    if (overlapError) throw new ClientVisibleError(toErrorMessage(overlapError))
 
     const internalBookedStaffIds = (overlapReservations || [])
       .map((r: { staff_id?: string }) => r.staff_id)
@@ -240,7 +251,7 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
     const availableStaffCount = workingStaff.length - bookedStaffSet.size - unknownEventCount
 
     if (availableStaffCount <= 0) {
-      throw new Error('この時間帯の予約枠が埋まっています')
+      throw new ClientVisibleError('この時間帯の予約枠が埋まっています')
     }
   }
 
@@ -271,7 +282,7 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
 
   const { data: reservationId, error: rpcError } = await supabaseClient.rpc('create_reservation_atomic', {
     p_store_id: store_id,
-    p_line_account_id: lineAccount.id,
+    p_line_account_id: lineAccountId,
     p_line_user_id: line_user_id,
     p_start_time: startDateTime.toISOString(),
     p_end_time: endDateTime.toISOString(),
@@ -282,11 +293,11 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
   })
 
   if (rpcError) {
-    throw new Error(rpcError.message || '予約の作成に失敗しました')
+    throw new ClientVisibleError(rpcError.message || '予約の作成に失敗しました')
   }
 
   if (!reservationId) {
-    throw new Error('予約の作成に失敗しました')
+    throw new ClientVisibleError('予約の作成に失敗しました')
   }
 
   return reservationId
@@ -402,27 +413,18 @@ export async function handleCreateReservation(
     isManualRegistration,
   } = params
 
-  if (!store_id || !date || !time) throw new Error('store_id, date, and time are required')
-  if (!isValidUUID(store_id)) throw new Error('Invalid store_id format')
-  if (!isValidDate(date)) throw new Error('Invalid date format (expected YYYY-MM-DD)')
-  if (!isValidTime(time)) throw new Error('Invalid time format (expected HH:MM)')
-  if (staff_id && !isValidUUID(staff_id)) throw new Error('Invalid staff_id format')
-  if (menu_id && !isValidUUID(menu_id)) throw new Error('Invalid menu_id format')
-
-  const { data: lineAccount, error: laError } = await supabaseClient
-    .from('line_accounts')
-    .select('id')
-    .eq('store_id', store_id)
-    .maybeSingle()
-
-  if (laError) throw laError
-  if (!lineAccount) throw new Error('LINE Account not found for this store')
+  if (!store_id || !date || !time) throw new ClientVisibleError('store_id, date, and time are required')
+  if (!isValidUUID(store_id)) throw new ClientVisibleError('Invalid store_id format')
+  if (!isValidDate(date)) throw new ClientVisibleError('Invalid date format (expected YYYY-MM-DD)')
+  if (!isValidTime(time)) throw new ClientVisibleError('Invalid time format (expected HH:MM)')
+  if (staff_id && !isValidUUID(staff_id)) throw new ClientVisibleError('Invalid staff_id format')
+  if (menu_id && !isValidUUID(menu_id)) throw new ClientVisibleError('Invalid menu_id format')
 
   const storeSettings = await getStoreSettings(supabaseClient, store_id)
-  if (isPastDate(date, time)) throw new Error('過去の日付は予約できません')
+  if (isPastDate(date, time)) throw new ClientVisibleError('過去の日付は予約できません')
   const maxDays = storeSettings?.max_booking_days ?? 60
   if (!isWithinMaxBookingDays(date, maxDays)) {
-    throw new Error(`予約可能日は${maxDays}日後までです`)
+    throw new ClientVisibleError(`予約可能日は${maxDays}日後までです`)
   }
 
   const startDateTime = new Date(`${date}T${time}:00+09:00`)
@@ -498,8 +500,8 @@ export async function handleCancelReservation(
 ): Promise<Response> {
   const { reservation_id, line_user_id, isManualRegistration } = params
 
-  if (!reservation_id) throw new Error('Reservation ID is required')
-  if (!isValidUUID(reservation_id)) throw new Error('Invalid reservation_id format')
+  if (!reservation_id) throw new ClientVisibleError('Reservation ID is required')
+  if (!isValidUUID(reservation_id)) throw new ClientVisibleError('Invalid reservation_id format')
   console.log(`[Booking] Cancelling reservation: ${reservation_id}`)
 
   const { data: reservation, error: fetchError } = await supabaseClient
@@ -508,10 +510,10 @@ export async function handleCancelReservation(
     .eq('id', reservation_id)
     .single()
 
-  if (fetchError) throw fetchError
+  if (fetchError) throw new ClientVisibleError(toErrorMessage(fetchError))
 
   if (!isManualRegistration && reservation.line_user_id !== line_user_id) {
-    throw new Error('Unauthorized: You can only cancel your own reservations')
+    throw new ClientVisibleError('自分の予約のみキャンセルできます', 403)
   }
 
   const { error } = await supabaseClient
@@ -519,7 +521,7 @@ export async function handleCancelReservation(
     .update({ status: 'cancelled' })
     .eq('id', reservation_id)
 
-  if (error) throw error
+  if (error) throw new ClientVisibleError(toErrorMessage(error))
 
   if (reservation?.google_event_id) {
     const googleClient = await getGoogleCalendarClient(supabaseClient, reservation.store_id)
@@ -574,14 +576,14 @@ export async function handleUpdateReservation(
     isManualRegistration,
   } = params
 
-  if (!reservation_id) throw new Error('reservation_id is required')
-  if (!store_id || !date || !time) throw new Error('store_id, date, and time are required')
-  if (!isValidUUID(reservation_id)) throw new Error('Invalid reservation_id format')
-  if (!isValidUUID(store_id)) throw new Error('Invalid store_id format')
-  if (!isValidDate(date)) throw new Error('Invalid date format (expected YYYY-MM-DD)')
-  if (!isValidTime(time)) throw new Error('Invalid time format (expected HH:MM)')
-  if (staff_id && !isValidUUID(staff_id)) throw new Error('Invalid staff_id format')
-  if (menu_id && !isValidUUID(menu_id)) throw new Error('Invalid menu_id format')
+  if (!reservation_id) throw new ClientVisibleError('reservation_id is required')
+  if (!store_id || !date || !time) throw new ClientVisibleError('store_id, date, and time are required')
+  if (!isValidUUID(reservation_id)) throw new ClientVisibleError('Invalid reservation_id format')
+  if (!isValidUUID(store_id)) throw new ClientVisibleError('Invalid store_id format')
+  if (!isValidDate(date)) throw new ClientVisibleError('Invalid date format (expected YYYY-MM-DD)')
+  if (!isValidTime(time)) throw new ClientVisibleError('Invalid time format (expected HH:MM)')
+  if (staff_id && !isValidUUID(staff_id)) throw new ClientVisibleError('Invalid staff_id format')
+  if (menu_id && !isValidUUID(menu_id)) throw new ClientVisibleError('Invalid menu_id format')
 
   const { data: oldReservation, error: fetchError } = await supabaseClient
     .from('reservations')
@@ -589,17 +591,17 @@ export async function handleUpdateReservation(
     .eq('id', reservation_id)
     .single()
 
-  if (fetchError) throw fetchError
+  if (fetchError) throw new ClientVisibleError(toErrorMessage(fetchError))
 
   if (!isManualRegistration && oldReservation.line_user_id !== line_user_id) {
-    throw new Error('Unauthorized: You can only update your own reservations')
+    throw new ClientVisibleError('自分の予約のみ変更できます', 403)
   }
 
   const storeSettings = await getStoreSettings(supabaseClient, store_id)
-  if (isPastDate(date, time)) throw new Error('過去の日付は予約できません')
+  if (isPastDate(date, time)) throw new ClientVisibleError('過去の日付は予約できません')
   const maxDays = storeSettings?.max_booking_days ?? 60
   if (!isWithinMaxBookingDays(date, maxDays)) {
-    throw new Error(`予約可能日は${maxDays}日後までです`)
+    throw new ClientVisibleError(`予約可能日は${maxDays}日後までです`)
   }
 
   const startDateTime = new Date(`${date}T${time}:00+09:00`)

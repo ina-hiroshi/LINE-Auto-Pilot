@@ -1,8 +1,11 @@
 import type { SupabaseClientType } from '../../_shared/types.ts'
+import { ClientVisibleError, toErrorMessage } from '../../_shared/error-utils.ts'
 import type { CorsHeaders } from './types.ts'
 import {
   parseBusinessHours,
   toJstDate,
+  formatTimeInJst,
+  getJstDayOfWeek,
   isOverlapping,
   isValidUUID,
   isValidDate,
@@ -31,11 +34,11 @@ export async function handleGetAvailableSlots(
 ): Promise<Response> {
   const { store_id, date, line_user_id, staff_id, menu_id } = params
 
-  if (!store_id || !date) throw new Error('store_id and date are required')
-  if (!isValidUUID(store_id)) throw new Error('Invalid store_id format')
-  if (!isValidDate(date)) throw new Error('Invalid date format (expected YYYY-MM-DD)')
-  if (staff_id && !isValidUUID(staff_id)) throw new Error('Invalid staff_id format')
-  if (menu_id && !isValidUUID(menu_id)) throw new Error('Invalid menu_id format')
+  if (!store_id || !date) throw new ClientVisibleError('store_id and date are required')
+  if (!isValidUUID(store_id)) throw new ClientVisibleError('Invalid store_id format')
+  if (!isValidDate(date)) throw new ClientVisibleError('Invalid date format (expected YYYY-MM-DD)')
+  if (staff_id && !isValidUUID(staff_id)) throw new ClientVisibleError('Invalid staff_id format')
+  if (menu_id && !isValidUUID(menu_id)) throw new ClientVisibleError('Invalid menu_id format')
 
   // Cleanup expired holds
   const { data: expiredHolds } = await supabaseClient
@@ -122,7 +125,7 @@ export async function handleGetAvailableSlots(
   }
 
   const { data: reservations, error } = await query
-  if (error) throw error
+  if (error) throw new ClientVisibleError(toErrorMessage(error))
 
   let holdQuery = supabaseClient
     .from('temporary_holds')
@@ -147,8 +150,7 @@ export async function handleGetAvailableSlots(
   let effectiveHours: BusinessHourSlot[] = []
 
   if (staff_id) {
-    const targetDate = new Date(`${date}T00:00:00`)
-    const dayOfWeek = targetDate.getDay()
+    const dayOfWeek = getJstDayOfWeek(date)
 
     const { data: workPattern } = await supabaseClient
       .from('staff_work_patterns')
@@ -217,8 +219,7 @@ export async function handleGetAvailableSlots(
       const slotEnd = new Date(cursor.getTime() + durationMinutes * 60000)
       if (slotEnd > rangeEnd) continue
 
-      const hh = cursor.getHours().toString().padStart(2, '0')
-      const mm = cursor.getMinutes().toString().padStart(2, '0')
+      const hhmm = formatTimeInJst(cursor)
 
       const internalOverlapCount = (reservations || []).filter((r: { status: string; line_user_id: string; start_time: string; end_time: string }) => {
         if (r.status === 'temporary' && r.line_user_id === line_user_id) return false
@@ -274,7 +275,7 @@ export async function handleGetAvailableSlots(
         )
 
         if (workingStaff.length === 0) {
-          slots.push({ time: `${hh}:${mm}`, available: false })
+          slots.push({ time: hhmm, available: false })
           continue
         }
 
@@ -312,7 +313,7 @@ export async function handleGetAvailableSlots(
       }
 
       const available = totalOverlap < capacityLimit
-      slots.push({ time: `${hh}:${mm}`, available })
+      slots.push({ time: hhmm, available })
     }
   }
 

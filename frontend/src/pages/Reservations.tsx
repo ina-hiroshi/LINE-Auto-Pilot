@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Clock, User, XCircle, FileText, MessageSquare, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { toErrorMessage } from '../lib/errorUtils'
+import { toErrorMessage, toErrorMessageAsync } from '../lib/errorUtils'
 import { isPaidPlan } from '../lib/planUtils'
 import { useStoreResources } from '../hooks/useStoreResources'
 import Toast from '../components/Toast'
@@ -524,7 +524,7 @@ export default function Reservations() {
     if (!selectedReservation) return
     setActionLoading(true)
     try {
-      const { data, error } = await supabase.functions.invoke('booking', {
+      const { data, error, response } = await supabase.functions.invoke('booking', {
         body: {
           action: 'cancel_reservation',
           reservation_id: selectedReservation.id,
@@ -532,8 +532,17 @@ export default function Reservations() {
           is_manual: true
         }
       })
-      if (error) throw error
-      if (data?.error) throw new Error(data.error)
+      if (error) {
+        setToast({ message: `キャンセルに失敗しました: ${await toErrorMessageAsync(error, response)}`, type: 'error' })
+        return
+      }
+      if (data && typeof data === 'object' && data !== null && 'error' in data) {
+        const msg = (data as { error: unknown }).error
+        if (typeof msg === 'string' && msg.length > 0) {
+          setToast({ message: `キャンセルに失敗しました: ${msg}`, type: 'error' })
+          return
+        }
+      }
 
       setToast({ message: '予約をキャンセルしました', type: 'success' })
       setIsCancelModalOpen(false)
@@ -541,7 +550,7 @@ export default function Reservations() {
       fetchGoogleEvents()
     } catch (error) {
       console.error('Cancel Error:', error)
-      setToast({ message: `キャンセルに失敗しました: ${toErrorMessage(error)}`, type: 'error' })
+      setToast({ message: `キャンセルに失敗しました: ${await toErrorMessageAsync(error)}`, type: 'error' })
     } finally {
       setActionLoading(false)
     }
@@ -551,7 +560,7 @@ export default function Reservations() {
     if (!selectedReservation || !modifyDate || !modifyTime) return
     setActionLoading(true)
     try {
-      const { error } = await supabase.functions.invoke('booking', {
+      const { data, error, response } = await supabase.functions.invoke('booking', {
         body: {
           action: 'update_reservation',
           reservation_id: selectedReservation.id,
@@ -567,14 +576,24 @@ export default function Reservations() {
           memo: modifyMemo
         }
       })
-      if (error) throw error
+      if (error) {
+        setToast({ message: `変更に失敗しました: ${await toErrorMessageAsync(error, response)}`, type: 'error' })
+        return
+      }
+      if (data && typeof data === 'object' && data !== null && 'error' in data) {
+        const msg = (data as { error: unknown }).error
+        if (typeof msg === 'string' && msg.length > 0) {
+          setToast({ message: `変更に失敗しました: ${msg}`, type: 'error' })
+          return
+        }
+      }
       setToast({ message: '予約を変更しました', type: 'success' })
       setIsModifyModalOpen(false)
       fetchReservations()
       fetchGoogleEvents()
     } catch (error) {
       console.error('Modify Error:', error)
-      setToast({ message: `変更に失敗しました: ${toErrorMessage(error)}`, type: 'error' })
+      setToast({ message: `変更に失敗しました: ${await toErrorMessageAsync(error)}`, type: 'error' })
     } finally {
       setActionLoading(false)
     }
@@ -709,7 +728,7 @@ export default function Reservations() {
       const lineUserId = selectedCustomer?.line_user_id || `MANUAL_${Date.now()}`
 
       // 予約作成（バックエンド側で顧客 upsert も実行される）
-      const { data, error } = await supabase.functions.invoke('booking', {
+      const { data, error, response } = await supabase.functions.invoke('booking', {
         body: {
           action: 'create_reservation',
           store_id: storeId,
@@ -726,8 +745,17 @@ export default function Reservations() {
         }
       })
 
-      if (error) throw error
-      if (data?.error) throw new Error(data.error)
+      if (error) {
+        setToast({ message: `予約登録に失敗しました: ${await toErrorMessageAsync(error, response)}`, type: 'error' })
+        return
+      }
+      if (data && typeof data === 'object' && data !== null && 'error' in data) {
+        const msg = (data as { error: unknown }).error
+        if (typeof msg === 'string' && msg.length > 0) {
+          setToast({ message: `予約登録に失敗しました: ${msg}`, type: 'error' })
+          return
+        }
+      }
 
       setToast({ message: '予約を登録しました', type: 'success' })
       setIsCreateModalOpen(false)
@@ -736,7 +764,7 @@ export default function Reservations() {
       fetchReservations()
     } catch (error) {
       console.error('Create Reservation Error:', error)
-      setToast({ message: `予約登録に失敗しました: ${toErrorMessage(error)}`, type: 'error' })
+      setToast({ message: `予約登録に失敗しました: ${await toErrorMessageAsync(error)}`, type: 'error' })
     } finally {
       setCreateLoading(false)
     }

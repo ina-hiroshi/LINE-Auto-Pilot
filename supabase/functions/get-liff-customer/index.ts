@@ -24,15 +24,8 @@ Deno.serve(async (req: Request) => {
       throw new Error('Missing access token or store ID')
     }
 
-    // 0. Fetch Channel ID from store settings
-    const { data: lineAccount } = await supabaseClient
-      .from('line_accounts')
-      .select('channel_id')
-      .eq('store_id', storeId)
-      .maybeSingle()
-
-    // 1. Verify Access Token & Get User Profile from LINE
-    const profile = await verifyLineToken(accessToken, lineAccount?.channel_id)
+    // Verify Access Token & Get User Profile from LINE
+    const profile = await verifyLineToken(accessToken)
     const lineUserId = profile.userId
 
     // 2. Fetch Customer Data (Securely using Service Role)

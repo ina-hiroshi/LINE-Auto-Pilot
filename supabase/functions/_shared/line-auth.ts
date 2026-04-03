@@ -1,5 +1,5 @@
 
-export async function verifyLineToken(accessToken: string, expectedChannelId?: string) {
+export async function verifyLineToken(accessToken: string) {
   // 1. Verify the token
   const params = new URLSearchParams({ access_token: accessToken });
   const verifyRes = await fetch(`https://api.line.me/oauth2/v2.1/verify`, {
@@ -14,16 +14,11 @@ export async function verifyLineToken(accessToken: string, expectedChannelId?: s
     throw new Error('Invalid access token');
   }
 
-  const verifyData = await verifyRes.json();
+  await verifyRes.json();
 
-  // 2. Check Channel ID (if provided)
-  if (expectedChannelId && verifyData.client_id !== expectedChannelId) {
-    console.error(`Channel ID Mismatch: expected ${expectedChannelId}, got ${verifyData.client_id}`);
-    throw new Error('Invalid channel ID');
-  }
-
-  // 3. Get User Profile to ensure we have the userId
+  // 2. Get User Profile to ensure we have the userId
   // (verify endpoint doesn't return userId, only client_id, scope, expires_in)
+  // Note: We do not compare client_id to Messaging API channel_id — LIFF tokens use LINE Login channel id.
   const profileRes = await fetch('https://api.line.me/v2/profile', {
     headers: { Authorization: `Bearer ${accessToken}` }
   });

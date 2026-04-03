@@ -1,4 +1,5 @@
 import type { SupabaseClientType } from '../../_shared/types.ts'
+import { ClientVisibleError, toErrorMessage } from '../../_shared/error-utils.ts'
 import type { CorsHeaders } from './types.ts'
 
 export type CustomerParams = {
@@ -20,7 +21,7 @@ export async function handleCheckCustomer(
     .eq('line_user_id', line_user_id)
     .maybeSingle()
 
-  if (error) throw error
+  if (error) throw new ClientVisibleError(toErrorMessage(error))
   return new Response(JSON.stringify({ customer: data }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
@@ -43,7 +44,7 @@ export async function handleGetActiveReservation(
     .gte('start_time', now)
     .order('start_time', { ascending: true })
 
-  if (error) throw error
+  if (error) throw new ClientVisibleError(toErrorMessage(error))
   return new Response(JSON.stringify({ reservations: data }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })

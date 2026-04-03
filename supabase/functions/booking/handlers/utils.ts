@@ -1,13 +1,32 @@
 import type { SupabaseClientType } from '../../_shared/types.ts'
+import { ClientVisibleError, toErrorMessage } from '../../_shared/error-utils.ts'
 
 export type BusinessHourSlot = { start: string; end: string }
 export type BusinessHoursByDay = Partial<Record<'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat', BusinessHourSlot[]>>
 
+/** 日本のカレンダー日付（YYYY-MM-DD）に対応する曜日 0=日 … 6=土（getDay と同じ） */
+export function getJstDayOfWeek(targetDate: string): number {
+  return new Date(`${targetDate}T00:00:00+09:00`).getDay()
+}
+
+/** Edge（UTC）でも JST の時刻ラベル（HH:MM）を返す */
+export function formatTimeInJst(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Tokyo',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date)
+  const hour = parts.find((p) => p.type === 'hour')?.value ?? '00'
+  const minute = parts.find((p) => p.type === 'minute')?.value ?? '00'
+  return `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`
+}
+
 export const parseBusinessHours = (businessHoursRaw: unknown, targetDate: string): BusinessHourSlot[] => {
   try {
     const parsed = (businessHoursRaw ?? {}) as BusinessHoursByDay
-    const day = new Date(`${targetDate}T00:00:00`)
-    const weekdayKey = (['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][day.getDay()] ?? 'mon') as keyof BusinessHoursByDay
+    const dayOfWeek = getJstDayOfWeek(targetDate)
+    const weekdayKey = (['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][dayOfWeek] ?? 'mon') as keyof BusinessHoursByDay
     const slots = parsed?.[weekdayKey]
     if (!Array.isArray(slots)) return []
     return slots
@@ -73,8 +92,8 @@ export async function getStoreSettings(supabaseClient: SupabaseClientType, id: s
     .eq('id', id)
     .maybeSingle()
 
-  if (error) throw error
-  if (!data) throw new Error('Store not found')
+  if (error) throw new ClientVisibleError(toErrorMessage(error))
+  if (!data) throw new ClientVisibleError('店舗が見つかりません')
   return data
 }
 
@@ -87,7 +106,7 @@ export async function getWorkingStaffForTimeSlot(
   slotStart: Date,
   slotEnd: Date
 ): Promise<StaffInfo[]> {
-  const dayOfWeek = new Date(`${date}T00:00:00`).getDay()
+  const dayOfWeek = getJstDayOfWeek(date)
 
   const { data: allStaff } = await supabaseClient
     .from('staff_members')

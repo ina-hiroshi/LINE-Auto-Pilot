@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { verifyLineToken } from '../_shared/line-auth.ts'
 import { getCorsHeaders } from '../_shared/cors.ts'
-import { safeErrorResponse } from '../_shared/error-utils.ts'
+import { ClientVisibleError, clientVisibleErrorResponse, safeErrorResponse } from '../_shared/error-utils.ts'
 import { createLogger } from '../_shared/logger.ts'
 
 const log = createLogger('booking')
@@ -74,19 +74,7 @@ Deno.serve(async (req: Request) => {
 
     if (accessToken && !isManualRegistration) {
       try {
-        let expectedChannelId: string | undefined
-        if (store_id) {
-          const { data: lineAccount } = await supabaseClient
-            .from('line_accounts')
-            .select('channel_id')
-            .eq('store_id', store_id)
-            .maybeSingle()
-          if (lineAccount?.channel_id) {
-            expectedChannelId = lineAccount.channel_id
-          }
-        }
-
-        const profile = await verifyLineToken(accessToken, expectedChannelId)
+        const profile = await verifyLineToken(accessToken)
         verifiedUserId = profile.userId
         line_user_id = verifiedUserId
         console.log('[Booking] Token verified successfully, userId:', verifiedUserId)
@@ -100,7 +88,7 @@ Deno.serve(async (req: Request) => {
 
     if (!publicActions.includes(action) && sensitiveActions.includes(action)) {
       if (!verifiedUserId && !isManualRegistration) {
-        throw new Error('Unauthorized: Valid Access Token is required for this action')
+        throw new ClientVisibleError('この操作には LINE ログインが必要です', 401)
       }
     }
 
@@ -162,8 +150,11 @@ Deno.serve(async (req: Request) => {
       }, corsHeaders)
     }
 
-    throw new Error('Invalid action')
+    throw new ClientVisibleError('無効な操作です', 400)
   } catch (error: unknown) {
+    if (error instanceof ClientVisibleError) {
+      return clientVisibleErrorResponse(error, corsHeaders)
+    }
     return safeErrorResponse(error, corsHeaders, 500, '予約処理に失敗しました')
   }
 })
