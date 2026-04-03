@@ -7,6 +7,7 @@ import { StaffShiftTab } from './StaffShiftTab'
 import { DESIGN_THEMES } from '../../../constants/designThemes'
 import ProBadge from '../../../components/ProBadge'
 import ProUpgradeButton from '../../../components/ProUpgradeButton'
+import { supabase } from '../../../lib/supabase'
 // プリセットカラー
 const PRESET_COLORS = [
   { name: 'ブルー', color: '#3B82F6' },
