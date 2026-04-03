@@ -1289,21 +1289,22 @@ export default function TopPage() {
             </div>
             <h3 className="text-xl font-bold text-slate-900 mb-2">導入事例を募集中</h3>
             <p className="text-slate-600 mb-6">
-              プレリリースモニターとしてご利用いただいたお客様の声を、<br className="hidden md:block" />
+              IToguchi をご利用いただいているお客様の声を、<br className="hidden md:block" />
               順次掲載予定です。
             </p>
             <a 
-              href="#pre-release" 
+              href="#campaign" 
               className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-full font-bold hover:bg-primary-700 transition shadow-md hover:shadow-lg text-sm"
             >
-              モニターに参加する
+              リリース記念キャンペーンを見る
               <ArrowRight className="w-4 h-4" />
             </a>
           </motion.div>
         </div>
       </section>
 
-      {/* Pre-Release Monitor Section */}
+      {/* Pre-Release Monitor Section（非表示・参照用にコード保持） */}
+      {false && (
       <section id="pre-release" className="py-20 bg-linear-to-br from-primary-600 to-primary-800 text-white relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-20">
           <div className="absolute -top-[50%] -left-[20%] w-[100%] h-[100%] rounded-full bg-white blur-3xl"></div>
@@ -1389,11 +1390,10 @@ export default function TopPage() {
           </motion.div>
         </div>
       </section>
+      )}
 
-      {/* Campaign Section - リリース記念キャンペーン（将来用に保持） */}
-      {/* 正式リリース時に表示を切り替え */}
-      {false && (
-      <section className="py-20 bg-linear-to-br from-primary-600 to-primary-800 text-white relative overflow-hidden">
+      {/* Campaign Section - リリース記念キャンペーン */}
+      <section id="campaign" className="py-20 bg-linear-to-br from-primary-600 to-primary-800 text-white relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-20">
           <div className="absolute -top-[50%] -left-[20%] w-[100%] h-[100%] rounded-full bg-white blur-3xl"></div>
           <div className="absolute bottom-[10%] right-[10%] w-[60%] h-[60%] rounded-full bg-primary-300 blur-3xl"></div>
@@ -1405,7 +1405,7 @@ export default function TopPage() {
               リリース記念キャンペーン
             </span>
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
-              選べる「モニター限定特典」
+              選べるリリース記念特典
             </h2>
             <p className="text-primary-100 text-lg max-w-2xl mx-auto">
               簡単なアンケートにご協力いただける方限定で、<br className="hidden md:block" />
@@ -1479,7 +1479,6 @@ export default function TopPage() {
           </p>
         </div>
       </section>
-      )}
 
       {/* Pricing Section */}
       <section id="pricing" className="py-24 bg-slate-50">

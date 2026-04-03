@@ -18,12 +18,7 @@ import TutorialStep from '../features/onboarding/components/TutorialStep'
 import Modal from '../components/Modal'
 import Toast from '../components/Toast'
 import SetupServiceModal, { type SetupServiceFormData } from '../components/SetupServiceModal'
-
-// プレリリースモード切り替えフラグ
-// true: プレリリースモニター募集中（2ヶ月無料、サポートなし）
-// false: 正式リリース（リリース記念キャンペーン）
-// デバッグ用: 一時的にfalseに変更（初期設定代行サービスのバナーを表示）
-const IS_PRE_RELEASE_MODE = false
+import { IS_PRE_RELEASE_MODE } from '../constants/releaseMode'
 
 // 初期設定代行バナーのバージョン切り替え
 // 'production': 正式リリース版（¥9,980の初期設定代行バナー）

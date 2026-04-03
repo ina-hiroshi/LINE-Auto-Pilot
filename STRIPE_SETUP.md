@@ -90,5 +90,5 @@ supabase secrets set STRIPE_PRICE_ID_SETUP_SERVICE="price_xxxxxxxxxx"
 
 - **テストモード**: 実際の決済は発生しません
 - **本番モード**: 実際に課金されます
-- **トライアル期間**: 初月無料の設定を確認
+- **トライアル期間**: 初月無料はアプリ側で `create-checkout-session` が `trial_period_days`（正式リリース時は 30 日）を付与します。コードを変更した場合は **`supabase functions deploy create-checkout-session`** で本番に反映してください（Stripe ダッシュボードの商品に設定したトライアル日数とは別に、Checkout 作成時に上書きされます）。
 - **Webhook署名検証**: セキュリティのため必須

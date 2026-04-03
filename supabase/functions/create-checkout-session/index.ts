@@ -6,7 +6,7 @@ import { safeErrorResponse } from '../_shared/error-utils.ts'
 
 // プレリリースモード: 2ヶ月無料トライアル
 // 正式リリース時は false に変更するか、トライアル日数を調整
-const IS_PRE_RELEASE_MODE = true
+const IS_PRE_RELEASE_MODE = false
 const TRIAL_DAYS = IS_PRE_RELEASE_MODE ? 60 : 30 // プレリリース: 60日、正式リリース: 30日
 
 Deno.serve(async (req: Request) => {
