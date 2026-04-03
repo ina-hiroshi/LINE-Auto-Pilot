@@ -2055,7 +2055,7 @@ export default function Booking() {
               </div>
               <h2 className={theme.title} style={theme.titleStyle}>{modifyingReservationId ? '変更完了' : '予約完了'}</h2>
               <p className="mb-6 opacity-70 whitespace-nowrap">{modifyingReservationId ? '予約の変更が完了しました。' : 'ご予約ありがとうございます。'}</p>
-              
+
               {/* Reservation Details Card for Screenshot */}
               <div className={`${theme.infoBox} text-left mb-8`}>
                 {/* 予約日時 */}

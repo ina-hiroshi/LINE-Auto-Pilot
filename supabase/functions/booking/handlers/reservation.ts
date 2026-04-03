@@ -1,5 +1,4 @@
 import type { SupabaseClientType } from '../../_shared/types.ts'
-import { pushLineText } from '../../_shared/line-push.ts'
 import { ClientVisibleError, toErrorMessage } from '../../_shared/error-utils.ts'
 import type { CorsHeaders } from './types.ts'
 import {
@@ -379,28 +378,6 @@ LINE ID: ${line_user_id}
   }
 }
 
-async function maybeSendBookingCompletionMessage(
-  supabaseClient: SupabaseClientType,
-  store_id: string,
-  line_user_id: string | undefined,
-  date: string,
-  time: string,
-  mode: 'created' | 'updated',
-): Promise<void> {
-  if (!line_user_id?.trim()) return
-  const { data: store } = await supabaseClient
-    .from('stores')
-    .select('name, booking_send_completion_message')
-    .eq('id', store_id)
-    .maybeSingle()
-  if (!store?.booking_send_completion_message) return
-  const storeName = (store.name as string) || '店舗'
-  const head = mode === 'created' ? '【予約完了】' : '【予約変更完了】'
-  const body = mode === 'created' ? 'ご予約を承りました。' : 'ご予約内容を変更しました。'
-  const text = `${head}\n${storeName}\n\n${body}\n日時: ${date} ${time}`
-  await pushLineText(supabaseClient, store_id, line_user_id, text)
-}
-
 export type CreateReservationParams = {
   store_id?: string
   line_user_id?: string
@@ -502,15 +479,6 @@ export async function handleCreateReservation(
     line_user_id!,
     memo || '',
     googleClient,
-  )
-
-  await maybeSendBookingCompletionMessage(
-    supabaseClient,
-    store_id,
-    line_user_id,
-    date,
-    time,
-    'created',
   )
 
   return new Response(JSON.stringify({ success: true }), {
@@ -709,15 +677,6 @@ export async function handleUpdateReservation(
     line_user_id!,
     memo || '',
     googleClient,
-  )
-
-  await maybeSendBookingCompletionMessage(
-    supabaseClient,
-    store_id,
-    line_user_id,
-    date,
-    time,
-    'updated',
   )
 
   return new Response(JSON.stringify({ success: true }), {

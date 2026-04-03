@@ -6,6 +6,7 @@ import { getGeminiUrl } from '../_shared/ai-config.ts'
 import { createLogger } from '../_shared/logger.ts'
 import { isPaidPlan } from '../_shared/plan-utils.ts'
 import { checkAiRateLimit, recordAiUsage, maybeCleanupRateLimits } from '../_shared/rate-limiter.ts'
+import type { SupabaseClientType, AISettings } from '../_shared/types.ts'
 
 const log = createLogger('line-webhook')
 
@@ -129,7 +130,6 @@ function normalizeText(text: string): string {
 }
 
 // Helper to generate AI response using Gemini API
-import type { SupabaseClientType, AISettings } from '../_shared/types.ts'
 import { generateSystemPrompt } from '../_shared/ai-prompt.ts'
 
 async function generateAIResponse(
