@@ -21,6 +21,10 @@ const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   booking_enable_party_size: false,
   booking_enable_staff: false,
   booking_enable_menu: false,
+  booking_send_completion_message: true,
+  booking_send_reminder: false,
+  booking_reminder_days_before: 1,
+  booking_reminder_time: '18:00',
 }
 
 export default function BookingSettingsPage() {
@@ -82,6 +86,12 @@ export default function BookingSettingsPage() {
             booking_enable_party_size: store.booking_enable_party_size ?? DEFAULT_BOOKING_SETTINGS.booking_enable_party_size,
             booking_enable_staff: store.booking_enable_staff ?? DEFAULT_BOOKING_SETTINGS.booking_enable_staff,
             booking_enable_menu: store.booking_enable_menu ?? DEFAULT_BOOKING_SETTINGS.booking_enable_menu,
+            booking_send_completion_message:
+              store.booking_send_completion_message ?? DEFAULT_BOOKING_SETTINGS.booking_send_completion_message,
+            booking_send_reminder: store.booking_send_reminder ?? DEFAULT_BOOKING_SETTINGS.booking_send_reminder,
+            booking_reminder_days_before:
+              store.booking_reminder_days_before ?? DEFAULT_BOOKING_SETTINGS.booking_reminder_days_before,
+            booking_reminder_time: store.booking_reminder_time ?? DEFAULT_BOOKING_SETTINGS.booking_reminder_time,
           })
 
           const { data: staff } = await supabase
@@ -188,6 +198,10 @@ export default function BookingSettingsPage() {
           booking_enable_party_size: bookingSettings.booking_enable_party_size,
           booking_enable_staff: bookingSettings.booking_enable_staff,
           booking_enable_menu: bookingSettings.booking_enable_menu,
+          booking_send_completion_message: bookingSettings.booking_send_completion_message,
+          booking_send_reminder: bookingSettings.booking_send_reminder,
+          booking_reminder_days_before: bookingSettings.booking_reminder_days_before,
+          booking_reminder_time: bookingSettings.booking_reminder_time,
           updated_at: new Date().toISOString(),
         })
         .eq('id', storeId)

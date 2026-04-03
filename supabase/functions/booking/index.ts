@@ -1,5 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
-import { verifyLineToken } from '../_shared/line-auth.ts'
+import {
+  decodeIdTokenAudience,
+  getLineClientIdFromAccessTokenVerify,
+  verifyLineIdToken,
+  verifyLineToken,
+} from '../_shared/line-auth.ts'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { ClientVisibleError, clientVisibleErrorResponse, safeErrorResponse } from '../_shared/error-utils.ts'
 import { createLogger } from '../_shared/logger.ts'
@@ -30,6 +35,7 @@ Deno.serve(async (req: Request) => {
 
     const {
       accessToken,
+      idToken,
       action,
       store_id,
       line_user_id: requestLineUserId,
@@ -52,6 +58,12 @@ Deno.serve(async (req: Request) => {
 
     let verifiedUserId: string | null = null
     let isManualRegistration = false
+    /** アクセストークンまたは ID トークンを送ったがいずれも検証できなかった */
+    let loginCredentialRejected = false
+
+    const hasLineAccessToken =
+      typeof accessToken === 'string' && accessToken.length > 0
+    const hasLineIdToken = typeof idToken === 'string' && idToken.length > 0
 
     if (is_manual === true) {
       const authHeader = req.headers.get('authorization')
@@ -72,14 +84,55 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    if (accessToken && !isManualRegistration) {
-      try {
-        const profile = await verifyLineToken(accessToken)
-        verifiedUserId = profile.userId
-        line_user_id = verifiedUserId
-        console.log('[Booking] Token verified successfully, userId:', verifiedUserId)
-      } catch (e) {
-        console.error('Token verification failed:', e)
+    if (!isManualRegistration) {
+      if (hasLineAccessToken) {
+        try {
+          const profile = await verifyLineToken(accessToken as string)
+          verifiedUserId = profile.userId
+          line_user_id = verifiedUserId
+          log.info('LINE access token verified', { userId: verifiedUserId })
+        } catch (e) {
+          loginCredentialRejected = true
+          log.error('LINE access token verification failed', { action, err: String(e) })
+        }
+      }
+
+      // ID トークン検証に渡す client_id の優先順（アクセストークンで未確定のときのみ使用）:
+      // 1) アクセストークン検証 API が返す client_id（LIFF 発行元と必ず一致）
+      // 2) ID トークン JWT の aud（Secret 未設定・誤設定でも動かしやすい）
+      // 3) LINE_LOGIN_CHANNEL_ID（Supabase Secret）
+      let clientIdForIdTokenVerify = ''
+      if (!verifiedUserId && hasLineIdToken) {
+        if (hasLineAccessToken) {
+          const fromAccessVerify = await getLineClientIdFromAccessTokenVerify(accessToken as string)
+          if (fromAccessVerify) {
+            clientIdForIdTokenVerify = fromAccessVerify
+            log.info('LINE client_id from access token verify', { clientId: fromAccessVerify })
+          }
+        }
+        if (!clientIdForIdTokenVerify) {
+          const fromJwt = decodeIdTokenAudience(idToken as string)
+          if (fromJwt) {
+            clientIdForIdTokenVerify = fromJwt
+            log.info('LINE client_id from ID token aud claim')
+          }
+        }
+        if (!clientIdForIdTokenVerify) {
+          clientIdForIdTokenVerify = (Deno.env.get('LINE_LOGIN_CHANNEL_ID') ?? '').trim()
+        }
+      }
+
+      if (!verifiedUserId && hasLineIdToken && clientIdForIdTokenVerify.length > 0) {
+        try {
+          const profile = await verifyLineIdToken(idToken as string, clientIdForIdTokenVerify)
+          verifiedUserId = profile.userId
+          line_user_id = verifiedUserId
+          loginCredentialRejected = false
+          log.info('LINE ID token verified', { userId: verifiedUserId })
+        } catch (e) {
+          loginCredentialRejected = true
+          log.error('LINE ID token verification failed', { action, err: String(e) })
+        }
       }
     }
 
@@ -88,6 +141,12 @@ Deno.serve(async (req: Request) => {
 
     if (!publicActions.includes(action) && sensitiveActions.includes(action)) {
       if (!verifiedUserId && !isManualRegistration) {
+        if (loginCredentialRejected) {
+          throw new ClientVisibleError(
+            'LINE の認証が期限切れか無効です。再度お試しください。',
+            401,
+          )
+        }
         throw new ClientVisibleError('この操作には LINE ログインが必要です', 401)
       }
     }

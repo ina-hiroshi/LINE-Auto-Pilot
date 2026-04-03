@@ -2,6 +2,11 @@ import { useCallback, useEffect, useState, useRef } from 'react'
 import { Users, Calendar, AlertCircle, Bot, User, MessageSquare, Sparkles, BarChart3, TrendingUp, Search, Lightbulb, Target, FolderOpen } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import Modal from '../components/Modal'
+import {
+  LineMessagingQuotaPanel,
+  LineMessagingQuotaFooterLinks,
+  type LineQuotaInfo,
+} from '../components/line/LineMessagingQuotaNotice'
 import Toast from '../components/Toast'
 import ProBadge from '../components/ProBadge'
 import ProLockOverlay from '../components/ProLockOverlay'
@@ -171,7 +176,7 @@ export default function Dashboard() {
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null)
   const [replyText, setReplyText] = useState('')
   const [sendingReply, setSendingReply] = useState(false)
-  const [quotaInfo, setQuotaInfo] = useState<{ type: string, limit?: number, totalUsage: number, basicId?: string } | null>(null)
+  const [quotaInfo, setQuotaInfo] = useState<LineQuotaInfo | null>(null)
   const [chatHistory, setChatHistory] = useState<LogEntry[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -683,7 +688,7 @@ export default function Dashboard() {
             body: { storeId }
           })
           if (error) throw error
-          setQuotaInfo(data)
+          setQuotaInfo(data as LineQuotaInfo)
         } catch (error) {
           console.error('Error fetching quota:', error)
         }
@@ -867,49 +872,12 @@ export default function Dashboard() {
                 )}
               </button>
             </div>
-            {quotaInfo && (
-                <div className="text-[10px] text-gray-500 space-y-0.5 text-right">
-                    <p>プランごとの無料メッセージ上限: フリー(200) / ライト(5,000) / スタンダード(30,000)</p>
-                    <a 
-                        href="https://manager.line.biz/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-emerald-600 underline hover:text-emerald-700 inline-flex items-center gap-1"
-                    >
-                        プランの変更・確認はこちら
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                    </a>
-                </div>
-            )}
+            {quotaInfo && <LineMessagingQuotaFooterLinks align="right" />}
           </div>
         }
       >
         <div className="space-y-4">
-            {/* Quota Info */}
-            {quotaInfo && (
-                <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100 text-xs text-emerald-800">
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="font-bold">
-                            {quotaInfo.limit === 200 ? 'フリープラン' : 
-                             quotaInfo.limit === 5000 ? 'ライトプラン' : 
-                             quotaInfo.limit === 30000 ? 'スタンダードプラン' : 'カスタムプラン'}
-                        </span>
-                        <span className="font-bold">
-                            {quotaInfo.totalUsage.toLocaleString()} / {quotaInfo.type === 'none' ? '無制限' : quotaInfo.limit?.toLocaleString()}
-                        </span>
-                    </div>
-                    
-                    {/* Progress Bar */}
-                    {quotaInfo.type !== 'none' && quotaInfo.limit && (
-                        <div className="w-full bg-emerald-200 rounded-full h-1.5">
-                            <div 
-                                className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" 
-                                style={{ width: `${Math.min((quotaInfo.totalUsage / quotaInfo.limit) * 100, 100)}%` }}
-                            />
-                        </div>
-                    )}
-                </div>
-            )}
+            <LineMessagingQuotaPanel quotaInfo={quotaInfo} />
 
             {/* User Info in Modal */}
             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">

@@ -1,5 +1,5 @@
-import { Layout, Palette, Smartphone, Edit, Trash2, User, Clock, Users, Calendar, Settings, List, CalendarDays, UserCheck, UtensilsCrossed, Upload, Lock, Image as ImageIcon } from 'lucide-react'
-import { useMemo, useState, useRef, useCallback } from 'react'
+import { Layout, Palette, Smartphone, Edit, Trash2, User, Clock, Users, Calendar, Settings, List, CalendarDays, UserCheck, UtensilsCrossed, Upload, Lock, Image as ImageIcon, Bell } from 'lucide-react'
+import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import type { RefObject, ChangeEvent, DragEvent } from 'react'
 import type { BookingSettings, BookingSystemType, Menu, Staff } from '../types'
 import { BusinessDaysTab } from './BusinessDaysTab'
@@ -8,6 +8,12 @@ import { DESIGN_THEMES } from '../../../constants/designThemes'
 import ProBadge from '../../../components/ProBadge'
 import ProUpgradeButton from '../../../components/ProUpgradeButton'
 import { supabase } from '../../../lib/supabase'
+import Modal from '../../../components/Modal'
+import {
+  LineMessagingQuotaPanel,
+  LineMessagingQuotaFooterLinks,
+  type LineQuotaInfo,
+} from '../../../components/line/LineMessagingQuotaNotice'
 
 // プリセットカラー
 const PRESET_COLORS = [
@@ -65,7 +71,34 @@ export function BookingPageTab({
   iframeRef,
   isPro,
 }: BookingPageTabProps) {
-  const [activeTab, setActiveTab] = useState<'basic' | 'items' | 'design' | 'business-days' | 'staff-shift'>('basic')
+  const [activeTab, setActiveTab] = useState<
+    'basic' | 'notifications' | 'items' | 'design' | 'business-days' | 'staff-shift'
+  >('basic')
+  const [lineNotifyModal, setLineNotifyModal] = useState<'completion' | 'reminder' | null>(null)
+  const [lineQuotaInfo, setLineQuotaInfo] = useState<LineQuotaInfo | null>(null)
+
+  useEffect(() => {
+    if (!lineNotifyModal || !storeId) {
+      setLineQuotaInfo(null)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('get-line-quota', {
+          body: { storeId },
+        })
+        if (error) throw error
+        if (!cancelled) setLineQuotaInfo(data as LineQuotaInfo)
+      } catch (e) {
+        console.error('get-line-quota:', e)
+        if (!cancelled) setLineQuotaInfo(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [lineNotifyModal, storeId])
   const bookingUrl = useMemo(() => `/booking${storeId ? `?store_id=${storeId}` : ''}`, [storeId])
   const [uploading, setUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -231,6 +264,16 @@ export function BookingPageTab({
           >
             <Settings className="w-4 h-4" />
             <span className="hidden sm:inline">基本設定</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('notifications')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'notifications' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Bell className="w-4 h-4" />
+            <span className="hidden sm:inline">LINE通知</span>
           </button>
           <button
             type="button"
@@ -467,6 +510,133 @@ export function BookingPageTab({
                     </div>
                   </div>
                 </div>
+              </>
+            )}
+
+            {activeTab === 'notifications' && (
+              <>
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                    <Bell size={16} /> LINE 通知（予約完了・リマインド）
+                  </h3>
+                  <p className="text-xs text-gray-500 -mt-2">
+                    予約の確定時やリマインド時に、お客様の LINE へプッシュメッセージを送ります。送信は LINE
+                    公式アカウントの Messaging API（プッシュ）を利用するため、
+                    <strong className="text-gray-700">無料メッセージ通数にカウント</strong>
+                    され、お店の LINE 公式アカウントのプランによって月間の送信上限が決まります。
+                  </p>
+                  <div className="text-xs text-gray-600 bg-amber-50 border border-amber-100 rounded-lg p-3 space-y-1">
+                    <p>プランごとの無料メッセージ上限の目安: フリー(200通) / ライト(5,000通) / スタンダード(30,000通)</p>
+                    <p>詳細・変更は LINE Official Account Manager からご確認ください。</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div>
+                      <div className="font-semibold text-sm text-gray-800">予約完了メッセージ</div>
+                      <div className="text-xs text-gray-500">予約の新規作成・変更が完了したときに送信します</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (bookingSettings.booking_send_completion_message) {
+                          onBookingSettingsChange({
+                            ...bookingSettings,
+                            booking_send_completion_message: false,
+                          })
+                        } else {
+                          setLineNotifyModal('completion')
+                        }
+                      }}
+                      className={`relative w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                        bookingSettings.booking_send_completion_message ? 'bg-primary-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
+                          bookingSettings.booking_send_completion_message ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div>
+                      <div className="font-semibold text-sm text-gray-800">リマインド</div>
+                      <div className="text-xs text-gray-500">予約日の指定日時にリマインドを送ります（下で日時を設定）</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (bookingSettings.booking_send_reminder) {
+                          onBookingSettingsChange({ ...bookingSettings, booking_send_reminder: false })
+                        } else {
+                          setLineNotifyModal('reminder')
+                        }
+                      }}
+                      className={`relative w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                        bookingSettings.booking_send_reminder ? 'bg-primary-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-200 ${
+                          bookingSettings.booking_send_reminder ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {bookingSettings.booking_send_reminder && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-white border border-gray-200 rounded-lg">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">
+                        予約日の何日前に送るか
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={365}
+                        className="w-full border rounded-lg p-2 text-sm"
+                        value={bookingSettings.booking_reminder_days_before}
+                        onChange={(e) =>
+                          onBookingSettingsChange({
+                            ...bookingSettings,
+                            booking_reminder_days_before: Math.max(
+                              0,
+                              Math.min(365, parseInt(e.target.value, 10) || 0),
+                            ),
+                          })
+                        }
+                      />
+                      <p className="text-xs text-gray-500 mt-1">0 = 予約当日</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">
+                        送信時刻（日本時間）
+                      </label>
+                      <input
+                        type="time"
+                        className="w-full border rounded-lg p-2 text-sm"
+                        value={bookingSettings.booking_reminder_time}
+                        onChange={(e) =>
+                          onBookingSettingsChange({
+                            ...bookingSettings,
+                            booking_reminder_time: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-500">
+                  リマインドはサーバー側のスケジュール（約5分ごと）で送信されます。本番では Edge Function
+                  <code className="mx-1 px-1 bg-gray-100 rounded">booking-reminders</code>
+                  の定期実行と <code className="mx-1 px-1 bg-gray-100 rounded">CRON_SECRET</code>{' '}
+                  の設定が必要です。
+                </p>
               </>
             )}
 
@@ -866,6 +1036,32 @@ export function BookingPageTab({
           </div>
         </div>
       </div>
+
+      <Modal
+        isOpen={lineNotifyModal !== null}
+        onClose={() => setLineNotifyModal(null)}
+        onConfirm={() => {
+          if (lineNotifyModal === 'completion') {
+            onBookingSettingsChange({ ...bookingSettings, booking_send_completion_message: true })
+          } else if (lineNotifyModal === 'reminder') {
+            onBookingSettingsChange({ ...bookingSettings, booking_send_reminder: true })
+          }
+          setLineNotifyModal(null)
+        }}
+        title="LINE 通知を有効にする"
+        confirmText="有効にする"
+        cancelText="キャンセル"
+        variant="emerald"
+        showDefaultButtons
+        footerContent={<LineMessagingQuotaFooterLinks align="right" />}
+      >
+        <div className="space-y-4 text-sm text-gray-700">
+          <p>
+            プッシュメッセージは LINE 公式アカウントの<strong>無料メッセージ通数</strong>に含まれます。プランによって月間の送信上限が異なります。
+          </p>
+          <LineMessagingQuotaPanel quotaInfo={lineQuotaInfo} />
+        </div>
+      </Modal>
     </div>
   )
 }

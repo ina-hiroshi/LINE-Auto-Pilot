@@ -42,6 +42,14 @@ export interface BookingSettings {
   booking_enable_party_size: boolean
   booking_enable_staff: boolean
   booking_enable_menu: boolean
+  /** LINE プッシュ: 予約完了（作成・変更） */
+  booking_send_completion_message: boolean
+  /** LINE プッシュ: リマインド */
+  booking_send_reminder: boolean
+  /** 予約日（JST）の何日前にリマインドするか（0=当日） */
+  booking_reminder_days_before: number
+  /** 送信時刻 HH:mm（JST） */
+  booking_reminder_time: string
 }
 
 export interface RichMenuAction {

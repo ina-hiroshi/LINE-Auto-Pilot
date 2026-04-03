@@ -10,6 +10,15 @@ import liff from '@line/liff'
 import LiffModal from '../components/liff/LiffModal'
 import LiffToast from '../components/liff/LiffToast'
 
+/** booking Edge Function の認証系メッセージか判定 */
+function isBookingLineAuthMessage(msg: string): boolean {
+  return (
+    msg.includes('LINE ログイン') ||
+    msg.includes('認証が期限切れ') ||
+    msg.includes('認証トークン')
+  )
+}
+
 interface CustomerInfo {
 	real_name?: string | null
 	furigana?: string | null
@@ -90,9 +99,9 @@ export default function Booking() {
     type: 'success',
   })
 
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToastConfig({ isVisible: true, message, type })
-  }
+  }, [])
 
   const hideToast = () => {
     setToastConfig(prev => ({ ...prev, isVisible: false }))
@@ -384,7 +393,10 @@ export default function Booking() {
         throw new Error('VITE_LIFF_ID が設定されていません')
       }
       
-      await liff.init({ liffId: LIFF_ID })
+      await liff.init({
+        liffId: LIFF_ID,
+        withLoginOnExternalBrowser: true,
+      })
 
       if (!liff.isLoggedIn()) {
         liff.login()
@@ -526,23 +538,55 @@ export default function Booking() {
     return () => window.removeEventListener('message', handleMessage)
   }, [step, setStaffList, setMenuList])
 
+  const isPreviewMode = useCallback(() => {
+    return window.self !== window.top || lineUserId === 'PREVIEW_USER'
+  }, [lineUserId])
+
+  const getLiffAccessToken = useCallback((): string | null => {
+    try {
+      const t = liff.getAccessToken()
+      if (t) return t
+    } catch {
+      // LIFF 未初期化
+    }
+    return null
+  }, [])
+
+  const getLiffIdToken = useCallback((): string | null => {
+    try {
+      const t = liff.getIDToken()
+      if (t) return t
+    } catch {
+      // LIFF 未初期化
+    }
+    return null
+  }, [])
+
   const checkCustomer = useCallback(async () => {
     setCheckingUser(true)
     try {
       const accessToken = getLiffAccessToken()
+      const idToken = getLiffIdToken()
 
       console.log('[Booking] checkCustomer - store_id:', storeId, 'line_user_id:', lineUserId)
 
-      const { data, error } = await supabase.functions.invoke('booking', {
+      const { data, error, response } = await supabase.functions.invoke('booking', {
         body: {
           action: 'check_customer',
           store_id: storeId,
           line_user_id: lineUserId,
-          accessToken
+          accessToken,
+          idToken,
         }
       })
       
-      if (error) throw error
+      if (error) {
+        const msg = await toErrorMessageAsync(error, response)
+        if (isBookingLineAuthMessage(msg)) {
+          showToast(`顧客情報の取得に失敗しました。\n${msg}`, 'error')
+        }
+        throw error
+      }
       
       console.log('[Booking] checkCustomer - response:', data)
       
@@ -562,22 +606,31 @@ export default function Booking() {
     } finally {
       setCheckingUser(false)
     }
-  }, [lineUserId, storeId])
+  }, [lineUserId, storeId, getLiffAccessToken, getLiffIdToken, showToast])
 
   const checkReservation = useCallback(async () => {
     try {
       const accessToken = getLiffAccessToken()
+      const idToken = getLiffIdToken()
 
-      const { data, error } = await supabase.functions.invoke('booking', {
+      const { data, error, response } = await supabase.functions.invoke('booking', {
         body: {
           action: 'get_active_reservation',
           store_id: storeId,
           line_user_id: lineUserId,
-          accessToken
+          accessToken,
+          idToken,
         }
       })
       
-      if (error) throw error
+      if (error) {
+        const msg = await toErrorMessageAsync(error, response)
+        if (isBookingLineAuthMessage(msg)) {
+          showToast(`予約状況の確認に失敗しました。\n${msg}`, 'error')
+        }
+        setStep(getInitialStep())
+        return
+      }
       
       if (data?.reservations && data.reservations.length > 0) {
         setActiveReservations(data.reservations as ReservationSummary[])
@@ -588,26 +641,13 @@ export default function Booking() {
       }
     } catch (e) {
       console.error('Failed to check reservation:', e)
-      // Fallback
+      const msg = await toErrorMessageAsync(e)
+      if (isBookingLineAuthMessage(msg)) {
+        showToast(`予約状況の確認に失敗しました。\n${msg}`, 'error')
+      }
       setStep(getInitialStep())
     }
-  }, [lineUserId, storeId, getInitialStep])
-
-  // プレビューモードかどうかの判定
-  const isPreviewMode = useCallback(() => {
-    return window.self !== window.top || lineUserId === 'PREVIEW_USER'
-  }, [lineUserId])
-
-  const getLiffAccessToken = useCallback((): string | null => {
-    try {
-      if (liff.isInClient() || liff.isLoggedIn()) {
-        return liff.getAccessToken()
-      }
-    } catch {
-      // LIFF 未初期化
-    }
-    return null
-  }, [])
+  }, [lineUserId, storeId, getInitialStep, getLiffAccessToken, getLiffIdToken, showToast])
 
   // 仮押さえ解除のヘルパー関数
   const releaseHold = useCallback(async () => {
@@ -624,13 +664,14 @@ export default function Booking() {
           store_id: storeId,
           line_user_id: lineUserId,
           accessToken: getLiffAccessToken(),
+          idToken: getLiffIdToken(),
         }
       })
       console.log('Hold released')
     } catch (e) {
       console.error('Failed to release hold:', e)
     }
-  }, [storeId, lineUserId, isPreviewMode, getLiffAccessToken])
+  }, [storeId, lineUserId, isPreviewMode, getLiffAccessToken, getLiffIdToken])
 
   // ページ離脱時に仮押さえを解除
   useEffect(() => {
@@ -665,6 +706,7 @@ export default function Booking() {
         setLoading(true)
         try {
           const accessToken = getLiffAccessToken()
+          const idToken = getLiffIdToken()
 
           const { data, error, response } = await supabase.functions.invoke('booking', {
             body: {
@@ -672,7 +714,8 @@ export default function Booking() {
               reservation_id: reservationId,
               store_id: storeId,
               line_user_id: lineUserId,
-              accessToken
+              accessToken,
+              idToken,
             }
           })
 
@@ -731,7 +774,18 @@ export default function Booking() {
     try {
       let currentPictureUrl = pictureUrl
       let currentDisplayName = displayName
-      const accessToken = getLiffAccessToken()
+
+      let accessToken = getLiffAccessToken()
+      let idToken = getLiffIdToken()
+      if (!accessToken && !idToken) {
+        showToast('LINE ログインの確認が必要です。ログイン画面を開きます。', 'error')
+        try {
+          liff.login()
+        } catch (e) {
+          console.error('liff.login failed:', e)
+        }
+        return
+      }
 
       try {
         if (liff.isInClient() || liff.isLoggedIn()) {
@@ -743,6 +797,18 @@ export default function Booking() {
         }
       } catch {
         // プロフィール更新失敗は無視
+      }
+
+      accessToken = getLiffAccessToken()
+      idToken = getLiffIdToken()
+      if (!accessToken && !idToken) {
+        showToast('LINE の認証トークンを取得できませんでした。ログイン画面を開きます。', 'error')
+        try {
+          liff.login()
+        } catch (e) {
+          console.error('liff.login failed:', e)
+        }
+        return
       }
 
       const action = modifyingReservationId ? 'update_reservation' : 'create_reservation'
@@ -759,7 +825,8 @@ export default function Booking() {
         staff_id: selectedStaff?.id,
         menu_id: selectedMenu?.id,
         reservation_id: modifyingReservationId,
-        accessToken
+        accessToken,
+        idToken,
       }
       console.log('[Booking] Request body:', requestBody)
       
@@ -1302,7 +1369,11 @@ export default function Booking() {
       <div className={theme.card} style={theme.cardStyle}>
         <div className={theme.header} style={theme.headerStyle}>
           {storeSettings.liff_logo_url ? (
-            <img src={storeSettings.liff_logo_url} alt="Logo" className="h-8 mx-auto object-contain" />
+            <img
+              src={storeSettings.liff_logo_url}
+              alt="Logo"
+              className="block w-full max-h-[min(50vh,24rem)] h-auto object-contain object-center mx-auto"
+            />
           ) : (
             <h1 className={theme.title} style={theme.titleStyle}>予約フォーム</h1>
           )}
@@ -1712,22 +1783,57 @@ export default function Booking() {
                                           
                                           // 仮押さえを実行
                                           try {
-                                            await supabase.functions.invoke('booking', {
-                                              body: {
-                                                action: 'hold_slot',
-                                                store_id: storeId,
-                                                line_user_id: lineUserId,
-                                                display_name: displayName,
-                                                date: dateStr,
-                                                time: timeStr,
-                                                staff_id: selectedStaff?.id || null,
-                                                menu_id: selectedMenu?.id || null,
-                                                accessToken: getLiffAccessToken(),
+                                            const { data: holdData, error: holdError, response: holdResponse } =
+                                              await supabase.functions.invoke('booking', {
+                                                body: {
+                                                  action: 'hold_slot',
+                                                  store_id: storeId,
+                                                  line_user_id: lineUserId,
+                                                  display_name: displayName,
+                                                  date: dateStr,
+                                                  time: timeStr,
+                                                  staff_id: selectedStaff?.id || null,
+                                                  menu_id: selectedMenu?.id || null,
+                                                  accessToken: getLiffAccessToken(),
+                                                  idToken: getLiffIdToken(),
+                                                }
+                                              })
+                                            if (holdError) {
+                                              const msg = await toErrorMessageAsync(holdError, holdResponse)
+                                              showToast(`仮押さえに失敗しました。\n${msg}`, 'error')
+                                              if (isBookingLineAuthMessage(msg)) {
+                                                try {
+                                                  liff.login()
+                                                } catch (loginErr) {
+                                                  console.error('liff.login failed:', loginErr)
+                                                }
                                               }
-                                            })
+                                              return
+                                            }
+                                            if (
+                                              holdData &&
+                                              typeof holdData === 'object' &&
+                                              holdData !== null &&
+                                              'error' in holdData
+                                            ) {
+                                              const errMsg = (holdData as { error: unknown }).error
+                                              if (typeof errMsg === 'string' && errMsg.length > 0) {
+                                                showToast(`仮押さえに失敗しました。\n${errMsg}`, 'error')
+                                                if (isBookingLineAuthMessage(errMsg)) {
+                                                  try {
+                                                    liff.login()
+                                                  } catch (loginErr) {
+                                                    console.error('liff.login failed:', loginErr)
+                                                  }
+                                                }
+                                                return
+                                              }
+                                            }
                                             console.log('Slot held successfully')
                                           } catch (e) {
                                             console.error('Failed to hold slot:', e)
+                                            const msg = await toErrorMessageAsync(e)
+                                            showToast(`仮押さえに失敗しました。\n${msg}`, 'error')
                                           }
                                         }}
                                         disabled={!isAvailable}

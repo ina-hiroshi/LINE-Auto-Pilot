@@ -386,6 +386,9 @@ verify_jwt = false
 [functions.cleanup-expired-holds]
 verify_jwt = false
 
+[functions.booking-reminders]
+verify_jwt = false
+
 [functions.apply-rich-menu]
 verify_jwt = false
 
