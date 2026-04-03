@@ -88,7 +88,7 @@ export function isWithinMaxBookingDays(date: string, maxDays: number): boolean {
 export async function getStoreSettings(supabaseClient: SupabaseClientType, id: string) {
   const { data, error } = await supabaseClient
     .from('stores')
-    .select('slot_interval_minutes, capacity_per_slot, business_hours, max_booking_days')
+    .select('slot_interval_minutes, capacity_per_slot, business_hours, max_booking_days, booking_enable_staff')
     .eq('id', id)
     .maybeSingle()
 

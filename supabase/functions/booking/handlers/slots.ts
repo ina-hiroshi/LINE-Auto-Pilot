@@ -264,8 +264,8 @@ export async function handleGetAvailableSlots(
             })
           : []
         totalOverlap = staffReservationCount + staffHoldCount + staffGoogleEvents.length
-      } else if (staffInfoList.length === 0) {
-        // スタッフ未登録: create_reservation_atomic と同様に店舗枠 (capacity_per_slot) で判定
+      } else if (staffInfoList.length === 0 || storeSettings.booking_enable_staff !== true) {
+        // スタッフ未登録、または予約でスタッフ指名を使わない設定: 店舗枠 (capacity_per_slot) のみ（営業時間ベース）
         capacityLimit = storeSettings?.capacity_per_slot ?? 10
         const nullStaffReservationCount = (reservations || []).filter((r: { status: string; line_user_id: string; start_time: string; end_time: string; staff_id?: string | null }) => {
           if (r.status === 'temporary' && r.line_user_id === line_user_id) return false

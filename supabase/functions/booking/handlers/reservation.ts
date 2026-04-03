@@ -182,9 +182,11 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
       .limit(1)
 
     const hasNoStaffRegistered = !activeStaffMembers || activeStaffMembers.length === 0
+    const useStoreCapacityUnassigned =
+      hasNoStaffRegistered || storeSettings.booking_enable_staff !== true
 
-    if (hasNoStaffRegistered) {
-      // create_reservation_atomic と同じ: スタッフ未登録店舗は担当なしで店舗枠 (capacity_per_slot) のみ
+    if (useStoreCapacityUnassigned) {
+      // スタッフ未登録、またはスタッフ指名OFF: create_reservation_atomic と同じ店舗枠 (capacity_per_slot)
       const capacityLimit = storeSettings?.capacity_per_slot ?? 10
 
       let overlapQuery = supabaseClient

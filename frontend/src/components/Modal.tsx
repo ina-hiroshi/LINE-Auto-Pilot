@@ -23,7 +23,7 @@ export default function Modal({
   message,
   children,
   confirmText = '確定',
-  cancelText = 'キャンセル',
+  cancelText = '閉じる',
   variant = 'primary',
   isLoading = false,
   footerContent,

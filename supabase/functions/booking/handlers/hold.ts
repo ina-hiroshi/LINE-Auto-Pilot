@@ -93,8 +93,10 @@ export async function handleHoldSlot(
       .limit(1)
 
     const hasNoStaffRegistered = !activeStaffMembers || activeStaffMembers.length === 0
+    const useStoreCapacityUnassigned =
+      hasNoStaffRegistered || storeSettings.booking_enable_staff !== true
 
-    if (hasNoStaffRegistered) {
+    if (useStoreCapacityUnassigned) {
       const capacityLimit = storeSettings?.capacity_per_slot ?? 10
 
       const { data: overlapReservations } = await supabaseClient
