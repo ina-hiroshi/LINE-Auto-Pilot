@@ -31,7 +31,7 @@ VITE_STRIPE_SETUP_SERVICE_PRICE_ID=price_xxxxxxxxxx
 
 **注意**: 環境変数の設定は必須です。未設定の場合、アプリケーションは起動時にエラーを表示します。
 
-**Vercel 等の本番環境**: `VITE_SETUP_BANNER_VERSION` を **`prerelease`** のままにしないでください（LINE オンボーディングにプレリリース専用バナーが出続けます）。正式リリースでは **`production`** にするか、変数自体を未設定にします。変更後は再デプロイが必要です。
+**LINE オンボーディングの初期設定代行バナー**: `frontend/src/constants/releaseMode.ts` の `IS_PRE_RELEASE_MODE` で切り替わります（環境変数では切り替えません）。
 
 ### Supabase Edge Functions（Secrets）
 

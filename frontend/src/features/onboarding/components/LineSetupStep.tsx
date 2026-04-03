@@ -70,7 +70,7 @@ export default function LineSetupStep({
           <p className="text-slate-500">ステップごとに丁寧にご案内します。ゆっくり進めてください。</p>
         </div>
 
-        {/* 初期設定代行バナー（環境変数VITE_SETUP_BANNER_VERSIONで制御） */}
+        {/* 初期設定代行バナー（Onboarding の setupBannerVersion: releaseMode に連動） */}
         {/* 正式リリース版 - 決済済みの場合は別のメッセージを表示 */}
         {setupBannerVersion === 'production' && !hasSetupServiceOrder && (
           <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-6 mb-8">

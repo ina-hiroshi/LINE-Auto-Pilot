@@ -20,15 +20,9 @@ import Toast from '../components/Toast'
 import SetupServiceModal, { type SetupServiceFormData } from '../components/SetupServiceModal'
 import { IS_PRE_RELEASE_MODE } from '../constants/releaseMode'
 
-// 初期設定代行バナーのバージョン切り替え
-// 'production': 正式リリース版（¥9,980の初期設定代行バナー）
-// 'prerelease': プレリリース版
-const envBannerVersion = import.meta.env.VITE_SETUP_BANNER_VERSION
-const SETUP_BANNER_VERSION = (envBannerVersion && envBannerVersion.trim() !== '') ? envBannerVersion.trim() : 'production'
-
-// デバッグ用: バナーバージョンの値をコンソールに出力
-console.log('[Onboarding] SETUP_BANNER_VERSION:', SETUP_BANNER_VERSION)
-console.log('[Onboarding] VITE_SETUP_BANNER_VERSION (env):', envBannerVersion)
+// LINE設定ステップの初期設定代行バナー: releaseMode と連動（環境変数では切り替えない）
+// 'production': 代行依頼バナー表示 / 'prerelease': 代行不可の注意のみ
+const SETUP_BANNER_VERSION = IS_PRE_RELEASE_MODE ? 'prerelease' : 'production'
 
 interface OnboardingProps {
   onComplete: () => void
