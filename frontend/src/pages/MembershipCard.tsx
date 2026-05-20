@@ -4,6 +4,7 @@ import { Loader2, CreditCard, Save, Layout, Palette, Settings, Award, Stamp, Tra
 import ProBadge from '../components/ProBadge'
 import ProUpgradeButton from '../components/ProUpgradeButton'
 import Toast from '../components/Toast'
+import { UnderlineTabs } from '../components/UnderlineTabs'
 import { usePlan } from '../hooks/usePlan'
 import { DESIGN_THEMES } from '../constants/designThemes'
 
@@ -284,42 +285,16 @@ export default function MembershipCard() {
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="w-full">
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-        {/* Tabs & Action Header */}
-        <div className="flex items-end mb-6 border-b border-gray-200">
-          <div className="flex gap-2 overflow-x-auto">
-            <button
-              type="button"
-              onClick={() => setActiveTab('design')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-                activeTab === 'design' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <Palette size={16} />
-              <span className="hidden sm:inline">デザイン設定</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('settings')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-                activeTab === 'settings' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <Settings size={16} />
-              <span className="hidden sm:inline">表示設定</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('rank')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-                activeTab === 'rank' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <Award size={16} />
-              <span className="hidden sm:inline">ランク設定</span>
-            </button>
-          </div>
-        </div>
+          <UnderlineTabs
+            activeId={activeTab}
+            onChange={setActiveTab}
+            items={[
+              { id: 'design', label: 'デザイン設定', icon: Palette, hideLabelOnMobile: true },
+              { id: 'settings', label: '表示設定', icon: Settings, hideLabelOnMobile: true },
+              { id: 'rank', label: 'ランク設定', icon: Award, hideLabelOnMobile: true },
+            ]}
+          />
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Settings Form */}

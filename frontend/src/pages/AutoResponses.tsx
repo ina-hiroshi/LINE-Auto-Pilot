@@ -6,6 +6,7 @@ import { isPaidPlan } from '../lib/planUtils';
 import { extractTextFromFile, extractTextFromPdfBuffer } from '../lib/fileParser';
 import Modal from '../components/Modal';
 import Toast from '../components/Toast';
+import { UnderlineTabs } from '../components/UnderlineTabs';
 import ProLockOverlay from '../components/ProLockOverlay';
 
 // --- Types ---
@@ -765,48 +766,32 @@ export default function AutoResponses() {
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="w-full">
+        <UnderlineTabs
+          activeId={activeTab}
+          onChange={setActiveTab}
+          stretchOnMobile
+          items={[
+            { id: 'keyword', label: 'キーワード応答', icon: MessageSquare, hideLabelBelowMd: true, title: 'キーワード応答' },
+            {
+              id: 'ai_settings',
+              label: 'AI基本設定',
+              icon: Settings,
+              hideLabelBelowMd: true,
+              title: 'AI基本設定',
+              badge: !isPro ? <ProBadge className="hidden md:inline-flex" /> : undefined,
+            },
+            {
+              id: 'knowledge',
+              label: 'AI学習データ',
+              icon: BookOpen,
+              hideLabelBelowMd: true,
+              title: 'AI学習データ',
+              badge: !isPro ? <ProBadge className="hidden md:inline-flex" /> : undefined,
+            },
+          ]}
+        />
+
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {/* Tabs */}
-        <div className="flex items-center gap-1 border-b border-gray-200 px-2 md:px-6 pt-2 md:pt-4">
-          <button
-            onClick={() => setActiveTab('keyword')}
-            className={`flex-1 md:flex-none justify-center md:justify-start px-2 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'keyword'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-            title="キーワード応答"
-          >
-            <MessageSquare size={20} />
-            <span className="hidden md:inline">キーワード応答</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('ai_settings')}
-            className={`flex-1 md:flex-none justify-center md:justify-start px-2 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'ai_settings'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-            title="AI基本設定"
-          >
-            <Settings size={20} />
-            <span className="hidden md:inline">AI基本設定</span>
-            {!isPro && <ProBadge className="hidden md:inline-flex" />}
-          </button>
-          <button
-            onClick={() => setActiveTab('knowledge')}
-            className={`flex-1 md:flex-none justify-center md:justify-start px-2 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'knowledge'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-            title="AI学習データ"
-          >
-            <BookOpen size={20} />
-            <span className="hidden md:inline">AI学習データ</span>
-            {!isPro && <ProBadge className="hidden md:inline-flex" />}
-          </button>
-        </div>
 
         {/* Content Area */}
         <div>

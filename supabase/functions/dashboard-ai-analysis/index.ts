@@ -88,7 +88,7 @@ Deno.serve(async (req: Request) => {
     // Fetch reservations
     const { data: reservationsData, error: reservationsError } = await supabase
       .from('reservations')
-      .select('id, line_user_id, status, start_time, menu_id, staff_id')
+      .select('id, line_user_id, status, start_time, menu_id, staff_id, paid_amount, quoted_amount')
       .eq('store_id', storeId)
       .gte('start_time', thirtyDaysAgo.toISOString())
       .neq('status', 'cancelled')
@@ -289,25 +289,24 @@ Deno.serve(async (req: Request) => {
       .sort((a, b) => b.count - a.count)
       .slice(0, 10)
 
-    // Calculate revenue and duration
-    const menuPriceMap = new Map(menus.map(m => [m.id, m.price || 0]))
+    // Calculate revenue (決済完了のみ) and duration
     const menuDurationMap = new Map(menus.map(m => [m.id, m.duration || 0]))
     
     let totalRevenue = 0
     let totalDuration = 0
-    let reservationWithMenu = 0
+    let paidReservationCount = 0
 
     reservations.forEach(res => {
-      if (res.menu_id) {
-        const price = menuPriceMap.get(res.menu_id) || 0
-        const duration = menuDurationMap.get(res.menu_id) || 0
-        totalRevenue += price
-        totalDuration += duration
-        reservationWithMenu++
+      if (res.status === 'paid' && res.paid_amount != null) {
+        totalRevenue += res.paid_amount
+        paidReservationCount++
+        if (res.menu_id) {
+          totalDuration += menuDurationMap.get(res.menu_id) || 0
+        }
       }
     })
 
-    const averageDuration = reservationWithMenu > 0 ? totalDuration / reservationWithMenu : 0
+    const averageDuration = paidReservationCount > 0 ? totalDuration / paidReservationCount : 0
 
     const popularMenusText = topMenus.length > 0
       ? topMenus.map((m, i) => `${i + 1}. ${m.name}: ${m.count}件`).join('\n')
@@ -370,7 +369,7 @@ ${popularMenusText}
 ${staffStatsText}
 
 【予約の売上・時間（過去30日間）】
-- 予約売上合計（見込み）: ${totalRevenue.toLocaleString()}円
+- 売上合計（決済完了・税込）: ${totalRevenue.toLocaleString()}円
 - 平均施術時間: ${averageDuration.toFixed(0)}分
 
 【メッセージサンプル（過去30日間）】

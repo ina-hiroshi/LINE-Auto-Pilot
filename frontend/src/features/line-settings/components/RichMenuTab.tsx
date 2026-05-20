@@ -8,6 +8,7 @@ import { AVAILABLE_ICONS, RICH_MENU_LAYOUTS } from '../constants'
 import type { RichMenuAction, RichMenuSettings } from '../types'
 import { DESIGN_THEMES } from '../../../constants/designThemes'
 import ProBadge from '../../../components/ProBadge'
+import { UnderlineTabs } from '../../../components/UnderlineTabs'
 import ProUpgradeButton from '../../../components/ProUpgradeButton'
 import { supabase } from '../../../lib/supabase'
 
@@ -165,35 +166,17 @@ export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, is
 
   return (
     <div>
-      <div className="flex items-end justify-between mb-6 border-b border-gray-200">
-        <div className="flex gap-2 overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab('design')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'design'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <Palette size={16} />
-            <span className="hidden sm:inline">デザイン設定</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('actions')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'actions'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <MousePointerClick size={16} />
-            <span className="hidden sm:inline">アクション設定</span>
-          </button>
-        </div>
-      </div>
+      <UnderlineTabs
+        activeId={activeTab}
+        onChange={setActiveTab}
+        justifyBetween
+        items={[
+          { id: 'design', label: 'デザイン設定', icon: Palette, hideLabelOnMobile: true },
+          { id: 'actions', label: 'アクション設定', icon: MousePointerClick, hideLabelOnMobile: true },
+        ]}
+      />
 
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
       <div className="space-y-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="space-y-8">
@@ -1003,6 +986,7 @@ export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, is
             <p className="text-center text-xs text-gray-500 mt-4">※実際の表示は端末により多少異なる場合があります</p>
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

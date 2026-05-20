@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { Loader2, Crown, ClipboardList, Users } from 'lucide-react'
 import Toast from '../components/Toast'
+import { UnderlineTabs } from '../components/UnderlineTabs'
 import { useUserFeatures } from '../hooks/useUserFeatures'
 import { SetupOrdersTab } from '../features/admin/components/SetupOrdersTab'
 import { PlanSwitcherTab } from '../features/admin/components/PlanSwitcherTab'
@@ -623,25 +624,16 @@ export default function AdminDashboard() {
       {/* タブナビゲーション */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="w-full">
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-            <div className="flex items-end justify-between mb-6 border-b border-gray-200">
-              <div className="flex gap-2 overflow-x-auto">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-                      activeTab === tab.id
-                        ? 'border-primary-500 text-primary-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    <tab.icon size={16} />
-                    <span className="hidden sm:inline">{tab.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+          <UnderlineTabs
+            activeId={activeTab}
+            onChange={setActiveTab}
+            items={tabs.map((tab) => ({
+              id: tab.id,
+              label: tab.label,
+              icon: tab.icon,
+              hideLabelOnMobile: true,
+            }))}
+          />
 
             {/* タブコンテンツ */}
         {activeTab === 'setup_orders' && (
@@ -698,7 +690,6 @@ export default function AdminDashboard() {
             onUpdateUserPlan={handleUpdateUserPlan}
           />
         )}
-          </div>
         </div>
       </div>
 

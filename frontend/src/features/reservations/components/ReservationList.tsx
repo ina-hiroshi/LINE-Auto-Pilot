@@ -1,7 +1,8 @@
 import { Clock, User, Edit2, XCircle } from 'lucide-react'
 import type { Reservation } from '../types'
+import { getPaymentStatusBadgeClass, getReservationStatusLabel } from '../../../lib/reservationStatus'
 
-export type ListFilter = 'today' | 'week' | 'month' | 'all'
+export type ListFilter = 'today' | 'week' | 'month' | 'all' | 'unpaid'
 
 export interface ReservationListProps {
   reservations: Reservation[]
@@ -21,6 +22,7 @@ export function ReservationList({
   onCancelClick,
 }: ReservationListProps) {
   const filtered = reservations.filter((r) => {
+    if (listFilter === 'unpaid') return r.status === 'confirmed'
     if (listFilter === 'all') return true
     const d = new Date(r.start_time)
     const now = new Date()
@@ -67,6 +69,12 @@ export function ReservationList({
           >
             今日
           </button>
+          <button
+            onClick={() => onListFilterChange('unpaid')}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition ${listFilter === 'unpaid' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            未決済
+          </button>
         </div>
       </div>
       <div className="divide-y divide-gray-100">
@@ -104,20 +112,21 @@ export function ReservationList({
                         <Clock size={12} className="text-gray-400" />
                         <span>{startTime} - {endTime}</span>
                       </div>
+                      {reservation.status !== 'cancelled' && (
+                        <span
+                          className={`px-1.5 py-0.5 text-[10px] rounded-full font-medium ${getPaymentStatusBadgeClass(reservation.status)}`}
+                        >
+                          {getReservationStatusLabel(reservation.status)}
+                        </span>
+                      )}
                       <span
                         className={`px-1.5 py-0.5 text-[10px] rounded-full font-medium ${
-                          reservation.status === 'cancelled'
-                            ? 'bg-red-100 text-red-700'
-                            : reservation.registration_type === 'manual'
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-green-100 text-green-700'
+                          reservation.registration_type === 'manual'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-gray-100 text-gray-600'
                         }`}
                       >
-                        {reservation.status === 'cancelled'
-                          ? 'キャンセル'
-                          : reservation.registration_type === 'manual'
-                            ? '手動登録'
-                            : 'LINE予約'}
+                        {reservation.registration_type === 'manual' ? '手動登録' : 'LINE予約'}
                       </span>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-1">

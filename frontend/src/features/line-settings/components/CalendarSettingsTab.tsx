@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { Calendar as CalendarIcon, Clock, User, Plus, Copy, Trash2 } from 'lucide-react'
+import { UnderlineTabs } from '../../../components/UnderlineTabs'
 import { SpecialDateModal } from './SpecialDateModal'
 import { StaffScheduleModal } from './StaffScheduleModal'
 import type { BusinessHours } from '../types'
@@ -582,29 +583,14 @@ export function CalendarSettingsTab({ storeId, staffList, onToast }: CalendarSet
 
   return (
     <div className="space-y-6">
-      {/* Sub Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('business')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeSubTab === 'business' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <CalendarIcon className="w-4 h-4 inline mr-2" />
-          営業日
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('staff')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            activeSubTab === 'staff' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <User className="w-4 h-4 inline mr-2" />
-          スタッフシフト
-        </button>
-      </div>
+      <UnderlineTabs
+        activeId={activeSubTab}
+        onChange={setActiveSubTab}
+        items={[
+          { id: 'business', label: '営業日', icon: CalendarIcon },
+          { id: 'staff', label: 'スタッフシフト', icon: User },
+        ]}
+      />
 
       {/* Business Tab */}
       {activeSubTab === 'business' && (

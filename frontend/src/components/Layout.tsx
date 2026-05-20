@@ -51,7 +51,7 @@ export default function Layout() {
   // 基本ナビゲーション項目
   const baseNavItems = [
     { path: '/', label: 'ダッシュボード', icon: <LayoutDashboard size={20} /> },
-    { path: '/reservations', label: '予約管理', icon: <Calendar size={20} /> },
+    { path: '/reservations', label: '予約売上管理', icon: <Calendar size={20} /> },
     { path: '/customers', label: '顧客一覧', icon: <Users size={20} /> },
     { path: '/auto-responses', label: '自動応答', icon: <MessageSquare size={20} /> },
     { path: '/membership-card', label: 'デジタル会員証', icon: <CreditCard size={20} /> },

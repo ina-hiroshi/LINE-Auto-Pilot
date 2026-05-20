@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Link2, Building2, CreditCard, Lock, BookOpen } from 'lucide-react'
 import Toast from '../components/Toast'
+import { UnderlineTabs } from '../components/UnderlineTabs'
 import { supabase } from '../lib/supabase'
 import { toErrorMessage } from '../lib/errorUtils'
 import { ConnectionTab } from '../features/line-settings/components/ConnectionTab'
@@ -355,61 +356,20 @@ export default function LineSettings() {
 
 			<div className="flex-1 overflow-y-auto p-4 sm:p-8">
 				<div className="w-full">
-					{/* Tabs Navigation */}
-					<div className="flex overflow-x-auto border-b border-gray-200 mb-6 no-scrollbar">
-				<button
-					onClick={() => setActiveTab('connection')}
-					className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-						activeTab === 'connection'
-							? 'border-primary-500 text-primary-600'
-							: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-					}`}
-				>
-					LINE連携
-				</button>
-				<button
-					onClick={() => setActiveTab('basic_info')}
-					className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-						activeTab === 'basic_info'
-							? 'border-primary-500 text-primary-600'
-							: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-					}`}
-				>
-					基本情報
-				</button>
-				<button
-					onClick={() => setActiveTab('plan')}
-					className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-						activeTab === 'plan'
-							? 'border-primary-500 text-primary-600'
-							: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-					}`}
-				>
-					プラン
-				</button>
-				<button
-					onClick={() => setActiveTab('password')}
-					className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-						activeTab === 'password'
-							? 'border-primary-500 text-primary-600'
-							: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-					}`}
-				>
-					パスワード
-				</button>
-				<button
-					onClick={() => setActiveTab('guide')}
-					className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-						activeTab === 'guide'
-							? 'border-primary-500 text-primary-600'
-							: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-					}`}
-				>
-					設定ガイド
-				</button>
-			</div>
+					<UnderlineTabs
+						activeId={activeTab}
+						onChange={setActiveTab}
+						className="no-scrollbar"
+						items={[
+							{ id: 'connection', label: 'LINE連携', icon: Link2 },
+							{ id: 'basic_info', label: '基本情報', icon: Building2 },
+							{ id: 'plan', label: 'プラン', icon: CreditCard },
+							{ id: 'password', label: 'パスワード', icon: Lock },
+							{ id: 'guide', label: '設定ガイド', icon: BookOpen },
+						]}
+					/>
 
-			<div className="bg-white rounded-lg shadow p-6">
+			<div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
 				{activeTab === 'connection' && (
 					<ConnectionTab
 						lineSettings={lineSettings}

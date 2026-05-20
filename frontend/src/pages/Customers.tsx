@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
+import { getPaymentStatusBadgeClass, getReservationStatusLabel } from '../lib/reservationStatus'
 import { supabase } from '../lib/supabase'
 import { Loader2, User, Search, Edit2, Save, History, MessageSquare, ChevronRight, Gift, CreditCard, QrCode } from 'lucide-react'
 import Modal from '../components/Modal'
@@ -31,6 +32,7 @@ type ReservationHistory = {
 }
 
 export default function Customers() {
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [customers, setCustomers] = useState<CustomerData[]>([])
   const [filteredCustomers, setFilteredCustomers] = useState<CustomerData[]>([])
@@ -665,21 +667,25 @@ const handleScan = (data: string) => {
                       <div className="text-center py-4 text-gray-400 text-xs bg-gray-50 rounded-lg">履歴はありません</div>
                     ) : (
                       reservationHistory.map(h => (
-                        <div key={h.id} className="text-xs p-2 bg-white border border-gray-100 rounded hover:bg-gray-50">
-                          <div className="flex justify-between mb-1">
+                        <button
+                          key={h.id}
+                          type="button"
+                          onClick={() => navigate(`/reservations?reservation=${h.id}`)}
+                          className="w-full text-left text-xs p-2 bg-white border border-gray-100 rounded hover:bg-primary-50 hover:border-primary-200 transition"
+                        >
+                          <div className="flex justify-between mb-1 items-center">
                             <span className="font-bold text-gray-700">
                               {new Date(h.start_time).toLocaleDateString('ja-JP')}
                             </span>
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] ${
-                              h.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                            }`}>
-                              {h.status === 'cancelled' ? 'キャンセル' : '来店'}
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${getPaymentStatusBadgeClass(h.status)}`}>
+                              {getReservationStatusLabel(h.status)}
                             </span>
                           </div>
-                          <div className="text-gray-500 truncate">
-                            {h.menu_name || 'メニュー未定'} {h.staff_name && `(${h.staff_name})`}
+                          <div className="text-gray-500 truncate flex justify-between">
+                            <span>{h.menu_name || 'メニュー未定'} {h.staff_name && `(${h.staff_name})`}</span>
+                            <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
                           </div>
-                        </div>
+                        </button>
                       ))
                     )}
                   </div>

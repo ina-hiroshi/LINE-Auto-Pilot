@@ -8,6 +8,7 @@ import {
   type LineQuotaInfo,
 } from '../components/line/LineMessagingQuotaNotice'
 import Toast from '../components/Toast'
+import { UnderlineTabs } from '../components/UnderlineTabs'
 import ProBadge from '../components/ProBadge'
 import ProLockOverlay from '../components/ProLockOverlay'
 import { usePlan } from '../hooks/usePlan'
@@ -954,48 +955,33 @@ export default function Dashboard() {
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="w-full">
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-            {/* Tabs */}
-            <div className="flex items-end mb-6 border-b border-gray-200">
-              <div className="flex gap-2 overflow-x-auto">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('graphs')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-                    activeTab === 'graphs' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  <BarChart3 size={16} />
-                  <span className="hidden sm:inline">グラフ</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('messages')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-                    activeTab === 'messages' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  <MessageSquare size={16} />
-                  <span className="hidden sm:inline">メッセージ</span>
-                  {stats.manualReplyNeeded > 0 && (
+          <UnderlineTabs
+            activeId={activeTab}
+            onChange={setActiveTab}
+            items={[
+              { id: 'graphs', label: 'グラフ', icon: BarChart3, hideLabelOnMobile: true },
+              {
+                id: 'messages',
+                label: 'メッセージ',
+                icon: MessageSquare,
+                hideLabelOnMobile: true,
+                badge:
+                  stats.manualReplyNeeded > 0 ? (
                     <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                       {stats.manualReplyNeeded}
                     </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('analysis')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-                    activeTab === 'analysis' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  <Search size={16} />
-                  <span className="hidden sm:inline">詳細分析</span>
-                  {!isPro && <ProBadge />}
-                </button>
-              </div>
-            </div>
+                  ) : undefined,
+              },
+              {
+                id: 'analysis',
+                label: '詳細分析',
+                icon: Search,
+                hideLabelOnMobile: true,
+                badge: !isPro ? <ProBadge /> : undefined,
+              },
+            ]}
+          />
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
 
             {/* Tab Content */}
             {activeTab === 'graphs' && (

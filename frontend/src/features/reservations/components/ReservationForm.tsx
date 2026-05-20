@@ -112,6 +112,7 @@ export interface ReservationCreateFormProps {
   createTime: string
   createStaffId: string
   createMenuId: string
+  createQuotedAmount: string
   createMemo: string
   availableSlots: { time: string; available: boolean }[]
   loadingSlots: boolean
@@ -132,6 +133,7 @@ export interface ReservationCreateFormProps {
   onCreateTimeChange: (v: string) => void
   onCreateStaffIdChange: (v: string) => void
   onCreateMenuIdChange: (v: string) => void
+  onCreateQuotedAmountChange: (v: string) => void
   onCreateMemoChange: (v: string) => void
 }
 
@@ -145,6 +147,7 @@ export function ReservationCreateForm({
   createTime,
   createStaffId,
   createMenuId,
+  createQuotedAmount,
   createMemo,
   availableSlots,
   loadingSlots,
@@ -161,8 +164,12 @@ export function ReservationCreateForm({
   onCreateTimeChange,
   onCreateStaffIdChange,
   onCreateMenuIdChange,
+  onCreateQuotedAmountChange,
   onCreateMemoChange,
 }: ReservationCreateFormProps) {
+  const selectedMenu = menuList.find((m) => m.id === createMenuId)
+  const menuRequiresAmount = bookingSettings.booking_enable_menu && menuList.length > 0
+  const showAmountField = !createMenuId || !selectedMenu?.price
   return (
     <div className="space-y-5">
       {/* 顧客選択セクション */}
@@ -334,7 +341,12 @@ export function ReservationCreateForm({
           <label className="block text-sm font-bold text-gray-700 mb-1">メニュー</label>
           <select
             value={createMenuId}
-            onChange={(e) => onCreateMenuIdChange(e.target.value)}
+            onChange={(e) => {
+              const id = e.target.value
+              onCreateMenuIdChange(id)
+              const menu = menuList.find((m) => m.id === id)
+              if (menu?.price != null) onCreateQuotedAmountChange(String(menu.price))
+            }}
             className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
           >
             <option value="">指定なし</option>
@@ -344,6 +356,26 @@ export function ReservationCreateForm({
               </option>
             ))}
           </select>
+        </div>
+      )}
+
+      {(showAmountField || !menuRequiresAmount) && (
+        <div>
+          <label className="block text-sm font-bold text-gray-700 mb-1">
+            見込み金額（税込）
+            {!createMenuId && <span className="text-red-500"> *</span>}
+          </label>
+          <input
+            type="number"
+            min={0}
+            value={createQuotedAmount}
+            onChange={(e) => onCreateQuotedAmountChange(e.target.value)}
+            placeholder="0"
+            className="w-full p-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+          />
+          {selectedMenu?.price != null && createMenuId && (
+            <p className="text-xs text-gray-500 mt-1">メニュー単価: ¥{selectedMenu.price.toLocaleString()}</p>
+          )}
         </div>
       )}
 

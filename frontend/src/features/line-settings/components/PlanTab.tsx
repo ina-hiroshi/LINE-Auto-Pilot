@@ -228,7 +228,7 @@ export function PlanTab() {
           </div>
           <ul className="space-y-3 mb-8 flex-1">
             {[
-              '予約管理（無制限）',
+              '予約・売上管理（無制限）',
               '固定応答 10件',
               'ポイントカード基本機能',
               '※一部機能制限あり'
