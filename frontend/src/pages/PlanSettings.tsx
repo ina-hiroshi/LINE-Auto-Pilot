@@ -138,7 +138,7 @@ export default function PlanSettings() {
           <ul className="space-y-3 mb-8">
             <li className="flex items-center text-gray-600">
               <Check className="w-5 h-5 text-green-500 mr-2" />
-              基本的な予約管理
+              基本的な予約・売上管理
             </li>
             <li className="flex items-center text-gray-600">
               <Check className="w-5 h-5 text-green-500 mr-2" />
@@ -165,7 +165,7 @@ export default function PlanSettings() {
           <ul className="space-y-3 mb-8">
             <li className="flex items-center text-gray-600">
               <Check className="w-5 h-5 text-green-500 mr-2" />
-              全ての予約機能
+              全ての予約・売上機能（期間分析・CSV）
             </li>
             <li className="flex items-center text-gray-600">
               <Check className="w-5 h-5 text-green-500 mr-2" />

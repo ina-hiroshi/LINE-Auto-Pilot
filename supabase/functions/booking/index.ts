@@ -17,6 +17,7 @@ import {
   handleCreateReservation,
   handleCancelReservation,
   handleUpdateReservation,
+  handleCompletePayment,
 } from './handlers/reservation.ts'
 
 Deno.serve(async (req: Request) => {
@@ -49,6 +50,8 @@ Deno.serve(async (req: Request) => {
       staff_id,
       menu_id,
       memo,
+      quoted_amount,
+      paid_amount,
       is_manual
     } = await req.json()
 
@@ -137,7 +140,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const publicActions = ['get_available_slots']
-    const sensitiveActions = ['create_reservation', 'cancel_reservation', 'update_reservation', 'hold_slot', 'release_hold', 'check_customer', 'get_active_reservation']
+    const sensitiveActions = ['create_reservation', 'cancel_reservation', 'update_reservation', 'complete_payment', 'hold_slot', 'release_hold', 'check_customer', 'get_active_reservation']
 
     if (!publicActions.includes(action) && sensitiveActions.includes(action)) {
       if (!verifiedUserId && !isManualRegistration) {
@@ -181,7 +184,21 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'get_available_slots') {
-      return await handleGetAvailableSlots(supabaseClient, params, corsHeaders)
+      if (reservation_id) {
+        const { data: modifyTarget } = await supabaseClient
+          .from('reservations')
+          .select('line_user_id, store_id, status')
+          .eq('id', reservation_id)
+          .maybeSingle()
+
+        if (!modifyTarget || modifyTarget.store_id !== store_id || modifyTarget.status === 'cancelled') {
+          throw new ClientVisibleError('変更対象の予約が見つかりません', 404)
+        }
+
+        // 空き枠表示: reservation_id が有効なら変更対象として除外（確定・仮押さえは別途本人確認）
+        line_user_id = verifiedUserId ?? requestLineUserId ?? modifyTarget.line_user_id
+      }
+      return await handleGetAvailableSlots(supabaseClient, { ...params, line_user_id }, corsHeaders)
     }
 
     if (action === 'get_active_reservation') {
@@ -205,6 +222,18 @@ Deno.serve(async (req: Request) => {
     if (action === 'create_reservation') {
       return await handleCreateReservation(supabaseClient, {
         ...params,
+        quoted_amount: typeof quoted_amount === 'number' ? quoted_amount : undefined,
+        isManualRegistration,
+      }, corsHeaders)
+    }
+
+    if (action === 'complete_payment') {
+      return await handleCompletePayment(supabaseClient, {
+        reservation_id,
+        store_id,
+        paid_amount: typeof paid_amount === 'number' ? paid_amount : undefined,
+        staff_id: staff_id ?? null,
+        menu_id: menu_id ?? null,
         isManualRegistration,
       }, corsHeaders)
     }

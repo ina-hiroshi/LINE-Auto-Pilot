@@ -22,8 +22,8 @@ const TUTORIAL_ITEMS: TutorialItem[] = [
     icon: LayoutDashboard,
   },
   {
-    title: '予約管理',
-    description: '予約の一覧、編集、キャンセルなどを管理。Googleカレンダーとも連携し、スケジュールを一元管理。',
+    title: '予約売上管理',
+    description: '予約の確認・決済・売上を管理。Googleカレンダーとも連携し、スケジュールを一元管理。',
     icon: Calendar,
   },
   {

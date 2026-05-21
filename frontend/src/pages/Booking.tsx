@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { getJstDayOfWeek, getJstDateString, getJstDateStringWithOffset } from '../lib/jstDate'
 import { toErrorMessageAsync } from '../lib/errorUtils'
 import { useStoreResources } from '../hooks/useStoreResources'
 import type { StoreMenu, StoreStaff } from '../types/storeResources'
@@ -29,8 +30,10 @@ interface ReservationSummary {
 	start_time: string
 	end_time?: string | null
 	status?: string | null
+	staff_id?: string | null
+	menu_id?: string | null
   staff?: StoreStaff | null
-  menu?: StoreMenu | null
+  menu?: (StoreMenu & { duration_minutes?: number }) | null
 }
 
 export default function Booking() {
@@ -128,6 +131,7 @@ export default function Booking() {
   const [loading, setLoading] = useState(false)
   const [activeReservations, setActiveReservations] = useState<ReservationSummary[]>([])
   const [modifyingReservationId, setModifyingReservationId] = useState<string | null>(null)
+  const [slotModifyDebug, setSlotModifyDebug] = useState<string | null>(null)
   
   // 表形式用：複数日のスロット情報 { "2026-01-04": { "10:00": true, "11:00": false, ... }, ... }
   const [multiDateSlots, setMultiDateSlots] = useState<Record<string, Record<string, boolean>>>({})
@@ -160,10 +164,7 @@ export default function Booking() {
     if (!storeSettings.business_hours) return [{ start: '10:00', end: '20:00' }]
     
     try {
-      // Parse YYYY-MM-DD as local date to get correct day of week
-      const [y, m, d] = dateStr.split('-').map(Number)
-      const dateObj = new Date(y, m - 1, d)
-      const dayIndex = dateObj.getDay() // 0=Sun, 1=Mon...
+      const dayIndex = getJstDayOfWeek(dateStr)
       const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
       const dayKey = days[dayIndex]
       
@@ -183,15 +184,15 @@ export default function Booking() {
     if (!storeId) return
     
     setLoadingMultiDateSlots(true)
+    if (!modifyingReservationId) {
+      setSlotModifyDebug(null)
+    }
     
     // 表示する日付を生成（7日間）
     const dates: string[] = []
     const displayDays = Math.min(7, storeSettings.max_booking_days || 14)
     for (let i = 0; i < displayDays; i++) {
-      const d = new Date()
-      d.setDate(d.getDate() + i)
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      dates.push(dateStr)
+      dates.push(getJstDateStringWithOffset(i))
     }
     setDisplayDates(dates)
     
@@ -241,19 +242,42 @@ export default function Booking() {
       }
     } else {
       // 通常モード：APIから取得（並列処理）
+      const modifyingRes = modifyingReservationId
+        ? activeReservations.find((r) => r.id === modifyingReservationId)
+        : undefined
+
       const results = await Promise.all(
         dates.map(async (dateStr) => {
           try {
-            const { data } = await supabase.functions.invoke('booking', {
+            const { data, error, response } = await supabase.functions.invoke('booking', {
               body: {
                 action: 'get_available_slots',
                 store_id: storeId,
                 date: dateStr,
                 menu_id: selectedMenu?.id || null,
-                staff_id: selectedStaff?.id || null,
-                line_user_id: lineUserId || null, // 自分の仮予約を除外するため
+                staff_id: selectedStaff?.id ?? modifyingRes?.staff_id ?? null,
+                line_user_id: lineUserId || null,
+                reservation_id: modifyingReservationId ?? undefined,
+                accessToken: (() => {
+                  try { return liff.getAccessToken() } catch { return null }
+                })(),
+                idToken: (() => {
+                  try { return liff.getIDToken() } catch { return null }
+                })(),
               }
             })
+            if (error) {
+              const msg = await toErrorMessageAsync(error, response)
+              console.error('[Booking] get_available_slots failed:', dateStr, msg)
+              if (modifyingReservationId) {
+                showToast(`空き枠の取得に失敗しました。\n${msg}`, 'error')
+                setSlotModifyDebug(`APIエラー (${dateStr}): ${msg}`)
+              }
+              return { dateStr, slots: {} as Record<string, boolean>, debug: null as unknown }
+            }
+            if (modifyingReservationId && data?._debug) {
+              console.log('[Booking] modify slot debug:', dateStr, data._debug)
+            }
             const dateSlots: Record<string, boolean> = {}
             if (data?.slots) {
               data.slots.forEach((s: { time: string; available: boolean }) => {
@@ -261,12 +285,38 @@ export default function Booking() {
                 allTimes.add(s.time)
               })
             }
-            return { dateStr, slots: dateSlots }
-          } catch {
-            return { dateStr, slots: {} }
+            return { dateStr, slots: dateSlots, debug: data?._debug ?? null, version: data?.version ?? null }
+          } catch (err) {
+            console.error('[Booking] get_available_slots exception:', dateStr, err)
+            return { dateStr, slots: {} as Record<string, boolean>, debug: null as unknown }
           }
         })
       )
+      
+      if (modifyingReservationId) {
+        const firstResult = results.find((r) => r.debug)
+        const debug = firstResult?.debug as {
+          received?: { reservation_id?: string | null }
+          modifyExclude?: { reservationId?: string }
+          blocked?: { time: string; reasons: string[] }[]
+          purgedOwnHolds?: number
+        } | null
+        const version = (results.find((r) => r.version) as { version?: string } | undefined)?.version
+
+        if (debug) {
+          const receivedId = debug.received?.reservation_id
+          const excludeId = debug.modifyExclude?.reservationId
+          const firstBlocked = debug.blocked?.[0]
+          const blockedSummary = firstBlocked
+            ? `${firstBlocked.time}: ${firstBlocked.reasons.join(', ')}`
+            : 'ブロック理由なし（シフト外の可能性）'
+          setSlotModifyDebug(
+            `API v${version ?? '?'} | reservation_id=${receivedId ?? '未送信'} | 除外=${excludeId ?? 'なし'} | 最初の×: ${blockedSummary}${debug.purgedOwnHolds ? ` | 削除hold=${debug.purgedOwnHolds}` : ''}`
+          )
+        } else {
+          setSlotModifyDebug('診断情報なし（API未反映または reservation_id 未送信）')
+        }
+      }
       
       results.forEach(({ dateStr, slots }) => {
         slotsMap[dateStr] = slots
@@ -283,7 +333,7 @@ export default function Booking() {
     setAllTimeSlots(sortedTimes)
     setMultiDateSlots(slotsMap)
     setLoadingMultiDateSlots(false)
-  }, [storeId, storeSettings.max_booking_days, storeSettings.slot_interval_minutes, selectedMenu?.id, selectedStaff?.id, getBusinessHoursForDate, lineUserId])
+  }, [storeId, storeSettings.max_booking_days, storeSettings.slot_interval_minutes, selectedMenu?.id, selectedStaff?.id, getBusinessHoursForDate, lineUserId, modifyingReservationId, activeReservations, showToast])
 
   const fetchStore = useCallback(async () => {
     // In production, store_id should be passed via query param ?store_id=...
@@ -753,8 +803,47 @@ export default function Booking() {
   }
 
   const handleModifyStart = (reservationId: string) => {
+    const res = activeReservations.find((r) => r.id === reservationId)
     setModifyingReservationId(reservationId)
-    setStep(getInitialStep())
+    setSlotModifyDebug('診断: 読込中…')
+
+    const staffId = res?.staff_id ?? res?.staff?.id
+    const menuId = res?.menu_id ?? res?.menu?.id
+
+    if (res) {
+      if (staffId) {
+        const staff = staffList.find((s) => s.id === staffId)
+        if (staff) setSelectedStaff(staff)
+      }
+      if (menuId) {
+        const menu = menuList.find((m) => m.id === menuId)
+        if (menu) setSelectedMenu(menu)
+      }
+      setDate(getJstDateString(new Date(res.start_time)))
+      setTime('')
+    } else {
+      setSelectedStaff(null)
+      setSelectedMenu(null)
+      setDate('')
+      setTime('')
+    }
+
+    const staffReady =
+      !storeSettings.booking_enable_staff ||
+      staffList.length === 0 ||
+      !!(staffId && staffList.some((s) => s.id === staffId))
+    const menuReady =
+      !storeSettings.booking_enable_menu ||
+      menuList.length === 0 ||
+      !!(menuId && menuList.some((m) => m.id === menuId))
+
+    if (!staffReady) {
+      setStep('staff_select')
+    } else if (!menuReady) {
+      setStep('menu_select')
+    } else {
+      setStep('date')
+    }
   }
 
   const handleSubmit = async () => {
@@ -1646,9 +1735,13 @@ export default function Booking() {
               {modifyingReservationId && (
                 <div className={theme.noticeBox}>
                   現在、予約の変更を行っています。新しい日時を選択してください。
+                  <p className="mt-2 text-[10px] opacity-70 break-all font-mono leading-tight">
+                    {slotModifyDebug ?? (loadingMultiDateSlots ? '診断: 読込中…' : '診断: 待機中')}
+                  </p>
                   <button 
                     onClick={() => {
                       setModifyingReservationId(null)
+                      setSlotModifyDebug(null)
                       setStep('existing_reservation')
                     }}
                     className={theme.noticeLink}
@@ -1731,11 +1824,12 @@ export default function Booking() {
                               時間
                             </th>
                             {displayDates.map((dateStr) => {
-                              const d = new Date(dateStr + 'T00:00:00')
-                              const dayName = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()]
+                              const [, month, day] = dateStr.split('-').map(Number)
+                              const dayIndex = getJstDayOfWeek(dateStr)
+                              const dayName = ['日', '月', '火', '水', '木', '金', '土'][dayIndex]
                               const isSelected = date === dateStr
-                              const isSunday = d.getDay() === 0
-                              const isSaturday = d.getDay() === 6
+                              const isSunday = dayIndex === 0
+                              const isSaturday = dayIndex === 6
                               return (
                                 <th 
                                   key={dateStr} 
@@ -1743,7 +1837,7 @@ export default function Booking() {
                                   style={isSelected ? { backgroundColor: `${storeSettings.liff_theme_color}20` } : {}}
                                 >
                                   <div className={`text-[10px] font-bold ${isSunday ? theme.slotTable.sundayText : isSaturday ? theme.slotTable.saturdayText : theme.slotTable.headerText}`}>
-                                    {d.getMonth() + 1}/{d.getDate()}
+                                    {month}/{day}
                                   </div>
                                   <div className={`text-xs font-bold ${isSunday ? theme.slotTable.sundayText : isSaturday ? theme.slotTable.saturdayText : theme.slotTable.weekdayText}`}>
                                     {dayName}
@@ -1794,6 +1888,7 @@ export default function Booking() {
                                                   time: timeStr,
                                                   staff_id: selectedStaff?.id || null,
                                                   menu_id: selectedMenu?.id || null,
+                                                  reservation_id: modifyingReservationId || null,
                                                   accessToken: getLiffAccessToken(),
                                                   idToken: getLiffIdToken(),
                                                 }
@@ -1876,9 +1971,9 @@ export default function Booking() {
                       <span className={theme.selectedDateLabel}>選択中：</span>
                       <span className="font-bold ml-2" style={{ color: storeSettings.liff_theme_color }}>
                         {(() => {
-                          const d = new Date(date + 'T00:00:00')
-                          const dayName = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()]
-                          return `${d.getMonth() + 1}月${d.getDate()}日(${dayName}) ${time}`
+                          const [, month, day] = date.split('-').map(Number)
+                          const dayName = ['日', '月', '火', '水', '木', '金', '土'][getJstDayOfWeek(date)]
+                          return `${month}月${day}日(${dayName}) ${time}`
                         })()}
                       </span>
                     </div>

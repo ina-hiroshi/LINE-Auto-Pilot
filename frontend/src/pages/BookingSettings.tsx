@@ -364,7 +364,6 @@ export default function BookingSettingsPage() {
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="w-full">
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
         <BookingPageTab
           storeId={storeId}
           bookingSettings={bookingSettings}
@@ -383,7 +382,6 @@ export default function BookingSettingsPage() {
           onToast={showToast}
           isPro={isPro}
         />
-      </div>
 
       {/* Modals */}
       <StaffModal

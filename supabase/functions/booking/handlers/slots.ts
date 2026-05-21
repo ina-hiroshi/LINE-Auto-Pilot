@@ -6,6 +6,11 @@ import {
   toJstDate,
   formatTimeInJst,
   getJstDayOfWeek,
+  resolveStaffEffectiveHours,
+  loadModifyExcludeContext,
+  reservationBlocksOverlap,
+  isExcludedGoogleEventForModify,
+  type ModifyExcludeContext,
   isOverlapping,
   isValidUUID,
   isValidDate,
@@ -19,12 +24,97 @@ import {
 } from './utils.ts'
 import { getGoogleCalendarClient, listGoogleEvents, deleteGoogleEvent } from './google-calendar.ts'
 
+/** デプロイ確認用。ソース更新時に ISO 文字列を更新する */
+export const SLOTS_API_VERSION = '2026-05-21T15:00:00Z'
+
 export type BookingParams = {
   store_id?: string
   line_user_id?: string
   date?: string
   staff_id?: string
   menu_id?: string
+  /** 予約変更時: この予約は重複判定から除外する */
+  reservation_id?: string
+}
+
+type ReservationSlotRow = {
+  id: string
+  status: string
+  line_user_id: string
+  start_time: string
+  end_time: string
+  staff_id?: string | null
+}
+
+type GoogleEventRow = {
+  id?: string
+  start?: { dateTime?: string }
+  end?: { dateTime?: string }
+  summary?: string
+  description?: string
+}
+
+type BlockedSlotDebug = { time: string; reasons: string[] }
+
+function shouldCountReservationForOverlap(
+  r: ReservationSlotRow,
+  lineUserId: string | undefined,
+  modifyExclude?: ModifyExcludeContext
+): boolean {
+  if (modifyExclude && r.id === modifyExclude.reservationId) return false
+  if (r.status === 'temporary' && lineUserId && r.line_user_id === lineUserId) return false
+  return true
+}
+
+function formatGoogleEventLabel(e: GoogleEventRow): string {
+  const summary = e.summary ?? '(no title)'
+  const start = e.start?.dateTime ? formatTimeInJst(new Date(e.start.dateTime)) : '?'
+  const end = e.end?.dateTime ? formatTimeInJst(new Date(e.end.dateTime)) : '?'
+  return `${summary} (${start}-${end})`
+}
+
+function addBlockedReason(blocked: BlockedSlotDebug[], time: string, reason: string): void {
+  const entry = blocked.find((b) => b.time === time)
+  if (entry) {
+    if (!entry.reasons.includes(reason)) entry.reasons.push(reason)
+  } else {
+    blocked.push({ time, reasons: [reason] })
+  }
+}
+
+async function purgeOwnHoldsInModifyMode(
+  supabaseClient: SupabaseClientType,
+  store_id: string,
+  line_user_id: string
+): Promise<number> {
+  const { data: ownHolds } = await supabaseClient
+    .from('temporary_holds')
+    .select('id, google_event_id')
+    .eq('store_id', store_id)
+    .eq('line_user_id', line_user_id)
+
+  if (!ownHolds || ownHolds.length === 0) return 0
+
+  const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
+  for (const hold of ownHolds) {
+    if (hold.google_event_id && googleClient) {
+      try {
+        await deleteGoogleEvent(googleClient, hold.google_event_id)
+        console.log(`[Booking] Modify mode: deleted own hold Google event ${hold.google_event_id}`)
+      } catch (e) {
+        console.error('Failed to delete own hold Google event:', e)
+      }
+    }
+  }
+
+  await supabaseClient
+    .from('temporary_holds')
+    .delete()
+    .eq('store_id', store_id)
+    .eq('line_user_id', line_user_id)
+
+  console.log(`[Booking] Modify mode: purged ${ownHolds.length} own temporary_holds`)
+  return ownHolds.length
 }
 
 export async function handleGetAvailableSlots(
@@ -32,13 +122,37 @@ export async function handleGetAvailableSlots(
   params: BookingParams,
   corsHeaders: CorsHeaders
 ): Promise<Response> {
-  const { store_id, date, line_user_id, staff_id, menu_id } = params
+  const { store_id, date, line_user_id, menu_id, reservation_id } = params
+  let { staff_id } = params
 
   if (!store_id || !date) throw new ClientVisibleError('store_id and date are required')
   if (!isValidUUID(store_id)) throw new ClientVisibleError('Invalid store_id format')
   if (!isValidDate(date)) throw new ClientVisibleError('Invalid date format (expected YYYY-MM-DD)')
   if (staff_id && !isValidUUID(staff_id)) throw new ClientVisibleError('Invalid staff_id format')
   if (menu_id && !isValidUUID(menu_id)) throw new ClientVisibleError('Invalid menu_id format')
+  if (reservation_id && !isValidUUID(reservation_id)) {
+    throw new ClientVisibleError('Invalid reservation_id format')
+  }
+
+  let modifyExclude: ModifyExcludeContext | undefined
+  const isModifyMode = Boolean(reservation_id)
+  let purgedOwnHolds = 0
+
+  if (reservation_id) {
+    modifyExclude = await loadModifyExcludeContext(supabaseClient, store_id, reservation_id)
+    if (modifyExclude.staffId) {
+      staff_id = modifyExclude.staffId
+    }
+    if (line_user_id) {
+      purgedOwnHolds = await purgeOwnHoldsInModifyMode(supabaseClient, store_id, line_user_id)
+    }
+    console.log(
+      `[Booking] Modify mode: exclude reservation ${modifyExclude.reservationId} (staff=${staff_id}, google=${modifyExclude.googleEventId ?? 'none'}, purgedHolds=${purgedOwnHolds})`
+    )
+  }
+
+  const excludeReservationId = modifyExclude?.reservationId
+  const includeDebug = isModifyMode
 
   // Cleanup expired holds
   const { data: expiredHolds } = await supabaseClient
@@ -50,11 +164,10 @@ export async function handleGetAvailableSlots(
     console.log(`[Booking] Found ${expiredHolds.length} expired holds to cleanup`)
     for (const hold of expiredHolds) {
       if (hold.google_event_id) {
-        const googleClient = await getGoogleCalendarClient(supabaseClient, hold.store_id)
-        if (googleClient) {
+        const gc = await getGoogleCalendarClient(supabaseClient, hold.store_id)
+        if (gc) {
           try {
-            await deleteGoogleEvent(googleClient, hold.google_event_id)
-            console.log(`[Booking] Deleted expired Google event: ${hold.google_event_id}`)
+            await deleteGoogleEvent(gc, hold.google_event_id)
           } catch (e) {
             console.error('Failed to delete expired Google event:', e)
           }
@@ -65,7 +178,6 @@ export async function handleGetAvailableSlots(
       .from('temporary_holds')
       .delete()
       .lt('expires_at', new Date().toISOString())
-    console.log('[Booking] Cleanup completed')
   }
 
   const storeSettings = await getStoreSettings(supabaseClient, store_id)
@@ -79,13 +191,16 @@ export async function handleGetAvailableSlots(
     .maybeSingle()
 
   if (specialDate?.is_closed) {
-    return new Response(JSON.stringify({ slots: [] }), {
+    return new Response(JSON.stringify({
+      version: SLOTS_API_VERSION,
+      slots: [],
+      ...(includeDebug ? { _debug: { received: { reservation_id, staff_id, line_user_id, date }, closed: true } } : {}),
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
 
   let durationMinutes = slotInterval
-  let menuCapacity: number | null = null
   if (menu_id) {
     const { data: menu } = await supabaseClient
       .from('booking_menus')
@@ -93,7 +208,6 @@ export async function handleGetAvailableSlots(
       .eq('id', menu_id)
       .maybeSingle()
     if (menu?.duration_minutes) durationMinutes = menu.duration_minutes
-    if (typeof menu?.capacity_per_slot === 'number') menuCapacity = menu.capacity_per_slot
   }
 
   if (!durationMinutes || durationMinutes <= 0) {
@@ -114,7 +228,7 @@ export async function handleGetAvailableSlots(
 
   let query = supabaseClient
     .from('reservations')
-    .select('start_time, end_time, status, line_user_id, staff_id')
+    .select('id, start_time, end_time, status, line_user_id, staff_id')
     .eq('store_id', store_id)
     .neq('status', 'cancelled')
     .lt('start_time', dayEnd)
@@ -124,8 +238,16 @@ export async function handleGetAvailableSlots(
     query = query.eq('staff_id', staff_id)
   }
 
+  if (excludeReservationId) {
+    query = query.neq('id', excludeReservationId)
+  }
+
   const { data: reservations, error } = await query
   if (error) throw new ClientVisibleError(toErrorMessage(error))
+
+  const blockingReservations = (reservations ?? []).filter(
+    (r) => !excludeReservationId || r.id !== excludeReservationId
+  )
 
   let holdQuery = supabaseClient
     .from('temporary_holds')
@@ -142,7 +264,6 @@ export async function handleGetAvailableSlots(
   const { data: holds } = await holdQuery
 
   const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
-  type GoogleEventRow = { start?: { dateTime?: string }; end?: { dateTime?: string }; summary?: string; description?: string }
   let googleEvents: GoogleEventRow[] = []
   if (googleClient) {
     googleEvents = await listGoogleEvents(googleClient, dayStart, dayEnd)
@@ -155,12 +276,10 @@ export async function handleGetAvailableSlots(
 
     const { data: workPattern } = await supabaseClient
       .from('staff_work_patterns')
-      .select('start_time, end_time, is_active')
+      .select('start_time, end_time, slots, is_active')
       .eq('staff_id', staff_id)
       .eq('day_of_week', dayOfWeek)
       .maybeSingle()
-
-    console.log(`[Booking] Staff ${staff_id} work pattern for day ${dayOfWeek}:`, workPattern)
 
     const { data: specialSchedule } = await supabaseClient
       .from('staff_special_schedules')
@@ -169,34 +288,20 @@ export async function handleGetAvailableSlots(
       .eq('date', date)
       .maybeSingle()
 
-    console.log(`[Booking] Staff ${staff_id} special schedule for ${date}:`, specialSchedule)
-
-    if (specialSchedule) {
-      if (specialSchedule.is_absent) {
-        console.log(`[Booking] Staff ${staff_id} is absent on ${date}`)
-        effectiveHours = []
-      } else if (specialSchedule.override_start && specialSchedule.override_end) {
-        effectiveHours = [{ start: specialSchedule.override_start, end: specialSchedule.override_end }]
-      } else {
-        if (workPattern?.is_active && workPattern.start_time && workPattern.end_time) {
-          effectiveHours = [{ start: workPattern.start_time, end: workPattern.end_time }]
-        } else {
-          effectiveHours = []
-        }
-      }
-    } else if (workPattern?.is_active) {
-      if (workPattern.start_time && workPattern.end_time) {
-        effectiveHours = [{ start: workPattern.start_time, end: workPattern.end_time }]
-      } else {
-        effectiveHours = []
-      }
-    }
-
-    console.log(`[Booking] Staff ${staff_id} effective hours:`, effectiveHours)
+    effectiveHours = resolveStaffEffectiveHours(workPattern, specialSchedule)
 
     if (effectiveHours.length === 0) {
-      console.log(`[Booking] No available slots for staff ${staff_id} on ${date}`)
-      return new Response(JSON.stringify({ slots: [] }), {
+      return new Response(JSON.stringify({
+        version: SLOTS_API_VERSION,
+        slots: [],
+        ...(includeDebug ? {
+          _debug: {
+            received: { reservation_id, staff_id, line_user_id, date, menu_duration: durationMinutes },
+            modifyExclude,
+            noWorkingHours: true,
+          },
+        } : {}),
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -211,6 +316,7 @@ export async function handleGetAvailableSlots(
   }
 
   const slots: { time: string; available: boolean }[] = []
+  const blocked: BlockedSlotDebug[] = []
 
   for (const hourRange of effectiveHours) {
     const rangeStart = toJstDate(date, hourRange.start)
@@ -218,32 +324,40 @@ export async function handleGetAvailableSlots(
 
     for (let cursor = new Date(rangeStart); cursor < rangeEnd; cursor = new Date(cursor.getTime() + slotInterval * 60000)) {
       const slotEnd = new Date(cursor.getTime() + durationMinutes * 60000)
-      if (slotEnd > rangeEnd) continue
+      if (slotEnd > rangeEnd) {
+        if (includeDebug) {
+          addBlockedReason(blocked, formatTimeInJst(cursor), `working_hours:slot_end_${formatTimeInJst(slotEnd)}_exceeds_${hourRange.end}`)
+        }
+        continue
+      }
 
       const hhmm = formatTimeInJst(cursor)
+      const slotReasons: string[] = []
 
-      const internalOverlapCount = (reservations || []).filter((r: { status: string; line_user_id: string; start_time: string; end_time: string }) => {
-        if (r.status === 'temporary' && r.line_user_id === line_user_id) return false
-        const resStart = new Date(r.start_time)
-        const resEnd = new Date(r.end_time)
-        return isOverlapping(cursor, slotEnd, resStart, resEnd)
-      }).length
+      const overlappingReservations = blockingReservations.filter((r: ReservationSlotRow) => {
+        if (!shouldCountReservationForOverlap(r, line_user_id, modifyExclude)) return false
+        return reservationBlocksOverlap(r, cursor, slotEnd, modifyExclude, line_user_id)
+      })
 
-      const holdOverlapCount = (holds || []).filter((h: { line_user_id: string; start_time: string; end_time: string }) => {
+      for (const r of overlappingReservations) {
+        slotReasons.push(`reservation:${r.id}:${formatTimeInJst(new Date(r.start_time))}-${formatTimeInJst(new Date(r.end_time))}`)
+      }
+
+      const overlappingHolds = (holds || []).filter((h: { line_user_id: string; start_time: string; end_time: string; staff_id?: string | null }) => {
+        if (isModifyMode && line_user_id && h.line_user_id === line_user_id) return false
         if (h.line_user_id === line_user_id) return false
         const holdStart = new Date(h.start_time)
         const holdEnd = new Date(h.end_time)
         return isOverlapping(cursor, slotEnd, holdStart, holdEnd)
-      }).length
+      })
+
+      for (const h of overlappingHolds) {
+        slotReasons.push(`hold:${h.line_user_id}:${formatTimeInJst(new Date(h.start_time))}-${formatTimeInJst(new Date(h.end_time))}`)
+      }
 
       const relevantGoogleEvents = googleEvents.filter((e: GoogleEventRow) => {
         if (!e.start?.dateTime || !e.end?.dateTime) return false
-        if (line_user_id && e.summary?.startsWith('【仮予約】')) {
-          if (e.description && e.description.includes(line_user_id)) {
-            console.log(`[Booking] Excluding own temporary event: ${e.summary}`)
-            return false
-          }
-        }
+        if (isExcludedGoogleEventForModify(e, line_user_id, modifyExclude)) return false
         const resStart = new Date(e.start.dateTime)
         const resEnd = new Date(e.end.dateTime)
         return isOverlapping(cursor, slotEnd, resStart, resEnd)
@@ -254,36 +368,44 @@ export async function handleGetAvailableSlots(
 
       if (staff_id) {
         capacityLimit = 1
-        const staffReservationCount = internalOverlapCount
-        const staffHoldCount = holdOverlapCount
         const staffInfo = staffInfoList.find(s => s.id === staff_id)
         const staffGoogleEvents = staffInfo
-          ? relevantGoogleEvents.filter(e => {
-              const foundStaff = extractStaffFromGoogleEvent(e, [staffInfo])
-              return foundStaff !== null
-            })
+          ? relevantGoogleEvents.filter(e => extractStaffFromGoogleEvent(e, [staffInfo]) !== null)
           : []
-        totalOverlap = staffReservationCount + staffHoldCount + staffGoogleEvents.length
-      } else if (staffInfoList.length === 0 || storeSettings.booking_enable_staff !== true) {
-        // スタッフ未登録、または予約でスタッフ指名を使わない設定: 店舗枠 (capacity_per_slot) のみ（営業時間ベース）
-        capacityLimit = storeSettings?.capacity_per_slot ?? 10
-        const nullStaffReservationCount = (reservations || []).filter((r: { status: string; line_user_id: string; start_time: string; end_time: string; staff_id?: string | null }) => {
-          if (r.status === 'temporary' && r.line_user_id === line_user_id) return false
-          if (r.staff_id) return false
-          const resStart = new Date(r.start_time)
-          const resEnd = new Date(r.end_time)
-          return isOverlapping(cursor, slotEnd, resStart, resEnd)
-        }).length
 
-        const nullStaffHoldCount = (holds || []).filter((h: { line_user_id: string; start_time: string; end_time: string; staff_id?: string | null }) => {
+        for (const e of staffGoogleEvents) {
+          slotReasons.push(`google:${formatGoogleEventLabel(e)}`)
+        }
+
+        // スタッフ未特定の Google イベントも staff_id モードではブロックしない（extractStaff ベース）
+        totalOverlap = overlappingReservations.length + overlappingHolds.length + staffGoogleEvents.length
+      } else if (staffInfoList.length === 0 || storeSettings.booking_enable_staff !== true) {
+        capacityLimit = storeSettings?.capacity_per_slot ?? 10
+
+        const nullStaffReservations = blockingReservations.filter((r: ReservationSlotRow) => {
+          if (!shouldCountReservationForOverlap(r, line_user_id, modifyExclude)) return false
+          if (r.staff_id) return false
+          return reservationBlocksOverlap(r, cursor, slotEnd, modifyExclude, line_user_id)
+        })
+
+        slotReasons.length = 0
+        for (const r of nullStaffReservations) {
+          slotReasons.push(`reservation:${r.id}:${formatTimeInJst(new Date(r.start_time))}-${formatTimeInJst(new Date(r.end_time))}`)
+        }
+
+        const nullStaffHolds = (holds || []).filter((h: { line_user_id: string; start_time: string; end_time: string; staff_id?: string | null }) => {
           if (h.line_user_id === line_user_id) return false
           if (h.staff_id) return false
           const holdStart = new Date(h.start_time)
           const holdEnd = new Date(h.end_time)
           return isOverlapping(cursor, slotEnd, holdStart, holdEnd)
-        }).length
+        })
 
-        totalOverlap = nullStaffReservationCount + nullStaffHoldCount
+        for (const h of nullStaffHolds) {
+          slotReasons.push(`hold:${h.line_user_id}`)
+        }
+
+        totalOverlap = nullStaffReservations.length + nullStaffHolds.length
       } else {
         const workingStaff = await getWorkingStaffForTimeSlot(
           supabaseClient,
@@ -294,22 +416,22 @@ export async function handleGetAvailableSlots(
         )
 
         if (workingStaff.length === 0) {
+          if (includeDebug) addBlockedReason(blocked, hhmm, 'working_hours:no_staff_on_shift')
           slots.push({ time: hhmm, available: false })
           continue
         }
 
-        const internalBookedStaffIds = (reservations || [])
-          .filter((r: { status: string; line_user_id: string; start_time: string; end_time: string; staff_id?: string }) => {
-            if (r.status === 'temporary' && r.line_user_id === line_user_id) return false
-            const resStart = new Date(r.start_time)
-            const resEnd = new Date(r.end_time)
-            return isOverlapping(cursor, slotEnd, resStart, resEnd) && r.staff_id
+        const internalBookedStaffIds = blockingReservations
+          .filter((r: ReservationSlotRow) => {
+            if (!shouldCountReservationForOverlap(r, line_user_id, modifyExclude)) return false
+            return reservationBlocksOverlap(r, cursor, slotEnd, modifyExclude, line_user_id) && r.staff_id
           })
           .map((r: { staff_id?: string }) => r.staff_id)
           .filter(Boolean) as string[]
 
         const holdBookedStaffIds = (holds || [])
           .filter((h: { line_user_id: string; start_time: string; end_time: string; staff_id?: string }) => {
+            if (isModifyMode && line_user_id && h.line_user_id === line_user_id) return false
             if (h.line_user_id === line_user_id) return false
             const holdStart = new Date(h.start_time)
             const holdEnd = new Date(h.end_time)
@@ -325,18 +447,76 @@ export async function handleGetAvailableSlots(
           slotEnd
         )
 
+        for (const staffId of internalBookedStaffIds) {
+          const name = staffInfoList.find(s => s.id === staffId)?.name ?? staffId
+          slotReasons.push(`reservation:staff:${name}`)
+        }
+        for (const staffId of holdBookedStaffIds) {
+          const name = staffInfoList.find(s => s.id === staffId)?.name ?? staffId
+          slotReasons.push(`hold:staff:${name}`)
+        }
+        for (const e of relevantGoogleEvents) {
+          const staff = extractStaffFromGoogleEvent(e, staffInfoList)
+          if (staff) slotReasons.push(`google:staff:${staff.name}:${formatGoogleEventLabel(e)}`)
+        }
+        if (unknownEventCount > 0) {
+          slotReasons.push(`google:unknown:${unknownEventCount}`)
+        }
+
         const bookedStaffSet = new Set([...internalBookedStaffIds, ...holdBookedStaffIds, ...identifiedStaffIds])
         const availableStaffCount = workingStaff.length - bookedStaffSet.size - unknownEventCount
         capacityLimit = Math.max(0, availableStaffCount)
         totalOverlap = 0
+
+        if (availableStaffCount <= 0 && slotReasons.length === 0) {
+          slotReasons.push('capacity:all_staff_busy')
+        }
       }
 
       const available = totalOverlap < capacityLimit
       slots.push({ time: hhmm, available })
+
+      if (includeDebug && !available) {
+        if (slotReasons.length > 0) {
+          for (const reason of slotReasons) {
+            addBlockedReason(blocked, hhmm, reason)
+          }
+        } else if (totalOverlap >= capacityLimit) {
+          addBlockedReason(blocked, hhmm, `capacity:overlap_${totalOverlap}_limit_${capacityLimit}`)
+        }
+      }
     }
   }
 
-  return new Response(JSON.stringify({ slots }), {
+  const responseBody: Record<string, unknown> = {
+    version: SLOTS_API_VERSION,
+    slots,
+  }
+
+  if (includeDebug) {
+    responseBody._debug = {
+      received: {
+        reservation_id: reservation_id ?? null,
+        staff_id: staff_id ?? null,
+        line_user_id: line_user_id ?? null,
+        date,
+        menu_id: menu_id ?? null,
+        menu_duration: durationMinutes,
+      },
+      modifyExclude: modifyExclude ?? null,
+      purgedOwnHolds,
+      slotEvaluationMode: staff_id ? 'single_staff' : (
+        staffInfoList.length === 0 || storeSettings.booking_enable_staff !== true
+          ? 'store_capacity'
+          : 'multi_staff'
+      ),
+      blockingReservationCount: blockingReservations.length,
+      googleEventCount: googleEvents.length,
+      blocked,
+    }
+  }
+
+  return new Response(JSON.stringify(responseBody), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }

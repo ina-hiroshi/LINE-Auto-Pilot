@@ -8,10 +8,14 @@ import {
   isPastDate,
   isWithinMaxBookingDays,
   isOverlapping,
+  loadModifyExcludeContext,
+  isExcludedGoogleEventForModify,
+  extractStaffFromGoogleEvent,
+  type ModifyExcludeContext,
   getStoreSettings,
   getWorkingStaffForTimeSlot,
 } from './utils.ts'
-import { getGoogleCalendarClient, createGoogleEvent, deleteGoogleEvent } from './google-calendar.ts'
+import { getGoogleCalendarClient, createGoogleEvent, deleteGoogleEvent, listGoogleEvents } from './google-calendar.ts'
 
 export type HoldParams = {
   store_id?: string
@@ -21,6 +25,8 @@ export type HoldParams = {
   staff_id?: string
   menu_id?: string
   display_name?: string
+  /** 予約変更時: この予約は重複判定から除外する */
+  reservation_id?: string
 }
 
 export async function handleHoldSlot(
@@ -28,7 +34,7 @@ export async function handleHoldSlot(
   params: HoldParams,
   corsHeaders: CorsHeaders
 ): Promise<Response> {
-  const { store_id, line_user_id, date, time, staff_id, menu_id, display_name } = params
+  const { store_id, line_user_id, date, time, staff_id, menu_id, display_name, reservation_id } = params
 
   if (!store_id || !date || !time) throw new ClientVisibleError('store_id, date, and time are required')
   if (!isValidUUID(store_id)) throw new ClientVisibleError('Invalid store_id format')
@@ -36,6 +42,22 @@ export async function handleHoldSlot(
   if (!isValidTime(time)) throw new ClientVisibleError('Invalid time format (expected HH:MM)')
   if (staff_id && !isValidUUID(staff_id)) throw new ClientVisibleError('Invalid staff_id format')
   if (menu_id && !isValidUUID(menu_id)) throw new ClientVisibleError('Invalid menu_id format')
+  if (reservation_id && !isValidUUID(reservation_id)) {
+    throw new ClientVisibleError('Invalid reservation_id format')
+  }
+
+  let modifyExclude: ModifyExcludeContext | undefined
+  if (reservation_id) {
+    modifyExclude = await loadModifyExcludeContext(supabaseClient, store_id, reservation_id)
+    if (line_user_id && modifyExclude.lineUserId !== line_user_id) {
+      throw new ClientVisibleError('この予約を変更できません', 403)
+    }
+    if (modifyExclude.staffId) {
+      staff_id = modifyExclude.staffId
+    }
+  }
+
+  const excludeReservationId = modifyExclude?.reservationId
 
   const storeSettings = await getStoreSettings(supabaseClient, store_id)
   if (isPastDate(date, time)) throw new ClientVisibleError('過去の日付は予約できません')
@@ -61,7 +83,7 @@ export async function handleHoldSlot(
 
   // 容量チェック: 予約枠に空きがあるか確認
   if (staff_id) {
-    const { data: overlapReservations } = await supabaseClient
+    let overlapQuery = supabaseClient
       .from('reservations')
       .select('id')
       .eq('store_id', store_id)
@@ -70,6 +92,10 @@ export async function handleHoldSlot(
       .neq('status', 'temporary')
       .lt('start_time', endDateTime.toISOString())
       .gt('end_time', startDateTime.toISOString())
+    if (excludeReservationId) {
+      overlapQuery = overlapQuery.neq('id', excludeReservationId)
+    }
+    const { data: overlapReservations } = await overlapQuery
 
     const { data: conflictingHolds } = await supabaseClient
       .from('temporary_holds')
@@ -81,7 +107,40 @@ export async function handleHoldSlot(
       .gt('end_time', startDateTime.toISOString())
 
     const otherHoldCount = (conflictingHolds || []).filter(h => h.line_user_id !== line_user_id).length
-    if ((overlapReservations?.length ?? 0) + otherHoldCount >= 1) {
+
+    let googleConflictCount = 0
+    const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
+    if (googleClient) {
+      const { data: staffInfo } = await supabaseClient
+        .from('staff_members')
+        .select('id, name')
+        .eq('id', staff_id)
+        .maybeSingle()
+
+      if (staffInfo) {
+        const googleEvents = await listGoogleEvents(
+          googleClient,
+          startDateTime.toISOString(),
+          endDateTime.toISOString()
+        )
+        googleConflictCount = googleEvents.filter((e: {
+          id?: string
+          start?: { dateTime?: string }
+          end?: { dateTime?: string }
+          summary?: string
+          description?: string
+        }) => {
+          if (!e.start?.dateTime || !e.end?.dateTime) return false
+          if (isExcludedGoogleEventForModify(e, line_user_id, modifyExclude)) return false
+          const eventStart = new Date(e.start.dateTime)
+          const eventEnd = new Date(e.end.dateTime)
+          if (!isOverlapping(startDateTime, endDateTime, eventStart, eventEnd)) return false
+          return extractStaffFromGoogleEvent(e, [staffInfo]) !== null
+        }).length
+      }
+    }
+
+    if ((overlapReservations?.length ?? 0) + otherHoldCount + googleConflictCount >= 1) {
       throw new ClientVisibleError('この時間帯の予約枠が埋まっています')
     }
   } else {
@@ -99,7 +158,7 @@ export async function handleHoldSlot(
     if (useStoreCapacityUnassigned) {
       const capacityLimit = storeSettings?.capacity_per_slot ?? 10
 
-      const { data: overlapReservations } = await supabaseClient
+      let storeOverlapQuery = supabaseClient
         .from('reservations')
         .select('id')
         .eq('store_id', store_id)
@@ -108,6 +167,10 @@ export async function handleHoldSlot(
         .neq('status', 'temporary')
         .lt('start_time', endDateTime.toISOString())
         .gt('end_time', startDateTime.toISOString())
+      if (excludeReservationId) {
+        storeOverlapQuery = storeOverlapQuery.neq('id', excludeReservationId)
+      }
+      const { data: overlapReservations } = await storeOverlapQuery
 
       const { data: conflictingHolds } = await supabaseClient
         .from('temporary_holds')
@@ -128,7 +191,7 @@ export async function handleHoldSlot(
         throw new ClientVisibleError('この時間帯に対応可能なスタッフがいません')
       }
 
-      const { data: overlapReservations } = await supabaseClient
+      let staffOverlapQuery = supabaseClient
         .from('reservations')
         .select('staff_id')
         .eq('store_id', store_id)
@@ -136,6 +199,10 @@ export async function handleHoldSlot(
         .neq('status', 'temporary')
         .lt('start_time', endDateTime.toISOString())
         .gt('end_time', startDateTime.toISOString())
+      if (excludeReservationId) {
+        staffOverlapQuery = staffOverlapQuery.neq('id', excludeReservationId)
+      }
+      const { data: overlapReservations } = await staffOverlapQuery
 
       const bookedStaffIds = (overlapReservations || [])
         .map((r: { staff_id?: string }) => r.staff_id)
@@ -168,12 +235,12 @@ export async function handleHoldSlot(
     .eq('line_user_id', line_user_id)
     .eq('store_id', store_id)
 
-  const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
-  if (googleClient && existingHolds && existingHolds.length > 0) {
+  const googleClientForHold = await getGoogleCalendarClient(supabaseClient, store_id)
+  if (googleClientForHold && existingHolds && existingHolds.length > 0) {
     for (const hold of existingHolds) {
       if (hold.google_event_id) {
         try {
-          await deleteGoogleEvent(googleClient, hold.google_event_id)
+          await deleteGoogleEvent(googleClientForHold, hold.google_event_id)
           console.log(`[Booking] Deleted old temporary Google event: ${hold.google_event_id}`)
         } catch (e) {
           console.error('Failed to delete old temporary Google event:', e)
@@ -189,7 +256,7 @@ export async function handleHoldSlot(
     .eq('store_id', store_id)
 
   let googleEventId: string | null = null
-  if (googleClient) {
+  if (googleClientForHold) {
     try {
       const eventData = {
         summary: '【仮予約】' + (display_name || 'お客様'),
@@ -198,7 +265,7 @@ export async function handleHoldSlot(
         end: { dateTime: endDateTime.toISOString(), timeZone: 'Asia/Tokyo' },
         colorId: '11',
       }
-      googleEventId = await createGoogleEvent(googleClient, eventData)
+      googleEventId = await createGoogleEvent(googleClientForHold, eventData)
     } catch (e) {
       console.error('Failed to create temporary Google event:', e)
     }

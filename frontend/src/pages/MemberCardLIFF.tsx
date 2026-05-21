@@ -23,6 +23,7 @@ type CardSettings = {
 }
 
 type CustomerInfo = {
+  id: string
   line_user_id: string
   display_name: string
   real_name: string | null
@@ -177,6 +178,7 @@ export default function MemberCardLIFF() {
               })
 
               setCustomer({
+                id: data.customer?.id ?? newUserId,
                 line_user_id: newUserId,
                 display_name: data.lineProfile?.displayName || displayName,
                 real_name: data.customer?.real_name || null,
@@ -207,6 +209,7 @@ export default function MemberCardLIFF() {
           const rankName = rankObj ? rankObj.name : sortedRanks[sortedRanks.length - 1].name
           
           setCustomer({
+            id: userId,
             line_user_id: userId,
             display_name: displayName,
             real_name: realName,
@@ -541,7 +544,7 @@ export default function MemberCardLIFF() {
               }}
             >
               <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${window.location.origin}/customers?customer_id=${customer.line_user_id}`)}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${window.location.origin}/customers/${customer.id}`)}`}
                 alt="Member QR Code"
                 className="w-32 h-32"
               />

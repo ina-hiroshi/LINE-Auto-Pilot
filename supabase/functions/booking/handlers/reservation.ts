@@ -8,6 +8,9 @@ import {
   isPastDate,
   isWithinMaxBookingDays,
   isOverlapping,
+  isExcludedGoogleEventForModify,
+  loadModifyExcludeContext,
+  type ModifyExcludeContext,
   getStoreSettings,
   getWorkingStaffForTimeSlot,
   extractStaffFromGoogleEvent,
@@ -37,6 +40,42 @@ async function fetchFirstLineAccountId(
   return data?.[0]?.id ?? null
 }
 
+function getJstDateString(date: Date): string {
+  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' })
+}
+
+async function resolveQuotedAmount(
+  supabaseClient: SupabaseClientType,
+  menu_id: string | null,
+  quoted_amount: number | null | undefined,
+  isManualRegistration: boolean,
+): Promise<number | null> {
+  if (menu_id) {
+    const { data: menu } = await supabaseClient
+      .from('booking_menus')
+      .select('price')
+      .eq('id', menu_id)
+      .maybeSingle()
+    if (typeof quoted_amount === 'number' && quoted_amount >= 0) {
+      return Math.round(quoted_amount)
+    }
+    if (menu?.price != null && menu.price >= 0) {
+      return menu.price
+    }
+    return null
+  }
+  if (isManualRegistration) {
+    if (typeof quoted_amount !== 'number' || quoted_amount < 0 || !Number.isFinite(quoted_amount)) {
+      throw new ClientVisibleError('メニュー未選択の場合は見込み金額（税込）の入力が必要です')
+    }
+    return Math.round(quoted_amount)
+  }
+  if (typeof quoted_amount === 'number' && quoted_amount >= 0) {
+    return Math.round(quoted_amount)
+  }
+  return null
+}
+
 type CreateReservationWithCapacityCheckParams = {
   supabaseClient: SupabaseClientType
   store_id: string
@@ -51,6 +90,7 @@ type CreateReservationWithCapacityCheckParams = {
   real_name?: string
   furigana?: string
   isManualRegistration: boolean
+  quoted_amount?: number | null
   excludeReservationId?: string
   preloadedGoogleClient?: GoogleClientType
 }
@@ -70,9 +110,17 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
     real_name,
     furigana,
     isManualRegistration,
+    quoted_amount: requestQuotedAmount,
     excludeReservationId,
     preloadedGoogleClient,
   } = params
+
+  const quoted_amount = await resolveQuotedAmount(
+    supabaseClient,
+    menu_id,
+    requestQuotedAmount,
+    isManualRegistration,
+  )
 
   const lineAccountId = await fetchFirstLineAccountId(supabaseClient, store_id)
   if (!lineAccountId && !isManualRegistration) {
@@ -111,6 +159,11 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
   const googleClient = preloadedGoogleClient !== undefined
     ? preloadedGoogleClient
     : await getGoogleCalendarClient(supabaseClient, store_id)
+
+  let modifyExclude: ModifyExcludeContext | undefined
+  if (excludeReservationId) {
+    modifyExclude = await loadModifyExcludeContext(supabaseClient, store_id, excludeReservationId)
+  }
 
   if (staff_id) {
     const capacityLimit = 1
@@ -153,15 +206,12 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
 
       if (staffInfo) {
         const googleEvents = await listGoogleEvents(googleClient, startDateTime.toISOString(), endDateTime.toISOString())
-        const staffGoogleEvents = googleEvents.filter((e: { start?: { dateTime?: string }; end?: { dateTime?: string }; summary?: string; description?: string }) => {
+        const staffGoogleEvents = googleEvents.filter((e: { id?: string; start?: { dateTime?: string }; end?: { dateTime?: string }; summary?: string; description?: string }) => {
           if (!e.start?.dateTime || !e.end?.dateTime) return false
+          if (isExcludedGoogleEventForModify(e, line_user_id, modifyExclude)) return false
           const eventStart = new Date(e.start.dateTime)
           const eventEnd = new Date(e.end.dateTime)
           if (!isOverlapping(startDateTime, endDateTime, eventStart, eventEnd)) return false
-
-          if (line_user_id && e.summary?.startsWith('【仮予約】')) {
-            if (e.description && e.description.includes(line_user_id)) return false
-          }
 
           const foundStaff = extractStaffFromGoogleEvent(e, [staffInfo])
           return foundStaff !== null
@@ -277,11 +327,8 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
 
       if (googleClient && staffList) {
         const googleEvents = (await listGoogleEvents(googleClient, startDateTime.toISOString(), endDateTime.toISOString()))
-          .filter((e: { summary?: string; description?: string }) => {
-            if (line_user_id && e.summary?.startsWith('【仮予約】')) {
-              if (e.description && e.description.includes(line_user_id)) return false
-            }
-            return true
+          .filter((e: { id?: string; start?: { dateTime?: string }; end?: { dateTime?: string }; summary?: string; description?: string }) => {
+            return !isExcludedGoogleEventForModify(e, line_user_id, modifyExclude)
           })
 
         const { identifiedStaffIds, unknownEventCount: unknown } = analyzeGoogleEventsForStaff(
@@ -337,7 +384,8 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
     p_staff_id: staff_id || null,
     p_menu_id: menu_id || null,
     p_memo: memo || '',
-    p_registration_type: isManualRegistration ? 'manual' : 'line'
+    p_registration_type: isManualRegistration ? 'manual' : 'line',
+    p_quoted_amount: quoted_amount,
   })
 
   if (rpcError) {
@@ -399,6 +447,8 @@ async function createGoogleCalendarEventForReservation(
     const description = `
 ■予約詳細
 ------------------
+予約ID: ${reservationId}
+Reservation ID: ${reservationId}
 【お名前】 ${real_name || display_name || 'ゲスト'} 様
 【担当】 ${staffName}
 【メニュー】 ${menuName} ${menuPrice}
@@ -434,6 +484,7 @@ export type CreateReservationParams = {
   staff_id?: string
   menu_id?: string
   memo?: string
+  quoted_amount?: number
   display_name?: string
   profile_picture_url?: string
   real_name?: string
@@ -454,6 +505,7 @@ export async function handleCreateReservation(
     staff_id,
     menu_id,
     memo,
+    quoted_amount,
     display_name,
     profile_picture_url,
     real_name,
@@ -504,6 +556,7 @@ export async function handleCreateReservation(
     real_name,
     furigana,
     isManualRegistration,
+    quoted_amount,
     preloadedGoogleClient: googleClient,
   })
 
@@ -528,6 +581,79 @@ export async function handleCreateReservation(
     memo || '',
     googleClient,
   )
+
+  return new Response(JSON.stringify({ success: true, reservation_id: reservationId }), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+}
+
+export type CompletePaymentParams = {
+  reservation_id?: string
+  store_id?: string
+  paid_amount?: number
+  staff_id?: string | null
+  menu_id?: string | null
+  isManualRegistration: boolean
+}
+
+export async function handleCompletePayment(
+  supabaseClient: SupabaseClientType,
+  params: CompletePaymentParams,
+  corsHeaders: CorsHeaders
+): Promise<Response> {
+  const { reservation_id, store_id, paid_amount, staff_id, menu_id, isManualRegistration } = params
+
+  if (!isManualRegistration) {
+    throw new ClientVisibleError('この操作は店舗管理者のみ実行できます', 403)
+  }
+  if (!reservation_id || !store_id) {
+    throw new ClientVisibleError('reservation_id and store_id are required')
+  }
+  if (!isValidUUID(reservation_id) || !isValidUUID(store_id)) {
+    throw new ClientVisibleError('Invalid id format')
+  }
+  if (typeof paid_amount !== 'number' || !Number.isFinite(paid_amount) || paid_amount < 0) {
+    throw new ClientVisibleError('決済金額（税込）を正しく入力してください')
+  }
+  if (staff_id && !isValidUUID(staff_id)) throw new ClientVisibleError('Invalid staff_id format')
+  if (menu_id && !isValidUUID(menu_id)) throw new ClientVisibleError('Invalid menu_id format')
+
+  const { data: reservation, error: fetchError } = await supabaseClient
+    .from('reservations')
+    .select('id, status, start_time, store_id')
+    .eq('id', reservation_id)
+    .eq('store_id', store_id)
+    .single()
+
+  if (fetchError || !reservation) {
+    throw new ClientVisibleError('予約が見つかりません')
+  }
+  if (reservation.status !== 'confirmed') {
+    throw new ClientVisibleError('未決済の予約のみ決済できます')
+  }
+
+  const reservationDateJst = getJstDateString(new Date(reservation.start_time))
+  const todayJst = getJstDateString(new Date())
+  if (reservationDateJst > todayJst) {
+    throw new ClientVisibleError('予約日以降に決済できます')
+  }
+
+  const updatePayload: Record<string, unknown> = {
+    status: 'paid',
+    paid_amount: Math.round(paid_amount),
+    paid_at: new Date().toISOString(),
+  }
+  if (staff_id) updatePayload.staff_id = staff_id
+  if (menu_id) updatePayload.menu_id = menu_id
+
+  const { error: updateError } = await supabaseClient
+    .from('reservations')
+    .update(updatePayload)
+    .eq('id', reservation_id)
+    .eq('store_id', store_id)
+    .eq('status', 'confirmed')
+
+  if (updateError) throw new ClientVisibleError(toErrorMessage(updateError))
 
   return new Response(JSON.stringify({ success: true }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -669,6 +795,13 @@ export async function handleUpdateReservation(
 
   // 新予約を先に作成（旧予約は excludeReservationId で容量チェックから除外）
   // 失敗した場合でも旧予約は残るため、予約消失を防ぐ
+  const resolvedQuoted = await resolveQuotedAmount(
+    supabaseClient,
+    menu_id || null,
+    undefined,
+    isManualRegistration,
+  )
+
   const newReservationId = await createReservationWithCapacityCheck({
     supabaseClient,
     store_id,
@@ -683,6 +816,7 @@ export async function handleUpdateReservation(
     real_name,
     furigana,
     isManualRegistration,
+    quoted_amount: resolvedQuoted,
     excludeReservationId: reservation_id,
     preloadedGoogleClient: googleClient,
   })

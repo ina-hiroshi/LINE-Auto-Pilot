@@ -6,6 +6,7 @@ import { BusinessDaysTab } from './BusinessDaysTab'
 import { StaffShiftTab } from './StaffShiftTab'
 import { DESIGN_THEMES } from '../../../constants/designThemes'
 import ProBadge from '../../../components/ProBadge'
+import { UnderlineTabs } from '../../../components/UnderlineTabs'
 import ProUpgradeButton from '../../../components/ProUpgradeButton'
 import { supabase } from '../../../lib/supabase'
 // プリセットカラー
@@ -220,62 +221,20 @@ export function BookingPageTab({
 
   return (
     <div>
-      {/* Tabs & Action Header */}
-      <div className="flex items-end justify-between mb-6 border-b border-gray-200">
-        <div className="flex gap-2 overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab('basic')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'basic' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <Settings className="w-4 h-4" />
-            <span className="hidden sm:inline">基本設定</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('items')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'items' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <List className="w-4 h-4" />
-            <span className="hidden sm:inline">メニュー・スタッフ登録</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('design')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'design' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <Palette className="w-4 h-4" />
-            <span className="hidden sm:inline">デザイン設定</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('business-days')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'business-days' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <CalendarDays className="w-4 h-4" />
-            <span className="hidden sm:inline">営業日</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('staff-shift')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'staff-shift' ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <UserCheck className="w-4 h-4" />
-            <span className="hidden sm:inline">スタッフシフト</span>
-          </button>
-        </div>
-      </div>
+      <UnderlineTabs
+        activeId={activeTab}
+        onChange={setActiveTab}
+        justifyBetween
+        items={[
+          { id: 'basic', label: '基本設定', icon: Settings, hideLabelOnMobile: true },
+          { id: 'items', label: 'メニュー・スタッフ登録', icon: List, hideLabelOnMobile: true },
+          { id: 'design', label: 'デザイン設定', icon: Palette, hideLabelOnMobile: true },
+          { id: 'business-days', label: '営業日', icon: CalendarDays, hideLabelOnMobile: true },
+          { id: 'staff-shift', label: 'スタッフシフト', icon: UserCheck, hideLabelOnMobile: true },
+        ]}
+      />
 
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
       <div className="space-y-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* 左カラム：設定 */}
@@ -866,6 +825,7 @@ export function BookingPageTab({
             <p className="text-center text-xs text-gray-500 mt-4">※実際の表示は端末により多少異なる場合があります</p>
           </div>
         </div>
+      </div>
       </div>
 
     </div>

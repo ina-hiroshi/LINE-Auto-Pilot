@@ -51,7 +51,7 @@ export default function Layout() {
   // 基本ナビゲーション項目
   const baseNavItems = [
     { path: '/', label: 'ダッシュボード', icon: <LayoutDashboard size={20} /> },
-    { path: '/reservations', label: '予約管理', icon: <Calendar size={20} /> },
+    { path: '/reservations', label: '予約売上管理', icon: <Calendar size={20} /> },
     { path: '/customers', label: '顧客一覧', icon: <Users size={20} /> },
     { path: '/auto-responses', label: '自動応答', icon: <MessageSquare size={20} /> },
     { path: '/membership-card', label: 'デジタル会員証', icon: <CreditCard size={20} /> },
@@ -205,7 +205,8 @@ export default function Layout() {
 
       {/* Main Content */}
       <main className={`flex-1 bg-gray-50 pb-20 md:pb-0 ${
-        ['/', '/reservations', '/customers', '/auto-responses', '/line-settings', '/membership-card', '/rich-menu', '/booking-settings'].includes(location.pathname) 
+        ['/', '/reservations', '/customers', '/auto-responses', '/line-settings', '/membership-card', '/rich-menu', '/booking-settings'].includes(location.pathname) ||
+        location.pathname.startsWith('/customers/') 
           ? 'overflow-hidden flex flex-col' 
           : 'overflow-y-auto'
       }`}>

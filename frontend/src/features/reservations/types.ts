@@ -14,6 +14,9 @@ export type Reservation = {
   status: string
   memo: string
   line_user_id: string
+  quoted_amount?: number | null
+  paid_amount?: number | null
+  paid_at?: string | null
   registration_type?: 'line' | 'manual'
   google_event_id?: string | null
   customer?: {

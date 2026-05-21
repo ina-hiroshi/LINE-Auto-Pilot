@@ -431,6 +431,9 @@ verify_jwt = false
 [functions.manual-reply]
 verify_jwt = false
 
+[functions.send-line-message]
+verify_jwt = false
+
 [functions.send-setup-service-email]
 verify_jwt = false
 

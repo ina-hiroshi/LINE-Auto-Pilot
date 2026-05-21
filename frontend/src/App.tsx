@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import LineSettings from './pages/LineSettings'
 import AutoResponses from './pages/AutoResponses'
 import Customers from './pages/Customers'
+import CustomerDetailPage from './features/customers/pages/CustomerDetailPage'
 import MembershipCard from './pages/MembershipCard'
 import RichMenu from './pages/RichMenu'
 import BookingSettings from './pages/BookingSettings'
@@ -215,6 +216,7 @@ function App() {
             <Route path="/line-settings" element={<LineSettings />} />
             <Route path="/auto-responses" element={<AutoResponses />} />
             <Route path="/customers" element={<Customers />} />
+            <Route path="/customers/:customerId" element={<CustomerDetailPage />} />
             <Route path="/membership-card" element={<MembershipCard />} />
             <Route path="/rich-menu" element={<RichMenu />} />
             <Route path="/booking-settings" element={<BookingSettings />} />

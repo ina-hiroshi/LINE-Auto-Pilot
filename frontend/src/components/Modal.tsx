@@ -1,4 +1,5 @@
 import React from 'react';
+import { X } from 'lucide-react';
 
 interface ModalProps {
   isOpen: boolean;
@@ -43,10 +44,24 @@ export default function Modal({
   const shouldShowButtons = showDefaultButtons === true || (showDefaultButtons !== false && !footerContent);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isLoading) onClose();
+      }}
+    >
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200">
         <div className="flex items-center justify-between p-4 border-b shrink-0">
           <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isLoading}
+            className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
+            aria-label="閉じる"
+          >
+            <X size={20} />
+          </button>
         </div>
         <div className="p-6 overflow-y-auto">
           {children ? children : <p className="text-gray-600">{message}</p>}

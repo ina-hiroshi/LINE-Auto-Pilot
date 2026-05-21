@@ -1,23 +1,39 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Clock, User, XCircle, FileText, MessageSquare, Plus } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { Plus, Clock, Calendar, TrendingUp } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { toErrorMessage, toErrorMessageAsync } from '../lib/errorUtils'
 import { isPaidPlan } from '../lib/planUtils'
+import { isLineCustomer } from '../lib/reservationStatus'
 import { useStoreResources } from '../hooks/useStoreResources'
+import { usePointOperation, type MembershipCardSettings } from '../hooks/usePointOperation'
 import Toast from '../components/Toast'
+import { UnderlineTabs } from '../components/UnderlineTabs'
 import Modal from '../components/Modal'
 import ProLockOverlay from '../components/ProLockOverlay'
 import ProBadge from '../components/ProBadge'
-import { ReservationList } from '../features/reservations/components/ReservationList'
+import {
+  ReservationList,
+  type ListFilter,
+  type StaffFilterId,
+} from '../features/reservations/components/ReservationList'
 import { ReservationCalendar } from '../features/reservations/components/ReservationCalendar'
 import { ReservationModifyForm, ReservationCreateForm } from '../features/reservations/components/ReservationForm'
+import { ReservationConfirmModal } from '../features/reservations/components/ReservationConfirmModal'
+import { PaymentModal } from '../features/reservations/components/PaymentModal'
+import { PaymentPointPrompt } from '../features/reservations/components/PaymentPointPrompt'
+import { PointsModal } from '../features/reservations/components/PointsModal'
+import { SalesSummaryTab } from '../features/sales/components/SalesSummaryTab'
 import { GoogleCalendarSyncConnect, GoogleCalendarSyncSelect } from '../features/reservations/components/GoogleCalendarSync'
 import type { Customer, Reservation, GoogleCalendar, GoogleEvent } from '../features/reservations/types'
 
 
 export default function Reservations() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [pageTab, setPageTab] = useState<'bookings' | 'sales'>('bookings')
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
-  const [listFilter, setListFilter] = useState<'today' | 'week' | 'month' | 'all'>('all')
+  const [listFilter, setListFilter] = useState<ListFilter>('all')
+  const [staffFilterId, setStaffFilterId] = useState<StaffFilterId>('all')
   const [isGoogleConnected, setIsGoogleConnected] = useState(false)
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [loading, setLoading] = useState(true)
@@ -63,7 +79,15 @@ export default function Reservations() {
   const [createTime, setCreateTime] = useState('')
   const [createStaffId, setCreateStaffId] = useState<string>('')
   const [createMenuId, setCreateMenuId] = useState<string>('')
+  const [createQuotedAmount, setCreateQuotedAmount] = useState('')
   const [createMemo, setCreateMemo] = useState('')
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
+  const [isPointPromptOpen, setIsPointPromptOpen] = useState(false)
+  const [isPointsModalOpen, setIsPointsModalOpen] = useState(false)
+  const [lastPaidAmount, setLastPaidAmount] = useState(0)
+  const [customerPointBalance, setCustomerPointBalance] = useState(0)
+  const [membershipSettings, setMembershipSettings] = useState<MembershipCardSettings | null>(null)
+  const { updatePoints, saving: pointSaving } = usePointOperation(storeId, membershipSettings)
   const [createLoading, setCreateLoading] = useState(false)
   const [availableSlots, setAvailableSlots] = useState<{ time: string; available: boolean }[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
@@ -425,7 +449,7 @@ export default function Reservations() {
         .select('*, staff:staff_members(name), menu:booking_menus(name, price)')
         .eq('store_id', currentStore.id)
         .neq('status', 'cancelled') // キャンセル済みを除外
-        .order('start_time', { ascending: true })
+        .order('start_time', { ascending: false })
 
       if (resError) throw resError
 
@@ -487,6 +511,16 @@ export default function Reservations() {
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [checkGoogleConnection, fetchReservations, handleGoogleCallback])
+
+  useEffect(() => {
+    const openId = searchParams.get('reservation')
+    if (!openId || reservations.length === 0) return
+    const target = reservations.find((r) => r.id === openId)
+    if (target) {
+      void openDetailModal(target)
+      setSearchParams({}, { replace: true })
+    }
+  }, [reservations, searchParams, setSearchParams])
 
   // Realtime Subscription
   useEffect(() => {
@@ -599,12 +633,99 @@ export default function Reservations() {
     }
   }
 
-  const openDetailModal = (reservation: Reservation) => {
+  const loadMembershipSettings = useCallback(async () => {
+    if (!storeId) return
+    const { data } = await supabase
+      .from('stores')
+      .select('membership_card_settings')
+      .eq('id', storeId)
+      .single()
+    setMembershipSettings((data?.membership_card_settings as MembershipCardSettings) ?? null)
+  }, [storeId])
+
+  const loadCustomerPoints = useCallback(
+    async (lineUserId: string) => {
+      if (!storeId) return 0
+      const { data } = await supabase
+        .from('points')
+        .select('balance')
+        .eq('store_id', storeId)
+        .eq('line_user_id', lineUserId)
+        .maybeSingle()
+      const balance = data?.balance ?? 0
+      setCustomerPointBalance(balance)
+      return balance
+    },
+    [storeId],
+  )
+
+  const openDetailModal = async (reservation: Reservation) => {
     setSelectedReservation(reservation)
     setIsDetailModalOpen(true)
+    await loadMembershipSettings()
+    if (isLineCustomer(reservation.line_user_id)) {
+      await loadCustomerPoints(reservation.line_user_id)
+    } else {
+      setCustomerPointBalance(0)
+    }
+  }
+
+  const handlePaymentSuccess = async (paidAmount: number) => {
+    setIsPaymentModalOpen(false)
+    setLastPaidAmount(paidAmount)
+    if (selectedReservation) {
+      setSelectedReservation({
+        ...selectedReservation,
+        status: 'paid',
+        paid_amount: paidAmount,
+        paid_at: new Date().toISOString(),
+      })
+    }
+    await fetchReservations()
+    if (selectedReservation && isLineCustomer(selectedReservation.line_user_id)) {
+      setIsPointPromptOpen(true)
+    } else {
+      setToast({ message: '決済が完了しました', type: 'success' })
+    }
+  }
+
+  const handlePointPromptSubmit = async (amount: number, type: 'add' | 'use') => {
+    if (!selectedReservation?.line_user_id) return
+    const result = await updatePoints(selectedReservation.line_user_id, customerPointBalance, amount, type)
+    setIsPointPromptOpen(false)
+    if (result.success) {
+      const isStamp = membershipSettings?.card_type === 'stamp'
+      setToast({
+        message: result.stampCompleted
+          ? 'スタンプカードが満了しました！'
+          : type === 'add'
+            ? isStamp
+              ? 'スタンプを押印しました'
+              : 'ポイントを付与しました'
+            : isStamp
+              ? 'スタンプを利用しました'
+              : 'ポイントを利用しました',
+        type: 'success',
+      })
+      setCustomerPointBalance(result.newBalance)
+    } else {
+      setToast({ message: 'ポイント更新に失敗しました', type: 'error' })
+    }
+  }
+
+  const handlePointsModalSubmit = async (amount: number, type: 'add' | 'use') => {
+    if (!selectedReservation?.line_user_id) return
+    const result = await updatePoints(selectedReservation.line_user_id, customerPointBalance, amount, type)
+    if (result.success) {
+      setCustomerPointBalance(result.newBalance)
+      setToast({ message: type === 'add' ? 'ポイントを更新しました' : 'ポイントを利用しました', type: 'success' })
+    } else {
+      setToast({ message: 'ポイント更新に失敗しました', type: 'error' })
+    }
   }
 
   const openModifyModal = (reservation: Reservation) => {
+    if (reservation.status === 'paid') return
     setSelectedReservation(reservation)
     setIsDetailModalOpen(false) // Close detail modal if open
     const d = new Date(reservation.start_time)
@@ -633,6 +754,7 @@ export default function Reservations() {
     setCreateTime('')
     setCreateStaffId('')
     setCreateMenuId('')
+    setCreateQuotedAmount('')
     setCreateMemo('')
     setSelectedCustomer(null)
     setIsNewCustomer(false)
@@ -723,6 +845,22 @@ export default function Reservations() {
       return
     }
 
+    const menu = menuList.find((m) => m.id === createMenuId)
+    let quotedAmount: number | undefined
+    if (createMenuId && menu?.price != null) {
+      quotedAmount = menu.price
+    } else if (createQuotedAmount !== '') {
+      const parsed = parseInt(createQuotedAmount, 10)
+      if (isNaN(parsed) || parsed < 0) {
+        setToast({ message: '見込み金額（税込）を入力してください', type: 'error' })
+        return
+      }
+      quotedAmount = parsed
+    } else if (!createMenuId || bookingSettings.booking_enable_menu) {
+      setToast({ message: 'メニュー未選択の場合は見込み金額（税込）が必要です', type: 'error' })
+      return
+    }
+
     setCreateLoading(true)
     try {
       const lineUserId = selectedCustomer?.line_user_id || `MANUAL_${Date.now()}`
@@ -741,6 +879,7 @@ export default function Reservations() {
           staff_id: createStaffId || null,
           menu_id: createMenuId || null,
           memo: createMemo || null,
+          quoted_amount: quotedAmount,
           is_manual: true,
         }
       })
@@ -770,6 +909,12 @@ export default function Reservations() {
     }
   }
 
+  const staffFilteredReservations = useMemo(() => {
+    if (staffFilterId === 'all') return reservations
+    if (staffFilterId === 'unassigned') return reservations.filter((r) => !r.staff_id)
+    return reservations.filter((r) => r.staff_id === staffFilterId)
+  }, [reservations, staffFilterId])
+
   // 顧客検索フィルター
   const filteredCustomers = customers.filter(c => {
     if (!customerSearch) return true
@@ -787,10 +932,12 @@ export default function Reservations() {
         <div className="px-4 sm:px-8 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">予約管理</h1>
-              <p className="text-sm text-gray-500">予約の確認・編集・キャンセルなどの管理を行います。</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">予約売上管理</h1>
+              <p className="text-sm text-gray-500">予約の確認・決済・売上の管理を行います。</p>
             </div>
             <div className="flex gap-2 shrink-0">
+              {pageTab === 'bookings' && (
+              <>
               <div className="bg-gray-100 p-1 rounded-lg flex">
                 <button 
                   onClick={() => setViewMode('list')}
@@ -816,6 +963,8 @@ export default function Reservations() {
                 <Plus size={18} />
                 予約登録
               </button>
+              </>
+              )}
             </div>
           </div>
         </div>
@@ -823,11 +972,24 @@ export default function Reservations() {
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="w-full">
-      {viewMode === 'list' ? (
+          <UnderlineTabs
+            activeId={pageTab}
+            onChange={setPageTab}
+            items={[
+              { id: 'bookings', label: '予約', icon: Calendar },
+              { id: 'sales', label: '売上', icon: TrendingUp },
+            ]}
+          />
+      {pageTab === 'sales' ? (
+        <SalesSummaryTab storeId={storeId} />
+      ) : viewMode === 'list' ? (
         <ReservationList
-          reservations={reservations}
+          reservations={staffFilteredReservations}
           listFilter={listFilter}
           onListFilterChange={setListFilter}
+          staffList={staffList}
+          staffFilterId={staffFilterId}
+          onStaffFilterChange={setStaffFilterId}
           loading={loading}
           onReservationClick={openDetailModal}
           onCancelClick={(r) => {
@@ -872,6 +1034,7 @@ export default function Reservations() {
               calendars={calendars}
               selectedCalendarId={selectedCalendarId}
               displayHours={displayHours}
+              staffList={staffList}
               reservations={reservations}
               googleEvents={googleEvents}
               onReservationClick={openDetailModal}
@@ -894,102 +1057,59 @@ export default function Reservations() {
         />
       )}
 
-      <Modal
+      <ReservationConfirmModal
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
-        onConfirm={() => selectedReservation && openModifyModal(selectedReservation)}
-        title="予約詳細"
-        confirmText="変更する"
-        showDefaultButtons={true}
-        footerContent={
-          <button
-            onClick={() => {
-              setIsDetailModalOpen(false)
-              setIsCancelModalOpen(true)
-            }}
-            className="text-red-600 hover:text-red-700 text-sm font-medium flex items-center gap-1 px-2 py-1 rounded hover:bg-red-50 transition"
-          >
-            <XCircle size={16} />
-            予約をキャンセル
-          </button>
+        reservation={selectedReservation}
+        onPay={() => setIsPaymentModalOpen(true)}
+        onPoints={() => setIsPointsModalOpen(true)}
+        onModify={() => selectedReservation && openModifyModal(selectedReservation)}
+        onCancel={() => {
+          setIsDetailModalOpen(false)
+          setIsCancelModalOpen(true)
+        }}
+        pointsDisabled={!selectedReservation || !isLineCustomer(selectedReservation.line_user_id)}
+        pointsDisabledReason="LINE連携顧客のみポイント操作できます"
+      />
+
+      {selectedReservation && storeId && (
+        <PaymentModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => setIsPaymentModalOpen(false)}
+          reservation={selectedReservation}
+          storeId={storeId}
+          staffList={staffList}
+          menuList={menuList}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
+
+      <PaymentPointPrompt
+        isOpen={isPointPromptOpen}
+        paidAmount={lastPaidAmount}
+        balance={customerPointBalance}
+        storeSettings={membershipSettings}
+        saving={pointSaving}
+        onSubmit={handlePointPromptSubmit}
+        onSkip={() => {
+          setIsPointPromptOpen(false)
+          setToast({ message: '決済が完了しました', type: 'success' })
+        }}
+      />
+
+      <PointsModal
+        isOpen={isPointsModalOpen}
+        onClose={() => setIsPointsModalOpen(false)}
+        customerName={
+          selectedReservation?.customer?.real_name ||
+          selectedReservation?.customer?.display_name ||
+          'ゲスト'
         }
-      >
-        {selectedReservation && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-start">
-              <div className="flex items-center gap-4">
-                 <div className="w-16 h-16 rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
-                    {selectedReservation.customer?.profile_picture_url ? (
-                      <img src={selectedReservation.customer.profile_picture_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <User size={32} className="text-gray-400" />
-                    )}
-                 </div>
-                 <div>
-                   <div className="text-lg font-bold text-gray-900">
-                     {selectedReservation.customer?.real_name || selectedReservation.customer?.display_name || 'ゲスト'}
-                   </div>
-                   {selectedReservation.customer?.furigana && (
-                     <div className="text-sm text-gray-500">{selectedReservation.customer.furigana}</div>
-                   )}
-                   <div className="text-xs text-gray-400 mt-1">LINE名: {selectedReservation.customer?.display_name || '-'}</div>
-                 </div>
-              </div>
-              <span className={`px-2 py-1 text-xs font-bold rounded-full ${
-                selectedReservation.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-              }`}>
-                {selectedReservation.status === 'cancelled' ? 'キャンセル' : 'LINE予約'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 text-sm">
-              <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                <Clock className="w-5 h-5 text-primary-500 mt-0.5" />
-                <div>
-                  <div className="font-bold text-gray-700 text-xs mb-1">日時</div>
-                  <div className="text-gray-900 font-medium">
-                    {new Date(selectedReservation.start_time).toLocaleDateString('ja-JP', {year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'})}
-                  </div>
-                  <div className="text-xl font-bold text-primary-600 mt-0.5">
-                    {new Date(selectedReservation.start_time).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}
-                    {' - '}
-                    {new Date(selectedReservation.end_time).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                <User className="w-5 h-5 text-gray-400" />
-                <div>
-                  <div className="font-bold text-gray-700 text-xs mb-1">担当スタッフ</div>
-                  <div className="text-gray-900 font-medium">{selectedReservation.staff?.name || '指定なし'}</div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                <FileText className="w-5 h-5 text-gray-400" />
-                <div>
-                  <div className="font-bold text-gray-700 text-xs mb-1">メニュー</div>
-                  <div className="text-gray-900 font-medium">
-                    {selectedReservation.menu?.name || '指定なし'}
-                    {selectedReservation.menu?.price && ` (¥${selectedReservation.menu.price.toLocaleString()})`}
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                <MessageSquare className="w-5 h-5 text-gray-400 mt-0.5" />
-                <div className="w-full">
-                  <div className="font-bold text-gray-700 text-xs mb-1">メモ (店舗用)</div>
-                  <div className="text-gray-900 whitespace-pre-wrap min-h-[1.5em]">
-                    {(selectedReservation.memo && selectedReservation.memo !== 'LINE予約' && selectedReservation.memo !== 'LINE予約(変更)') ? selectedReservation.memo : <span className="text-gray-400 text-xs">メモはありません</span>}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </Modal>
+        balance={customerPointBalance}
+        storeSettings={membershipSettings}
+        saving={pointSaving}
+        onSubmit={handlePointsModalSubmit}
+      />
 
       <Modal
         isOpen={isCancelModalOpen}
@@ -1045,6 +1165,7 @@ export default function Reservations() {
           createTime={createTime}
           createStaffId={createStaffId}
           createMenuId={createMenuId}
+          createQuotedAmount={createQuotedAmount}
           createMemo={createMemo}
           availableSlots={availableSlots}
           loadingSlots={loadingSlots}
@@ -1061,6 +1182,7 @@ export default function Reservations() {
           onCreateTimeChange={setCreateTime}
           onCreateStaffIdChange={setCreateStaffId}
           onCreateMenuIdChange={setCreateMenuId}
+          onCreateQuotedAmountChange={setCreateQuotedAmount}
           onCreateMemoChange={setCreateMemo}
         />
       </Modal>

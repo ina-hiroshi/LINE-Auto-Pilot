@@ -1,12 +1,19 @@
 import { Clock, User, Edit2, XCircle } from 'lucide-react'
+import type { StoreStaff } from '../../../types/storeResources'
 import type { Reservation } from '../types'
+import { getPaymentStatusBadgeClass, getReservationStatusLabel } from '../../../lib/reservationStatus'
 
-export type ListFilter = 'today' | 'week' | 'month' | 'all'
+export type ListFilter = 'today' | 'week' | 'month' | 'all' | 'unpaid'
+
+export type StaffFilterId = 'all' | 'unassigned' | string
 
 export interface ReservationListProps {
   reservations: Reservation[]
   listFilter: ListFilter
   onListFilterChange: (filter: ListFilter) => void
+  staffList: StoreStaff[]
+  staffFilterId: StaffFilterId
+  onStaffFilterChange: (staffId: StaffFilterId) => void
   loading: boolean
   onReservationClick: (reservation: Reservation) => void
   onCancelClick: (reservation: Reservation) => void
@@ -16,11 +23,15 @@ export function ReservationList({
   reservations,
   listFilter,
   onListFilterChange,
+  staffList,
+  staffFilterId,
+  onStaffFilterChange,
   loading,
   onReservationClick,
   onCancelClick,
 }: ReservationListProps) {
   const filtered = reservations.filter((r) => {
+    if (listFilter === 'unpaid') return r.status === 'confirmed'
     if (listFilter === 'all') return true
     const d = new Date(r.start_time)
     const now = new Date()
@@ -40,9 +51,27 @@ export function ReservationList({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="p-4 sm:p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-        <h2 className="font-bold text-gray-800">予約一覧</h2>
-        <div className="flex bg-gray-100 rounded-lg p-1">
+      <div className="p-4 sm:p-6 border-b border-gray-100 flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h2 className="font-bold text-gray-800">予約一覧</h2>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            {staffList.length > 0 && (
+              <select
+                value={staffFilterId}
+                onChange={(e) => onStaffFilterChange(e.target.value as StaffFilterId)}
+                className="px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg bg-white text-gray-700 focus:ring-primary-500 focus:border-primary-500"
+                aria-label="担当で絞り込み"
+              >
+                <option value="all">担当: すべて</option>
+                {staffList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+                <option value="unassigned">未割当</option>
+              </select>
+            )}
+            <div className="flex bg-gray-100 rounded-lg p-1 overflow-x-auto">
           <button
             onClick={() => onListFilterChange('all')}
             className={`px-3 py-1 text-xs font-medium rounded-md transition ${listFilter === 'all' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
@@ -67,6 +96,14 @@ export function ReservationList({
           >
             今日
           </button>
+          <button
+            onClick={() => onListFilterChange('unpaid')}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition ${listFilter === 'unpaid' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            未決済
+          </button>
+            </div>
+          </div>
         </div>
       </div>
       <div className="divide-y divide-gray-100">
@@ -104,20 +141,21 @@ export function ReservationList({
                         <Clock size={12} className="text-gray-400" />
                         <span>{startTime} - {endTime}</span>
                       </div>
+                      {reservation.status !== 'cancelled' && (
+                        <span
+                          className={`px-1.5 py-0.5 text-[10px] rounded-full font-medium ${getPaymentStatusBadgeClass(reservation.status)}`}
+                        >
+                          {getReservationStatusLabel(reservation.status)}
+                        </span>
+                      )}
                       <span
                         className={`px-1.5 py-0.5 text-[10px] rounded-full font-medium ${
-                          reservation.status === 'cancelled'
-                            ? 'bg-red-100 text-red-700'
-                            : reservation.registration_type === 'manual'
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-green-100 text-green-700'
+                          reservation.registration_type === 'manual'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-gray-100 text-gray-600'
                         }`}
                       >
-                        {reservation.status === 'cancelled'
-                          ? 'キャンセル'
-                          : reservation.registration_type === 'manual'
-                            ? '手動登録'
-                            : 'LINE予約'}
+                        {reservation.registration_type === 'manual' ? '手動登録' : 'LINE予約'}
                       </span>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-1">
