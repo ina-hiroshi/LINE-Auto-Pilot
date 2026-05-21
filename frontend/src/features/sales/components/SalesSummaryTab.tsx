@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend,
 } from 'recharts'
 import { Download, TrendingUp } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
@@ -27,6 +28,22 @@ type PaidReservation = {
 
 type SalesSummaryTabProps = {
   storeId: string | null
+}
+
+const STAFF_CHART_COLORS = [
+  '#00a3b8',
+  '#3B82F6',
+  '#8B5CF6',
+  '#F97316',
+  '#10B981',
+  '#EC4899',
+  '#6366F1',
+  '#94a3b8',
+]
+
+type DailyChartRow = {
+  date: string
+  [staffName: string]: string | number
 }
 
 function getMonthRangeJst(): { from: Date; to: Date } {
@@ -110,7 +127,6 @@ export function SalesSummaryTab({ storeId }: SalesSummaryTabProps) {
 
     const menuMap: Record<string, { name: string; amount: number; count: number }> = {}
     const staffMap: Record<string, { name: string; amount: number; count: number }> = {}
-    const dayMap: Record<string, number> = {}
 
     paidReservations.forEach((r) => {
       const amount = r.paid_amount ?? 0
@@ -122,19 +138,41 @@ export function SalesSummaryTab({ storeId }: SalesSummaryTabProps) {
       if (!staffMap[staffName]) staffMap[staffName] = { name: staffName, amount: 0, count: 0 }
       staffMap[staffName].amount += amount
       staffMap[staffName].count += 1
-      if (r.paid_at) {
-        const day = getJstDateString(new Date(r.paid_at))
-        dayMap[day] = (dayMap[day] ?? 0) + amount
-      }
     })
 
     const menuTop = Object.values(menuMap).sort((a, b) => b.amount - a.amount).slice(0, 5)
     const staffTop = Object.values(staffMap).sort((a, b) => b.amount - a.amount).slice(0, 5)
-    const dailyChart = Object.entries(dayMap)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, amount]) => ({ date: date.slice(5), amount }))
 
-    return { total, count, menuTop, staffTop, dailyChart }
+    const staffNamesSet = new Set<string>()
+    const dayStaffMap: Record<string, Record<string, number>> = {}
+    paidReservations.forEach((r) => {
+      if (!r.paid_at) return
+      const day = getJstDateString(new Date(r.paid_at))
+      const staffName = r.staff?.name || '未設定'
+      const amount = r.paid_amount ?? 0
+      staffNamesSet.add(staffName)
+      if (!dayStaffMap[day]) dayStaffMap[day] = {}
+      dayStaffMap[day][staffName] = (dayStaffMap[day][staffName] ?? 0) + amount
+    })
+
+    const staffNames = Array.from(staffNamesSet).sort((a, b) => {
+      if (a === '未設定') return 1
+      if (b === '未設定') return -1
+      return a.localeCompare(b, 'ja')
+    })
+
+    const staffColors = Object.fromEntries(
+      staffNames.map((name, i) => [name, STAFF_CHART_COLORS[i % STAFF_CHART_COLORS.length]]),
+    ) as Record<string, string>
+
+    const dailyChartByStaff: DailyChartRow[] = Object.entries(dayStaffMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([day, amounts]) => ({
+        date: day.slice(5),
+        ...amounts,
+      }))
+
+    return { total, count, menuTop, staffTop, dailyChartByStaff, staffNames, staffColors }
   }, [paidReservations])
 
   const handleExportCsv = () => {
@@ -186,7 +224,7 @@ export function SalesSummaryTab({ storeId }: SalesSummaryTabProps) {
         {!isPro && <ProBadge className="absolute top-4 right-4 z-10" />}
         <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
           <TrendingUp size={18} />
-          日別売上
+          日別売上（担当別）
         </h3>
         {isPro ? (
           <>
@@ -220,15 +258,30 @@ export function SalesSummaryTab({ storeId }: SalesSummaryTabProps) {
                 CSV
               </button>
             </div>
-            {stats.dailyChart.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={stats.dailyChart}>
-                  <CartesianGrid strokeDasharray="3 3" />
+            {stats.dailyChartByStaff.length > 0 ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={stats.dailyChartByStaff} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(v) => formatYen(typeof v === 'number' ? v : Number(v))} />
-                  <Line type="monotone" dataKey="amount" stroke="#00a3b8" strokeWidth={2} />
-                </LineChart>
+                  <YAxis
+                    tick={{ fontSize: 12 }}
+                    tickFormatter={(v) => (v >= 10000 ? `${v / 10000}万` : String(v))}
+                  />
+                  <Tooltip content={<SalesChartTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                  {stats.staffNames.map((name, index) => (
+                    <Bar
+                      key={name}
+                      dataKey={name}
+                      name={name}
+                      stackId="sales"
+                      fill={stats.staffColors[name]}
+                      radius={
+                        index === stats.staffNames.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]
+                      }
+                    />
+                  ))}
+                </BarChart>
               </ResponsiveContainer>
             ) : (
               <p className="text-sm text-gray-500 text-center py-12">この期間の売上データはありません</p>
@@ -243,6 +296,46 @@ export function SalesSummaryTab({ storeId }: SalesSummaryTabProps) {
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+type ChartTooltipEntry = {
+  dataKey?: string | number
+  name?: string
+  value?: number | string
+  color?: string
+}
+
+function SalesChartTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean
+  payload?: ChartTooltipEntry[]
+  label?: string
+}) {
+  if (!active || !payload?.length) return null
+  const total = payload.reduce((sum: number, entry) => sum + (Number(entry.value) || 0), 0)
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg shadow-md px-3 py-2 text-sm">
+      <p className="font-medium text-gray-800 mb-1.5">{label}</p>
+      <ul className="space-y-0.5">
+        {payload
+          .filter((entry) => Number(entry.value) > 0)
+          .map((entry) => (
+            <li key={String(entry.dataKey)} className="flex justify-between gap-4">
+              <span style={{ color: entry.color }}>{entry.name}</span>
+              <span className="font-medium text-gray-900">
+                {formatYen(Number(entry.value))}
+              </span>
+            </li>
+          ))}
+      </ul>
+      <p className="font-bold text-gray-900 mt-1.5 pt-1.5 border-t border-gray-100">
+        合計 {formatYen(total)}
+      </p>
     </div>
   )
 }
