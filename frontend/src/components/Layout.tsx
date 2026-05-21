@@ -205,7 +205,8 @@ export default function Layout() {
 
       {/* Main Content */}
       <main className={`flex-1 bg-gray-50 pb-20 md:pb-0 ${
-        ['/', '/reservations', '/customers', '/auto-responses', '/line-settings', '/membership-card', '/rich-menu', '/booking-settings'].includes(location.pathname) 
+        ['/', '/reservations', '/customers', '/auto-responses', '/line-settings', '/membership-card', '/rich-menu', '/booking-settings'].includes(location.pathname) ||
+        location.pathname.startsWith('/customers/') 
           ? 'overflow-hidden flex flex-col' 
           : 'overflow-y-auto'
       }`}>

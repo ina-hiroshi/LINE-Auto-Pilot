@@ -9,7 +9,7 @@ type PaymentPointPromptProps = {
   balance: number
   storeSettings: MembershipCardSettings | null
   saving?: boolean
-  onGrant: (amount: number) => void
+  onSubmit: (amount: number, type: 'add' | 'use') => void
   onSkip: () => void
 }
 
@@ -19,7 +19,7 @@ export function PaymentPointPrompt({
   balance,
   storeSettings,
   saving = false,
-  onGrant,
+  onSubmit,
   onSkip,
 }: PaymentPointPromptProps) {
   const isStamp = storeSettings?.card_type === 'stamp'
@@ -48,17 +48,16 @@ export function PaymentPointPrompt({
           決済が完了しました（{formatYen(paidAmount)}）
         </p>
         <p className="text-sm text-gray-700">
-          {isStamp ? 'スタンプを押印しますか？' : 'ポイントを付与しますか？'}
+          {isStamp ? 'スタンプの押印・特典交換を行いますか？' : 'ポイントの付与・利用を行いますか？'}
         </p>
         <PointOperationPanel
           variant="card"
-          addOnly
           showHints
           initialAmount="10"
           balance={balance}
           storeSettings={storeSettings}
           saving={saving}
-          onSubmit={(amount) => onGrant(amount)}
+          onSubmit={onSubmit}
         />
       </div>
     </Modal>

@@ -465,7 +465,7 @@ Deno.serve(async (req: Request) => {
 
                     // 5. Save Log（重複スキップ時はログ不要）
                     if (status !== 'rate_limited_duplicate') {
-                        let displayName = null
+                        let displayName: string | null = null
                         let pictureUrl = null
                         if (channelAccessToken) {
                             const profile = await getProfile(channelAccessToken, userId)
@@ -475,10 +475,42 @@ Deno.serve(async (req: Request) => {
                             }
                         }
 
+                        let customer: { real_name?: string | null; display_name?: string | null } | null =
+                            null
+                        const { data: byMessagingUser } = await supabase
+                            .from('customers')
+                            .select('real_name, display_name')
+                            .eq('store_id', storeId)
+                            .eq('line_messaging_user_id', userId)
+                            .maybeSingle()
+                        customer = byMessagingUser
+                        if (!customer) {
+                            const { data: byLineUser } = await supabase
+                                .from('customers')
+                                .select('real_name, display_name')
+                                .eq('store_id', storeId)
+                                .eq('line_user_id', userId)
+                                .maybeSingle()
+                            customer = byLineUser
+                        }
+                        if (!customer && displayName) {
+                            const { data: byLineName } = await supabase
+                                .from('customers')
+                                .select('real_name, display_name')
+                                .eq('store_id', storeId)
+                                .eq('display_name', displayName)
+                                .maybeSingle()
+                            customer = byLineName
+                        }
+                        const logDisplayName =
+                            customer?.real_name?.trim() ||
+                            customer?.display_name?.trim() ||
+                            displayName
+
                         await supabase.from('customer_logs').insert({
                             store_id: storeId,
                             line_user_id: userId,
-                            display_name: displayName,
+                            display_name: logDisplayName,
                             profile_picture_url: pictureUrl,
                             message_content: text,
                             reply_content: replyText,

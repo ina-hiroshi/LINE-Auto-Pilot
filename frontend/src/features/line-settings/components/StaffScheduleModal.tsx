@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Modal from '../../../components/Modal'
+import { formatJstDateLabel } from '../../../lib/jstDate'
 
 interface StaffScheduleModalProps {
   isOpen: boolean
@@ -36,10 +37,7 @@ export function StaffScheduleModal({ isOpen, isLoading, staffName, date, initial
     })
   }
 
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr)
-    return d.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
-  }
+  const formatDate = (dateStr: string) => formatJstDateLabel(dateStr)
 
   return (
     <Modal

@@ -1,5 +1,8 @@
+import { useMemo } from 'react'
 import { CheckCircle, XCircle } from 'lucide-react'
+import type { StoreStaff } from '../../../types/storeResources'
 import type { Reservation, GoogleEvent, GoogleCalendar } from '../types'
+import { TimeGridColumn } from './TimeGridColumn'
 
 export type CalendarView = 'month' | 'week' | 'day'
 
@@ -11,11 +14,21 @@ export interface ReservationCalendarProps {
   calendars: GoogleCalendar[]
   selectedCalendarId: string
   displayHours: { start: number; end: number }
+  staffList: StoreStaff[]
   reservations: Reservation[]
   googleEvents: GoogleEvent[]
   onReservationClick: (reservation: Reservation) => void
   onGoogleEventClick: (event: GoogleEvent) => void
   onDisconnect: () => void
+}
+
+const UNASSIGNED_COLUMN = '__unassigned__'
+const GOOGLE_COLUMN = '__google__'
+
+type DayStaffColumn = {
+  id: string
+  label: string
+  kind: 'staff' | 'unassigned' | 'google'
 }
 
 function isSameDay(date1: Date, date2: Date) {
@@ -26,6 +39,25 @@ function isSameDay(date1: Date, date2: Date) {
   )
 }
 
+function buildDayStaffColumns(
+  staffList: StoreStaff[],
+  dayReservations: Reservation[],
+  dayGoogleEvents: GoogleEvent[],
+): DayStaffColumn[] {
+  const columns: DayStaffColumn[] = staffList.map((s) => ({
+    id: s.id,
+    label: s.name,
+    kind: 'staff',
+  }))
+  if (dayReservations.some((r) => !r.staff_id)) {
+    columns.push({ id: UNASSIGNED_COLUMN, label: '未割当', kind: 'unassigned' })
+  }
+  if (dayGoogleEvents.length > 0) {
+    columns.push({ id: GOOGLE_COLUMN, label: 'Google', kind: 'google' })
+  }
+  return columns
+}
+
 export function ReservationCalendar({
   currentDate,
   onCurrentDateChange,
@@ -34,12 +66,76 @@ export function ReservationCalendar({
   calendars,
   selectedCalendarId,
   displayHours,
+  staffList,
   reservations,
   googleEvents,
   onReservationClick,
   onGoogleEventClick,
   onDisconnect,
 }: ReservationCalendarProps) {
+  const linkedGoogleEventIds = useMemo(
+    () =>
+      new Set(
+        reservations
+          .filter((r) => r.google_event_id)
+          .map((r) => r.google_event_id as string),
+      ),
+    [reservations],
+  )
+
+  const dayViewData = useMemo(() => {
+    if (calendarView !== 'day') return null
+    const dayReservations = reservations.filter((r) =>
+      isSameDay(new Date(r.start_time), currentDate),
+    )
+    const dayGoogleEvents = googleEvents.filter((e) => {
+      if (!e.start.dateTime && !e.start.date) return false
+      if (linkedGoogleEventIds.has(e.id)) return false
+      const start = new Date(e.start.dateTime || e.start.date!)
+      return isSameDay(start, currentDate)
+    })
+    const weekday = ['日', '月', '火', '水', '木', '金', '土'][currentDate.getDay()]
+    const columns: DayStaffColumn[] =
+      staffList.length > 0
+        ? buildDayStaffColumns(staffList, dayReservations, dayGoogleEvents)
+        : [
+            {
+              id: '__single__',
+              label: `${currentDate.getDate()}日 (${weekday})`,
+              kind: 'staff',
+            },
+          ]
+    return { dayReservations, dayGoogleEvents, columns }
+  }, [calendarView, currentDate, reservations, googleEvents, linkedGoogleEventIds, staffList])
+
+  const weekDays = useMemo(() => {
+    if (calendarView !== 'week') return []
+    const startOfWeek = new Date(currentDate)
+    startOfWeek.setDate(currentDate.getDate() - currentDate.getDay())
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(startOfWeek)
+      d.setDate(startOfWeek.getDate() + i)
+      return d
+    })
+  }, [calendarView, currentDate])
+
+  const timeAxis = (
+    <div className="w-10 sm:w-14 flex-shrink-0 border-r border-gray-200 bg-gray-50 sticky left-0 z-20">
+      {[...Array(displayHours.end - displayHours.start)].map((_, i) => {
+        const hour = i + displayHours.start
+        return (
+          <div
+            key={hour}
+            className="h-[60px] text-[9px] sm:text-[11px] text-gray-500 text-right pr-0.5 sm:pr-1.5 pt-0.5 border-b border-gray-100 bg-gray-50"
+          >
+            <span className="sm:hidden">{hour}</span>
+            <span className="hidden sm:inline">{hour}:00</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+
   return (
     <div className="flex flex-col h-[800px] bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
       {/* Header / Settings Bar */}
@@ -142,17 +238,31 @@ export function ReservationCalendar({
         <div className="flex-1 flex flex-col min-h-0">
           {/* Days Header */}
           <div className="overflow-x-auto scrollbar-hide">
-            <div className={`flex ${calendarView === 'week' ? 'min-w-[600px]' : ''}`}>
+            <div
+              className={`flex ${calendarView === 'week' ? 'min-w-[600px]' : ''} ${calendarView === 'day' && dayViewData && dayViewData.columns.length > 1 ? 'min-w-max' : ''}`}
+            >
               {(calendarView === 'week' || calendarView === 'day') && (
-                <div className="w-10 sm:w-14 flex-shrink-0 bg-gray-50 border-b border-r border-gray-200"></div>
+                <div className="w-10 sm:w-14 flex-shrink-0 bg-gray-50 border-b border-r border-gray-200">
+                  {calendarView === 'day' && dayViewData && staffList.length > 0 && (
+                    <div className="py-2 px-0.5 text-center text-[10px] font-semibold text-gray-600 leading-tight">
+                      {currentDate.getMonth() + 1}/{currentDate.getDate()}
+                    </div>
+                  )}
+                </div>
               )}
               <div
-                className={`flex-1 grid ${calendarView === 'day' ? 'grid-cols-1' : 'grid-cols-7'} border-b border-gray-200 bg-gray-50 shrink-0`}
+                className={`flex-1 ${calendarView === 'day' && dayViewData && staffList.length > 0 ? 'flex min-w-0' : `grid ${calendarView === 'day' ? 'grid-cols-1' : 'grid-cols-7'}`} border-b border-gray-200 bg-gray-50 shrink-0`}
               >
-                {calendarView === 'day' ? (
-                  <div className="py-2 text-center text-xs font-semibold text-gray-700">
-                    {currentDate.getDate()}日 ({['日', '月', '火', '水', '木', '金', '土'][currentDate.getDay()]})
-                  </div>
+                {calendarView === 'day' && dayViewData ? (
+                  dayViewData.columns.map((col) => (
+                    <div
+                      key={col.id}
+                      className={`min-w-[100px] flex-1 py-2 px-1 text-center text-xs font-semibold text-gray-700 border-r border-gray-200 last:border-r-0 truncate ${staffList.length === 0 ? '' : ''}`}
+                      title={col.label}
+                    >
+                      {col.label}
+                    </div>
+                  ))
                 ) : calendarView === 'week' ? (
                   (() => {
                     const days = ['日', '月', '火', '水', '木', '金', '土']
@@ -299,241 +409,75 @@ export function ReservationCalendar({
             /* Week / Day View (Time Grid) */
             <div className="flex-1 overflow-auto relative bg-white">
               <div
-                className={`flex ${calendarView === 'week' ? 'min-w-[600px]' : ''}`}
+                className={`flex ${calendarView === 'week' ? 'min-w-[600px]' : ''} ${calendarView === 'day' && dayViewData && staffList.length > 0 ? 'min-w-max' : ''}`}
                 style={{ minHeight: `${(displayHours.end - displayHours.start) * 60}px` }}
               >
-                <div className="w-10 sm:w-14 flex-shrink-0 border-r border-gray-200 bg-gray-50 sticky left-0 z-20">
-                  {[...Array(displayHours.end - displayHours.start)].map((_, i) => {
-                    const hour = i + displayHours.start
-                    return (
-                      <div
-                        key={hour}
-                        className="h-[60px] text-[9px] sm:text-[11px] text-gray-500 text-right pr-0.5 sm:pr-1.5 pt-0.5 border-b border-gray-100 bg-gray-50"
-                      >
-                        <span className="sm:hidden">{hour}</span>
-                        <span className="hidden sm:inline">{hour}:00</span>
-                      </div>
-                    )
-                  })}
-                </div>
+                {timeAxis}
+                {calendarView === 'day' && dayViewData ? (
+                  <div className="flex flex-1 min-w-0">
+                    {dayViewData.columns.map((col) => {
+                      let colReservations = dayViewData.dayReservations
+                      let colGoogle = dayViewData.dayGoogleEvents
+                      let includeGoogle = false
 
-                <div
-                  className={`flex-1 grid ${calendarView === 'day' ? 'grid-cols-1' : 'grid-cols-7'} divide-x divide-gray-200`}
-                >
-                  {(() => {
-                    const days: Date[] = []
-                    if (calendarView === 'day') {
-                      days.push(currentDate)
-                    } else {
-                      const startOfWeek = new Date(currentDate)
-                      startOfWeek.setDate(currentDate.getDate() - currentDate.getDay())
-                      for (let i = 0; i < 7; i++) {
-                        const d = new Date(startOfWeek)
-                        d.setDate(startOfWeek.getDate() + i)
-                        days.push(d)
+                      if (staffList.length > 0) {
+                        if (col.kind === 'google') {
+                          colReservations = []
+                          includeGoogle = true
+                        } else if (col.kind === 'unassigned') {
+                          colReservations = dayViewData.dayReservations.filter((r) => !r.staff_id)
+                          colGoogle = []
+                        } else if (col.id !== '__single__') {
+                          colReservations = dayViewData.dayReservations.filter(
+                            (r) => r.staff_id === col.id,
+                          )
+                          colGoogle = []
+                        } else {
+                          includeGoogle = true
+                        }
+                      } else {
+                        includeGoogle = true
                       }
-                    }
 
-                    type CalendarItem = {
-                      id: string
-                      type: 'reservation' | 'google'
-                      startMinutes: number
-                      endMinutes: number
-                      data: Reservation | GoogleEvent
-                    }
-
-                    return days.map((d, colIdx) => {
-                      const dayReservations = reservations.filter((r) =>
-                        isSameDay(new Date(r.start_time), d)
+                      return (
+                        <TimeGridColumn
+                          key={col.id}
+                          dayReservations={colReservations}
+                          dayGoogleEvents={colGoogle}
+                          displayHours={displayHours}
+                          includeGoogleEvents={includeGoogle}
+                          onReservationClick={onReservationClick}
+                          onGoogleEventClick={onGoogleEventClick}
+                        />
                       )
-                      const linkedIds = new Set(
-                        reservations.filter((r) => r.google_event_id).map((r) => r.google_event_id)
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex-1 grid grid-cols-7 divide-x divide-gray-200">
+                    {weekDays.map((d) => {
+                      const dayReservations = reservations.filter((r) =>
+                        isSameDay(new Date(r.start_time), d),
                       )
                       const dayGoogleEvents = googleEvents.filter((e) => {
                         if (!e.start.dateTime && !e.start.date) return false
-                        if (linkedIds.has(e.id)) return false
+                        if (linkedGoogleEventIds.has(e.id)) return false
                         const start = new Date(e.start.dateTime || e.start.date!)
                         return isSameDay(start, d)
                       })
-
-                      const allItems: CalendarItem[] = []
-
-                      dayReservations.forEach((r) => {
-                        const start = new Date(r.start_time)
-                        const end = new Date(r.end_time)
-                        const startMinutes = start.getHours() * 60 + start.getMinutes()
-                        const endMinutes = end.getHours() * 60 + end.getMinutes()
-                        if (startMinutes >= displayHours.start * 60) {
-                          allItems.push({
-                            id: r.id,
-                            type: 'reservation',
-                            startMinutes,
-                            endMinutes,
-                            data: r,
-                          })
-                        }
-                      })
-
-                      dayGoogleEvents.forEach((e) => {
-                        if (!e.start.dateTime) return
-                        const start = new Date(e.start.dateTime)
-                        const end = e.end.dateTime
-                          ? new Date(e.end.dateTime)
-                          : new Date(start.getTime() + 60 * 60 * 1000)
-                        const startMinutes = start.getHours() * 60 + start.getMinutes()
-                        const endMinutes = end.getHours() * 60 + end.getMinutes()
-                        if (startMinutes >= displayHours.start * 60) {
-                          allItems.push({
-                            id: e.id,
-                            type: 'google',
-                            startMinutes,
-                            endMinutes,
-                            data: e,
-                          })
-                        }
-                      })
-
-                      allItems.sort((a, b) => a.startMinutes - b.startMinutes)
-
-                      const itemPositions: Map<string, { column: number; totalColumns: number }> =
-                        new Map()
-                      const isOverlapping = (item1: CalendarItem, item2: CalendarItem) =>
-                        item1.startMinutes < item2.endMinutes && item2.startMinutes < item1.endMinutes
-                      const processedIds = new Set<string>()
-
-                      allItems.forEach((item, index) => {
-                        if (processedIds.has(item.id)) return
-
-                        const group: CalendarItem[] = [item]
-                        processedIds.add(item.id)
-
-                        for (let i = index + 1; i < allItems.length; i++) {
-                          const nextItem = allItems[i]
-                          if (processedIds.has(nextItem.id)) continue
-                          const overlapsWithGroup = group.some((g) => isOverlapping(g, nextItem))
-                          if (overlapsWithGroup) {
-                            group.push(nextItem)
-                            processedIds.add(nextItem.id)
-                          }
-                        }
-
-                        const columns: CalendarItem[][] = []
-                        group.forEach((g) => {
-                          let placed = false
-                          for (let col = 0; col < columns.length; col++) {
-                            const canPlace = columns[col].every(
-                              (existing) => !isOverlapping(existing, g)
-                            )
-                            if (canPlace) {
-                              columns[col].push(g)
-                              itemPositions.set(g.id, { column: col, totalColumns: 0 })
-                              placed = true
-                              break
-                            }
-                          }
-                          if (!placed) {
-                            columns.push([g])
-                            itemPositions.set(g.id, {
-                              column: columns.length - 1,
-                              totalColumns: 0,
-                            })
-                          }
-                        })
-
-                        group.forEach((g) => {
-                          const pos = itemPositions.get(g.id)!
-                          pos.totalColumns = columns.length
-                        })
-                      })
-
                       return (
-                        <div key={colIdx} className="relative h-full">
-                          {[...Array(displayHours.end - displayHours.start)].map((_, i) => (
-                            <div key={i} className="h-[60px] border-b border-gray-100"></div>
-                          ))}
-
-                          {allItems.map((item) => {
-                            const pos = itemPositions.get(item.id)
-                            if (!pos) return null
-
-                            const top = item.startMinutes - displayHours.start * 60
-                            const duration = item.endMinutes - item.startMinutes
-                            const width = 100 / pos.totalColumns
-                            const left = pos.column * width
-
-                            if (item.type === 'reservation') {
-                              const r = item.data as Reservation
-                              const start = new Date(r.start_time)
-                              return (
-                                <div
-                                  key={r.id}
-                                  className="absolute bg-primary-100 border-l-4 border-primary-500 text-primary-800 text-xs p-1 rounded overflow-hidden cursor-pointer hover:opacity-90 z-10 flex flex-col"
-                                  style={{
-                                    top: `${top}px`,
-                                    height: `${Math.max(duration, 20)}px`,
-                                    left: `calc(${left}% + 2px)`,
-                                    width: `calc(${width}% - 4px)`,
-                                  }}
-                                  onClick={() => onReservationClick(r)}
-                                >
-                                  <div className="flex items-center gap-1 font-bold text-[10px] leading-tight">
-                                    <span>
-                                      {start.toLocaleTimeString('ja-JP', {
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                      })}
-                                    </span>
-                                    <span className="truncate">
-                                      {r.customer?.real_name || r.customer?.display_name || 'ゲスト'}
-                                    </span>
-                                  </div>
-                                  {duration > 30 && (
-                                    <>
-                                      {r.menu?.name && (
-                                        <div className="truncate text-[10px] opacity-90 mt-0.5">
-                                          {r.menu.name}
-                                        </div>
-                                      )}
-                                      {r.staff?.name && (
-                                        <div className="truncate text-[10px] opacity-80">
-                                          担当: {r.staff.name}
-                                        </div>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-                              )
-                            } else {
-                              const e = item.data as GoogleEvent
-                              const start = new Date(e.start.dateTime!)
-                              return (
-                                <div
-                                  key={e.id}
-                                  className="absolute bg-gray-100 border-l-4 border-gray-400 text-gray-600 text-xs p-1 rounded overflow-hidden cursor-pointer hover:bg-gray-200 transition z-0"
-                                  style={{
-                                    top: `${top}px`,
-                                    height: `${Math.max(duration, 20)}px`,
-                                    left: `calc(${left}% + 2px)`,
-                                    width: `calc(${width}% - 4px)`,
-                                  }}
-                                  onClick={() => onGoogleEventClick(e)}
-                                >
-                                  <div className="font-bold text-[10px]">
-                                    {start.toLocaleTimeString('ja-JP', {
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })}
-                                  </div>
-                                  <div className="truncate text-[10px]">{e.summary}</div>
-                                </div>
-                              )
-                            }
-                          })}
-                        </div>
+                        <TimeGridColumn
+                          key={d.toISOString()}
+                          dayReservations={dayReservations}
+                          dayGoogleEvents={dayGoogleEvents}
+                          displayHours={displayHours}
+                          includeGoogleEvents={true}
+                          onReservationClick={onReservationClick}
+                          onGoogleEventClick={onGoogleEventClick}
+                        />
                       )
-                    })
-                  })()}
-                </div>
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}

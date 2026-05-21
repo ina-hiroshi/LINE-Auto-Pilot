@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Plus, Clock, Calendar, TrendingUp } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -12,7 +12,11 @@ import { UnderlineTabs } from '../components/UnderlineTabs'
 import Modal from '../components/Modal'
 import ProLockOverlay from '../components/ProLockOverlay'
 import ProBadge from '../components/ProBadge'
-import { ReservationList, type ListFilter } from '../features/reservations/components/ReservationList'
+import {
+  ReservationList,
+  type ListFilter,
+  type StaffFilterId,
+} from '../features/reservations/components/ReservationList'
 import { ReservationCalendar } from '../features/reservations/components/ReservationCalendar'
 import { ReservationModifyForm, ReservationCreateForm } from '../features/reservations/components/ReservationForm'
 import { ReservationConfirmModal } from '../features/reservations/components/ReservationConfirmModal'
@@ -29,6 +33,7 @@ export default function Reservations() {
   const [pageTab, setPageTab] = useState<'bookings' | 'sales'>('bookings')
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
   const [listFilter, setListFilter] = useState<ListFilter>('all')
+  const [staffFilterId, setStaffFilterId] = useState<StaffFilterId>('all')
   const [isGoogleConnected, setIsGoogleConnected] = useState(false)
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [loading, setLoading] = useState(true)
@@ -444,7 +449,7 @@ export default function Reservations() {
         .select('*, staff:staff_members(name), menu:booking_menus(name, price)')
         .eq('store_id', currentStore.id)
         .neq('status', 'cancelled') // キャンセル済みを除外
-        .order('start_time', { ascending: true })
+        .order('start_time', { ascending: false })
 
       if (resError) throw resError
 
@@ -684,13 +689,22 @@ export default function Reservations() {
     }
   }
 
-  const handlePointGrantFromPrompt = async (amount: number) => {
+  const handlePointPromptSubmit = async (amount: number, type: 'add' | 'use') => {
     if (!selectedReservation?.line_user_id) return
-    const result = await updatePoints(selectedReservation.line_user_id, customerPointBalance, amount, 'add')
+    const result = await updatePoints(selectedReservation.line_user_id, customerPointBalance, amount, type)
     setIsPointPromptOpen(false)
     if (result.success) {
+      const isStamp = membershipSettings?.card_type === 'stamp'
       setToast({
-        message: result.stampCompleted ? 'スタンプカードが満了しました！' : 'ポイントを付与しました',
+        message: result.stampCompleted
+          ? 'スタンプカードが満了しました！'
+          : type === 'add'
+            ? isStamp
+              ? 'スタンプを押印しました'
+              : 'ポイントを付与しました'
+            : isStamp
+              ? 'スタンプを利用しました'
+              : 'ポイントを利用しました',
         type: 'success',
       })
       setCustomerPointBalance(result.newBalance)
@@ -895,6 +909,12 @@ export default function Reservations() {
     }
   }
 
+  const staffFilteredReservations = useMemo(() => {
+    if (staffFilterId === 'all') return reservations
+    if (staffFilterId === 'unassigned') return reservations.filter((r) => !r.staff_id)
+    return reservations.filter((r) => r.staff_id === staffFilterId)
+  }, [reservations, staffFilterId])
+
   // 顧客検索フィルター
   const filteredCustomers = customers.filter(c => {
     if (!customerSearch) return true
@@ -964,9 +984,12 @@ export default function Reservations() {
         <SalesSummaryTab storeId={storeId} />
       ) : viewMode === 'list' ? (
         <ReservationList
-          reservations={reservations}
+          reservations={staffFilteredReservations}
           listFilter={listFilter}
           onListFilterChange={setListFilter}
+          staffList={staffList}
+          staffFilterId={staffFilterId}
+          onStaffFilterChange={setStaffFilterId}
           loading={loading}
           onReservationClick={openDetailModal}
           onCancelClick={(r) => {
@@ -1011,6 +1034,7 @@ export default function Reservations() {
               calendars={calendars}
               selectedCalendarId={selectedCalendarId}
               displayHours={displayHours}
+              staffList={staffList}
               reservations={reservations}
               googleEvents={googleEvents}
               onReservationClick={openDetailModal}
@@ -1066,7 +1090,7 @@ export default function Reservations() {
         balance={customerPointBalance}
         storeSettings={membershipSettings}
         saving={pointSaving}
-        onGrant={handlePointGrantFromPrompt}
+        onSubmit={handlePointPromptSubmit}
         onSkip={() => {
           setIsPointPromptOpen(false)
           setToast({ message: '決済が完了しました', type: 'success' })

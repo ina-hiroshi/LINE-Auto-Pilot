@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
+import { getJstDayOfWeek } from '../../../lib/jstDate'
 import { Calendar as CalendarIcon, Clock, Plus, Copy, Trash2 } from 'lucide-react'
 import { SpecialDateModal } from './SpecialDateModal'
 import type { BusinessHours } from '../types'
@@ -378,8 +379,7 @@ export function BusinessDaysTab({ storeId, onToast, onDataChange }: BusinessDays
             ))}
             {calendarDays.map(day => {
               const dateStr = formatDate(currentYear, currentMonth, day)
-              const date = new Date(dateStr)
-              const dayOfWeek = date.getDay()
+              const dayOfWeek = getJstDayOfWeek(dateStr)
               const weekdayKey = WEEKDAY_KEYS[dayOfWeek]
               const special = specialDates[dateStr]
               const isClosed = special?.is_closed

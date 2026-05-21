@@ -1,17 +1,26 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
-import { Users, Calendar, AlertCircle, Bot, User, MessageSquare, Sparkles, BarChart3, TrendingUp, Search, Lightbulb, Target, FolderOpen } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Users, Calendar, AlertCircle, Bot, User, MessageSquare, Sparkles, BarChart3, TrendingUp, Search, Lightbulb, Target, FolderOpen, ExternalLink } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import Modal from '../components/Modal'
-import {
-  LineMessagingQuotaPanel,
-  LineMessagingQuotaFooterLinks,
-  type LineQuotaInfo,
-} from '../components/line/LineMessagingQuotaNotice'
+import { type LineQuotaInfo } from '../components/line/LineMessagingQuotaNotice'
 import Toast from '../components/Toast'
 import { UnderlineTabs } from '../components/UnderlineTabs'
 import ProBadge from '../components/ProBadge'
 import ProLockOverlay from '../components/ProLockOverlay'
 import { usePlan } from '../hooks/usePlan'
+import { enrichLogsWithCustomerLabels } from '../features/customers/lib/customerDisplayName'
+import {
+  augmentLineUserIdMapFromLogs,
+  buildCustomerLookupMaps,
+  fetchCustomerIdForLog,
+  resolveCustomerIdFromLog,
+} from '../features/customers/lib/resolveCustomer'
+import { LineChatHistory } from '../features/messaging/components/LineChatHistory'
+import { LineReplyComposer } from '../features/messaging/components/LineReplyComposer'
+import { useLineChatHistory } from '../features/messaging/hooks/useLineChatHistory'
+import { useLineReply } from '../features/messaging/hooks/useLineReply'
+import { STATUS_LABELS, type LogEntry } from '../features/messaging/types'
 import {
   LineChart,
   Line,
@@ -34,17 +43,6 @@ type DashboardStats = {
   todayAiResponses: number
   totalFriends: number
   totalLogs: number
-}
-
-type LogEntry = {
-  id: string
-  created_at: string
-  line_user_id: string
-  message_content: string
-  reply_content: string | null
-  status: 'auto_replied' | 'ai_replied' | 'manual_reply_needed' | 'manual_replied' | 'resolved'
-  display_name?: string
-  profile_picture_url?: string
 }
 
 type DailyData = {
@@ -95,14 +93,6 @@ type AIAnalysis = {
   error: string | null
 }
 
-const STATUS_LABELS = {
-  auto_replied: '自動応答',
-  ai_replied: 'AI応答',
-  manual_reply_needed: '要対応',
-  manual_replied: '手動返信',
-  resolved: '対応済'
-}
-
 // Summary Cardsの色と統一したカラーパレット
 const STATUS_COLORS = {
   auto_replied: '#0d9488', // primary-600 (自動応答カードと同じ)
@@ -131,6 +121,7 @@ const CHART_COLORS = {
 const WEEKDAY_NAMES = ['日', '月', '火', '水', '木', '金', '土']
 
 export default function Dashboard() {
+  const navigate = useNavigate()
   const { isPro } = usePlan()
   const [stats, setStats] = useState<DashboardStats>({
     manualReplyNeeded: 0,
@@ -146,6 +137,9 @@ export default function Dashboard() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'auto_replied' | 'ai_replied' | 'manual_reply_needed' | 'manual_replied' | 'resolved'>('all')
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'all'>('all')
   const [storeId, setStoreId] = useState<string | null>(null)
+  const [customerIdByLineUserId, setCustomerIdByLineUserId] = useState<Record<string, string>>({})
+  const [customerIdByDisplayName, setCustomerIdByDisplayName] = useState<Record<string, string>>({})
+  const [customerIdByRealName, setCustomerIdByRealName] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = useState<'graphs' | 'messages' | 'analysis'>('graphs')
 
   // Graph Data
@@ -176,27 +170,10 @@ export default function Dashboard() {
   const [replyModalOpen, setReplyModalOpen] = useState(false)
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null)
   const [replyText, setReplyText] = useState('')
-  const [sendingReply, setSendingReply] = useState(false)
   const [quotaInfo, setQuotaInfo] = useState<LineQuotaInfo | null>(null)
-  const [chatHistory, setChatHistory] = useState<LogEntry[]>([])
-  const [historyLoading, setHistoryLoading] = useState(false)
+  const { chatHistory, historyLoading, fetchChatHistory } = useLineChatHistory(storeId)
+  const { sendMessage, resolveLog, sending: sendingReply } = useLineReply()
   const scrollRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (replyModalOpen && scrollRef.current && chatHistory.length > 0) {
-        // Use setTimeout to ensure DOM is updated
-        setTimeout(() => {
-            if (selectedLog) {
-                const targetElement = document.getElementById(`msg-${selectedLog.id}`)
-                if (targetElement) {
-                    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                    return
-                }
-            }
-            scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-        }, 100)
-    }
-  }, [replyModalOpen, chatHistory, selectedLog])
 
   // Toast State
   const [toast, setToast] = useState<{ isVisible: boolean; message: string; type: 'success' | 'error' }>({
@@ -361,6 +338,14 @@ export default function Dashboard() {
       }
       setStoreId(storeId)
 
+      const { data: customerRows } = await supabase
+        .from('customers')
+        .select('id, line_user_id, display_name, real_name')
+        .eq('store_id', storeId)
+      const { byLineUserId, byDisplayName, byRealName } = buildCustomerLookupMaps(customerRows ?? [])
+      setCustomerIdByDisplayName(byDisplayName)
+      setCustomerIdByRealName(byRealName)
+
       // Calculate Date Range
       const now = new Date()
       const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -428,8 +413,25 @@ export default function Dashboard() {
           todayAiResponses: aiResponses,
           totalLogs: logs.length
         }))
-        setAllLogs(logs as LogEntry[])
+        const lineUserMap = augmentLineUserIdMapFromLogs(
+          logs as LogEntry[],
+          byLineUserId,
+          byDisplayName,
+          byRealName,
+        )
+        setCustomerIdByLineUserId(lineUserMap)
+        setAllLogs(
+          enrichLogsWithCustomerLabels(
+            logs as LogEntry[],
+            customerRows ?? [],
+            lineUserMap,
+            byDisplayName,
+            byRealName,
+          ),
+        )
         processGraphData(logs as LogEntry[])
+      } else {
+        setCustomerIdByLineUserId(byLineUserId)
       }
 
       // 2. Fetch Reservations
@@ -698,69 +700,61 @@ export default function Dashboard() {
     }
   }, [replyModalOpen, storeId])
 
-  const fetchChatHistory = async (userId: string) => {
+  const navigateToCustomerPage = async (log: LogEntry) => {
     if (!storeId) return
-    setHistoryLoading(true)
-    try {
-      const { data } = await supabase
-        .from('customer_logs')
-        .select('*')
-        .eq('store_id', storeId)
-        .eq('line_user_id', userId)
-        .order('created_at', { ascending: true })
-        .limit(50)
-      
-      if (data) {
-        setChatHistory(data as LogEntry[])
-      }
-    } catch (error) {
-      console.error('Error fetching history:', error)
-    } finally {
-      setHistoryLoading(false)
+    const customerId = await fetchCustomerIdForLog(
+      storeId,
+      log,
+      customerIdByLineUserId,
+      customerIdByDisplayName,
+      customerIdByRealName,
+    )
+    if (customerId) {
+      const params = new URLSearchParams({ tab: 'messages' })
+      params.set('log_id', log.id)
+      navigate(`/customers/${customerId}?${params.toString()}`)
     }
   }
+
+  const getCustomerIdForLog = (log: LogEntry) =>
+    resolveCustomerIdFromLog(log, customerIdByLineUserId, customerIdByDisplayName, customerIdByRealName)
 
   const handleReplyClick = (log: LogEntry) => {
     setSelectedLog(log)
     setReplyText('')
     setReplyModalOpen(true)
-    fetchChatHistory(log.line_user_id)
+    fetchChatHistory(log.line_user_id, 50, {
+      real_name: log.display_name ?? null,
+      display_name: log.display_name ?? null,
+    })
   }
 
   const handleSendReply = async () => {
-    if (!selectedLog || !replyText.trim()) return
+    if (!selectedLog || !replyText.trim() || !storeId) return
 
-    setSendingReply(true)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) throw new Error('認証エラー')
+    const result = await sendMessage({
+      storeId,
+      userId: selectedLog.line_user_id,
+      text: replyText,
+      replyToLogId: selectedLog.id,
+      displayName: selectedLog.display_name,
+      profilePictureUrl: selectedLog.profile_picture_url,
+    })
 
-      const { error } = await supabase.functions.invoke('manual-reply', {
-        body: {
-          messageLogId: selectedLog.id,
-          replyText: replyText,
-          userId: selectedLog.line_user_id
-        }
-      })
-
-      if (error) throw error
-
+    if (result.success) {
       setToast({
         isVisible: true,
         message: '返信を送信しました',
-        type: 'success'
+        type: 'success',
       })
       setReplyModalOpen(false)
-      fetchDashboardData() // Refresh data immediately
-    } catch (error) {
-      console.error('Reply Error:', error)
+      fetchDashboardData()
+    } else {
       setToast({
         isVisible: true,
-        message: '返信の送信に失敗しました',
-        type: 'error'
+        message: result.message ?? '返信の送信に失敗しました',
+        type: 'error',
       })
-    } finally {
-      setSendingReply(false)
     }
   }
 
@@ -768,32 +762,23 @@ export default function Dashboard() {
   const handleResolve = async () => {
     if (!selectedLog) return
 
-    try {
-      const { error } = await supabase
-        .from('customer_logs')
-        .update({ status: 'resolved' })
-        .eq('id', selectedLog.id)
-
-      if (error) throw error
-
-      // Update local state immediately
-      setAllLogs(prev => prev.map(log => 
-        log.id === selectedLog.id ? { ...log, status: 'resolved' } : log
-      ))
-
+    const result = await resolveLog(selectedLog.id)
+    if (result.success) {
+      setAllLogs((prev) =>
+        prev.map((log) => (log.id === selectedLog.id ? { ...log, status: 'resolved' } : log)),
+      )
       setToast({
         isVisible: true,
         message: '対応済にしました',
-        type: 'success'
+        type: 'success',
       })
       setReplyModalOpen(false)
       fetchDashboardData()
-    } catch (error) {
-      console.error('Resolve Error:', error)
+    } else {
       setToast({
         isVisible: true,
         message: '更新に失敗しました',
-        type: 'error'
+        type: 'error',
       })
     }
   }
@@ -842,114 +827,61 @@ export default function Dashboard() {
         onClose={() => setReplyModalOpen(false)}
         title="メッセージ対応"
         footerContent={
-          <div className="flex flex-col w-full gap-3">
-            <div className="flex justify-end gap-3 w-full">
-              {selectedLog?.status === 'manual_reply_needed' && (
-                <button
-                  onClick={handleResolve}
-                  className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors font-medium"
-                >
-                  返信せずに対応済にする
-                </button>
-              )}
-              <button
-                onClick={() => setReplyModalOpen(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium"
-              >
-                閉じる
-              </button>
-              <button
-                onClick={handleSendReply}
-                disabled={sendingReply || !replyText.trim()}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {sendingReply ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                    送信中...
-                  </>
-                ) : (
-                  '送信する'
-                )}
-              </button>
-            </div>
-            {quotaInfo && <LineMessagingQuotaFooterLinks align="right" />}
+          <div className="flex justify-end w-full">
+            <button
+              type="button"
+              onClick={() => setReplyModalOpen(false)}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium"
+            >
+              閉じる
+            </button>
           </div>
         }
       >
         <div className="space-y-4">
-            <LineMessagingQuotaPanel quotaInfo={quotaInfo} />
-
-            {/* User Info in Modal */}
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                <div className="w-10 h-10 rounded-full bg-white border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
-                    {selectedLog?.profile_picture_url ? (
-                        <img src={selectedLog.profile_picture_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                        <User size={20} className="text-gray-400" />
-                    )}
+            <div className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-white border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+                      {selectedLog?.profile_picture_url ? (
+                          <img src={selectedLog.profile_picture_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                          <User size={20} className="text-gray-400" />
+                      )}
+                  </div>
+                  <div className="min-w-0">
+                      <p className="text-sm font-bold text-gray-900 truncate">{selectedLog?.display_name || 'ゲスト'}</p>
+                      <p className="text-xs text-gray-500">への返信</p>
+                  </div>
                 </div>
-                <div>
-                    <p className="text-sm font-bold text-gray-900">{selectedLog?.display_name || 'ゲスト'}</p>
-                    <p className="text-xs text-gray-500">への返信</p>
-                </div>
-            </div>
-
-            <div ref={scrollRef} className="bg-gray-50 p-3 rounded-lg border border-gray-100 h-64 overflow-y-auto space-y-3">
-                {historyLoading ? (
-                    <div className="flex justify-center py-4"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400"></div></div>
-                ) : chatHistory.length > 0 ? (
-                    chatHistory.map((msg) => (
-                        <div key={msg.id} id={`msg-${msg.id}`} className={`space-y-1 ${msg.id === selectedLog?.id ? 'bg-yellow-50/30 -mx-2 px-2 py-2 rounded' : ''}`}>
-                            {/* User Message */}
-                            <div className="flex justify-start flex-col items-start">
-                                {msg.id === selectedLog?.id && (
-                                    <span className="text-[10px] font-bold text-primary-600 mb-1 ml-1">返信対象</span>
-                                )}
-                                <div className={`border rounded-lg rounded-tl-none p-2 max-w-[80%] text-sm shadow-sm ${
-                                    msg.id === selectedLog?.id 
-                                    ? 'bg-white border-primary-300 ring-2 ring-primary-100 text-gray-900' 
-                                    : 'bg-white border-gray-200 text-gray-800'
-                                }`}>
-                                    {msg.message_content}
-                                </div>
-                            </div>
-                            <div className="text-[10px] text-gray-400 ml-1">
-                                {new Date(msg.created_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            </div>
-
-                            {/* Reply (if exists) */}
-                            {msg.reply_content && (
-                                <>
-                                    <div className="flex justify-end">
-                                        <div className={`rounded-lg rounded-tr-none p-2 max-w-[80%] text-sm shadow-sm ${
-                                            msg.status === 'manual_replied' ? 'bg-emerald-100 text-emerald-900' : 
-                                            msg.status === 'ai_replied' ? 'bg-blue-50 text-blue-900' :
-                                            'bg-gray-200 text-gray-800'
-                                        }`}>
-                                            {msg.reply_content}
-                                        </div>
-                                    </div>
-                                    <div className="text-[10px] text-gray-400 text-right mr-1">
-                                        {STATUS_LABELS[msg.status]}
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    ))
-                ) : (
-                    <p className="text-center text-gray-400 text-sm py-4">履歴がありません</p>
+                {selectedLog && getCustomerIdForLog(selectedLog) && (
+                  <button
+                    type="button"
+                    onClick={() => navigateToCustomerPage(selectedLog)}
+                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100"
+                  >
+                    <ExternalLink size={14} />
+                    顧客ページ
+                  </button>
                 )}
             </div>
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">返信内容</label>
-                <textarea
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 min-h-[120px]"
-                    placeholder="返信メッセージを入力してください..."
-                />
-            </div>
+
+            <LineChatHistory
+              messages={chatHistory}
+              loading={historyLoading}
+              highlightLogId={selectedLog?.id}
+              scrollRef={scrollRef}
+              scrollMode={selectedLog ? 'highlight' : 'latest'}
+            />
+
+            <LineReplyComposer
+              replyText={replyText}
+              onReplyTextChange={setReplyText}
+              onSend={handleSendReply}
+              onResolve={selectedLog?.status === 'manual_reply_needed' ? handleResolve : undefined}
+              showResolve={selectedLog?.status === 'manual_reply_needed'}
+              sending={sendingReply}
+              quotaInfo={quotaInfo}
+            />
         </div>
       </Modal>
 
@@ -1606,14 +1538,29 @@ export default function Dashboard() {
                         <div className="bg-gray-100 rounded-2xl rounded-tl-none p-3 text-sm text-gray-800 max-h-32 overflow-y-auto shadow-sm">
                             {log.message_content}
                         </div>
-                        {/* Reply Button - Always allow manual follow-up */}
-                        <button 
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
                             onClick={() => handleReplyClick(log)}
-                            className="mt-2 flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-600 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm"
-                        >
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-600 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm"
+                          >
                             <MessageSquare size={14} className="text-emerald-500" />
                             対応する
-                        </button>
+                          </button>
+                          {getCustomerIdForLog(log) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                navigateToCustomerPage(log)
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-primary-200 rounded-full text-xs font-medium text-primary-700 hover:bg-primary-50 hover:border-primary-300 transition-all shadow-sm"
+                            >
+                              <ExternalLink size={14} className="text-primary-600" />
+                              顧客詳細
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {/* Bot Reply */}

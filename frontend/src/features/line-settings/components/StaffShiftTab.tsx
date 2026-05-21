@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
+import { getJstDayOfWeek } from '../../../lib/jstDate'
 import { Calendar as CalendarIcon, Clock, User, Plus, Copy, Trash2 } from 'lucide-react'
 import { StaffScheduleModal } from './StaffScheduleModal'
 import type { BusinessHours } from '../types'
@@ -49,6 +50,14 @@ interface StaffShiftTabProps {
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_KEYS: (keyof BusinessHours)[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+
+function toDbPatternUpdate(slots: StaffWorkSlot[]) {
+  return {
+    slots,
+    start_time: slots[0]?.start ?? null,
+    end_time: slots[0]?.end ?? null,
+  }
+}
 
 export function StaffShiftTab({ storeId, staffList, onToast, onDataChange }: StaffShiftTabProps) {
   const [saving, setSaving] = useState(false)
@@ -210,6 +219,7 @@ export function StaffShiftTab({ storeId, staffList, onToast, onDataChange }: Sta
           .insert({
             staff_id: selectedStaff.id,
             day_of_week: dayOfWeek,
+            slots: defaultSlots,
             start_time: defaultStartTime,
             end_time: defaultEndTime,
             is_active: true
@@ -250,17 +260,9 @@ export function StaffShiftTab({ storeId, staffList, onToast, onDataChange }: Sta
       const newSlots = [...pattern.slots]
       newSlots[slotIndex][field] = value
       
-      // DB スキーマに合わせて start_time / end_time も更新
-      const updateData: Record<string, unknown> = {}
-      if (slotIndex === 0) {
-        // 最初のスロットは start_time/end_time にも保存
-        updateData.start_time = newSlots[0].start
-        updateData.end_time = newSlots[0].end
-      }
-      
       const { error } = await supabase
         .from('staff_work_patterns')
-        .update(updateData)
+        .update(toDbPatternUpdate(newSlots))
         .eq('id', pattern.id)
       
       if (error) throw error
@@ -286,7 +288,7 @@ export function StaffShiftTab({ storeId, staffList, onToast, onDataChange }: Sta
       
       const { error } = await supabase
         .from('staff_work_patterns')
-        .update({ slots: newSlots })
+        .update(toDbPatternUpdate(newSlots))
         .eq('id', pattern.id)
       
       if (error) throw error
@@ -316,10 +318,9 @@ export function StaffShiftTab({ storeId, staffList, onToast, onDataChange }: Sta
     
     try {
       const newSlots = pattern.slots.filter((_, i) => i !== slotIndex)
-      // 最初のスロットを start_time/end_time に反映
       const { error } = await supabase
         .from('staff_work_patterns')
-        .update({ start_time: newSlots[0].start, end_time: newSlots[0].end })
+        .update(toDbPatternUpdate(newSlots))
         .eq('id', pattern.id)
       
       if (error) throw error
@@ -344,9 +345,9 @@ export function StaffShiftTab({ storeId, staffList, onToast, onDataChange }: Sta
       const updates = []
       const inserts = []
       
-      // ソースの最初のスロットから start_time/end_time を取得
-      const sourceStartTime = sourcePattern.slots[0]?.start || '10:00'
-      const sourceEndTime = sourcePattern.slots[0]?.end || '19:00'
+      const sourceSlots = sourcePattern.slots.length > 0
+        ? sourcePattern.slots
+        : [{ start: '10:00', end: '19:00' }]
       
       for (let i = 0; i < 7; i++) {
         if (i === dayOfWeek) continue
@@ -357,10 +358,9 @@ export function StaffShiftTab({ storeId, staffList, onToast, onDataChange }: Sta
           updates.push(
             supabase
               .from('staff_work_patterns')
-              .update({ 
-                start_time: sourceStartTime, 
-                end_time: sourceEndTime, 
-                is_active: sourcePattern.is_active 
+              .update({
+                ...toDbPatternUpdate(sourceSlots),
+                is_active: sourcePattern.is_active,
               })
               .eq('id', targetPattern.id)
           )
@@ -368,9 +368,8 @@ export function StaffShiftTab({ storeId, staffList, onToast, onDataChange }: Sta
           inserts.push({
             staff_id: selectedStaff.id,
             day_of_week: i,
-            start_time: sourceStartTime,
-            end_time: sourceEndTime,
-            is_active: sourcePattern.is_active
+            ...toDbPatternUpdate(sourceSlots),
+            is_active: sourcePattern.is_active,
           })
         }
       }
@@ -389,17 +388,22 @@ export function StaffShiftTab({ storeId, staffList, onToast, onDataChange }: Sta
         
         if (inserted) {
           // 挿入されたデータを内部形式（slots）に変換
-          const convertedInserted = inserted.map(p => ({
-            ...p,
-            slots: [{ start: p.start_time, end: p.end_time }]
-          }))
+          const convertedInserted = inserted.map(p => {
+            if (p.slots && Array.isArray(p.slots) && p.slots.length > 0) {
+              return p as StaffWorkPattern
+            }
+            return {
+              ...p,
+              slots: [{ start: p.start_time, end: p.end_time }],
+            } as StaffWorkPattern
+          })
           
           setWorkPatterns([
             ...workPatterns.map(p => {
               if (p.day_of_week === dayOfWeek) return p
               return {
                 ...p,
-                slots: [{ start: sourceStartTime, end: sourceEndTime }],
+                slots: sourceSlots,
                 is_active: sourcePattern.is_active
               }
             }),
@@ -411,7 +415,7 @@ export function StaffShiftTab({ storeId, staffList, onToast, onDataChange }: Sta
           if (p.day_of_week === dayOfWeek) return p
           return {
             ...p,
-            slots: [{ start: sourceStartTime, end: sourceEndTime }],
+            slots: sourceSlots,
             is_active: sourcePattern.is_active
           }
         }))
@@ -684,8 +688,7 @@ export function StaffShiftTab({ storeId, staffList, onToast, onDataChange }: Sta
                 ))}
                 {calendarDays.map(day => {
                   const dateStr = formatDate(currentYear, currentMonth, day)
-                  const date = new Date(dateStr)
-                  const dayOfWeek = date.getDay()
+                  const dayOfWeek = getJstDayOfWeek(dateStr)
                   const weekdayKey = WEEKDAY_KEYS[dayOfWeek]
                   const schedule = specialSchedules[dateStr]
                   const isAbsent = schedule?.is_absent
