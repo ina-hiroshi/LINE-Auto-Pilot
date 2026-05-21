@@ -19,3 +19,10 @@
 - `npm run build` が成功（現在Chunk size警告のみ）。
 - Supabaseキー・LIFF ID 等の必須環境変数が本番/プレビューで設定済み。
 - Edge Functions デプロイ例: `supabase functions deploy line-webhook --no-verify-jwt` など必要分を実行。
+
+## 予約変更（LIFF）Production 反映チェック
+- feature ブランチの修正は Vercel **Preview** のみに載ることがある。LIFF Endpoint URL が指す **Production** に main マージ後デプロイされているか確認する。
+- 予約変更画面に診断テキスト（`API v... | reservation_id=... | 除外=...`）が表示されること。表示されない場合は古いフロントが LIFF に届いている。
+- `get_available_slots`（`reservation_id` あり）の `_debug.modifyExclude.reservationId` が変更対象 UUID と一致すること。
+- 14:30 / 180分の予約変更で 12:00・15:00・15:30 が ○、HPB 等の外部 Google 予約時間は × のままであること。
+- 変更確定（`hold_slot` → `update_reservation`）が成功すること。

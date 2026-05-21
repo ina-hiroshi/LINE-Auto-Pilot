@@ -52,7 +52,7 @@ export async function handleHoldSlot(
     if (line_user_id && modifyExclude.lineUserId !== line_user_id) {
       throw new ClientVisibleError('この予約を変更できません', 403)
     }
-    if (!staff_id && modifyExclude.staffId) {
+    if (modifyExclude.staffId) {
       staff_id = modifyExclude.staffId
     }
   }

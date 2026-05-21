@@ -805,6 +805,7 @@ export default function Booking() {
   const handleModifyStart = (reservationId: string) => {
     const res = activeReservations.find((r) => r.id === reservationId)
     setModifyingReservationId(reservationId)
+    setSlotModifyDebug('診断: 読込中…')
 
     const staffId = res?.staff_id ?? res?.staff?.id
     const menuId = res?.menu_id ?? res?.menu?.id
@@ -1734,11 +1735,9 @@ export default function Booking() {
               {modifyingReservationId && (
                 <div className={theme.noticeBox}>
                   現在、予約の変更を行っています。新しい日時を選択してください。
-                  {slotModifyDebug && (
-                    <p className="mt-2 text-[10px] opacity-70 break-all font-mono leading-tight">
-                      {slotModifyDebug}
-                    </p>
-                  )}
+                  <p className="mt-2 text-[10px] opacity-70 break-all font-mono leading-tight">
+                    {slotModifyDebug ?? (loadingMultiDateSlots ? '診断: 読込中…' : '診断: 待機中')}
+                  </p>
                   <button 
                     onClick={() => {
                       setModifyingReservationId(null)

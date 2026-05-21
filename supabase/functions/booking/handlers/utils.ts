@@ -59,8 +59,8 @@ export type ModifyExcludeContext = {
 
 type GoogleEventLike = {
   id?: string
-  start?: { dateTime?: string }
-  end?: { dateTime?: string }
+  start?: { dateTime?: string; date?: string }
+  end?: { dateTime?: string; date?: string }
   summary?: string
   description?: string
 }
@@ -167,14 +167,29 @@ export function isExcludedGoogleEventForModify(
     if (event.description?.includes(lineUserId)) return true
   }
 
+  const oldStart = new Date(modifyExclude.startTimeIso)
+  const oldEnd = new Date(modifyExclude.endTimeIso)
+
+  // 終日イベント: 変更対象予約と同日かつ自予約と判定できるもののみ除外
+  if (event.start?.date && !event.start?.dateTime) {
+    const oldDate = getJstDateString(oldStart)
+    if (event.start.date === oldDate) {
+      const looksLikeOwnAllDay =
+        event.summary?.startsWith('予約:') ||
+        event.summary?.startsWith('【仮予約】') ||
+        descriptionContainsReservationId(event.description, modifyExclude.reservationId) ||
+        (modifyExclude.lineUserId != null && event.description?.includes(modifyExclude.lineUserId))
+      if (looksLikeOwnAllDay) return true
+    }
+    return false
+  }
+
   if (!event.start?.dateTime || !event.end?.dateTime) {
     return false
   }
 
   const eventStart = new Date(event.start.dateTime)
   const eventEnd = new Date(event.end.dateTime)
-  const oldStart = new Date(modifyExclude.startTimeIso)
-  const oldEnd = new Date(modifyExclude.endTimeIso)
 
   const startDiff = Math.abs(eventStart.getTime() - oldStart.getTime())
   const endDiff = Math.abs(eventEnd.getTime() - oldEnd.getTime())

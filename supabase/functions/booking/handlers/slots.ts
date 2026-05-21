@@ -25,7 +25,7 @@ import {
 import { getGoogleCalendarClient, listGoogleEvents, deleteGoogleEvent } from './google-calendar.ts'
 
 /** デプロイ確認用。ソース更新時に ISO 文字列を更新する */
-export const SLOTS_API_VERSION = '2026-05-21T14:30:00Z'
+export const SLOTS_API_VERSION = '2026-05-21T15:00:00Z'
 
 export type BookingParams = {
   store_id?: string
@@ -140,7 +140,7 @@ export async function handleGetAvailableSlots(
 
   if (reservation_id) {
     modifyExclude = await loadModifyExcludeContext(supabaseClient, store_id, reservation_id)
-    if (!staff_id && modifyExclude.staffId) {
+    if (modifyExclude.staffId) {
       staff_id = modifyExclude.staffId
     }
     if (line_user_id) {
@@ -505,6 +505,11 @@ export async function handleGetAvailableSlots(
       },
       modifyExclude: modifyExclude ?? null,
       purgedOwnHolds,
+      slotEvaluationMode: staff_id ? 'single_staff' : (
+        staffInfoList.length === 0 || storeSettings.booking_enable_staff !== true
+          ? 'store_capacity'
+          : 'multi_staff'
+      ),
       blockingReservationCount: blockingReservations.length,
       googleEventCount: googleEvents.length,
       blocked,
