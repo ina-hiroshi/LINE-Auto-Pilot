@@ -131,7 +131,6 @@ export default function Booking() {
   const [loading, setLoading] = useState(false)
   const [activeReservations, setActiveReservations] = useState<ReservationSummary[]>([])
   const [modifyingReservationId, setModifyingReservationId] = useState<string | null>(null)
-  const [slotModifyDebug, setSlotModifyDebug] = useState<string | null>(null)
   
   // 表形式用：複数日のスロット情報 { "2026-01-04": { "10:00": true, "11:00": false, ... }, ... }
   const [multiDateSlots, setMultiDateSlots] = useState<Record<string, Record<string, boolean>>>({})
@@ -184,9 +183,6 @@ export default function Booking() {
     if (!storeId) return
     
     setLoadingMultiDateSlots(true)
-    if (!modifyingReservationId) {
-      setSlotModifyDebug(null)
-    }
     
     // 表示する日付を生成（7日間）
     const dates: string[] = []
@@ -271,12 +267,8 @@ export default function Booking() {
               console.error('[Booking] get_available_slots failed:', dateStr, msg)
               if (modifyingReservationId) {
                 showToast(`空き枠の取得に失敗しました。\n${msg}`, 'error')
-                setSlotModifyDebug(`APIエラー (${dateStr}): ${msg}`)
               }
-              return { dateStr, slots: {} as Record<string, boolean>, debug: null as unknown }
-            }
-            if (modifyingReservationId && data?._debug) {
-              console.log('[Booking] modify slot debug:', dateStr, data._debug)
+              return { dateStr, slots: {} as Record<string, boolean> }
             }
             const dateSlots: Record<string, boolean> = {}
             if (data?.slots) {
@@ -285,38 +277,13 @@ export default function Booking() {
                 allTimes.add(s.time)
               })
             }
-            return { dateStr, slots: dateSlots, debug: data?._debug ?? null, version: data?.version ?? null }
+            return { dateStr, slots: dateSlots }
           } catch (err) {
             console.error('[Booking] get_available_slots exception:', dateStr, err)
-            return { dateStr, slots: {} as Record<string, boolean>, debug: null as unknown }
+            return { dateStr, slots: {} as Record<string, boolean> }
           }
         })
       )
-      
-      if (modifyingReservationId) {
-        const firstResult = results.find((r) => r.debug)
-        const debug = firstResult?.debug as {
-          received?: { reservation_id?: string | null }
-          modifyExclude?: { reservationId?: string }
-          blocked?: { time: string; reasons: string[] }[]
-          purgedOwnHolds?: number
-        } | null
-        const version = (results.find((r) => r.version) as { version?: string } | undefined)?.version
-
-        if (debug) {
-          const receivedId = debug.received?.reservation_id
-          const excludeId = debug.modifyExclude?.reservationId
-          const firstBlocked = debug.blocked?.[0]
-          const blockedSummary = firstBlocked
-            ? `${firstBlocked.time}: ${firstBlocked.reasons.join(', ')}`
-            : 'ブロック理由なし（シフト外の可能性）'
-          setSlotModifyDebug(
-            `API v${version ?? '?'} | reservation_id=${receivedId ?? '未送信'} | 除外=${excludeId ?? 'なし'} | 最初の×: ${blockedSummary}${debug.purgedOwnHolds ? ` | 削除hold=${debug.purgedOwnHolds}` : ''}`
-          )
-        } else {
-          setSlotModifyDebug('診断情報なし（API未反映または reservation_id 未送信）')
-        }
-      }
       
       results.forEach(({ dateStr, slots }) => {
         slotsMap[dateStr] = slots
@@ -805,7 +772,6 @@ export default function Booking() {
   const handleModifyStart = (reservationId: string) => {
     const res = activeReservations.find((r) => r.id === reservationId)
     setModifyingReservationId(reservationId)
-    setSlotModifyDebug('診断: 読込中…')
 
     const staffId = res?.staff_id ?? res?.staff?.id
     const menuId = res?.menu_id ?? res?.menu?.id
@@ -1735,13 +1701,9 @@ export default function Booking() {
               {modifyingReservationId && (
                 <div className={theme.noticeBox}>
                   現在、予約の変更を行っています。新しい日時を選択してください。
-                  <p className="mt-2 text-[10px] opacity-70 break-all font-mono leading-tight">
-                    {slotModifyDebug ?? (loadingMultiDateSlots ? '診断: 読込中…' : '診断: 待機中')}
-                  </p>
                   <button 
                     onClick={() => {
                       setModifyingReservationId(null)
-                      setSlotModifyDebug(null)
                       setStep('existing_reservation')
                     }}
                     className={theme.noticeLink}
