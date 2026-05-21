@@ -184,7 +184,21 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'get_available_slots') {
-      return await handleGetAvailableSlots(supabaseClient, params, corsHeaders)
+      if (reservation_id) {
+        const { data: modifyTarget } = await supabaseClient
+          .from('reservations')
+          .select('line_user_id, store_id, status')
+          .eq('id', reservation_id)
+          .maybeSingle()
+
+        if (!modifyTarget || modifyTarget.store_id !== store_id || modifyTarget.status === 'cancelled') {
+          throw new ClientVisibleError('変更対象の予約が見つかりません', 404)
+        }
+
+        // 空き枠表示: reservation_id が有効なら変更対象として除外（確定・仮押さえは別途本人確認）
+        line_user_id = verifiedUserId ?? requestLineUserId ?? modifyTarget.line_user_id
+      }
+      return await handleGetAvailableSlots(supabaseClient, { ...params, line_user_id }, corsHeaders)
     }
 
     if (action === 'get_active_reservation') {

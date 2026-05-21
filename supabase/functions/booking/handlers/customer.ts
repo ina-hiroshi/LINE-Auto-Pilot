@@ -37,7 +37,7 @@ export async function handleGetActiveReservation(
   const now = new Date().toISOString()
   const { data, error } = await supabaseClient
     .from('reservations')
-    .select('*, staff:staff_members(name), menu:booking_menus(name, price)')
+    .select('*, staff:staff_members(id, name), menu:booking_menus(id, name, price, duration_minutes)')
     .eq('store_id', store_id)
     .eq('line_user_id', line_user_id)
     .neq('status', 'cancelled')

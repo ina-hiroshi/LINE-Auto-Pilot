@@ -8,6 +8,9 @@ import {
   isPastDate,
   isWithinMaxBookingDays,
   isOverlapping,
+  isExcludedGoogleEventForModify,
+  loadModifyExcludeContext,
+  type ModifyExcludeContext,
   getStoreSettings,
   getWorkingStaffForTimeSlot,
   extractStaffFromGoogleEvent,
@@ -157,6 +160,11 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
     ? preloadedGoogleClient
     : await getGoogleCalendarClient(supabaseClient, store_id)
 
+  let modifyExclude: ModifyExcludeContext | undefined
+  if (excludeReservationId) {
+    modifyExclude = await loadModifyExcludeContext(supabaseClient, store_id, excludeReservationId)
+  }
+
   if (staff_id) {
     const capacityLimit = 1
 
@@ -198,15 +206,12 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
 
       if (staffInfo) {
         const googleEvents = await listGoogleEvents(googleClient, startDateTime.toISOString(), endDateTime.toISOString())
-        const staffGoogleEvents = googleEvents.filter((e: { start?: { dateTime?: string }; end?: { dateTime?: string }; summary?: string; description?: string }) => {
+        const staffGoogleEvents = googleEvents.filter((e: { id?: string; start?: { dateTime?: string }; end?: { dateTime?: string }; summary?: string; description?: string }) => {
           if (!e.start?.dateTime || !e.end?.dateTime) return false
+          if (isExcludedGoogleEventForModify(e, line_user_id, modifyExclude)) return false
           const eventStart = new Date(e.start.dateTime)
           const eventEnd = new Date(e.end.dateTime)
           if (!isOverlapping(startDateTime, endDateTime, eventStart, eventEnd)) return false
-
-          if (line_user_id && e.summary?.startsWith('【仮予約】')) {
-            if (e.description && e.description.includes(line_user_id)) return false
-          }
 
           const foundStaff = extractStaffFromGoogleEvent(e, [staffInfo])
           return foundStaff !== null
@@ -322,11 +327,8 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
 
       if (googleClient && staffList) {
         const googleEvents = (await listGoogleEvents(googleClient, startDateTime.toISOString(), endDateTime.toISOString()))
-          .filter((e: { summary?: string; description?: string }) => {
-            if (line_user_id && e.summary?.startsWith('【仮予約】')) {
-              if (e.description && e.description.includes(line_user_id)) return false
-            }
-            return true
+          .filter((e: { id?: string; start?: { dateTime?: string }; end?: { dateTime?: string }; summary?: string; description?: string }) => {
+            return !isExcludedGoogleEventForModify(e, line_user_id, modifyExclude)
           })
 
         const { identifiedStaffIds, unknownEventCount: unknown } = analyzeGoogleEventsForStaff(
@@ -445,6 +447,8 @@ async function createGoogleCalendarEventForReservation(
     const description = `
 ■予約詳細
 ------------------
+予約ID: ${reservationId}
+Reservation ID: ${reservationId}
 【お名前】 ${real_name || display_name || 'ゲスト'} 様
 【担当】 ${staffName}
 【メニュー】 ${menuName} ${menuPrice}
