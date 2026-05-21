@@ -25,7 +25,7 @@ import {
 import { getGoogleCalendarClient, listGoogleEvents, deleteGoogleEvent } from './google-calendar.ts'
 
 /** デプロイ確認用。ソース更新時に ISO 文字列を更新する */
-export const SLOTS_API_VERSION = '2026-05-21T11:00:00Z'
+export const SLOTS_API_VERSION = '2026-05-21T14:30:00Z'
 
 export type BookingParams = {
   store_id?: string
