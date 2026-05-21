@@ -386,6 +386,7 @@ async function createReservationWithCapacityCheck(params: CreateReservationWithC
     p_memo: memo || '',
     p_registration_type: isManualRegistration ? 'manual' : 'line',
     p_quoted_amount: quoted_amount,
+    p_exclude_reservation_id: excludeReservationId || null,
   })
 
   if (rpcError) {
