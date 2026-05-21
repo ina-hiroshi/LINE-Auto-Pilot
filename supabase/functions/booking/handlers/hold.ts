@@ -34,7 +34,9 @@ export async function handleHoldSlot(
   params: HoldParams,
   corsHeaders: CorsHeaders
 ): Promise<Response> {
-  const { store_id, line_user_id, date, time, staff_id, menu_id, display_name, reservation_id } = params
+  const { store_id, line_user_id: requestLineUserId, date, time, menu_id, display_name, reservation_id } = params
+  let { staff_id } = params
+  let line_user_id = requestLineUserId
 
   if (!store_id || !date || !time) throw new ClientVisibleError('store_id, date, and time are required')
   if (!isValidUUID(store_id)) throw new ClientVisibleError('Invalid store_id format')
@@ -47,13 +49,40 @@ export async function handleHoldSlot(
   }
 
   let modifyExclude: ModifyExcludeContext | undefined
+  const isModifyMode = Boolean(reservation_id)
+
   if (reservation_id) {
     modifyExclude = await loadModifyExcludeContext(supabaseClient, store_id, reservation_id)
-    if (line_user_id && modifyExclude.lineUserId !== line_user_id) {
-      throw new ClientVisibleError('この予約を変更できません', 403)
-    }
+    // 予約所有者の LINE ID を使用（LIFF / Messaging API の ID ゆれ対策）
+    line_user_id = modifyExclude.lineUserId
     if (modifyExclude.staffId) {
       staff_id = modifyExclude.staffId
+    }
+
+    const googleClient = await getGoogleCalendarClient(supabaseClient, store_id)
+    const { data: ownHolds } = await supabaseClient
+      .from('temporary_holds')
+      .select('id, google_event_id')
+      .eq('store_id', store_id)
+      .eq('line_user_id', line_user_id)
+
+    if (ownHolds && ownHolds.length > 0) {
+      if (googleClient) {
+        for (const hold of ownHolds) {
+          if (hold.google_event_id) {
+            try {
+              await deleteGoogleEvent(googleClient, hold.google_event_id)
+            } catch (e) {
+              console.error('Failed to delete own hold Google event in modify mode:', e)
+            }
+          }
+        }
+      }
+      await supabaseClient
+        .from('temporary_holds')
+        .delete()
+        .eq('store_id', store_id)
+        .eq('line_user_id', line_user_id)
     }
   }
 
@@ -256,7 +285,8 @@ export async function handleHoldSlot(
     .eq('store_id', store_id)
 
   let googleEventId: string | null = null
-  if (googleClientForHold) {
+  // 予約変更時は Google 仮予約を作らない（旧予約イベントとの重複・カレンダー汚染を避ける）
+  if (googleClientForHold && !isModifyMode) {
     try {
       const eventData = {
         summary: '【仮予約】' + (display_name || 'お客様'),

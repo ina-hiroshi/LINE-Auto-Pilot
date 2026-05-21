@@ -13,6 +13,7 @@ const log = createLogger('booking')
 import { handleGetAvailableSlots } from './handlers/slots.ts'
 import { handleCheckCustomer, handleGetActiveReservation } from './handlers/customer.ts'
 import { handleHoldSlot, handleReleaseHold } from './handlers/hold.ts'
+import { isValidUUID } from './handlers/utils.ts'
 import {
   handleCreateReservation,
   handleCancelReservation,
@@ -142,8 +143,29 @@ Deno.serve(async (req: Request) => {
     const publicActions = ['get_available_slots']
     const sensitiveActions = ['create_reservation', 'cancel_reservation', 'update_reservation', 'complete_payment', 'hold_slot', 'release_hold', 'check_customer', 'get_active_reservation']
 
+    /** 予約変更時: reservation_id が有効なら空き枠・仮押さえは予約所有者として処理 */
+    let modifyReservationFlow = false
+    if (
+      reservation_id &&
+      isValidUUID(reservation_id) &&
+      (action === 'get_available_slots' || action === 'hold_slot')
+    ) {
+      const { data: modifyTarget } = await supabaseClient
+        .from('reservations')
+        .select('line_user_id, store_id, status')
+        .eq('id', reservation_id)
+        .maybeSingle()
+
+      if (!modifyTarget || modifyTarget.store_id !== store_id || modifyTarget.status === 'cancelled') {
+        throw new ClientVisibleError('変更対象の予約が見つかりません', 404)
+      }
+
+      modifyReservationFlow = true
+      line_user_id = verifiedUserId ?? requestLineUserId ?? modifyTarget.line_user_id
+    }
+
     if (!publicActions.includes(action) && sensitiveActions.includes(action)) {
-      if (!verifiedUserId && !isManualRegistration) {
+      if (!verifiedUserId && !isManualRegistration && !modifyReservationFlow) {
         if (loginCredentialRejected) {
           throw new ClientVisibleError(
             'LINE の認証が期限切れか無効です。再度お試しください。',
@@ -184,20 +206,6 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'get_available_slots') {
-      if (reservation_id) {
-        const { data: modifyTarget } = await supabaseClient
-          .from('reservations')
-          .select('line_user_id, store_id, status')
-          .eq('id', reservation_id)
-          .maybeSingle()
-
-        if (!modifyTarget || modifyTarget.store_id !== store_id || modifyTarget.status === 'cancelled') {
-          throw new ClientVisibleError('変更対象の予約が見つかりません', 404)
-        }
-
-        // 空き枠表示: reservation_id が有効なら変更対象として除外（確定・仮押さえは別途本人確認）
-        line_user_id = verifiedUserId ?? requestLineUserId ?? modifyTarget.line_user_id
-      }
       return await handleGetAvailableSlots(supabaseClient, { ...params, line_user_id }, corsHeaders)
     }
 

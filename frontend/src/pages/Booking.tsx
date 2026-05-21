@@ -1831,9 +1831,8 @@ export default function Booking() {
                                           setDate(dateStr)
                                           setTime(timeStr)
                                           
-                                          // プレビューモードでは仮押さえをスキップ
-                                          if (isPreviewMode()) {
-                                            console.log('Skipping hold_slot in preview mode')
+                                          // プレビュー・予約変更時は仮押さえをスキップ（変更確定時に容量チェック）
+                                          if (isPreviewMode() || modifyingReservationId) {
                                             return
                                           }
                                           
