@@ -1548,7 +1548,7 @@ export default function TopPage() {
                   </li>
                 ))}
               </ul>
-              <a href="mailto:contact@example.com" className="block w-full py-3 px-6 text-center bg-white border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-50 transition">
+              <a href="mailto:itoguchi.app@gmail.com" className="block w-full py-3 px-6 text-center bg-white border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-50 transition">
                 お問い合わせ
               </a>
             </motion.div>

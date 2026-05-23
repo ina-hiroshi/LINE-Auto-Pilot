@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Shield, Lock, Eye, Server, Mail, FileText, CheckCircle, AlertCircle } from 'lucide-react'
+import { Shield, Lock, Eye, Server, Mail, FileText, CheckCircle, AlertCircle, Clock, Trash2 } from 'lucide-react'
 import iconImage from '../assets/icon.png'
 
 const PrivacyPolicy: React.FC = () => {
@@ -34,14 +34,14 @@ const PrivacyPolicy: React.FC = () => {
           {/* Title Section */}
           <div className="text-center mb-12">
             <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">プライバシーポリシー</h1>
-            <p className="text-slate-500">最終更新日: 2025年12月31日</p>
+            <p className="text-slate-500">最終更新日: 2026年5月23日</p>
           </div>
 
           <div className="space-y-8">
             {/* Introduction */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
               <p className="text-slate-600 leading-relaxed">
-                IToguchi（以下「当サービス」といいます）は、ユーザーの個人情報の取扱いについて、以下のとおりプライバシーポリシー（以下「本ポリシー」といいます）を定めます。
+                IToguchi（運営: 個人事業主 伊奈洋、以下「当サービス」といいます）は、ユーザーの個人情報の取扱いについて、以下のとおりプライバシーポリシー（以下「本ポリシー」といいます）を定めます。
                 当サービスは、ユーザーのプライバシーを尊重し、個人情報の保護に努めます。
               </p>
             </div>
@@ -64,9 +64,14 @@ const PrivacyPolicy: React.FC = () => {
                   <h3 className="font-bold text-slate-800 mb-2">LINEアカウント情報</h3>
                   <p className="text-sm text-slate-600">LINEログインおよびMessaging APIを通じて取得されるユーザーID、プロフィール情報、メッセージ履歴。</p>
                 </div>
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 md:col-span-2">
                   <h3 className="font-bold text-slate-800 mb-2">Googleアカウント情報</h3>
-                  <p className="text-sm text-slate-600">カレンダー連携機能利用時のカレンダーリスト、イベント情報（タイトル、日時、詳細）。</p>
+                  <p className="text-sm text-slate-600 mb-3">
+                    カレンダー連携機能利用時、OAuth 2.0 により Google カレンダーの読み取り・書き込み（予約の同期・空き状況確認）に必要なカレンダーリストおよびイベント情報（タイトル、日時、詳細）を取得します。
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    要求する OAuth スコープ: <code className="bg-slate-100 px-1 rounded">calendar</code>、<code className="bg-slate-100 px-1 rounded">calendar.events</code>
+                  </p>
                 </div>
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                   <h3 className="font-bold text-slate-800 mb-2">利用ログ</h3>
@@ -129,14 +134,14 @@ const PrivacyPolicy: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid md:grid-cols-2 gap-6 mb-6">
                   <div>
                     <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
                       <Lock className="w-4 h-4 text-slate-400" />
                       利用の制限
                     </h4>
                     <p className="text-sm text-slate-600 leading-relaxed">
-                      取得したカレンダーデータは、ユーザー自身の予約管理および空き状況の確認のためにのみ使用され、広告目的などで使用されることは一切ありません。
+                      取得したカレンダーデータは、ユーザー自身の予約管理、空き状況の確認、ダブルブッキング防止のためにのみ使用され、広告・プロファイリング目的などで使用されることは一切ありません。
                     </p>
                   </div>
                   <div>
@@ -145,9 +150,30 @@ const PrivacyPolicy: React.FC = () => {
                       共有の制限
                     </h4>
                     <p className="text-sm text-slate-600 leading-relaxed">
-                      ユーザーの明示的な同意がある場合、または法的義務がある場合を除き、Googleユーザーデータを第三者と共有することはありません。
+                      ユーザーの明示的な同意がある場合、または法的義務がある場合を除き、Googleユーザーデータを第三者と共有・販売することはありません。
                     </p>
                   </div>
+                </div>
+
+                <div className="bg-slate-50 rounded-xl p-6 border border-slate-100">
+                  <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+                    <Server className="w-4 h-4 text-slate-400" />
+                    保存方法
+                  </h4>
+                  <ul className="space-y-2 text-sm text-slate-600">
+                    <li className="flex items-start gap-2">
+                      <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-500 flex-shrink-0" />
+                      <span>Google 連携に必要なリフレッシュトークンおよびカレンダー設定情報を、当サービスのデータベース（Supabase）に保存します。</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-500 flex-shrink-0" />
+                      <span>予約データと Google カレンダーイベントを紐づけるため、イベント ID（google_event_id）を保存します。</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-500 flex-shrink-0" />
+                      <span>カレンダーイベント本体は Google Calendar API 経由で都度取得し、永続的な一括保存は行いません。</span>
+                    </li>
+                  </ul>
                 </div>
               </div>
             </section>
@@ -170,19 +196,101 @@ const PrivacyPolicy: React.FC = () => {
                   </li>
                 ))}
               </ul>
-              <p className="text-sm text-slate-500">
-                ※ サービス提供のために必要な範囲で、信頼できる委託先（クラウドサーバー提供者など）に個人情報の取り扱いを委託する場合があります。
+              <p className="text-sm text-slate-600 mb-4">
+                サービス提供のために必要な範囲で、以下の委託先に個人情報の取り扱いを委託する場合があります。
               </p>
+              <ul className="grid md:grid-cols-2 gap-3">
+                {[
+                  { name: 'Supabase', desc: 'データベース・認証基盤' },
+                  { name: 'Stripe', desc: '決済処理' },
+                  { name: 'LINE Corporation', desc: 'メッセージング・ログイン' },
+                  { name: 'Resend', desc: 'メール認証' },
+                  { name: 'Google LLC', desc: 'カレンダー API（ユーザーが連携を許可した場合のみ）' },
+                ].map((item, i) => (
+                  <li key={i} className="bg-slate-50 px-4 py-3 rounded-lg text-sm border border-slate-100">
+                    <span className="font-bold text-slate-800">{item.name}</span>
+                    <span className="text-slate-600"> — {item.desc}</span>
+                  </li>
+                ))}
+              </ul>
             </section>
 
-            {/* Section 5 & 6: Management & Changes */}
+            {/* Section 5: Retention */}
+            <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-primary-50 rounded-lg text-primary-600">
+                  <Clock className="w-6 h-6" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-900">5. データの保存場所と保持期間</h2>
+              </div>
+              <p className="text-slate-600 mb-4">
+                当サービスは、ユーザーデータを Supabase が提供するクラウドサーバー上に保存します。通信は暗号化され、データベースへのアクセスは Row Level Security（RLS）等により制御されます。
+              </p>
+              <ul className="space-y-3">
+                {[
+                  'アカウント情報: サービス利用中は保持します。退会申請後、30日以内に削除します。',
+                  'Google 連携トークン: 連携解除時、または退会申請後30日以内に削除します。',
+                  '予約・メッセージデータ: 退会申請後、30日以内に削除します。',
+                  'アクセスログ: セキュリティ目的で最大90日間保持した後、自動削除します。',
+                ].map((item, index) => (
+                  <li key={index} className="flex items-start gap-3 text-slate-600">
+                    <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-500 flex-shrink-0" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            {/* Section 6: Deletion & Revocation */}
+            <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-primary-50 rounded-lg text-primary-600">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-900">6. データの削除とアクセス取り消し</h2>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-bold text-slate-800 mb-2">Google カレンダー連携の解除（アプリ内）</h3>
+                  <p className="text-sm text-slate-600 mb-3">以下のいずれかの方法で、Google カレンダー連携を解除できます。連携解除後、保存されたリフレッシュトークンは削除されます。</p>
+                  <ol className="list-decimal list-inside space-y-2 text-sm text-slate-600">
+                    <li>予約管理画面（<Link to="/reservations" className="text-primary-600 hover:underline">/reservations</Link>）の Google カレンダー連携設定から「連携を解除」を選択</li>
+                    <li>LINE 設定 &gt; カレンダー連携タブから「連携を解除」を選択</li>
+                  </ol>
+                </div>
+
+                <div>
+                  <h3 className="font-bold text-slate-800 mb-2">Google アカウント側からの取り消し</h3>
+                  <p className="text-sm text-slate-600">
+                    <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline font-medium">
+                      Google アカウントの連携アプリ管理
+                    </a>
+                    から IToguchi のアクセス権を削除することもできます。
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-bold text-slate-800 mb-2">アカウント退会・全データ削除</h3>
+                  <p className="text-sm text-slate-600">
+                    アカウントの退会および全データの削除を希望される場合は、
+                    <a href="mailto:itoguchi.app@gmail.com" className="text-primary-600 hover:underline font-medium mx-1">itoguchi.app@gmail.com</a>
+                    または
+                    <a href="https://line.me/R/ti/p/@431cghfd" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline font-medium mx-1">公式 LINE（@431cghfd）</a>
+                    までご連絡ください。退会申請後、30日以内にデータを削除いたします。
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* Section 7 & 8: Management & Changes */}
             <div className="grid md:grid-cols-2 gap-8">
               <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 bg-primary-50 rounded-lg text-primary-600">
                     <Lock className="w-6 h-6" />
                   </div>
-                  <h2 className="text-lg font-bold text-slate-900">5. 情報の管理と保護</h2>
+                  <h2 className="text-lg font-bold text-slate-900">7. 情報の管理と保護</h2>
                 </div>
                 <p className="text-slate-600 text-sm leading-relaxed">
                   当サービスは、ユーザーの個人情報を正確かつ最新の状態に保ち、個人情報への不正アクセス・紛失・破損・改ざん・漏洩などを防止するため、セキュリティシステムの維持・管理体制の整備等の必要な措置を講じます。
@@ -194,7 +302,7 @@ const PrivacyPolicy: React.FC = () => {
                   <div className="p-2 bg-primary-50 rounded-lg text-primary-600">
                     <FileText className="w-6 h-6" />
                   </div>
-                  <h2 className="text-lg font-bold text-slate-900">6. ポリシーの変更</h2>
+                  <h2 className="text-lg font-bold text-slate-900">8. ポリシーの変更</h2>
                 </div>
                 <p className="text-slate-600 text-sm leading-relaxed">
                   本ポリシーの内容は、法令その他本ポリシーに別段の定めのある事項を除いて、ユーザーに通知することなく変更することができるものとします。変更後のプライバシーポリシーは、本ウェブサイトに掲載したときから効力を生じるものとします。
@@ -202,20 +310,27 @@ const PrivacyPolicy: React.FC = () => {
               </section>
             </div>
 
-            {/* Section 7: Contact */}
+            {/* Section 9: Contact */}
             <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center">
               <div className="inline-flex p-3 bg-primary-50 rounded-full mb-6">
                 <Mail className="w-8 h-8 text-primary-600" />
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-4">お問い合わせ</h2>
+              <h2 className="text-2xl font-bold text-slate-900 mb-4">9. お問い合わせ</h2>
               <p className="text-slate-600 mb-8 max-w-lg mx-auto">
                 本ポリシーに関するお問い合わせは、以下の窓口までお願いいたします。
               </p>
               <div className="bg-slate-50 rounded-xl p-6 max-w-md mx-auto border border-slate-100">
                 <p className="font-bold text-lg text-slate-900 mb-2">IToguchi 運営事務局</p>
-                <a href="mailto:support@example.com" className="text-primary-600 hover:text-primary-700 transition-colors text-lg font-medium">
-                  support@example.com
-                </a>
+                <p className="text-slate-600 mb-2">
+                  <a href="mailto:itoguchi.app@gmail.com" className="text-primary-600 hover:text-primary-700 transition-colors font-medium">
+                    itoguchi.app@gmail.com
+                  </a>
+                </p>
+                <p className="text-slate-600 text-sm">
+                  <a href="https://line.me/R/ti/p/@431cghfd" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:text-primary-700 transition-colors font-medium">
+                    公式LINE: @431cghfd
+                  </a>
+                </p>
               </div>
             </section>
           </div>
