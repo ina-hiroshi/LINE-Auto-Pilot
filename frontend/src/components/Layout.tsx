@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User, Code, Calendar, CreditCard, Grid, CalendarCheck } from 'lucide-react'
 import Modal from './Modal'
-import iconImage from '../assets/icon.png'
+import Logo from './Logo'
 import { useUserFeatures } from '../hooks/useUserFeatures'
 
 type ProfileSummary = {
@@ -85,7 +85,7 @@ export default function Layout() {
       {/* Mobile Header */}
       <header className="md:hidden bg-white border-b border-gray-200 p-3 flex items-center justify-between shrink-0 z-30">
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <img src={iconImage} alt="IToguchi" className="h-8 w-auto shrink-0" />
+          <Logo className="h-8 w-auto shrink-0" />
           {(store?.name || profile?.full_name) && (
             <div className="flex flex-col min-w-0">
               {store?.name && (
@@ -117,7 +117,7 @@ export default function Layout() {
       <aside className="hidden md:flex w-64 bg-primary-600 text-white shadow-lg flex-col z-20 transition-all duration-300 h-full shrink-0">
         {/* Logo Area - Height matches header */}
         <div className="bg-white h-[86px] flex flex-col items-center justify-center border-b border-primary-500/20 shrink-0">
-          <img src={iconImage} alt="IToguchi" className="h-10 w-auto" />
+          <Logo className="h-10 w-auto" />
         </div>
 
         <nav className="flex-1 px-3 space-y-1 mt-4">

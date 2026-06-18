@@ -8,7 +8,7 @@ import topHeroImage from '../assets/top_hero.jpg'
 import smartAutoChatImage from '../assets/smartautochat.jpg'
 import yoyakuImage from '../assets/yoyaku.png'
 import membersImage from '../assets/members.png'
-import iconImage from '../assets/icon.png'
+import Logo from '../components/Logo'
 import itoguchiaiImage from '../assets/itoguchiai.png'
 
 // FAQ Item Component
@@ -250,7 +250,7 @@ export default function TopPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-3">
-              <img src={iconImage} alt="IToguchi" className="h-10 md:h-16 w-auto" />
+              <Logo className="h-10 md:h-14 w-auto" />
             </div>
             <nav className="hidden md:flex space-x-8 items-center">
               <a href="#features" className="text-sm font-medium text-slate-600 hover:text-primary-600 transition">機能</a>
@@ -1691,7 +1691,7 @@ export default function TopPage() {
             </div>
 
             <div className="flex flex-col items-center mb-8">
-              <img src={iconImage} alt="IToguchi" className="h-16 w-auto mb-4" />
+              <Logo className="h-12 w-auto mb-4" />
               <h2 className="text-2xl font-bold text-slate-900">
                 {showVerificationStep ? '認証コードを入力' : isLoginMode ? 'おかえりなさい' : 'を始める'}
               </h2>

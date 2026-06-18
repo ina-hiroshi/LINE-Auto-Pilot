@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Building2, User, MapPin, Phone, Mail, CreditCard, DollarSign, Calendar, XCircle, FileText } from 'lucide-react'
-import iconImage from '../assets/icon.png'
+import Logo from '../components/Logo'
 
 const SpecifiedCommercialTransactions: React.FC = () => {
   const { pathname } = useLocation()
@@ -17,7 +17,7 @@ const SpecifiedCommercialTransactions: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <Link to="/" className="flex items-center gap-3">
-              <img src={iconImage} alt="IToguchi" className="h-10 md:h-16 w-auto" />
+              <Logo className="h-10 md:h-16 w-auto" />
             </Link>
             <nav className="flex space-x-8 items-center">
               <Link to="/" className="text-sm font-medium text-slate-600 hover:text-primary-600 transition">

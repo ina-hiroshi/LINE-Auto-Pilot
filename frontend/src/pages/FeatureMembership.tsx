@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { CreditCard, ArrowLeft, ArrowRight, Check, QrCode, Gift, Crown, Stamp, Palette, Award } from 'lucide-react'
 import membersImage from '../assets/members.png'
-import iconImage from '../assets/icon.png'
+import Logo from '../components/Logo'
 
 // Mock data for preview
 const mockCustomer = {
@@ -206,7 +206,7 @@ export default function FeatureMembership() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <Link to="/" className="flex items-center gap-3">
-              <img src={iconImage} alt="IToguchi" className="h-10 md:h-16 w-auto" />
+              <Logo className="h-10 md:h-16 w-auto" />
             </Link>
             <nav className="flex items-center gap-4">
               <Link to="/" className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-primary-600 transition">

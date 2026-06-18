@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Calendar, ArrowLeft, ArrowRight, Check, Clock, Users, Bell, Crown, User, CheckCircle, XCircle, Edit2 } from 'lucide-react'
 import yoyakuImage from '../assets/yoyaku.png'
-import iconImage from '../assets/icon.png'
+import Logo from '../components/Logo'
 
 // Dummy reservation data
 const dummyReservations = [
@@ -31,7 +31,7 @@ export default function FeatureReservation() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <Link to="/" className="flex items-center gap-3">
-              <img src={iconImage} alt="IToguchi" className="h-10 md:h-16 w-auto" />
+              <Logo className="h-10 md:h-16 w-auto" />
             </Link>
             <nav className="flex items-center gap-4">
               <Link to="/" className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-primary-600 transition">
