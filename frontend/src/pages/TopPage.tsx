@@ -1430,9 +1430,9 @@ export default function TopPage() {
                   <span className="text-lg">ご登録データはそのまま<span className="font-bold text-yellow-300">継続利用</span>可能</span>
                 </li>
               </ul>
-              <a href="#auth" className="inline-block w-full max-w-sm py-4 bg-white text-primary-700 rounded-xl font-bold text-lg hover:bg-primary-50 transition shadow-lg">
-                無料で始める
-              </a>
+              <Link to="/monitor" className="inline-block w-full max-w-sm py-4 bg-white text-primary-700 rounded-xl font-bold text-lg hover:bg-primary-50 transition shadow-lg">
+                モニター特典に申し込む
+              </Link>
             </div>
           </motion.div>
         </div>
@@ -1953,7 +1953,7 @@ export default function TopPage() {
             </div>
           </div>
           <div className="border-t border-slate-800 mt-16 pt-8 text-center text-slate-500 text-sm">
-            © 2025 IToguchi. All rights reserved.
+            © 2026 IToguchi. All rights reserved.
           </div>
         </div>
       </footer>
