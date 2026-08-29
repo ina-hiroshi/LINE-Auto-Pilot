@@ -14,6 +14,9 @@ interface PlanSelectStepProps {
   /** LINE公式アカウントを既に持っているか。初期設定手順メールの内容が変わる。 */
   hasLineAccount: boolean
   onHasLineAccountChange: (has: boolean) => void
+  /** 管理者のみ。Stripe決済を経由せずに次のステップへ進めるかどうか。 */
+  isAdmin: boolean
+  onSkipPayment: () => void
   loading: boolean
   progressMsg: string
   onPlanSelect: () => void
@@ -29,6 +32,8 @@ export default function PlanSelectStep({
   onMonitorConsentChange,
   hasLineAccount,
   onHasLineAccountChange,
+  isAdmin,
+  onSkipPayment,
   loading,
   progressMsg,
   onPlanSelect,
@@ -267,6 +272,27 @@ export default function PlanSelectStep({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 検証用。毎回Stripeの決済を通さずに登録フローを最後まで確認するための導線。
+          管理者にしか表示せず、Proプランは付与しない（決済していないため）。 */}
+      {isAdmin && selectedPlan === 'pro' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+          <p className="text-sm font-bold text-amber-900 mb-1">開発用: 決済をスキップ</p>
+          <p className="text-xs text-amber-800 mb-3">
+            管理者にのみ表示されます。Stripeの決済ページを経由せずに次のステップへ進みます。
+            <span className="font-bold">Proプランは付与されません。</span>
+            モニター特典に同意していれば、申込の記録・初期設定代行の作成・
+            各種メールの送信は通常どおり実行されます。
+          </p>
+          <button
+            onClick={onSkipPayment}
+            disabled={loading}
+            className="px-4 py-2 text-xs font-bold bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+          >
+            決済せずに次へ進む
+          </button>
         </div>
       )}
 

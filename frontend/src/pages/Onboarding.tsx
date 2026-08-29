@@ -19,6 +19,7 @@ import Modal from '../components/Modal'
 import Toast from '../components/Toast'
 import SetupServiceModal, { type SetupServiceFormData } from '../components/SetupServiceModal'
 import { IS_PRE_RELEASE_MODE } from '../constants/releaseMode'
+import { useUserFeatures } from '../hooks/useUserFeatures'
 
 // LINE設定ステップの初期設定代行バナー: releaseMode と連動（環境変数では切り替えない）
 // 'production': 代行依頼バナー表示 / 'prerelease': 代行不可の注意のみ
@@ -34,6 +35,7 @@ const WEBHOOK_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/line-webh
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
   const navigate = useNavigate()
+  const { isAdmin } = useUserFeatures()
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('basic_info')
   const [loading, setLoading] = useState(false)
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false)
@@ -537,6 +539,34 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     }
   }
 
+  /**
+   * 決済を経由せずにプラン選択を完了する（管理者のみ）。
+   *
+   * 毎回 Stripe の決済を通さないと登録フローを最後まで確認できず、
+   * モニター申込まわりの検証が回らないため用意している。
+   * Pro プランは付与しない。付与すると決済なしで有料機能が使えてしまう。
+   */
+  const handleSkipPayment = async () => {
+    if (!isAdmin) return
+
+    setLoading(true)
+    setProgressMsg('決済をスキップしています...')
+    try {
+      if (monitorConsent) {
+        await submitMonitorApplication()
+      }
+      setToast({
+        isVisible: true,
+        message: '決済をスキップしました（Proプランは付与されていません）',
+        type: 'success',
+      })
+      setCurrentStep('line_setup')
+    } finally {
+      setLoading(false)
+      setProgressMsg('')
+    }
+  }
+
   // プラン選択完了
   const handlePlanSelect = async () => {
     if (selectedPlan === 'free') {
@@ -846,6 +876,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               onMonitorConsentChange={setMonitorConsent}
               hasLineAccount={monitorHasLineAccount}
               onHasLineAccountChange={setMonitorHasLineAccount}
+              isAdmin={isAdmin}
+              onSkipPayment={handleSkipPayment}
               loading={loading}
               progressMsg={progressMsg}
               onPlanSelect={handlePlanSelect}
