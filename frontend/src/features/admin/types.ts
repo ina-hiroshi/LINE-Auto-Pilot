@@ -12,6 +12,7 @@ export interface SetupOrder {
   assigned_to: string | null
   paid_at: string | null
   completed_at: string | null
+  completion_email_sent_at: string | null
   created_at: string
   profiles?: {
     email: string

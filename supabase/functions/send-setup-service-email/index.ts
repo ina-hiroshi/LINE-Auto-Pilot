@@ -240,10 +240,27 @@ Deno.serve(async (req) => {
     
     console.log(`${email_type} email sent to ${email}`)
 
+    // 送信済みを記録する。これがないと「送ったのか」を後から確認できず、
+    // 送信失敗に気づけないまま完了扱いになってしまう。
+    const sentColumn = email_type === 'completion'
+      ? 'completion_email_sent_at'
+      : 'payment_confirmation_email_sent_at'
+
+    const { error: stampError } = await supabase
+      .from('setup_service_orders')
+      .update({ [sentColumn]: new Date().toISOString() })
+      .eq('id', order_id)
+
+    if (stampError) {
+      // 送信自体は成功しているので失敗にはしない。記録だけが落ちた状態。
+      console.error('送信日時の記録に失敗しました:', stampError)
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: 'メールを送信しました'
+        message: 'メールを送信しました',
+        sent_to: email
       }),
       { 
         status: 200,

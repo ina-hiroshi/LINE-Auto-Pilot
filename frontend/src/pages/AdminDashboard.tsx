@@ -287,6 +287,43 @@ export default function AdminDashboard() {
     }
   }
 
+  /**
+   * 完了メールを送信する。成功なら null、失敗なら理由の文字列を返す。
+   * 呼び出し側が「送れたことにする」のを防ぐため、成否を必ず返す形にしている。
+   */
+  const sendCompletionEmail = async (orderId: string): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-setup-service-email', {
+        body: { order_id: orderId, email_type: 'completion' },
+      })
+
+      if (error) {
+        console.error('Failed to send completion email:', error)
+        return error.message || '送信に失敗しました'
+      }
+      if (data && data.success === false) {
+        return data.error || '送信に失敗しました'
+      }
+      console.log('Completion email sent:', data)
+      return null
+    } catch (e) {
+      console.error('Error sending completion email:', e)
+      return e instanceof Error ? e.message : '送信に失敗しました'
+    }
+  }
+
+  const handleResendCompletionEmail = async (orderId: string) => {
+    setSaving(true)
+    const failure = await sendCompletionEmail(orderId)
+    setSaving(false)
+    setToast(
+      failure
+        ? { isVisible: true, message: `再送に失敗しました: ${failure}`, type: 'error' }
+        : { isVisible: true, message: '完了メールを再送しました', type: 'success' },
+    )
+    loadOrders()
+  }
+
   const handleSaveLineSettings = async () => {
     if (!selectedOrder) return
 
@@ -388,27 +425,20 @@ export default function AdminDashboard() {
 
       if (updateError) throw updateError
 
-      // 完了メールを送信
-      try {
-        const { data: emailResponse, error: emailError } = await supabase.functions.invoke('send-setup-service-email', {
-          body: {
-            order_id: selectedOrder.id,
-            email_type: 'completion'
-          }
+      // 完了メールを送信。
+      // 以前はここで失敗トーストを出しても、直後に成功トーストで無条件に
+      // 上書きしていたため、送信に失敗しても「送信しました」と表示されていた。
+      const emailFailure = await sendCompletionEmail(selectedOrder.id)
+
+      if (emailFailure) {
+        setToast({
+          isVisible: true,
+          message: `設定代行を完了しました。ただし完了メールを送信できませんでした: ${emailFailure}`,
+          type: 'error',
         })
-
-        if (emailError) {
-          console.error('Failed to send completion email:', emailError)
-          setToast({ isVisible: true, message: '設定代行サービスを完了しました。ただし、完了メールの送信に失敗しました。', type: 'error' })
-        } else {
-          console.log('Completion email sent successfully:', emailResponse)
-        }
-      } catch (emailError) {
-        console.error('Error sending completion email:', emailError)
-        setToast({ isVisible: true, message: '設定代行サービスを完了しました。ただし、完了メールの送信に失敗しました。', type: 'error' })
+      } else {
+        setToast({ isVisible: true, message: '設定代行サービスを完了しました。顧客に完了メールを送信しました。', type: 'success' })
       }
-
-      setToast({ isVisible: true, message: '設定代行サービスを完了しました。顧客に完了メールを送信しました。', type: 'success' })
       loadOrders()
       setSelectedOrder(null)
     } catch (error: unknown) {
@@ -433,25 +463,18 @@ export default function AdminDashboard() {
 
       if (error) throw error
 
-      // ステータスがcompletedになった場合、完了メールを送信
+      // ステータスがcompletedになった場合、完了メールを送信。
+      // 失敗を console だけに落とすと、顧客に届いていないことに気づけない。
       if (newStatus === 'completed') {
-        try {
-          const { error: emailError } = await supabase.functions.invoke('send-setup-service-email', {
-            body: {
-              order_id: orderId,
-              email_type: 'completion'
-            }
+        const emailFailure = await sendCompletionEmail(orderId)
+        if (emailFailure) {
+          setToast({
+            isVisible: true,
+            message: `ステータスは完了にしました。ただし完了メールを送信できませんでした: ${emailFailure}`,
+            type: 'error',
           })
-
-          if (emailError) {
-            console.error('Failed to send completion email:', emailError)
-            // メール送信エラーは警告のみ（ステータス更新は成功）
-          } else {
-            console.log('Completion email sent successfully')
-          }
-        } catch (emailError) {
-          console.error('Error sending completion email:', emailError)
-          // メール送信エラーは警告のみ（ステータス更新は成功）
+          loadOrders()
+          return
         }
       }
 
@@ -661,6 +684,7 @@ export default function AdminDashboard() {
             onLineSettingsChange={setLineSettings}
             onAdminNotesChange={setAdminNotes}
             onSaveLineSettings={handleSaveLineSettings}
+            onResendCompletionEmail={handleResendCompletionEmail}
             onUpdateStatus={handleUpdateStatus}
             onSearchQueryChange={setSearchQuery}
             onStatusFilterChange={setStatusFilter}

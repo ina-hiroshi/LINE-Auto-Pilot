@@ -28,6 +28,7 @@ export interface SetupOrdersTabProps {
   onLineSettingsChange: (settings: LineSettings) => void
   onAdminNotesChange: (notes: string) => void
   onSaveLineSettings: () => void
+  onResendCompletionEmail: (orderId: string) => void
   onUpdateStatus: (orderId: string, newStatus: string) => void
   onSearchQueryChange: (query: string) => void
   onStatusFilterChange: (filter: string) => void
@@ -70,6 +71,7 @@ export function SetupOrdersTab({
   onLineSettingsChange,
   onAdminNotesChange,
   onSaveLineSettings,
+  onResendCompletionEmail,
   onUpdateStatus,
   onSearchQueryChange,
   onStatusFilterChange,
@@ -255,6 +257,30 @@ export function SetupOrdersTab({
                   placeholder="作業内容や気づいた点をメモ..."
                 />
               </section>
+
+              {/* 完了メールが実際に届いたのかを画面で確認できるようにする。
+                  以前は送信に失敗しても成功と表示され、気づく手段がなかった。 */}
+              {selectedOrder.status === 'completed' && (
+                <section className="pt-4 border-t">
+                  {selectedOrder.completion_email_sent_at ? (
+                    <p className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
+                      完了メール送信済み:{' '}
+                      {new Date(selectedOrder.completion_email_sent_at).toLocaleString('ja-JP')}
+                    </p>
+                  ) : (
+                    <div className="text-sm text-amber-800 bg-amber-50 rounded-lg px-3 py-2">
+                      <p className="font-bold mb-2">完了メールが未送信です</p>
+                      <button
+                        onClick={() => onResendCompletionEmail(selectedOrder.id)}
+                        disabled={saving}
+                        className="px-3 py-1.5 text-xs font-bold bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                      >
+                        完了メールを再送する
+                      </button>
+                    </div>
+                  )}
+                </section>
+              )}
 
               <div className="flex flex-col gap-3 pt-4 border-t">
                 <button
