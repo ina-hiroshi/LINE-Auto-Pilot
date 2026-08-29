@@ -71,6 +71,13 @@ Deno.serve(async (req) => {
 
     if (email_type === 'payment_confirmation') {
       subject = '【IToguchi】初期設定代行サービスのお申し込みありがとうございます'
+
+      // モニター特典の代行は amount 0 で作られる。決済していない相手に
+      // 「お支払いが完了しました」と書くと事実と食い違うため、文面を分ける。
+      const isMonitorBenefit = Number(order.amount) === 0
+      const openingLine = isMonitorBenefit
+        ? 'モニター特典として、無償で承りましたのでご連絡いたします。'
+        : 'お支払いが完了いたしましたので、ご連絡いたします。'
       
       if (order.has_line_account) {
         // パターンA: LINE公式アカウントを持っている場合
@@ -82,7 +89,7 @@ Deno.serve(async (req) => {
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #00c3dc;">IToguchi</h2>
             <p>この度は、IToguchiのLINE初期設定代行サービスにお申し込みいただき、誠にありがとうございます。</p>
-            <p>お支払いが完了いたしましたので、ご連絡いたします。</p>
+            <p>${openingLine}</p>
             
             <h3 style="color: #333; margin-top: 24px; margin-bottom: 12px;">【今後の流れ】</h3>
             <p>メールでのやり取りを通じて、以下の設定作業を実施いたします：</p>
@@ -122,7 +129,7 @@ Deno.serve(async (req) => {
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #00c3dc;">IToguchi</h2>
             <p>この度は、IToguchiのLINE初期設定代行サービスにお申し込みいただき、誠にありがとうございます。</p>
-            <p>お支払いが完了いたしましたので、ご連絡いたします。</p>
+            <p>${openingLine}</p>
             
             <h3 style="color: #333; margin-top: 24px; margin-bottom: 12px;">【今後の流れ】</h3>
             <p>メールでのやり取りを通じて、以下の設定作業を実施いたします：</p>

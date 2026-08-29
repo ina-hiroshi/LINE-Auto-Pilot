@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, AlertTriangle, Mail, Phone, MessageCircle, Wrench, Check, UserX } from 'lucide-react'
+import { Loader2, AlertTriangle, Mail, Phone, MessageCircle, Wrench, Check, UserX, Send } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 
 interface MonitorApplication {
@@ -20,6 +20,8 @@ interface MonitorApplication {
 interface LinkedOrder {
   id: string
   status: string
+  /** 初期設定手順メールを送った日時。未送信なら null。 */
+  payment_confirmation_email_sent_at: string | null
 }
 
 const STATUS_LABELS: Record<MonitorApplication['status'], string> = {
@@ -68,13 +70,17 @@ export function MonitorApplicationsTab({ onOrderCreated }: Props = {}) {
     // 既に代行注文になっている申込を拾い、ボタンの出し分けに使う。
     const { data: orders } = await supabase
       .from('setup_service_orders')
-      .select('id, status, monitor_application_id')
+      .select('id, status, monitor_application_id, payment_confirmation_email_sent_at')
       .not('monitor_application_id', 'is', null)
 
     if (orders) {
       const map: Record<string, LinkedOrder> = {}
-      orders.forEach((o: { id: string; status: string; monitor_application_id: string }) => {
-        map[o.monitor_application_id] = { id: o.id, status: o.status }
+      orders.forEach((o: LinkedOrder & { monitor_application_id: string }) => {
+        map[o.monitor_application_id] = {
+          id: o.id,
+          status: o.status,
+          payment_confirmation_email_sent_at: o.payment_confirmation_email_sent_at,
+        }
       })
       setLinkedOrders(map)
     }
@@ -122,13 +128,22 @@ export function MonitorApplicationsTab({ onOrderCreated }: Props = {}) {
           additional_notes: app.message,
           admin_notes: `モニター特典（${COURSE_LABELS[app.course]}）からの設定代行。申込日: ${new Date(app.created_at).toLocaleDateString('ja-JP')}`,
         })
-        .select('id, status')
+        .select('id, status, payment_confirmation_email_sent_at')
         .single()
 
       if (insertError) throw insertError
 
       setLinkedOrders((prev) => ({ ...prev, [app.id]: created as LinkedOrder }))
-      setNotice({ id: app.id, tone: 'ok', text: '「初期設定依頼」タブに作業対象として追加しました。' })
+
+      // 申込者が次に何をすればよいか分かるよう、初期設定の手順を送る。
+      const mailFailure = await sendSetupInstructions((created as LinkedOrder).id)
+      setNotice({
+        id: app.id,
+        tone: mailFailure ? 'warn' : 'ok',
+        text: mailFailure
+          ? `作業対象は追加しましたが、初期設定手順メールを送信できませんでした: ${mailFailure}`
+          : '「初期設定依頼」タブに追加し、初期設定手順メールを送信しました。',
+      })
 
       // 着手した時点で未対応のままにしない。
       if (app.status === 'pending') {
@@ -156,6 +171,34 @@ export function MonitorApplicationsTab({ onOrderCreated }: Props = {}) {
       setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)))
     }
     setUpdatingId(null)
+  }
+
+  /** 初期設定手順メールを送る。成功なら null、失敗なら理由を返す。 */
+  const sendSetupInstructions = async (orderId: string): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-setup-service-email', {
+        body: { order_id: orderId, email_type: 'payment_confirmation' },
+      })
+      if (error) return error.message || '送信に失敗しました'
+      if (data && data.success === false) return data.error || '送信に失敗しました'
+      return null
+    } catch (e) {
+      return e instanceof Error ? e.message : '送信に失敗しました'
+    }
+  }
+
+  const resendSetupInstructions = async (app: MonitorApplication) => {
+    const order = linkedOrders[app.id]
+    if (!order) return
+    setStartingId(app.id)
+    const failure = await sendSetupInstructions(order.id)
+    setStartingId(null)
+    setNotice({
+      id: app.id,
+      tone: failure ? 'warn' : 'ok',
+      text: failure ? `送信に失敗しました: ${failure}` : '初期設定手順メールを送信しました。',
+    })
+    if (!failure) loadApplications()
   }
 
   if (loading) {
@@ -202,10 +245,32 @@ export function MonitorApplicationsTab({ onOrderCreated }: Props = {}) {
               {/* 何をすればいいかが分かるように、次の一手を先頭に置く。 */}
               <div className="mb-2">
                 {linkedOrders[app.id] ? (
-                  <p className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
-                    <Check size={14} className="shrink-0" />
-                    設定代行に着手済み。作業は「初期設定依頼」タブで進めてください。
-                  </p>
+                  <div className="space-y-2">
+                    <p className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
+                      <Check size={14} className="shrink-0" />
+                      設定代行に着手済み。作業は「初期設定依頼」タブで進めてください。
+                    </p>
+                    {linkedOrders[app.id].payment_confirmation_email_sent_at ? (
+                      <p className="text-xs text-slate-500 px-3">
+                        初期設定手順メール送信済み:{' '}
+                        {new Date(linkedOrders[app.id].payment_confirmation_email_sent_at as string).toLocaleString('ja-JP')}
+                      </p>
+                    ) : (
+                      <div className="text-xs text-amber-800 bg-amber-50 rounded-lg px-3 py-2">
+                        <p className="font-bold mb-2">初期設定手順メールが未送信です</p>
+                        <button
+                          disabled={startingId === app.id}
+                          onClick={() => resendSetupInstructions(app)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 font-bold bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                        >
+                          {startingId === app.id
+                            ? <Loader2 size={14} className="animate-spin" />
+                            : <Send size={14} />}
+                          初期設定手順メールを送る
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <button
                     disabled={startingId === app.id}

@@ -489,7 +489,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
       if (applicationError) throw applicationError
 
-      const { error: orderError } = await supabase
+      const { data: createdOrder, error: orderError } = await supabase
         .from('setup_service_orders')
         .insert({
           user_id: user.id,
@@ -502,8 +502,20 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           contact_phone: formData.user_phone_number || formData.store_phone_number || null,
           admin_notes: 'モニター特典（初期設定代行の無償提供）',
         })
+        .select('id')
+        .single()
 
       if (orderError) throw orderError
+
+      // 初期設定に必要な手順（スタッフの招待方法など）を申込者へ送る。
+      // 通常の有料申込では決済完了時に送られるものと同じメールで、
+      // これが届かないと申込者は次に何をすればよいか分からない。
+      const { error: setupMailError } = await supabase.functions.invoke('send-setup-service-email', {
+        body: { order_id: createdOrder.id, email_type: 'payment_confirmation' },
+      })
+      if (setupMailError) {
+        console.error('初期設定手順メールの送信に失敗しました:', setupMailError)
+      }
 
       // 運営に申込を通知する。これがないと申込に気づけず、
       // 初期設定代行に着手できないまま放置される。
