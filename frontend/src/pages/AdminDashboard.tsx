@@ -11,16 +11,17 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Loader2, Crown, ClipboardList, Users } from 'lucide-react'
+import { Loader2, Crown, ClipboardList, Users, Gift } from 'lucide-react'
 import Toast from '../components/Toast'
 import { UnderlineTabs } from '../components/UnderlineTabs'
 import { useUserFeatures } from '../hooks/useUserFeatures'
 import { SetupOrdersTab } from '../features/admin/components/SetupOrdersTab'
 import { PlanSwitcherTab } from '../features/admin/components/PlanSwitcherTab'
 import { UserAnalyticsTab, type AdminUserPlan } from '../features/admin/components/UserAnalyticsTab'
+import { MonitorApplicationsTab } from '../features/admin/components/MonitorApplicationsTab'
 import type { SetupOrder, LineSettings, StoreDetail, AnalyticsData } from '../features/admin/types'
 
-type AdminTab = 'setup_orders' | 'plan_switcher' | 'user_analytics'
+type AdminTab = 'setup_orders' | 'monitor_applications' | 'plan_switcher' | 'user_analytics'
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
@@ -591,6 +592,7 @@ export default function AdminDashboard() {
   // ===== タブ定義 =====
   const tabs = [
     { id: 'setup_orders' as const, label: '初期設定依頼', icon: ClipboardList },
+    { id: 'monitor_applications' as const, label: 'モニター申込', icon: Gift },
     { id: 'plan_switcher' as const, label: 'プラン変更', icon: Crown },
     { id: 'user_analytics' as const, label: 'ユーザー情報', icon: Users },
   ]
@@ -660,6 +662,8 @@ export default function AdminDashboard() {
             }}
           />
         )}
+
+        {activeTab === 'monitor_applications' && <MonitorApplicationsTab />}
 
         {activeTab === 'plan_switcher' && (
           <PlanSwitcherTab

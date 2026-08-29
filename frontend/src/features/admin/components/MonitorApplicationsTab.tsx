@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, AlertTriangle, Mail, Phone, MessageCircle } from 'lucide-react'
+import { Loader2, AlertTriangle, Mail, Phone, MessageCircle, Wrench, Check, UserX } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 
 interface MonitorApplication {
@@ -14,6 +14,12 @@ interface MonitorApplication {
   message: string | null
   status: 'pending' | 'contacted' | 'approved' | 'rejected'
   created_at: string
+}
+
+/** この申込から既に設定代行の注文が作られているか。 */
+interface LinkedOrder {
+  id: string
+  status: string
 }
 
 const STATUS_LABELS: Record<MonitorApplication['status'], string> = {
@@ -39,6 +45,9 @@ export function MonitorApplicationsTab() {
   const [applications, setApplications] = useState<MonitorApplication[]>([])
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [linkedOrders, setLinkedOrders] = useState<Record<string, LinkedOrder>>({})
+  const [startingId, setStartingId] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{ id: string; text: string; tone: 'ok' | 'warn' } | null>(null)
 
   const loadApplications = async () => {
     setLoading(true)
@@ -50,7 +59,81 @@ export function MonitorApplicationsTab() {
     if (!error && data) {
       setApplications(data as MonitorApplication[])
     }
+
+    // 既に代行注文になっている申込を拾い、ボタンの出し分けに使う。
+    const { data: orders } = await supabase
+      .from('setup_service_orders')
+      .select('id, status, monitor_application_id')
+      .not('monitor_application_id', 'is', null)
+
+    if (orders) {
+      const map: Record<string, LinkedOrder> = {}
+      orders.forEach((o: { id: string; status: string; monitor_application_id: string }) => {
+        map[o.monitor_application_id] = { id: o.id, status: o.status }
+      })
+      setLinkedOrders(map)
+    }
+
     setLoading(false)
+  }
+
+  /**
+   * 申込者のメールアドレスから登録済みユーザーを引き、
+   * モニター特典としての設定代行注文（無料）を作る。
+   * これが「初期設定依頼」タブに作業対象として並ぶ。
+   */
+  const startSetupService = async (app: MonitorApplication) => {
+    setStartingId(app.id)
+    setNotice(null)
+    try {
+      const { data: res, error: lookupError } = await supabase.functions.invoke('get-admin-data', {
+        body: { type: 'profile_by_email', email: app.email },
+      })
+
+      if (lookupError) throw lookupError
+
+      const found = res?.data as { profile: { id: string }; store: { id: string } | null } | null
+      if (!found?.profile) {
+        setNotice({
+          id: app.id,
+          tone: 'warn',
+          text: 'このメールアドレスでの登録がまだありません。先にアカウント登録をご案内してください（登録後にこのボタンで作業を開始できます）。',
+        })
+        return
+      }
+
+      const { data: created, error: insertError } = await supabase
+        .from('setup_service_orders')
+        .insert({
+          user_id: found.profile.id,
+          store_id: found.store?.id ?? null,
+          monitor_application_id: app.id,
+          amount: 0,
+          status: 'in_progress',
+          paid_at: new Date().toISOString(),
+          contact_email: app.email,
+          contact_phone: app.phone,
+          has_line_account: app.has_line_account,
+          additional_notes: app.message,
+          admin_notes: `モニター特典（${COURSE_LABELS[app.course]}）からの設定代行。申込日: ${new Date(app.created_at).toLocaleDateString('ja-JP')}`,
+        })
+        .select('id, status')
+        .single()
+
+      if (insertError) throw insertError
+
+      setLinkedOrders((prev) => ({ ...prev, [app.id]: created as LinkedOrder }))
+      setNotice({ id: app.id, tone: 'ok', text: '「初期設定依頼」タブに作業対象として追加しました。' })
+
+      // 着手した時点で未対応のままにしない。
+      if (app.status === 'pending') {
+        await updateStatus(app.id, 'contacted')
+      }
+    } catch {
+      setNotice({ id: app.id, tone: 'warn', text: '作業対象の作成に失敗しました。時間をおいて再度お試しください。' })
+    } finally {
+      setStartingId(null)
+    }
   }
 
   useEffect(() => {
@@ -107,6 +190,37 @@ export function MonitorApplicationsTab() {
               {app.message && (
                 <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-2 mb-2">{app.message}</p>
               )}
+              {/* 何をすればいいかが分かるように、次の一手を先頭に置く。 */}
+              <div className="mb-2">
+                {linkedOrders[app.id] ? (
+                  <p className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
+                    <Check size={14} className="shrink-0" />
+                    設定代行に着手済み。作業は「初期設定依頼」タブで進めてください。
+                  </p>
+                ) : (
+                  <button
+                    disabled={startingId === app.id}
+                    onClick={() => startSetupService(app)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                  >
+                    {startingId === app.id
+                      ? <Loader2 size={14} className="animate-spin" />
+                      : <Wrench size={14} />}
+                    設定代行を開始する
+                  </button>
+                )}
+                {notice?.id === app.id && (
+                  <p className={`mt-2 flex items-start gap-1.5 text-xs rounded-lg px-3 py-2 ${
+                    notice.tone === 'ok' ? 'text-green-700 bg-green-50' : 'text-amber-800 bg-amber-50'
+                  }`}>
+                    {notice.tone === 'ok'
+                      ? <Check size={14} className="shrink-0 mt-0.5" />
+                      : <UserX size={14} className="shrink-0 mt-0.5" />}
+                    {notice.text}
+                  </p>
+                )}
+              </div>
+
               <div className="flex gap-2">
                 {app.status !== 'contacted' && (
                   <button

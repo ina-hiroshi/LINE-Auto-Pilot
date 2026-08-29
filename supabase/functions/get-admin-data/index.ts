@@ -47,7 +47,7 @@ Deno.serve(async (req: Request) => {
 
     // リクエストボディを1回だけ読み取る
     const body = await req.json()
-    const { type, storeIds, userIds } = body
+    const { type, storeIds, userIds, email } = body
 
     if (type === 'stores') {
       const { data: storesData, error: storesError } = await supabaseAdmin
@@ -75,6 +75,48 @@ Deno.serve(async (req: Request) => {
 
       return new Response(
         JSON.stringify({ data: profilesData || [] }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } else if (type === 'profile_by_email') {
+      // モニター申込者が既に登録済みかを、申込フォームのメールアドレスから引く。
+      // 申込は登録前の見込み客なので user_id を持たず、メールが唯一の手がかりになる。
+      if (!email || typeof email !== 'string') {
+        return new Response(
+          JSON.stringify({ error: 'email is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const { data: profileData, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .select('id, email, full_name')
+        .ilike('email', email.trim())
+        .maybeSingle()
+
+      if (profileError) {
+        throw profileError
+      }
+
+      if (!profileData) {
+        return new Response(
+          JSON.stringify({ data: null }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // 代行作業は店舗単位で行うため、所有店舗も一緒に返す。
+      const { data: storeData, error: storeError } = await supabaseAdmin
+        .from('stores')
+        .select('id, name')
+        .eq('owner_id', profileData.id)
+        .maybeSingle()
+
+      if (storeError) {
+        throw storeError
+      }
+
+      return new Response(
+        JSON.stringify({ data: { profile: profileData, store: storeData || null } }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
