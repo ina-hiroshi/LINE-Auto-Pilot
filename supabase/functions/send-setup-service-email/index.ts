@@ -6,10 +6,13 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const STAFF_LINE_ID = Deno.env.get('SETUP_SERVICE_STAFF_LINE_ID') || 'voltric424'
 const FRONTEND_URL = 'https://itoguchi-app.jp/#auth'
-// LINE公式アカウントの開設の入り口。
-// 以前は https://account.line.biz/ を案内していたが 404 を返すため、
-// 申込者が最初の手順で詰まっていた。
-const LINE_ENTRY_URL = 'https://entry.line.biz/'
+// LINE公式アカウントの開設ページ。
+// 案内先を2度間違えているので、変更するときは必ず実際に開いて確認すること。
+//   https://account.line.biz/     → 404
+//   https://entry.line.biz/       → 200 だが「LINE Business ID」のログイン画面で、
+//                                    アカウントを持っていない人は開設に辿り着けない
+//   https://entry.line.biz/start/jp/ → 開設の入り口（タイトル「LINE公式アカウント」）
+const LINE_ENTRY_URL = 'https://entry.line.biz/start/jp/'
 
 interface RequestBody {
   order_id: string
