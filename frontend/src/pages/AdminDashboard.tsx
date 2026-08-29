@@ -650,6 +650,14 @@ export default function AdminDashboard() {
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">管理者ダッシュボード</h1>
               <p className="text-sm text-gray-500">開発・運用管理</p>
             </div>
+            {/* 登録フローは通常セットアップ未完了のときしか開けない。
+                検証・改善のために管理者はここから入れるようにする。 */}
+            <button
+              onClick={() => navigate('/onboarding')}
+              className="shrink-0 px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              登録フローを開く
+            </button>
           </div>
         </div>
       </div>

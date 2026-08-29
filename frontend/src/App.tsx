@@ -29,9 +29,34 @@ import FeatureMembership from './pages/FeatureMembership'
 import FeatureAI from './pages/FeatureAI'
 import AdminDashboard from './pages/AdminDashboard'
 import MonitorApplication from './pages/MonitorApplication'
-import { UserFeaturesProvider } from './hooks/useUserFeatures'
+import { UserFeaturesProvider, useUserFeatures } from './hooks/useUserFeatures'
 
 import type { Session } from '@supabase/supabase-js'
+
+/**
+ * 登録フローを管理者がいつでも開けるようにするためのルート。
+ *
+ * 通常のオンボーディングは店舗とLINE連携が未完了のときにしか表示されないため、
+ * 一度セットアップを終えると画面自体に到達できず、フローの検証や改善ができない。
+ * 管理者以外がここに来た場合はダッシュボードへ戻す。
+ */
+function AdminOnboardingRoute({ onComplete }: { onComplete: () => void }) {
+  const { isLoading, isAdmin } = useUserFeatures()
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+        <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+      </div>
+    )
+  }
+
+  if (!isAdmin) {
+    return <Navigate to="/" replace />
+  }
+
+  return <Onboarding onComplete={onComplete} />
+}
 
 function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -212,6 +237,9 @@ function App() {
             <Route path="*" element={<Navigate to="/onboarding" replace />} />
           </>
         ) : (
+          <>
+          {/* セットアップ済みでも管理者だけは登録フローを開ける（検証・改善用） */}
+          <Route path="/onboarding" element={<AdminOnboardingRoute onComplete={handleSetupComplete} />} />
           <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/reservations" element={<Reservations />} />
@@ -226,6 +254,7 @@ function App() {
             <Route path="/dev" element={<AdminDashboard />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
+          </>
         )}
       </Routes>
       </UserFeaturesProvider>

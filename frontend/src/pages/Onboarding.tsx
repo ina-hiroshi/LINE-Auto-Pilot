@@ -832,6 +832,23 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         </div>
       </header>
 
+      {/* 管理者がセットアップ済みの状態で開いた場合、既存データを上書きしうる。
+          気づかず本番の店舗情報を壊さないよう明示する。 */}
+      {isAdmin && storeId && (
+        <div className="max-w-5xl mx-auto px-4 pt-6">
+          <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-3">
+            <p className="text-sm font-bold text-amber-900 mb-1">
+              検証モード: このアカウントは既にセットアップ済みです
+            </p>
+            <p className="text-xs text-amber-800">
+              管理者のため登録フローを開けていますが、
+              <span className="font-bold">基本情報を保存すると既存の店舗情報が上書きされます。</span>
+              本番の店舗データを壊したくない場合は、検証専用のアカウントで確認してください。
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ステップインジケーター */}
       <div className="max-w-5xl mx-auto px-4 py-6">
         <div className="flex items-center justify-center gap-2 md:gap-4">
