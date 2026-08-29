@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { Loader2, Check, Shield, Gift, AlertTriangle } from 'lucide-react'
 import Toast from '../../../components/Toast'
+import Modal from '../../../components/Modal'
 import { PRO_PRICE_ID } from '../../../constants/stripe'
 import { IS_PRE_RELEASE_MODE } from '../../../constants/releaseMode'
 
@@ -19,6 +20,10 @@ export function PlanTab() {
     message: '',
     type: 'success'
   })
+  const [email, setEmail] = useState('')
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     fetchSubscription()
@@ -28,6 +33,7 @@ export function PlanTab() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+      setEmail(user.email ?? '')
 
       const { data, error } = await supabase
         .from('profiles')
@@ -101,6 +107,44 @@ export function PlanTab() {
       setToast({ isVisible: true, message: 'ポータルセッションの作成に失敗しました。', type: 'error' })
     } finally {
       setProcessing(false)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('セッションが切れています。再度ログインしてください。')
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-account`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ confirmation: deleteConfirmation.trim() }),
+      })
+
+      const result = await response.json()
+      if (!response.ok) throw new Error(result?.error || 'アカウントの削除に失敗しました。')
+
+      // 削除済みのセッションを残さないよう、ローカルを消してからトップへ戻す
+      localStorage.clear()
+      sessionStorage.clear()
+      try {
+        await supabase.auth.signOut()
+      } catch (signOutError) {
+        console.error('Sign out error (ignored):', signOutError)
+      }
+      window.location.href = '/'
+    } catch (error) {
+      console.error('Error deleting account:', error)
+      setToast({
+        isVisible: true,
+        message: error instanceof Error ? error.message : 'アカウントの削除に失敗しました。',
+        type: 'error'
+      })
+      setDeleting(false)
     }
   }
 
@@ -332,6 +376,70 @@ export function PlanTab() {
           </button>
         </div>
       </div>
+      {/* アカウント削除 */}
+      <div className="border-2 border-red-200 bg-red-50 rounded-2xl p-6">
+        <div className="flex items-start space-x-3">
+          <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-red-900">アカウントの削除</h3>
+            <p className="text-sm text-red-800 mt-2">
+              アカウントと店舗のデータをすべて削除します。<strong className="font-bold">この操作は取り消せません。</strong>
+            </p>
+            <ul className="mt-3 space-y-1 text-sm text-red-800 list-disc list-inside">
+              <li>予約・顧客・ポイント・自動応答・AIの学習データ</li>
+              <li>LINE公式アカウントおよびGoogleカレンダーとの連携</li>
+              <li>ご契約中のプラン（無料お試し期間中のものを含め、その場で解約されます）</li>
+            </ul>
+            <p className="text-xs text-red-700 mt-3">
+              解約にともなう日割りでの返金は行っておりません。法令にもとづき、お支払いいただいた請求・領収の記録のみ保持します。
+            </p>
+            <button
+              onClick={() => {
+                setDeleteConfirmation('')
+                setShowDeleteModal(true)
+              }}
+              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+            >
+              アカウントを削除する
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteAccount}
+        title="本当にアカウントを削除しますか？"
+        variant="danger"
+        confirmText="完全に削除する"
+        cancelText="キャンセル"
+        isLoading={deleting}
+        confirmDisabled={!email || deleteConfirmation.trim().toLowerCase() !== email.toLowerCase()}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            削除するとすべてのデータが失われ、元に戻すことはできません。
+            ご契約中のプランは無料お試し期間中のものも含めてその場で解約されます。
+          </p>
+          <div>
+            <label htmlFor="delete-confirmation" className="block text-sm font-medium text-gray-700 mb-1">
+              確認のため、ご登録のメールアドレス（<span className="font-mono">{email}</span>）を入力してください
+            </label>
+            <input
+              id="delete-confirmation"
+              type="email"
+              autoComplete="off"
+              value={deleteConfirmation}
+              onChange={(e) => setDeleteConfirmation(e.target.value)}
+              disabled={deleting}
+              placeholder={email}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
+            />
+          </div>
+        </div>
+      </Modal>
+
       <Toast 
         isVisible={toast.isVisible}
         message={toast.message}
