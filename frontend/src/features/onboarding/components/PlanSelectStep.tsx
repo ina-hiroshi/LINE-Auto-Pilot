@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { CreditCard, Loader2, ArrowRight, ArrowLeft, Check, Gift, AlertTriangle } from 'lucide-react'
+import { CreditCard, Loader2, ArrowRight, ArrowLeft, Check, Gift } from 'lucide-react'
 
 type PlanType = 'free' | 'pro' | 'executive'
 
@@ -8,6 +8,9 @@ interface PlanSelectStepProps {
   onSelectedPlanChange: (plan: PlanType) => void
   hasUsedTrial: boolean
   isPreReleaseMode: boolean
+  /** モニター特典（初期設定代行の無償提供）に同意したか。 */
+  monitorConsent: boolean
+  onMonitorConsentChange: (agreed: boolean) => void
   loading: boolean
   progressMsg: string
   onPlanSelect: () => void
@@ -19,6 +22,8 @@ export default function PlanSelectStep({
   onSelectedPlanChange,
   hasUsedTrial,
   isPreReleaseMode,
+  monitorConsent,
+  onMonitorConsentChange,
   loading,
   progressMsg,
   onPlanSelect,
@@ -41,55 +46,8 @@ export default function PlanSelectStep({
           <p className="text-slate-500">あなたのビジネスに合ったプランをお選びください。</p>
         </div>
 
-        {/* プレリリース特典 or リリース特典（トライアル未使用の場合のみ表示） */}
-        {!hasUsedTrial && isPreReleaseMode && (
-          /* プレリリースモニター特典 */
-          <div className="bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-2xl p-6 mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <Gift className="w-6 h-6" />
-              <span className="font-bold text-lg">🎁 プレリリースモニター限定特典</span>
-            </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 mb-4">
-              <div className="text-center mb-4">
-                <div className="text-4xl md:text-5xl font-bold text-yellow-300 mb-2">
-                  2ヶ月無料
-                </div>
-                <p className="text-primary-100">
-                  Proプラン（通常 ¥4,980/月）が無料で使えます
-                </p>
-              </div>
-              <ul className="space-y-3">
-                <li className="flex items-start gap-2">
-                  <Check className="w-5 h-5 text-yellow-300 shrink-0 mt-0.5" />
-                  <span>Proプランの全機能を<span className="font-bold text-yellow-300">2ヶ月間無料</span>で利用可能</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-5 h-5 text-yellow-300 shrink-0 mt-0.5" />
-                  <span>ご登録いただいた<span className="font-bold text-yellow-300">データはそのまま継続</span>利用可能</span>
-                </li>
-              </ul>
-            </div>
-            {/* 注意事項 */}
-            <div className="bg-primary-900/30 border border-primary-300/30 rounded-xl p-4">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-yellow-300 shrink-0 mt-0.5" />
-                <div className="text-sm text-primary-100">
-                  <p className="font-bold text-yellow-300 mb-2">プレリリース版についてのご注意</p>
-                  <ul className="space-y-1 list-disc list-inside">
-                    <li>現在開発中のため、<span className="font-medium text-yellow-300">仕様が予告なく変更</span>される場合があります</li>
-                    <li>一部機能に<span className="font-medium text-yellow-300">不具合</span>が発生する可能性があります</li>
-                    <li>プレリリース期間中は<span className="font-medium text-yellow-300">サポート対応ができません</span></li>
-                    <li>LINE初期設定代行（¥9,980）は<span className="font-medium text-yellow-300">ご利用いただけません</span></li>
-                    <li>クレジットカード登録が必須です。<span className="font-medium text-yellow-300">2ヶ月後から自動更新</span>で課金されます</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 正式リリース時のリリース特典（トライアル未使用の場合のみ表示） */}
-        {!hasUsedTrial && !isPreReleaseMode && (
+        {/* トライアル未使用の場合のみ表示 */}
+        {!hasUsedTrial && (
           <div className="bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-2xl p-6 mb-8">
             <div className="flex items-center gap-3 mb-4">
               <Gift className="w-6 h-6" />
@@ -231,6 +189,45 @@ export default function PlanSelectStep({
           </div>
         </div>
       </div>
+
+      {/* モニター特典。Pro を選んだときだけ意味を持つので、そのときだけ出す。
+          チェックそのものが申込であり、同意しない人は特典の対象にならない。 */}
+      {selectedPlan === 'pro' && (
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-100 p-6 md:p-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Gift className="w-6 h-6 text-primary-600" />
+            <h2 className="font-bold text-lg text-slate-800">モニター特典（任意）</h2>
+          </div>
+
+          <div className="bg-primary-50 border border-primary-100 rounded-xl p-5 mb-5">
+            <p className="text-2xl font-bold text-primary-700 mb-1">
+              LINE初期設定代行が無料
+            </p>
+            <p className="text-sm text-slate-600">
+              通常 ¥9,980 の初期設定代行を、こちらで無償で行います。
+              LINE公式アカウントの開設から予約枠の設定まで代行するので、
+              設定作業をしていただく必要はありません。
+            </p>
+          </div>
+
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={monitorConsent}
+              onChange={(e) => onMonitorConsentChange(e.target.checked)}
+              className="mt-1 w-5 h-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500 shrink-0"
+            />
+            <span className="text-sm text-slate-700">
+              設定のしやすさなどについて、
+              <span className="font-bold">簡単なインタビューフォームへの回答に協力します</span>。
+              <span className="block text-slate-500 mt-1">
+                これが特典の適用条件です。チェックしない場合も Pro プランには通常どおりご加入いただけます
+                （初期設定代行は通常価格 ¥9,980 になります）。
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
 
       <div className="flex justify-between">
         <button

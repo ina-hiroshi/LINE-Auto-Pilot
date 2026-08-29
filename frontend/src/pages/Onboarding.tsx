@@ -62,6 +62,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   // プラン選択
   const [selectedPlan, setSelectedPlan] = useState<'free' | 'pro' | 'executive'>('pro')
 
+  // モニター特典（初期設定代行の無償提供）への同意。チェック自体が申込になる。
+  const [monitorConsent, setMonitorConsent] = useState(false)
+
   // LINE設定
   const [lineSettings, setLineSettings] = useState({
     channel_id: '',
@@ -455,6 +458,58 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     }
   }
 
+  /**
+   * モニター特典の申込を記録し、無料の初期設定代行を作業対象として作る。
+   *
+   * 以前は申込フォームが登録前の別窓口にあり、申込者が user_id を持たなかったため
+   * setup_service_orders（user_id 必須）へ引き渡せず、管理者がメールアドレスで
+   * 手動照合する必要があった。登録フロー内で受け取ることでその分断がなくなる。
+   *
+   * 特典が付かなくても登録は続行させたいので、失敗しても例外を投げない。
+   */
+  const submitMonitorApplication = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: application, error: applicationError } = await supabase
+        .from('monitor_applications')
+        .insert({
+          user_id: user.id,
+          store_name: formData.store_name,
+          industry: formData.industry || null,
+          contact_name: formData.full_name,
+          email: user.email,
+          phone: formData.user_phone_number || formData.store_phone_number || null,
+          agreed_to_interview: true,
+          status: 'approved',
+        })
+        .select('id')
+        .single()
+
+      if (applicationError) throw applicationError
+
+      const { error: orderError } = await supabase
+        .from('setup_service_orders')
+        .insert({
+          user_id: user.id,
+          store_id: storeId,
+          monitor_application_id: application.id,
+          amount: 0,
+          status: 'in_progress',
+          paid_at: new Date().toISOString(),
+          contact_email: user.email,
+          contact_phone: formData.user_phone_number || formData.store_phone_number || null,
+          admin_notes: 'モニター特典（初期設定代行の無償提供）',
+        })
+
+      if (orderError) throw orderError
+    } catch (error) {
+      // 特典の記録に失敗しても登録は止めない。運営側で拾えるようログに残す。
+      console.error('モニター特典の登録に失敗しました:', error)
+    }
+  }
+
   // プラン選択完了
   const handlePlanSelect = async () => {
     if (selectedPlan === 'free') {
@@ -467,6 +522,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       // 既にProプランの場合はスキップ
       if (currentPlan === 'pro') {
         console.log('User already has Pro plan, skipping payment')
+        if (monitorConsent) {
+          await submitMonitorApplication()
+        }
         setToast({ isVisible: true, message: '既にProプランをご利用中です', type: 'success' })
         setCurrentStep('line_setup')
         return
@@ -474,6 +532,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       
       setLoading(true)
       setProgressMsg('Stripe決済ページへ移動中...')
+
+      // 決済ページへ遷移すると画面を離れるため、その前に記録する。
+      if (monitorConsent) {
+        await submitMonitorApplication()
+      }
 
       try {
         const { data: { session } } = await supabase.auth.getSession()
@@ -752,6 +815,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               onSelectedPlanChange={setSelectedPlan}
               hasUsedTrial={hasUsedTrial}
               isPreReleaseMode={IS_PRE_RELEASE_MODE}
+              monitorConsent={monitorConsent}
+              onMonitorConsentChange={setMonitorConsent}
               loading={loading}
               progressMsg={progressMsg}
               onPlanSelect={handlePlanSelect}
