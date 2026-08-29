@@ -11,8 +11,10 @@ const FRONTEND_URL = 'https://itoguchi-app.jp/#auth'
 //   https://account.line.biz/     → 404
 //   https://entry.line.biz/       → 200 だが「LINE Business ID」のログイン画面で、
 //                                    アカウントを持っていない人は開設に辿り着けない
-//   https://entry.line.biz/start/jp/ → 開設の入り口（タイトル「LINE公式アカウント」）
-const LINE_ENTRY_URL = 'https://entry.line.biz/start/jp/'
+//   https://entry.line.biz/start/jp/ → 開設の入り口。到達はできるが説明が薄い
+//   https://www.lycbiz.com/jp/service/line-official-account/
+//                                 → 採用。公式の製品ページで、開設の導線と説明が揃っている
+const LINE_ENTRY_URL = 'https://www.lycbiz.com/jp/service/line-official-account/'
 
 interface RequestBody {
   order_id: string
