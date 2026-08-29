@@ -504,6 +504,16 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         })
 
       if (orderError) throw orderError
+
+      // 運営に申込を通知する。これがないと申込に気づけず、
+      // 初期設定代行に着手できないまま放置される。
+      const { error: notifyError } = await supabase.functions.invoke('notify-monitor-application', {
+        body: { application_id: application.id },
+      })
+      if (notifyError) {
+        // 申込自体は成立しているので、通知の失敗で登録を止めない。
+        console.error('モニター申込の通知に失敗しました:', notifyError)
+      }
     } catch (error) {
       // 特典の記録に失敗しても登録は止めない。運営側で拾えるようログに残す。
       console.error('モニター特典の登録に失敗しました:', error)

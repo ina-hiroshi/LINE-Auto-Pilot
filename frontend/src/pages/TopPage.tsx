@@ -287,7 +287,7 @@ export default function TopPage() {
               className="lg:w-1/2 text-left"
             >
               <div className="inline-block px-4 py-1.5 mb-6 rounded-full bg-primary-50 border border-primary-100 text-primary-600 text-sm sm:text-base font-semibold tracking-wide whitespace-nowrap sm:whitespace-normal">
-                誰でも簡単、気軽に始めるLINEマーケティング
+                誰でも気軽に始められるLINEマーケティング
               </div>
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 mb-8 leading-[1.15] tracking-tight">
                 <span className="block lg:whitespace-nowrap">お店とお客様をつなぐ、</span>
@@ -304,7 +304,7 @@ export default function TopPage() {
               <p className="text-base sm:text-lg text-slate-600 mb-10 max-w-2xl leading-relaxed">
                 LINE公式アカウントが、あなたの代わりにお客様対応。<br />
                 質問への自動返信、予約の受付、ポイントカードの管理まで。<br />
-                スマホひとつで、お店のファン作りをサポートします。
+                スマホひとつで、お店のファンづくりを後押しします。
               </p>
               <div className="flex flex-col sm:flex-row justify-start gap-4">
                 <a href="#auth" className="px-8 py-4 bg-primary-600 text-white rounded-full font-bold hover:bg-primary-700 transition shadow-lg hover:shadow-primary-200 flex items-center justify-center gap-2 group">
@@ -425,8 +425,8 @@ export default function TopPage() {
               transition={{ delay: 0.2 }}
               className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
             >
-              専門知識不要で、LINEひとつで完結。<br className="hidden md:block" />
-              個人の店主が本業に集中できる環境を作ります。
+              むずかしい設定は不要。LINEひとつで完結するから、<br className="hidden md:block" />
+              店主が本業に集中できます。
             </motion.p>
           </div>
 
@@ -435,22 +435,22 @@ export default function TopPage() {
               {
                 icon: Code,
                 title: 'No-Code',
-                description: '専門知識不要で誰でも設定可能。プログラミングの知識は一切不要です。'
+                description: '画面の案内に沿って進むだけ。プログラミングの知識はいりません。'
               },
               {
                 icon: Zap,
                 title: 'オールインワン',
-                description: '予約・会員証・自動応答が1つに統合。複数のツールを使い分ける必要がありません。'
+                description: '予約・会員証・自動応答がこれひとつ。複数のツールを使い分けずに済みます。'
               },
               {
                 icon: Smartphone,
                 title: 'LINE完結',
-                description: 'お客様は新しいアプリをダウンロードする必要がありません。LINEだけで完結します。'
+                description: 'お客様に新しいアプリを入れてもらう必要はありません。いつものLINEだけで完結します。'
               },
               {
                 icon: CreditCard,
                 title: '低コスト',
-                description: '無料プランから始められます。月額¥4,980のProプランで全機能が使えます。'
+                description: 'まずは無料プランから。月額¥4,980のProプランで全機能が使えます。'
               }
             ].map((reason, index) => (
               <motion.div
@@ -518,9 +518,9 @@ export default function TopPage() {
                 transition={{ delay: 0.2 }}
                 className="text-sm sm:text-base lg:text-lg text-slate-600 mb-6 sm:mb-8 max-w-2xl leading-relaxed"
               >
-                営業時間外でも24時間、お客様に寄り添う接客を実現します。
-                キーワード応答で対応できない質問にもAIが即座に回答。
-                店舗独自の情報を学習させれば、より正確な回答が可能です。
+                閉店後でも深夜でも、お客様を待たせません。
+                キーワード応答では拾いきれない質問にも、AIがその場で答えます。
+                お店独自の情報を覚えさせれば、答えの精度はさらに上がります。
               </motion.p>
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
@@ -567,11 +567,11 @@ export default function TopPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-20">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4">
-              繋がりを深める、3つの機能
+              つながりを深める、3つの機能
             </h2>
             <p className="text-slate-600 max-w-2xl mx-auto px-4 text-sm sm:text-base leading-relaxed">
-              IToguchiは、店舗運営に必要な機能をシンプルに統合。<br className="hidden md:block" />
-              お客様とのコミュニケーションを円滑にします。
+              IToguchiは、店舗運営に必要な機能をひとつにまとめました。<br className="hidden md:block" />
+              お客様とのやりとりが、ぐっとラクになります。
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-10">
@@ -579,19 +579,19 @@ export default function TopPage() {
               { 
                 image: smartAutoChatImage, 
                 title: 'スマート自動応答', 
-                desc: 'よくある質問にはAIが即座に対応。お客様をお待たせすることなく、機会損失を防ぎます。',
+                desc: 'よくある質問にはAIがその場で対応。お客様を待たせず、取りこぼしも減らせます。',
                 link: '/feature/auto-response'
               },
               { 
                 image: yoyakuImage, 
                 title: 'かんたん予約管理', 
-                desc: 'LINEのトーク画面からそのまま予約完了。電話対応の手間を減らし、予約のハードルを下げます。',
+                desc: 'LINEのトーク画面からそのまま予約完了。電話対応の手間が減り、お客様も予約しやすくなります。',
                 link: '/feature/reservation'
               },
               { 
                 image: membersImage, 
                 title: 'デジタル会員証', 
-                desc: 'お財布を圧迫しないLINE上の会員証。ポイント管理もスムーズで、リピート率向上に貢献します。',
+                desc: 'かさばらないLINE上の会員証。ポイントもそのまま貯まるので、また来たくなります。',
                 link: '/feature/membership'
               }
             ].map((feature, index) => (
@@ -655,7 +655,7 @@ export default function TopPage() {
               transition={{ delay: 0.2 }}
               className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
             >
-              予約が必要なお店、リピート客を大切にしたいお店に最適です。
+              予約を受けるお店、常連さんとの関係を大切にしたいお店に向いています。
             </motion.p>
           </div>
 
@@ -723,8 +723,8 @@ export default function TopPage() {
               transition={{ delay: 0.2 }}
               className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
             >
-              専門知識不要。リッチメニューも予約ページも、<br className="hidden md:block" />
-              シンプルな操作で簡単にカスタマイズできます。
+              リッチメニューも予約ページも、<br className="hidden md:block" />
+              画面を見ながらの簡単な操作でつくれます。
             </motion.p>
           </div>
           
@@ -750,8 +750,8 @@ export default function TopPage() {
                   </div>
                   
                   <p className="text-slate-600 mb-8 leading-relaxed">
-                    お客様がLINEを開いたときに最初に目に入るリッチメニュー。<br />
-                    あなたの店舗の個性を反映したデザインで、予約や問い合わせへの導線を作りましょう。
+                    お客様がLINEを開いて、最初に目にするのがリッチメニューです。<br />
+                    お店らしいデザインにして、予約や問い合わせの入口にしましょう。
                   </p>
                   
                   {/* アピールポイント */}
@@ -767,7 +767,7 @@ export default function TopPage() {
                             <Crown className="w-3 h-3" />Pro
                           </span>
                         </p>
-                        <p className="text-xs text-slate-500 mt-0.5">シンプルは無料、他5種はPro</p>
+                        <p className="text-xs text-slate-500 mt-0.5">シンプルは無料、残り5種はPro</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
@@ -1037,8 +1037,8 @@ export default function TopPage() {
                   </div>
                   
                   <p className="text-slate-600 mb-8 leading-relaxed">
-                    お客様が予約するページのデザインと機能を、あなたの店舗スタイルに合わせて設定。<br />
-                    業種ごとに最適化された予約フローを提供できます。
+                    お客様が予約するページの見た目と機能を、お店に合わせて設定できます。<br />
+                    業種に合った予約の流れも用意しています。
                   </p>
                   
                   {/* アピールポイント */}
@@ -1054,7 +1054,7 @@ export default function TopPage() {
                             <Crown className="w-3 h-3" />Pro
                           </span>
                         </p>
-                        <p className="text-xs text-slate-500 mt-0.5">シンプルは無料、他5種はPro</p>
+                        <p className="text-xs text-slate-500 mt-0.5">シンプルは無料、残り5種はPro</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
@@ -1120,7 +1120,7 @@ export default function TopPage() {
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </a>
             <p className="text-slate-500 text-sm mt-4">
-              専門知識不要で簡単に始められます
+              設定はすべて画面上の操作だけで完結します
             </p>
           </motion.div>
         </div>
@@ -1161,8 +1161,8 @@ export default function TopPage() {
               transition={{ delay: 0.2 }}
               className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
             >
-              専門知識不要。最短3分で設定完了。<br className="hidden md:block" />
-              すぐに運用を始められます。
+              アカウント作成からLINE連携まで、あわせて20分ほど。<br className="hidden md:block" />
+              その日のうちに運用を始められます。
             </motion.p>
           </div>
 
@@ -1171,7 +1171,7 @@ export default function TopPage() {
               {
                 step: 1,
                 title: '無料アカウント作成',
-                description: 'メールアドレスとパスワードを入力するだけ。認証コードで本人確認を済ませます。',
+                description: 'メールアドレスとパスワードを入力するだけ。届いた認証コードを入れれば完了です。',
                 time: '約3分',
                 icon: Users
               },
@@ -1273,7 +1273,7 @@ export default function TopPage() {
               transition={{ delay: 0.2 }}
               className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
             >
-              実際にIToguchiをご利用いただいているお客様の声をご紹介します。
+              IToguchiを使っているお店の声を、これから紹介していきます。
             </motion.p>
           </div>
 
@@ -1289,8 +1289,8 @@ export default function TopPage() {
             </div>
             <h3 className="text-xl font-bold text-slate-900 mb-2">導入事例を募集中</h3>
             <p className="text-slate-600 mb-6">
-              IToguchi をご利用いただいているお客様の声を、<br className="hidden md:block" />
-              順次掲載予定です。
+              IToguchiをご利用中のお店の声を、<br className="hidden md:block" />
+              準備でき次第ご紹介します。
             </p>
             <a 
               href="#campaign" 
@@ -1444,7 +1444,7 @@ export default function TopPage() {
           <div className="text-center mb-20">
             <h2 className="text-3xl lg:text-4xl font-bold text-slate-900 mb-4">料金プラン</h2>
             <p className="text-slate-600">
-              ビジネスの成長に合わせて選べる、<br />透明性の高いプラン設定。
+              お店の状況に合わせて選べる、<br />わかりやすい料金です。
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -1591,7 +1591,7 @@ export default function TopPage() {
               transition={{ delay: 0.2 }}
               className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
             >
-              検討中のよくあるご質問にお答えします。
+              ご検討中の方から、よくいただく質問をまとめました。
             </motion.p>
           </div>
 
@@ -1599,23 +1599,23 @@ export default function TopPage() {
             {[
               {
                 question: '専門知識がなくても設定できますか？',
-                answer: 'はい、専門知識は一切不要です。IToguchiはNo-Code設計のため、プログラミングの知識がなくても直感的な操作で設定できます。管理画面のガイドに従って進めるだけで、最短3分で設定完了です。'
+                answer: 'はい。プログラミングの知識がなくても、画面上の操作だけで設定できます。管理画面の案内に沿って進めるだけなので、パソコンの操作が苦手な方でも大丈夫です。'
               },
               {
                 question: 'LINE公式アカウントを持っていなくても始められますか？',
-                answer: 'いいえ、LINE公式アカウントが必要です。IToguchiはLINE公式アカウントと連携して動作するサービスです。まだお持ちでない場合は、LINE公式アカウントの開設から始めてください。開設は無料です。'
+                answer: 'いいえ、LINE公式アカウントが必要です。IToguchiはLINE公式アカウントと連携して動くサービスです。まだお持ちでない場合は、まずLINE公式アカウントの開設からお願いします。開設は無料です。'
               },
               {
                 question: '無料プランでどこまで使えますか？',
-                answer: '無料プランでも予約管理（無制限）、キーワード応答（10件まで）、ポイントカード基本機能が使えます。Proプランにアップグレードすると、Googleカレンダー連携、AI自動応答、デジタル会員証のカスタマイズなど、全機能が使えるようになります。'
+                answer: '無料プランでも、予約管理（無制限）、キーワード応答（10件まで）、ポイントカードの基本機能をお使いいただけます。Proプランにすると、Googleカレンダー連携、AI自動応答、デジタル会員証のカスタマイズを含む全機能が開放されます。'
               },
               {
                 question: 'データは安全ですか？',
-                answer: 'はい、安全です。IToguchiはSupabase（PostgreSQL）による堅牢なデータ管理、SSL/TLS暗号化通信、Row Level Security（RLS）によるデータ分離を実装しています。お客様のデータは厳重に保護されています。'
+                answer: 'はい。通信はすべてSSL/TLSで暗号化しており、データはSupabase（PostgreSQL）で管理しています。Row Level Security（RLS）により、店舗ごとにデータを分離して保管しています。'
               },
               {
                 question: '解約はいつでもできますか？',
-                answer: 'はい、いつでも解約可能です。解約は管理画面から簡単に行えます。解約後もデータは一定期間保持されますので、再開時にスムーズに復帰できます。'
+                answer: 'はい。管理画面からいつでも解約できます。解約後も一定期間はデータを保持しているので、再開したときは続きからお使いいただけます。'
               }
             ].map((faq, index) => (
               <FAQItem key={index} question={faq.question} answer={faq.answer} />
@@ -1642,11 +1642,11 @@ export default function TopPage() {
               <MessageSquare className="w-8 h-8 text-primary-600" />
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
-              ご質問がありますか？
+              気になることは、お気軽に
             </h2>
             <p className="text-slate-600 mb-8 max-w-2xl mx-auto">
-              LINE公式アカウントで気軽にお問い合わせください。<br className="hidden md:block" />
-              お客様のご質問にお答えします。
+              IToguchiのLINE公式アカウントから、いつでもご相談いただけます。<br className="hidden md:block" />
+              導入前の疑問にも、ひとつずつお答えします。
             </p>
             <a 
               href="https://line.me/R/ti/p/@431cghfd" 
@@ -1693,12 +1693,12 @@ export default function TopPage() {
             <div className="flex flex-col items-center mb-8">
               <Logo className="h-12 w-auto mb-4" />
               <h2 className="text-2xl font-bold text-slate-900">
-                {showVerificationStep ? '認証コードを入力' : isLoginMode ? 'おかえりなさい' : 'を始める'}
+                {showVerificationStep ? '認証コードを入力' : isLoginMode ? 'おかえりなさい' : 'IToguchiを始める'}
               </h2>
               <p className="text-slate-500 mt-2 text-center text-sm">
                 {showVerificationStep 
                   ? <>{email}<br />に送信された6桁のコードを入力してください</>
-                  : isLoginMode ? 'アカウントにログインして管理を続けましょう' : 'まずは無料で、新しい繋がりを作りましょう'}
+                  : isLoginMode ? 'ログインして管理画面に進みましょう' : 'まずは無料で、お客様とのつながりを作りましょう'}
               </p>
             </div>
             
@@ -1897,8 +1897,8 @@ export default function TopPage() {
                 <span className="text-2xl font-bold text-white tracking-tight">IToguchi</span>
               </div>
               <p className="text-slate-400 max-w-sm leading-relaxed">
-                お店とお客様を繋ぐ、確かな糸ぐち。<br />
-                LINE運用の自動化で、業務効率化と売上アップを実現します。
+                お店とお客様をつなぐ、たしかな糸ぐち。<br />
+                LINEの運用を自動化して、日々の手間を減らします。
               </p>
             </div>
             <div>

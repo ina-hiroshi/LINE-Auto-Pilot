@@ -14,10 +14,16 @@ interface RequestBody {
   application_id: string
 }
 
+/**
+ * 旧コース選択のラベル。2026-08-29 に特典を「初期設定代行 無料」の1本へ統一し、
+ * 新規申込の course は NULL になる。過去の申込を表示するためだけに残している。
+ */
 const COURSE_LABELS: Record<string, string> = {
   omakase: 'おまかせ導入コース（初期設定代行 無料 + Pro 初月無料）',
   jikkuri: 'じっくりお得コース（初期設定代行 有料 + Pro 3ヶ月無料）',
 }
+
+const BENEFIT_LABEL = '初期設定代行（¥9,980）が無料'
 
 /** メール本文に埋め込む申込者入力をエスケープする（HTML インジェクション防止） */
 function escapeHtml(value: unknown): string {
@@ -109,7 +115,11 @@ Deno.serve(async (req) => {
     }
 
     const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'Acme <onboarding@resend.dev>'
-    const courseLabel = COURSE_LABELS[application.course] || application.course
+    // course は新仕様で NULL になる。null のまま split すると例外で通知が丸ごと落ちるため、
+    // 特典名にフォールバックする。
+    const courseLabel = application.course
+      ? (COURSE_LABELS[application.course] || application.course)
+      : BENEFIT_LABEL
 
     // 1) 運営への申込通知（本命。これが届かないと申込に気づけない）
     const adminHtml = `
@@ -122,7 +132,7 @@ Deno.serve(async (req) => {
           <tr><td style="color:#64748b">メール</td><td>${escapeHtml(application.email)}</td></tr>
           <tr><td style="color:#64748b">電話</td><td>${escapeHtml(application.phone)}</td></tr>
           <tr><td style="color:#64748b">LINE公式アカウント</td><td>${application.has_line_account ? 'あり' : 'なし'}</td></tr>
-          <tr><td style="color:#64748b">希望コース</td><td>${escapeHtml(courseLabel)}</td></tr>
+          <tr><td style="color:#64748b">特典</td><td>${escapeHtml(courseLabel)}</td></tr>
           <tr><td style="color:#64748b">インタビュー同意</td><td>${application.agreed_to_interview ? '同意済み' : '未同意'}</td></tr>
         </table>
         <p style="margin:16px 0 4px;color:#64748b;font-size:14px">メッセージ</p>
@@ -136,7 +146,7 @@ Deno.serve(async (req) => {
     await sendEmail(
       fromEmail,
       ADMIN_EMAIL,
-      `【モニター申込】${application.store_name}（${courseLabel.split('（')[0]}）`,
+      `【モニター申込】${application.store_name}`,
       adminHtml,
       application.email,
     )
@@ -151,9 +161,9 @@ Deno.serve(async (req) => {
           以下の内容でお申し込みを承りました。</p>
           <table cellpadding="6" style="border-collapse:collapse;font-size:14px;background:#f8fafc;border-radius:8px">
             <tr><td style="color:#64748b">店舗名</td><td>${escapeHtml(application.store_name)}</td></tr>
-            <tr><td style="color:#64748b">希望コース</td><td>${escapeHtml(courseLabel)}</td></tr>
+            <tr><td style="color:#64748b">特典</td><td>${escapeHtml(courseLabel)}</td></tr>
           </table>
-          <p><strong>2営業日以内に</strong>担当よりご連絡いたします。<br>
+          <p><strong>2営業日以内に</strong>初期設定の進め方についてご連絡いたします。<br>
           今しばらくお待ちくださいませ。</p>
           <p style="font-size:13px;color:#64748b">
             ※このメールに心当たりがない場合は、破棄していただけますと幸いです。<br>
