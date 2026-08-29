@@ -228,9 +228,9 @@ const PrivacyPolicy: React.FC = () => {
               </p>
               <ul className="space-y-3">
                 {[
-                  'アカウント情報: サービス利用中は保持します。退会申請後、30日以内に削除します。',
-                  'Google 連携トークン: 連携解除時、または退会申請後30日以内に削除します。',
-                  '予約・メッセージデータ: 退会申請後、30日以内に削除します。',
+                  'アカウント情報: サービス利用中は保持します。管理画面から退会された場合は即時、メール等でのご申請の場合は30日以内に削除します。',
+                  'Google 連携トークン: 連携解除時、または退会時に失効・削除します。',
+                  '予約・メッセージデータ: 管理画面から退会された場合は即時、メール等でのご申請の場合は30日以内に削除します。',
                   'アクセスログ: セキュリティ目的で最大90日間保持した後、自動削除します。',
                 ].map((item, index) => (
                   <li key={index} className="flex items-start gap-3 text-slate-600">
@@ -273,11 +273,16 @@ const PrivacyPolicy: React.FC = () => {
                 <div>
                   <h3 className="font-bold text-slate-800 mb-2">アカウント退会・全データ削除</h3>
                   <p className="text-sm text-slate-600">
-                    アカウントの退会および全データの削除を希望される場合は、
+                    管理画面の「プラン設定」ページから、いつでもご自身でアカウントを削除できます。
+                    削除を実行すると、アカウント情報・店舗データ・外部サービスとの連携がその場で削除され、
+                    ご契約中のプランは無料お試し期間中のものも含めて解約されます。
+                  </p>
+                  <p className="text-sm text-slate-600 mt-2">
+                    操作でお困りの場合は
                     <a href="mailto:itoguchi.app@gmail.com" className="text-primary-600 hover:underline font-medium mx-1">itoguchi.app@gmail.com</a>
                     または
                     <a href="https://line.me/R/ti/p/@431cghfd" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline font-medium mx-1">公式 LINE（@431cghfd）</a>
-                    までご連絡ください。退会申請後、30日以内にデータを削除いたします。
+                    までご連絡ください。ご連絡による退会申請の場合は、30日以内にデータを削除いたします。
                   </p>
                 </div>
               </div>

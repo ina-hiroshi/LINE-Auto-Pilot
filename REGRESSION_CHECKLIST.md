@@ -14,6 +14,7 @@
 - google-auth: GETで認可URL返却、POSTでrefresh_token保存（google_calendar_settings upsert）。
 - google-calendar: action=list_calendars, list_events が200返却。
 - get-line-bot-info: channel_token必須、200でBot情報取得。
+- delete-account: 本人のメールアドレス以外の `confirmation` で400。管理者アカウントで403。正常系はテスト用アカウントで実施し、①Stripeのサブスク（トライアル中を含む）が canceled になる ②stores/profiles/auth.users と店舗配下のデータが消える ③Storage（store-assets/knowledge_docs/rich_menus）の該当ファイルが消える ④再ログインできない、を確認。
 
 ## 環境/ビルド
 - `npm run build` が成功（現在Chunk size警告のみ）。

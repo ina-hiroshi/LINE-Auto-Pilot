@@ -12,6 +12,7 @@ interface ModalProps {
   cancelText?: string;
   variant?: 'primary' | 'danger' | 'emerald';
   isLoading?: boolean;
+  confirmDisabled?: boolean;
   footerContent?: React.ReactNode;
   showDefaultButtons?: boolean;
 }
@@ -27,6 +28,7 @@ export default function Modal({
   cancelText = '閉じる',
   variant = 'primary',
   isLoading = false,
+  confirmDisabled = false,
   footerContent,
   showDefaultButtons,
 }: ModalProps) {
@@ -86,7 +88,7 @@ export default function Modal({
                 onClick={() => {
                   onConfirm?.();
                 }}
-                disabled={isLoading}
+                disabled={isLoading || confirmDisabled}
                 className={`flex-1 sm:flex-none px-4 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${confirmButtonClass}`}
               >
                 {isLoading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
