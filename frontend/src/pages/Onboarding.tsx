@@ -464,15 +464,18 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   }
 
   /**
-   * モニター特典の申込を記録し、無料の初期設定代行を作業対象として作る。
+   * モニター特典の申込を記録する。
    *
-   * 以前は申込フォームが登録前の別窓口にあり、申込者が user_id を持たなかったため
-   * setup_service_orders（user_id 必須）へ引き渡せず、管理者がメールアドレスで
-   * 手動照合する必要があった。登録フロー内で受け取ることでその分断がなくなる。
+   * ここでは申込を残すだけで、特典の実体（無償の初期設定代行）は付与しない。
+   * 付与は Stripe Webhook がサブスクリプションの成立を確認してから行う。
+   * 以前はこの時点で代行注文まで作っており、決済ページで離脱した相手にも
+   * ¥9,980 相当の作業だけが渡ってしまう状態だった。
    *
    * 特典が付かなくても登録は続行させたいので、失敗しても例外を投げない。
+   *
+   * @param grantImmediately 決済を経由しない管理者の検証用。true のとき即座に付与する。
    */
-  const submitMonitorApplication = async () => {
+  const submitMonitorApplication = async (grantImmediately = false) => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -488,13 +491,25 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           phone: formData.user_phone_number || formData.store_phone_number || null,
           has_line_account: monitorHasLineAccount,
           agreed_to_interview: true,
-          status: 'approved',
+          status: 'pending',
         })
         .select('id')
         .single()
 
       if (applicationError) throw applicationError
 
+      // 運営に申込を通知する。これがないと申込に気づけない。
+      const { error: notifyError } = await supabase.functions.invoke('notify-monitor-application', {
+        body: { application_id: application.id },
+      })
+      if (notifyError) {
+        console.error('モニター申込の通知に失敗しました:', notifyError)
+      }
+
+      if (!grantImmediately) return
+
+      // 管理者の検証用。決済を通さないため Webhook が発火せず、
+      // ここで付与しないと代行注文とメールの確認ができない。
       const { data: createdOrder, error: orderError } = await supabase
         .from('setup_service_orders')
         .insert({
@@ -507,34 +522,26 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           contact_email: user.email,
           contact_phone: formData.user_phone_number || formData.store_phone_number || null,
           has_line_account: monitorHasLineAccount,
-          admin_notes: 'モニター特典（初期設定代行の無償提供）',
+          admin_notes: 'モニター特典（初期設定代行の無償提供）／決済スキップでの検証',
         })
         .select('id')
         .single()
 
       if (orderError) throw orderError
 
-      // 初期設定に必要な手順（スタッフの招待方法など）を申込者へ送る。
-      // 通常の有料申込では決済完了時に送られるものと同じメールで、
-      // これが届かないと申込者は次に何をすればよいか分からない。
+      await supabase
+        .from('monitor_applications')
+        .update({ status: 'approved' })
+        .eq('id', application.id)
+
       const { error: setupMailError } = await supabase.functions.invoke('send-setup-service-email', {
         body: { order_id: createdOrder.id, email_type: 'payment_confirmation' },
       })
       if (setupMailError) {
         console.error('初期設定手順メールの送信に失敗しました:', setupMailError)
       }
-
-      // 運営に申込を通知する。これがないと申込に気づけず、
-      // 初期設定代行に着手できないまま放置される。
-      const { error: notifyError } = await supabase.functions.invoke('notify-monitor-application', {
-        body: { application_id: application.id },
-      })
-      if (notifyError) {
-        // 申込自体は成立しているので、通知の失敗で登録を止めない。
-        console.error('モニター申込の通知に失敗しました:', notifyError)
-      }
     } catch (error) {
-      // 特典の記録に失敗しても登録は止めない。運営側で拾えるようログに残す。
+      // 申込の記録に失敗しても登録は止めない。運営側で拾えるようログに残す。
       console.error('モニター特典の登録に失敗しました:', error)
     }
   }
@@ -553,7 +560,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     setProgressMsg('決済をスキップしています...')
     try {
       if (monitorConsent) {
-        await submitMonitorApplication()
+        await submitMonitorApplication(true)
       }
       setToast({
         isVisible: true,
@@ -579,8 +586,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       // 既にProプランの場合はスキップ
       if (currentPlan === 'pro') {
         console.log('User already has Pro plan, skipping payment')
+        // 決済を経由しないため Webhook が発火しない。既に課金中の相手なので
+        // 「決済していないのに特典だけ渡る」問題は起きず、ここで付与してよい。
         if (monitorConsent) {
-          await submitMonitorApplication()
+          await submitMonitorApplication(true)
         }
         setToast({ isVisible: true, message: '既にProプランをご利用中です', type: 'success' })
         setCurrentStep('line_setup')
@@ -590,7 +599,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       setLoading(true)
       setProgressMsg('Stripe決済ページへ移動中...')
 
-      // 決済ページへ遷移すると画面を離れるため、その前に記録する。
+      // 決済ページへ遷移すると画面を離れるため、申込の記録だけ先に済ませる。
+      // 特典の付与は Stripe Webhook が決済の成立を確認してから行う。
       if (monitorConsent) {
         await submitMonitorApplication()
       }

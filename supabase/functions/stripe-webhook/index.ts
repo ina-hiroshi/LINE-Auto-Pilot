@@ -4,6 +4,100 @@ import { stripe, Stripe } from '../_shared/stripe-client.ts'
 
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
 
+
+/**
+ * モニター特典（初期設定代行の無償提供）を付与する。
+ *
+ * 申込は登録フローのプラン選択時に status='pending' で記録されるだけで、
+ * 特典の実体である代行注文はここで初めて作る。
+ * 決済ページで離脱した相手に ¥9,980 の作業だけ渡してしまわないよう、
+ * サブスクリプションの成立を確認してから付与する。
+ */
+async function grantMonitorBenefit(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<void> {
+  const { data: application, error: appError } = await supabase
+    .from('monitor_applications')
+    .select('id, store_name, email, phone, has_line_account')
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .maybeSingle()
+
+  if (appError) {
+    console.error('モニター申込の取得に失敗しました:', appError)
+    return
+  }
+  if (!application) return
+
+  // 既に付与済みなら何もしない（Webhook は再送されうる）
+  const { data: existing } = await supabase
+    .from('setup_service_orders')
+    .select('id')
+    .eq('monitor_application_id', application.id)
+    .maybeSingle()
+
+  if (existing) {
+    console.log('モニター特典は付与済み:', application.id)
+    return
+  }
+
+  const { data: store } = await supabase
+    .from('stores')
+    .select('id')
+    .eq('owner_id', userId)
+    .maybeSingle()
+
+  const { data: order, error: orderError } = await supabase
+    .from('setup_service_orders')
+    .insert({
+      user_id: userId,
+      store_id: store?.id ?? null,
+      monitor_application_id: application.id,
+      amount: 0,
+      status: 'in_progress',
+      paid_at: new Date().toISOString(),
+      contact_email: application.email,
+      contact_phone: application.phone,
+      has_line_account: application.has_line_account,
+      admin_notes: 'モニター特典（初期設定代行の無償提供）',
+    })
+    .select('id')
+    .single()
+
+  if (orderError) {
+    console.error('モニター特典の代行注文の作成に失敗しました:', orderError)
+    return
+  }
+
+  await supabase
+    .from('monitor_applications')
+    .update({ status: 'approved' })
+    .eq('id', application.id)
+
+  // 申込者が次に何をすればよいか分かるよう、初期設定の手順を送る。
+  try {
+    const res = await fetch(
+      `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-setup-service-email`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        },
+        body: JSON.stringify({ order_id: order.id, email_type: 'payment_confirmation' }),
+      },
+    )
+    if (!res.ok) {
+      console.error('初期設定手順メールの送信に失敗しました:', await res.text())
+    }
+  } catch (e) {
+    console.error('初期設定手順メールの送信でエラー:', e)
+  }
+
+  console.log('モニター特典を付与しました:', application.id)
+}
+
 Deno.serve(async (req: Request) => {
   const signature = req.headers.get('Stripe-Signature')
   const body = await req.text()
@@ -189,6 +283,8 @@ Deno.serve(async (req: Request) => {
             } else {
                 console.log('Profile updated successfully via userId');
             }
+            // 決済が成立したこの時点で、モニター特典を付与する。
+            await grantMonitorBenefit(supabase, userId)
           } else {
             // Fallback: Update by stripe_customer_id if client_reference_id is missing
             console.log('No userId found, attempting update via stripe_customer_id');
