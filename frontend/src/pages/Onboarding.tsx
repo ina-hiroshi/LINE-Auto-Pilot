@@ -64,6 +64,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   // モニター特典（初期設定代行の無償提供）への同意。チェック自体が申込になる。
   const [monitorConsent, setMonitorConsent] = useState(false)
+  // 初期設定手順メールは公式アカウントの有無で本文が変わる。
+  // 同名のローカル変数が別処理にあるため、状態は monitor 接頭辞で区別する。
+  const [monitorHasLineAccount, setMonitorHasLineAccount] = useState(false)
 
   // LINE設定
   const [lineSettings, setLineSettings] = useState({
@@ -481,6 +484,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           contact_name: formData.full_name,
           email: user.email,
           phone: formData.user_phone_number || formData.store_phone_number || null,
+          has_line_account: monitorHasLineAccount,
           agreed_to_interview: true,
           status: 'approved',
         })
@@ -500,6 +504,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           paid_at: new Date().toISOString(),
           contact_email: user.email,
           contact_phone: formData.user_phone_number || formData.store_phone_number || null,
+          has_line_account: monitorHasLineAccount,
           admin_notes: 'モニター特典（初期設定代行の無償提供）',
         })
         .select('id')
@@ -839,6 +844,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               isPreReleaseMode={IS_PRE_RELEASE_MODE}
               monitorConsent={monitorConsent}
               onMonitorConsentChange={setMonitorConsent}
+              hasLineAccount={monitorHasLineAccount}
+              onHasLineAccountChange={setMonitorHasLineAccount}
               loading={loading}
               progressMsg={progressMsg}
               onPlanSelect={handlePlanSelect}

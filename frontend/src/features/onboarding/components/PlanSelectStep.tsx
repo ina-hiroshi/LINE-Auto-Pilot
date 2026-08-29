@@ -11,6 +11,9 @@ interface PlanSelectStepProps {
   /** モニター特典（初期設定代行の無償提供）に同意したか。 */
   monitorConsent: boolean
   onMonitorConsentChange: (agreed: boolean) => void
+  /** LINE公式アカウントを既に持っているか。初期設定手順メールの内容が変わる。 */
+  hasLineAccount: boolean
+  onHasLineAccountChange: (has: boolean) => void
   loading: boolean
   progressMsg: string
   onPlanSelect: () => void
@@ -24,6 +27,8 @@ export default function PlanSelectStep({
   isPreReleaseMode,
   monitorConsent,
   onMonitorConsentChange,
+  hasLineAccount,
+  onHasLineAccountChange,
   loading,
   progressMsg,
   onPlanSelect,
@@ -226,6 +231,42 @@ export default function PlanSelectStep({
               </span>
             </span>
           </label>
+
+          {/* 送る手順が変わるため、同意した人にだけ聞く。
+              「持っていない」なら公式アカウントの開設手順から案内する。 */}
+          {monitorConsent && (
+            <div className="mt-5 pt-5 border-t border-slate-100">
+              <p className="text-sm font-bold text-slate-700 mb-3">
+                LINE公式アカウントはお持ちですか？
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => onHasLineAccountChange(true)}
+                  className={`text-left px-4 py-3 rounded-xl border transition ${
+                    hasLineAccount
+                      ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="block font-bold text-slate-800 text-sm">持っている</span>
+                  <span className="block text-xs text-slate-500 mt-0.5">連携の手順をお送りします</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onHasLineAccountChange(false)}
+                  className={`text-left px-4 py-3 rounded-xl border transition ${
+                    !hasLineAccount
+                      ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="block font-bold text-slate-800 text-sm">持っていない</span>
+                  <span className="block text-xs text-slate-500 mt-0.5">開設の手順からご案内します</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
