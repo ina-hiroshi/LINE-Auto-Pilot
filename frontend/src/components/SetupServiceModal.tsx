@@ -83,6 +83,7 @@ export default function SetupServiceModal({ isOpen, onClose, onSubmit, submittin
             <p className="text-sm text-blue-900">
               <strong>作業方法：</strong> お客様のLINE公式アカウントに当社スタッフを一時的にメンバー招待していただき、メールでのやり取りを通じて設定作業を実施します。
               作業完了後、すぐにメンバー権限を削除していただきます。
+              なお、LINE公式アカウントの開設は、アカウントの管理権限をお客様が保持していただくため、お客様ご自身で行っていただきます（無料・数分で作成できます）。
             </p>
           </div>
         </div>
