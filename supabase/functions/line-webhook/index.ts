@@ -2,7 +2,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { safeErrorResponse } from '../_shared/error-utils.ts'
-import { getGeminiUrl } from '../_shared/ai-config.ts'
+import { getGeminiUrl, KNOWLEDGE_BASE_MAX_CHARS } from '../_shared/ai-config.ts'
 import { createLogger } from '../_shared/logger.ts'
 import { isPaidPlan } from '../_shared/plan-utils.ts'
 import { checkAiRateLimit, recordAiUsage, maybeCleanupRateLimits } from '../_shared/rate-limiter.ts'
@@ -14,8 +14,8 @@ const log = createLogger('line-webhook')
 const CONFIG = {
   /** LINE ローディングアニメーションの表示秒数 */
   LOADING_ANIMATION_SECONDS: 20,
-  /** AI学習データの最大文字数 */
-  KNOWLEDGE_BASE_MAX_CHARS: 30000,
+  /** AI学習データの最大文字数（_shared/ai-config.ts が単一の情報源） */
+  KNOWLEDGE_BASE_MAX_CHARS,
   /** Gemini API の最大出力トークン数 */
   GEMINI_MAX_OUTPUT_TOKENS: 500,
   /** Gemini API の温度パラメータ */

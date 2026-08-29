@@ -696,7 +696,9 @@ export default function AutoResponses() {
   };
 
   // Calculate total character count for active documents
-  const KNOWLEDGE_BASE_MAX_CHARS = 30000;
+  // supabase/functions/_shared/ai-config.ts の同名定数と必ず揃えること。
+  // ずれるとバックエンドが無言で切り捨て、登録した内容が回答に反映されなくなる。
+  const KNOWLEDGE_BASE_MAX_CHARS = 8000;
   const totalChars = documents
     .filter(doc => doc.is_active)
     .reduce((sum, doc) => sum + (doc.extracted_text?.length || 0), 0);

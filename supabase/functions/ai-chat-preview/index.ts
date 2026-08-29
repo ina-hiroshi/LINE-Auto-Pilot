@@ -2,7 +2,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { safeErrorResponse } from '../_shared/error-utils.ts'
-import { getGeminiUrl } from '../_shared/ai-config.ts'
+import { getGeminiUrl, KNOWLEDGE_BASE_MAX_CHARS } from '../_shared/ai-config.ts'
 
 // Helper to generate AI response using Gemini API
 import type { SupabaseClientType, AISettings } from '../_shared/types.ts'
@@ -20,7 +20,7 @@ async function generateAIResponse(apiKey: string, message: string, settings: AIS
     let context = "";
     if (docs && docs.length > 0) {
       // Combine texts, limiting total length to avoid token limits (rough estimation)
-      context = docs.map((d: { extracted_text?: string }) => d.extracted_text || "").join("\n\n").substring(0, 30000);
+      context = docs.map((d: { extracted_text?: string }) => d.extracted_text || "").join("\n\n").substring(0, KNOWLEDGE_BASE_MAX_CHARS);
     }
 
     // 2. Generate System Prompt using shared function
