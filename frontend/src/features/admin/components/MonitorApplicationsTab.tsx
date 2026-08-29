@@ -41,7 +41,12 @@ const COURSE_LABELS: Record<MonitorApplication['course'], string> = {
   jikkuri: 'じっくりお得コース',
 }
 
-export function MonitorApplicationsTab() {
+interface Props {
+  /** 代行注文を作成した直後に呼ばれる。親が注文一覧を取り直すために使う。 */
+  onOrderCreated?: () => void
+}
+
+export function MonitorApplicationsTab({ onOrderCreated }: Props = {}) {
   const [applications, setApplications] = useState<MonitorApplication[]>([])
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
@@ -129,8 +134,12 @@ export function MonitorApplicationsTab() {
       if (app.status === 'pending') {
         await updateStatus(app.id, 'contacted')
       }
-    } catch {
-      setNotice({ id: app.id, tone: 'warn', text: '作業対象の作成に失敗しました。時間をおいて再度お試しください。' })
+
+      onOrderCreated?.()
+    } catch (e) {
+      // 原因が分からないと対処できないので、失敗理由をそのまま出す。
+      const detail = e instanceof Error ? e.message : String(e)
+      setNotice({ id: app.id, tone: 'warn', text: `作業対象の作成に失敗しました: ${detail}` })
     } finally {
       setStartingId(null)
     }

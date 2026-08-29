@@ -589,6 +589,14 @@ export default function AdminDashboard() {
     }
   }, [activeTab, isAdmin, analyticsData, fetchAnalytics])
 
+  // 注文一覧はマウント時にしか読み込まれないため、タブに戻るたびに取り直す。
+  // これがないと、モニター申込から作成した注文が反映されない。
+  useEffect(() => {
+    if (activeTab === 'setup_orders' && isAdmin) {
+      loadOrders()
+    }
+  }, [activeTab, isAdmin, loadOrders])
+
   // ===== タブ定義 =====
   const tabs = [
     { id: 'setup_orders' as const, label: '初期設定依頼', icon: ClipboardList },
@@ -663,7 +671,14 @@ export default function AdminDashboard() {
           />
         )}
 
-        {activeTab === 'monitor_applications' && <MonitorApplicationsTab />}
+        {activeTab === 'monitor_applications' && (
+          <MonitorApplicationsTab
+            onOrderCreated={() => {
+              loadOrders()
+              setActiveTab('setup_orders')
+            }}
+          />
+        )}
 
         {activeTab === 'plan_switcher' && (
           <PlanSwitcherTab
