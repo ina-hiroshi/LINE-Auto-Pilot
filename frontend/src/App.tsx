@@ -20,7 +20,6 @@ import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
 import SpecifiedCommercialTransactions from './pages/SpecifiedCommercialTransactions'
 import SecurityPolicy from './pages/SecurityPolicy'
-import PlanSettings from './pages/PlanSettings'
 
 import MemberCardLIFF from './pages/MemberCardLIFF'
 import FeatureAutoResponse from './pages/FeatureAutoResponse'
@@ -250,7 +249,6 @@ function App() {
             <Route path="/membership-card" element={<MembershipCard />} />
             <Route path="/rich-menu" element={<RichMenu />} />
             <Route path="/booking-settings" element={<BookingSettings />} />
-            <Route path="/plan-settings" element={<PlanSettings />} />
             <Route path="/dev" element={<AdminDashboard />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
