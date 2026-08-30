@@ -227,7 +227,7 @@ export default function BookingSettingsPage() {
       if (editingStaffId) {
         const { error } = await supabase
           .from('staff_members')
-          .update({ ...staffFormData, updated_at: new Date().toISOString() })
+          .update({ ...staffFormData })
           .eq('id', editingStaffId)
         if (error) throw error
       } else {
@@ -280,7 +280,7 @@ export default function BookingSettingsPage() {
       if (editingMenuId) {
         const { error } = await supabase
           .from('booking_menus')
-          .update({ ...menuFormData, updated_at: new Date().toISOString() })
+          .update({ ...menuFormData })
           .eq('id', editingMenuId)
         if (error) throw error
       } else {
