@@ -114,6 +114,12 @@ const SpecifiedCommercialTransactions: React.FC = () => {
                   <p className="text-slate-700 font-medium">
                     090-2237-2872
                   </p>
+                  {/* 電話番号は特商法上の必須表示のため掲載する。実際の問い合わせ窓口は
+                      公式LINEとメールなので、受付方針をここで明示しておく。 */}
+                  <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                    お問い合わせは公式LINEまたはメールにて承っております。<br />
+                    お電話でのご対応が難しい場合がございますので、あらかじめご了承ください。
+                  </p>
                 </div>
                 <div className="bg-slate-50 rounded-xl p-6 border border-slate-100">
                   <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
@@ -291,7 +297,7 @@ const SpecifiedCommercialTransactions: React.FC = () => {
               <h2 className="text-2xl font-bold text-slate-900 mb-4">お問い合わせ</h2>
               <p className="text-slate-600 mb-8 max-w-lg mx-auto">
                 本表記に関するお問い合わせは、以下の窓口までお願いいたします。<br />
-                <span className="text-sm text-slate-500 mt-2 block">基本的にお問い合わせは公式LINEで受け付けております。</span>
+                <span className="text-sm text-slate-500 mt-2 block">お問い合わせは公式LINEまたはメールにて承っております。</span>
               </p>
               <div className="bg-slate-50 rounded-xl p-6 max-w-md mx-auto border border-slate-100 space-y-3">
                 <p className="font-bold text-lg text-slate-900 mb-4">IToguchi 運営事務局</p>
@@ -306,12 +312,6 @@ const SpecifiedCommercialTransactions: React.FC = () => {
                   <a href="mailto:itoguchi.app@gmail.com" className="text-slate-700 hover:text-primary-600 transition-colors">
                     itoguchi.app@gmail.com
                   </a>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 mb-1">電話番号</p>
-                  <p className="text-slate-700">
-                    090-2237-2872
-                  </p>
                 </div>
               </div>
             </section>
