@@ -14,17 +14,20 @@ import Logo from '../components/Logo'
  * このページは訴求と導線に専念する。
  */
 
+// 代行の範囲は「LINE公式アカウントと IToguchi の接続」まで。
+// 公式アカウントの開設はオーナー権限を店舗が持つため、お客様ご自身で行っていただく。
+// 予約枠・リッチメニューなどの運用設定は代行に含まない（SetupServiceModal と同じ範囲）。
 const BENEFITS = [
-  'LINE公式アカウントの開設からお手伝いします',
-  '予約枠・営業時間・定休日の設定を代行します',
-  'リッチメニューの作成と設置まで行います',
-  '設定作業のために店舗へ伺う必要はありません',
+  'LINE Developersでのチャネル作成をサポートします',
+  '認証情報（チャネルID・シークレット等）の取得と登録を代行します',
+  'Webhook URLの設定と、LINE連携の完了確認まで行います',
+  'メールのやり取りだけで完結します（店舗へ伺う必要はありません）',
 ]
 
 const STEPS = [
   { n: 1, title: 'アカウントを登録', body: 'メールアドレスと店舗情報をご入力ください。数分で終わります。' },
   { n: 2, title: 'Proプランを選択', body: '30日間は無料です。その画面で「インタビューに協力する」にチェックを入れてください。' },
-  { n: 3, title: '設定はこちらで代行', body: 'ご連絡のうえ、初期設定を無償で行います。完了後にご案内します。' },
+  { n: 3, title: '接続設定はこちらで代行', body: 'ご連絡のうえ、LINE公式アカウントとの接続設定を無償で行います。完了後にご案内します。' },
 ]
 
 export default function MonitorApplication() {
@@ -67,9 +70,9 @@ export default function MonitorApplication() {
               初期設定代行 ¥9,980 を<br className="md:hidden" />無料で
             </h1>
             <p className="text-primary-100 mb-8 leading-relaxed">
-              LINEでの予約受付を始めたいけれど、設定が面倒で手が止まっている。
+              LINEでの予約受付を始めたいけれど、公式アカウントとの接続設定でつまずいてしまう。
               <br className="hidden md:inline" />
-              その部分をこちらで代行します。お願いするのは、使ってみた感想だけです。
+              その接続作業をこちらで代行します。お願いするのは、使ってみた感想だけです。
             </p>
             <button
               onClick={goToSignup}
@@ -101,6 +104,11 @@ export default function MonitorApplication() {
               </li>
             ))}
           </ul>
+          <p className="mt-5 text-xs text-slate-500 leading-relaxed">
+            ※ 代行の範囲はLINE公式アカウントとIToguchiの接続設定までです。
+            LINE公式アカウントの開設は、管理権限をお客様が保持していただくためご自身で行っていただきます（無料・数分で作成できます。手順はご案内します）。
+            予約枠やリッチメニューなどの運用設定は、管理画面からお客様ご自身で設定していただきます。
+          </p>
         </div>
 
         <h2 className="text-xl font-bold text-slate-900 mb-5">受け取り方</h2>
