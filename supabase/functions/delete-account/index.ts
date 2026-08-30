@@ -53,6 +53,49 @@ async function deleteWhereIn(
   throw new Error(`Failed to delete ${table}.${column}: ${error.message}`)
 }
 
+/**
+ * 解約対象の Stripe 顧客IDを集める。
+ *
+ * profiles.stripe_customer_id だけを見ていると、その列が入っていない利用者の
+ * 契約を取り残したままアカウントだけ消してしまう。実際に、顧客IDが
+ * 紐づく前に削除されたアカウントのサブスクリプションが本番に残り、
+ * 退会済みなのにトライアル終了後の請求が控えている状態が起きた。
+ * 退会した本人はもうログインできず、自分では止めようがない。
+ *
+ * そのため顧客IDが無い場合は Stripe 側から引き当てる。
+ * 顧客作成時に metadata.supabase_user_id を必ず入れているのでこれを第一候補とし、
+ * 取れなければメールアドレスで探す。
+ */
+async function findStripeCustomerIds(
+  storedCustomerId: string | null | undefined,
+  userId: string,
+  email: string | null | undefined,
+): Promise<string[]> {
+  const ids = new Set<string>()
+  if (storedCustomerId) ids.add(storedCustomerId)
+
+  try {
+    const byMetadata = await stripe.customers.search({
+      query: `metadata['supabase_user_id']:'${userId}'`,
+      limit: 100,
+    })
+    for (const customer of byMetadata.data) ids.add(customer.id)
+  } catch (error) {
+    console.error('[delete-account] customer search by metadata failed:', error)
+  }
+
+  if (email) {
+    try {
+      const byEmail = await stripe.customers.list({ email, limit: 100 })
+      for (const customer of byEmail.data) ids.add(customer.id)
+    } catch (error) {
+      console.error('[delete-account] customer lookup by email failed:', error)
+    }
+  }
+
+  return [...ids]
+}
+
 /** Stripe のサブスクリプションを即時解約し、支払い方法を切り離す */
 async function cancelStripe(customerId: string, userId: string): Promise<string[]> {
   const canceled: string[] = []
@@ -277,21 +320,29 @@ Deno.serve(async (req: Request) => {
     const storeIds = (stores ?? []).map((row: { id: string }) => row.id)
 
     // 1. 課金の停止を最優先で確定させる。失敗した場合は何も削除しない。
-    let canceledSubscriptionIds: string[] = []
-    if (profile?.stripe_customer_id) {
-      try {
-        canceledSubscriptionIds = await cancelStripe(profile.stripe_customer_id, user.id)
-      } catch (error) {
-        console.error('[delete-account] stripe cancellation failed:', error)
-        return jsonResponse(
-          {
-            error:
-              'ご契約の解約処理に失敗したため、アカウントの削除を中断しました。時間をおいて再度お試しいただくか、サポートまでご連絡ください。',
-          },
-          502,
-          corsHeaders,
-        )
+    const canceledSubscriptionIds: string[] = []
+    try {
+      // profiles に顧客IDが入っていない利用者を取りこぼさないよう、
+      // Stripe 側からも引き当ててから解約する。
+      const customerIds = await findStripeCustomerIds(
+        profile?.stripe_customer_id,
+        user.id,
+        user.email,
+      )
+
+      for (const customerId of customerIds) {
+        canceledSubscriptionIds.push(...(await cancelStripe(customerId, user.id)))
       }
+    } catch (error) {
+      console.error('[delete-account] stripe cancellation failed:', error)
+      return jsonResponse(
+        {
+          error:
+            'ご契約の解約処理に失敗したため、アカウントの削除を中断しました。時間をおいて再度お試しいただくか、サポートまでご連絡ください。',
+        },
+        502,
+        corsHeaders,
+      )
     }
 
     // 2. Google 連携の失効（ベストエフォート）
