@@ -121,24 +121,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         window.history.replaceState({}, '', '/onboarding')
         
         try {
-          // ユーザー情報を取得
-          const { data: { user } } = await supabase.auth.getUser()
-          if (!user) throw new Error('ユーザーが見つかりません')
-          
-          // データベースのplanをproに更新（Webhookを待たない）
-          const { error } = await supabase
-            .from('profiles')
-            .update({ plan: 'pro' })
-            .eq('id', user.id)
-          
-          if (error) {
-            console.error('Failed to update plan:', error)
-            // エラーでも続行（Webhookが後で更新する可能性がある）
-          } else {
-            console.log('Plan updated to pro in database')
-          }
-          
-          // ローカルステートも更新
+          // プランの確定は stripe-webhook（サービスロール）だけが行う。
+          // ここから profiles.plan を書けるようにしておくと、決済せずに
+          // 同じリクエストを送るだけで Pro になれてしまう。
+          // 画面表示だけ先に進め、DB は Webhook の反映を待つ。
           setCurrentPlan('pro')
           
           // LINE設定ステップに直接進む

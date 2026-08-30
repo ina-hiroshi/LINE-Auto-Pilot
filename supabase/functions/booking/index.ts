@@ -160,7 +160,15 @@ Deno.serve(async (req: Request) => {
         throw new ClientVisibleError('変更対象の予約が見つかりません', 404)
       }
 
-      modifyReservationFlow = true
+      // 予約IDを知っているだけでは仮押さえさせない。
+      // 以前は店舗の一致だけを見て LINE ログイン必須の判定を通していたため、
+      // 予約IDさえ分かれば無認証で枠を押さえられる状態だった。
+      const isReservationOwner =
+        verifiedUserId !== null && verifiedUserId === modifyTarget.line_user_id
+
+      // 空き枠の照会はもともと公開の操作なので、変更対象の除外だけを有効にする。
+      // 仮押さえは本人が確認できたときに限る。
+      modifyReservationFlow = action === 'get_available_slots' || isReservationOwner
       line_user_id = verifiedUserId ?? requestLineUserId ?? modifyTarget.line_user_id
     }
 

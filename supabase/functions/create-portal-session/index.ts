@@ -18,6 +18,15 @@ Deno.serve(async (req: Request) => {
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
 
+    // stripe_customer_id は本人にも書かせない列なので、保存はサービスロールで行う。
+    // 利用者が自分で書けると、他人の Stripe 顧客IDを自分の行に入れて
+    // 請求ポータルから他人の契約を操作できてしまう。
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
     const {
       data: { user },
     } = await supabaseClient.auth.getUser()
@@ -47,7 +56,7 @@ Deno.serve(async (req: Request) => {
       customerId = customer.id
 
       // Update profile with stripe_customer_id
-      await supabaseClient
+      await supabaseAdmin
         .from('profiles')
         .update({ stripe_customer_id: customerId })
         .eq('id', user.id)
@@ -67,7 +76,7 @@ Deno.serve(async (req: Request) => {
         customerId = customer.id
 
         // Update profile with new stripe_customer_id
-        await supabaseClient
+        await supabaseAdmin
           .from('profiles')
           .update({ stripe_customer_id: customerId })
           .eq('id', user.id)

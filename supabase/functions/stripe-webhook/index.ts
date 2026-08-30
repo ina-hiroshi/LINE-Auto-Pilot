@@ -4,6 +4,39 @@ import { stripe, Stripe } from '../_shared/stripe-client.ts'
 
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
 
+/**
+ * サブスクリプションの現在の請求期間の終了日を ISO 文字列で返す。
+ *
+ * current_period_end は Stripe の新しいバージョンでサブスクリプション本体から
+ * 明細（items.data[]）側へ移った。本体だけを見ていると undefined になり、
+ * `new Date(NaN).toISOString()` が RangeError を投げて Webhook 全体が落ちる。
+ * その結果 plan の更新まで到達できず、決済が成立しているのにプランが
+ * 反映されない状態になっていた。
+ *
+ * 取得できなかった場合は null を返し、呼び出し側はこの列の更新を見送る。
+ * 期間の終了日が分からないことは、プラン反映を止める理由にはならない。
+ */
+function getCurrentPeriodEnd(subscription: Stripe.Subscription): string | null {
+  // 同梱している stripe の型定義は current_period_end が本体にあった頃のもので、
+  // 明細側に移った現在の形を知らない。実際に返ってくる値を読むため型を外す。
+  const item = subscription.items?.data?.[0] as unknown as
+    | { current_period_end?: number }
+    | undefined
+  const root = subscription as unknown as { current_period_end?: number }
+
+  const candidates = [item?.current_period_end, root.current_period_end]
+
+  for (const seconds of candidates) {
+    if (typeof seconds !== 'number' || !Number.isFinite(seconds)) continue
+    const date = new Date(seconds * 1000)
+    if (Number.isNaN(date.getTime())) continue
+    return date.toISOString()
+  }
+
+  console.error(`current_period_end を取得できませんでした: ${subscription.id}`)
+  return null
+}
+
 
 /**
  * モニター特典（初期設定代行の無償提供）を付与する。
@@ -245,8 +278,8 @@ Deno.serve(async (req: Request) => {
             const subscription = await stripe.subscriptions.retrieve(subscriptionId);
             const status = subscription.status;
             const priceId = subscription.items.data[0].price.id;
-            const currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
-            
+            const currentPeriodEnd = getCurrentPeriodEnd(subscription);
+
             // トライアル期間があるかどうかをチェック
             const isTrialing = status === 'trialing';
             
@@ -264,9 +297,13 @@ Deno.serve(async (req: Request) => {
               subscription_status: status,
               plan: plan,
               price_id: priceId,
-              current_period_end: currentPeriodEnd
             };
-            
+
+            // 期間の終了日が取れないときはこの列だけ触らず、プランの反映は続行する
+            if (currentPeriodEnd) {
+              updateData.current_period_end = currentPeriodEnd;
+            }
+
             // トライアル中の場合、has_used_trial フラグを立てる（再利用防止）
             if (isTrialing) {
               updateData.has_used_trial = true;
@@ -307,7 +344,7 @@ Deno.serve(async (req: Request) => {
         console.log(`Processing subscription update for: ${subscription.id}`);
         const status = subscription.status;
         const priceId = subscription.items.data[0].price.id;
-        const currentPeriodEnd = new Date(subscription.current_period_end * 1000).toISOString();
+        const currentPeriodEnd = getCurrentPeriodEnd(subscription);
         const customerId = subscription.customer;
 
         // Map Stripe status to internal plan
@@ -315,18 +352,24 @@ Deno.serve(async (req: Request) => {
         if (status === 'active' || status === 'trialing') {
           plan = 'pro';
         }
-        
+
         console.log(`Updating plan to ${plan} for customer ${customerId}`);
+
+        const subscriptionUpdate: Record<string, unknown> = {
+          plan: plan,
+          price_id: priceId,
+          subscription_status: status,
+          subscription_id: subscription.id,
+        };
+
+        // 期間の終了日が取れないときはこの列だけ触らず、プランの反映は続行する
+        if (currentPeriodEnd) {
+          subscriptionUpdate.current_period_end = currentPeriodEnd;
+        }
 
         const { error } = await supabase
           .from('profiles')
-          .update({
-            plan: plan,
-            price_id: priceId,
-            current_period_end: currentPeriodEnd,
-            subscription_status: status,
-            subscription_id: subscription.id,
-          })
+          .update(subscriptionUpdate)
           .eq('stripe_customer_id', customerId);
           
         if (error) console.error('Error updating profile in subscription update:', error);
