@@ -42,10 +42,11 @@ export default function DevSandbox() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({ plan: newPlan })
-        .eq('id', user.id);
+      // plan はサービスロールだけが書ける列。管理者権限を検証する
+      // Edge Function 経由で変更する。
+      const { error } = await supabase.functions.invoke('admin-update-user-plan', {
+        body: { userId: user.id, plan: newPlan },
+      });
 
       if (error) throw error;
 

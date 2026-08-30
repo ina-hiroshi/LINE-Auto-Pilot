@@ -221,43 +221,16 @@ export default function AdminDashboard() {
     }
   }, [])
 
-  const checkAdminPermissionAndLoad = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single()
-
-      if (isAdmin && !profile?.is_admin) {
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ is_admin: true })
-          .eq('id', user.id)
-
-        if (updateError) {
-          console.warn('Failed to update is_admin (non-blocking):', updateError)
-        }
-      }
-
-      loadOrders()
-      fetchCurrentPlan()
-    } catch (error) {
-      console.error('Admin permission check error:', error)
+  // 以前はここで自分の profiles.is_admin を true に書き戻していたが、
+  // 誰でも自分の行を更新できるため管理者になり放題だった。
+  // 管理者かどうかの判定は useUserFeatures とサーバー側の検証に任せ、
+  // フラグの付与は Supabase 側で直接行う運用とする。
+  useEffect(() => {
+    if (isAdmin) {
       loadOrders()
       fetchCurrentPlan()
     }
   }, [isAdmin, loadOrders, fetchCurrentPlan])
-
-  useEffect(() => {
-    if (isAdmin) {
-      // 管理者権限を確認してからデータを読み込む
-      checkAdminPermissionAndLoad()
-    }
-  }, [isAdmin, checkAdminPermissionAndLoad])
 
   const selectOrder = async (order: SetupOrder) => {
     setSelectedOrder(order)
@@ -520,10 +493,11 @@ export default function AdminDashboard() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('No user found')
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({ plan: newPlan })
-        .eq('id', user.id)
+      // plan はサービスロールだけが書ける列。管理者権限を検証する
+      // Edge Function 経由で変更する。
+      const { error } = await supabase.functions.invoke('admin-update-user-plan', {
+        body: { userId: user.id, plan: newPlan },
+      })
 
       if (error) throw error
 
