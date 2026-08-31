@@ -673,10 +673,11 @@ export async function handleCancelReservation(
   params: CancelReservationParams,
   corsHeaders: CorsHeaders
 ): Promise<Response> {
-  const { reservation_id, line_user_id, isManualRegistration } = params
+  const { reservation_id, store_id, line_user_id, isManualRegistration } = params
 
   if (!reservation_id) throw new ClientVisibleError('Reservation ID is required')
   if (!isValidUUID(reservation_id)) throw new ClientVisibleError('Invalid reservation_id format')
+  if (store_id && !isValidUUID(store_id)) throw new ClientVisibleError('Invalid store_id format')
   console.log(`[Booking] Cancelling reservation: ${reservation_id}`)
 
   const { data: reservation, error: fetchError } = await supabaseClient
@@ -687,7 +688,15 @@ export async function handleCancelReservation(
 
   if (fetchError) throw new ClientVisibleError(toErrorMessage(fetchError))
 
-  if (!isManualRegistration && reservation.line_user_id !== line_user_id) {
+  // isManualRegistration が保証するのは「リクエストの store_id の持ち主である」ことだけで、
+  // その予約が本当にその店舗のものかは別途確かめる必要がある。
+  // 突き合わせないと、自店舗の store_id を送りつつ他店舗の予約IDを指定するだけで
+  // 他店舗の予約を取り消せてしまう。
+  if (isManualRegistration) {
+    if (!store_id || reservation.store_id !== store_id) {
+      throw new ClientVisibleError('この予約は操作できません', 403)
+    }
+  } else if (reservation.line_user_id !== line_user_id) {
     throw new ClientVisibleError('自分の予約のみキャンセルできます', 403)
   }
 
@@ -695,6 +704,7 @@ export async function handleCancelReservation(
     .from('reservations')
     .update({ status: 'cancelled' })
     .eq('id', reservation_id)
+    .eq('store_id', reservation.store_id)
 
   if (error) throw new ClientVisibleError(toErrorMessage(error))
 
@@ -768,7 +778,13 @@ export async function handleUpdateReservation(
 
   if (fetchError) throw new ClientVisibleError(toErrorMessage(fetchError))
 
-  if (!isManualRegistration && oldReservation.line_user_id !== line_user_id) {
+  // キャンセルと同様、店舗管理者操作でも予約側の store_id と突き合わせる。
+  // ここを見ないと、他店舗の予約を「自店舗へ移動」する形で消せてしまう。
+  if (isManualRegistration) {
+    if (oldReservation.store_id !== store_id) {
+      throw new ClientVisibleError('この予約は操作できません', 403)
+    }
+  } else if (oldReservation.line_user_id !== line_user_id) {
     throw new ClientVisibleError('自分の予約のみ変更できます', 403)
   }
 
@@ -827,6 +843,7 @@ export async function handleUpdateReservation(
     .from('reservations')
     .update({ status: 'cancelled' })
     .eq('id', reservation_id)
+    .eq('store_id', store_id)
 
   if (cancelError) {
     console.error('Failed to cancel old reservation after new one created:', cancelError)
