@@ -51,6 +51,11 @@ interface StaffShiftTabProps {
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_KEYS: (keyof BusinessHours)[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 
+/** 曜日ごとに独立した実体を持たせる（参照を共有すると1曜日の編集が他曜日の表示に漏れる） */
+function cloneSlots(slots: StaffWorkSlot[]): StaffWorkSlot[] {
+  return slots.map((s) => ({ ...s }))
+}
+
 function toDbPatternUpdate(slots: StaffWorkSlot[]) {
   return {
     slots,
@@ -257,8 +262,11 @@ export function StaffShiftTab({ storeId, staffList, onToast, onDataChange }: Sta
     if (!pattern) return
     
     try {
-      const newSlots = [...pattern.slots]
-      newSlots[slotIndex][field] = value
+      // 枠オブジェクトごと差し替える。中身を書き換えると、
+      // 「全曜日にコピー」で同じ枠を共有している他曜日の表示まで変わってしまう。
+      const newSlots = pattern.slots.map((slot, i) =>
+        i === slotIndex ? { ...slot, [field]: value } : slot,
+      )
       
       const { error } = await supabase
         .from('staff_work_patterns')
@@ -403,7 +411,7 @@ export function StaffShiftTab({ storeId, staffList, onToast, onDataChange }: Sta
               if (p.day_of_week === dayOfWeek) return p
               return {
                 ...p,
-                slots: sourceSlots,
+                slots: cloneSlots(sourceSlots),
                 is_active: sourcePattern.is_active
               }
             }),
@@ -415,7 +423,7 @@ export function StaffShiftTab({ storeId, staffList, onToast, onDataChange }: Sta
           if (p.day_of_week === dayOfWeek) return p
           return {
             ...p,
-            slots: sourceSlots,
+            slots: cloneSlots(sourceSlots),
             is_active: sourcePattern.is_active
           }
         }))
