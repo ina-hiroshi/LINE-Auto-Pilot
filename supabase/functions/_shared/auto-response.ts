@@ -86,6 +86,110 @@ export type AutoResponseMatch<T extends ScorableRule> = {
 }
 
 /**
+ * 定型文で足りる添え言葉。キーワードを除いた残りがこれだけなら
+ * 「営業時間を教えてください」のように、キーワード応答で十分とみなす。
+ * 長いものから順に削る。
+ */
+const POLITE_FILLERS = [
+  'よろしくお願いします',
+  'お願いいたします',
+  'お願い致します',
+  '教えてください',
+  '教えて下さい',
+  '知りたいです',
+  'したいです',
+  'お願いします',
+  'でしょうか',
+  'できますか',
+  'しますか',
+  'のですが',
+  'んです',
+  'します',
+  'ください',
+  '下さい',
+  '教えて',
+  '知りたい',
+  'したい',
+  'ですか',
+  'ますか',
+  'について',
+  'のこと',
+  'って',
+  'です',
+  'ます',
+  'お願い',
+  'かな',
+  '店舗',
+  'お店',
+  'そちら',
+  'を',
+  'は',
+  'が',
+  'に',
+  'の',
+  'と',
+  'も',
+  'へ',
+  'で',
+  'や',
+  'ね',
+  'よ',
+] as const
+
+const NORMALIZED_FILLERS = [...POLITE_FILLERS]
+  .map((filler) => normalizeText(filler))
+  .filter((filler) => filler.length > 0)
+  .sort((a, b) => b.length - a.length)
+
+function leftoverAfterKeyword(normalizedText: string, normalizedKeyword: string): string {
+  const index = normalizedText.indexOf(normalizedKeyword)
+  if (index < 0) return normalizedText
+  return normalizedText.slice(0, index) + normalizedText.slice(index + normalizedKeyword.length)
+}
+
+function stripPoliteFillers(normalized: string): string {
+  let current = normalized
+  let changed = true
+  while (changed && current.length > 0) {
+    changed = false
+    for (const filler of NORMALIZED_FILLERS) {
+      if (current.startsWith(filler)) {
+        current = current.slice(filler.length)
+        changed = true
+        break
+      }
+      if (current.endsWith(filler)) {
+        current = current.slice(0, -filler.length)
+        changed = true
+        break
+      }
+    }
+  }
+  return current
+}
+
+/**
+ * キーワードには当たったが、定型文をそのまま返す前に AI 判定が必要なときに true。
+ *
+ * 例: 「予約」→「下のメニューから」に対する「予約をキャンセルしたい」
+ * 完全一致と添え言葉だけの部分一致は false（判定せず定型文）。
+ * AIがオフなら false（従来どおりキーワード応答を使う）。
+ */
+export function shouldDeferKeywordToAi(
+  text: string,
+  match: AutoResponseMatch<ScorableRule> | null,
+  aiEnabled: boolean,
+): boolean {
+  if (!aiEnabled || !match) return false
+  if (match.score >= SCORING.EXACT_MATCH) return false
+
+  const leftover = stripPoliteFillers(
+    leftoverAfterKeyword(normalizeText(text), normalizeText(match.rule.keyword)),
+  )
+  return leftover.length > 0
+}
+
+/**
  * しきい値を超える最良のルールを返す。該当が無ければ null（AI応答などへフォールバック）。
  *
  * 同点の場合はキーワードが長い方（より具体的な方）を優先する。

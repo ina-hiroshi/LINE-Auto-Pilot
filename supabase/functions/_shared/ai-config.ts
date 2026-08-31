@@ -15,7 +15,6 @@
  *
  * 品質を上げたい場合は Supabase Secret の GEMINI_MODEL で上書きする。
  */
-const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-3.1-flash-lite'
 
 /**
  * ナレッジベースをプロンプトに埋め込む際の最大文字数。
@@ -27,5 +26,6 @@ const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-3.1-flash-lite'
 export const KNOWLEDGE_BASE_MAX_CHARS = 8000
 
 export function getGeminiUrl(apiKey: string): string {
-  return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`
+  const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.1-flash-lite'
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
 }

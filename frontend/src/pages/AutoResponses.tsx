@@ -942,7 +942,7 @@ export default function AutoResponses() {
                     <div>
                       <h3 className="font-bold text-gray-900 text-lg">AI自動応答を有効にする</h3>
                       <p className="text-sm text-gray-500 mt-1">
-                        有効にすると、キーワード応答に該当しないメッセージに対してAIが自動で返信します。
+                        キーワードに当てはまらないメッセージと、キーワードには触れても定型文では足りない質問はAIが返信します。迷った場合は定型文にせずAIへ回します。
                       </p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer ml-4">

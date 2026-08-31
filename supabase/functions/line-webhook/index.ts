@@ -6,7 +6,8 @@ import { getGeminiUrl, KNOWLEDGE_BASE_MAX_CHARS } from '../_shared/ai-config.ts'
 import { createLogger } from '../_shared/logger.ts'
 import { isPaidPlan } from '../_shared/plan-utils.ts'
 import { checkAiRateLimit, recordAiUsage, maybeCleanupRateLimits } from '../_shared/rate-limiter.ts'
-import { selectAutoResponse } from '../_shared/auto-response.ts'
+import { selectAutoResponse, shouldDeferKeywordToAi } from '../_shared/auto-response.ts'
+import { judgeKeywordReplyFit } from '../_shared/keyword-judge.ts'
 import type { SupabaseClientType, AISettings } from '../_shared/types.ts'
 
 const log = createLogger('line-webhook')
@@ -352,8 +353,29 @@ Deno.serve(async (req: Request) => {
                     
                     // 2-3. Scoring & Threshold（_shared/auto-response.ts）
                     const autoMatch = selectAutoResponse(text, rules)
+                    const canUseAi = isAiEnabled && Boolean(geminiApiKey)
+                    const needsKeywordJudge = shouldDeferKeywordToAi(text, autoMatch, canUseAi)
+                    let useKeyword = Boolean(autoMatch) && !needsKeywordJudge
 
-                    if (autoMatch) {
+                    if (needsKeywordJudge && autoMatch && geminiApiKey) {
+                        await startLoadingAnimation(channelAccessToken, userId)
+                        const responseText = typeof autoMatch.rule.response_text === 'string'
+                            ? autoMatch.rule.response_text
+                            : ''
+                        const verdict = await judgeKeywordReplyFit(geminiApiKey, {
+                            keyword: autoMatch.rule.keyword,
+                            responseText,
+                            userMessage: text,
+                        })
+                        if (verdict === 'keep') {
+                            useKeyword = true
+                            console.log(`Keyword '${autoMatch.rule.keyword}' judged KEEP`)
+                        } else {
+                            console.log(`Keyword '${autoMatch.rule.keyword}' judged AI (use full reply)`)
+                        }
+                    }
+
+                    if (useKeyword && autoMatch) {
                         replyText = autoMatch.rule.response_text
                         status = 'auto_replied'
                         console.log('Selected auto-response rule:', autoMatch.rule.keyword)

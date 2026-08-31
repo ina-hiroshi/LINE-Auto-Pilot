@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert@^1.0.0'
-import { normalizeText, SCORING, scoreRule, selectAutoResponse } from './auto-response.ts'
+import { normalizeText, SCORING, scoreRule, selectAutoResponse, shouldDeferKeywordToAi } from './auto-response.ts'
 
 type Rule = {
   keyword: string
@@ -149,4 +149,39 @@ Deno.test('selectAutoResponse: 選ばれたルールの応答文を返す', () =
 Deno.test('selectAutoResponse: スコアも返す', () => {
   const rules = [rule('営業時間')]
   assertEquals(selectAutoResponse('営業時間', rules)?.score, SCORING.EXACT_MATCH)
+})
+
+// ---- shouldDeferKeywordToAi ----
+
+const defer = (text: string, keyword: string, aiEnabled = true) => {
+  const match = selectAutoResponse(text, [rule(keyword)])
+  return shouldDeferKeywordToAi(text, match, aiEnabled)
+}
+
+Deno.test('shouldDeferKeywordToAi: 完全一致は定型文のまま', () => {
+  assertEquals(defer('営業時間', '営業時間'), false)
+  assertEquals(defer('営業時間？', '営業時間'), false)
+})
+
+Deno.test('shouldDeferKeywordToAi: 添え言葉だけの部分一致は定型文のまま', () => {
+  assertEquals(defer('営業時間を教えてください', '営業時間'), false)
+  assertEquals(defer('お店の営業時間は？', '営業時間'), false)
+  assertEquals(defer('予約したいです', '予約'), false)
+  assertEquals(defer('予約します', '予約'), false)
+})
+
+Deno.test('shouldDeferKeywordToAi: 定型文では答えきれない質問はAIへ', () => {
+  assertEquals(defer('予約をキャンセルしたい', '予約'), true)
+  assertEquals(defer('予約の変更はできますか', '予約'), true)
+  assertEquals(defer('キャンセル料金はかかりますか', '料金'), true)
+  assertEquals(defer('年末年始の営業時間を教えて', '営業時間'), true)
+})
+
+Deno.test('shouldDeferKeywordToAi: AIがオフならキーワード応答を維持する', () => {
+  assertEquals(defer('予約をキャンセルしたい', '予約', false), false)
+})
+
+Deno.test('shouldDeferKeywordToAi: マッチなし・nullはfalse', () => {
+  assertEquals(shouldDeferKeywordToAi('こんにちは', null, true), false)
+  assertEquals(shouldDeferKeywordToAi('こんにちは', selectAutoResponse('こんにちは', [rule('営業時間')]), true), false)
 })
