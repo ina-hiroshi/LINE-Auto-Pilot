@@ -100,18 +100,6 @@ export function BookingPageTab({
       const sanitizedExt = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt) ? fileExt : 'png'
       const fileName = `${storeId}/logo_${Date.now()}.${sanitizedExt}`
 
-      // 既存のロゴがある場合は削除を試みる（エラーは無視）
-      if (bookingSettings.liff_logo_url) {
-        try {
-          const oldPath = bookingSettings.liff_logo_url.split('/store-assets/')[1]
-          if (oldPath) {
-            await supabase.storage.from('store-assets').remove([oldPath])
-          }
-        } catch {
-          // 削除エラーは無視
-        }
-      }
-
       // アップロード実行
       const { data, error } = await supabase.storage
         .from('store-assets')
@@ -201,19 +189,9 @@ export function BookingPageTab({
     setIsDragging(false)
   }
 
-  // ロゴ画像削除処理
-  const handleLogoDelete = useCallback(async () => {
+  // ロゴ画像削除処理。実ファイルは「設定を保存」が成功した時点で消す
+  const handleLogoDelete = useCallback(() => {
     if (!bookingSettings.liff_logo_url) return
-
-    try {
-      // ストレージから削除を試みる
-      const path = bookingSettings.liff_logo_url.split('/store-assets/')[1]
-      if (path) {
-        await supabase.storage.from('store-assets').remove([path])
-      }
-    } catch {
-      // 削除エラーは無視（URLだけクリア）
-    }
 
     onBookingSettingsChange({ ...bookingSettings, liff_logo_url: '' })
     onToast('ロゴ画像を削除しました', 'success')

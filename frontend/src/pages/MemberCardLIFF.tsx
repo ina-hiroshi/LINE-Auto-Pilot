@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { Loader2, AlertCircle, Stamp } from 'lucide-react'
 import liff from '@line/liff'
 import { motion } from 'framer-motion'
+import { formatMemberNo, normalizeRankSettings, resolveMembershipRank } from '../lib/membershipRank'
 
 type CardSettings = {
   title: string
@@ -38,7 +39,7 @@ export default function MemberCardLIFF() {
   const [error, setError] = useState<string | null>(null)
   const [settings, setSettings] = useState<CardSettings | null>(null)
   const [customer, setCustomer] = useState<CustomerInfo | null>(null)
-  const rankSettingsRef = useRef<any[]>([])
+  const rankSettingsRef = useRef<unknown>(null)
   
   // Store ID from query param
   const storeId = searchParams.get('store_id')
@@ -89,13 +90,7 @@ export default function MemberCardLIFF() {
           cardSettings = cardSettings || {}
           console.log('Parsed card settings:', cardSettings)
 
-          const rankSettings = storeData.membership_rank_settings || [
-            { name: 'Bronze', threshold: 0 },
-            { name: 'Silver', threshold: 100 },
-            { name: 'Gold', threshold: 500 }
-          ]
-          
-          rankSettingsRef.current = rankSettings
+          rankSettingsRef.current = storeData.membership_rank_settings
 
           // Helper for boolean values
           const getBool = (val: any, def: boolean) => {
@@ -123,7 +118,7 @@ export default function MemberCardLIFF() {
             show_member_no: getBool(cardSettings.show_member_no, true),
             show_rank: isProPlan ? getBool(cardSettings.show_rank, true) : false, // Rank is Pro feature? Maybe not, but let's keep it simple. Actually user didn't specify rank is pro only, but themes/colors are.
             stamp_config: safeStampConfig,
-            rank_settings: rankSettings
+            rank_settings: normalizeRankSettings(storeData.membership_rank_settings)
           })
         }
 
@@ -157,18 +152,8 @@ export default function MemberCardLIFF() {
               const newUserId = data.lineProfile?.userId || userId
               const newPoints = data.points?.balance || 0
               
-              // Calculate Rank
-              const currentRanks = rankSettingsRef.current.length > 0 ? rankSettingsRef.current : [
-                { name: 'Bronze', threshold: 0 },
-                { name: 'Silver', threshold: 100 },
-                { name: 'Gold', threshold: 500 }
-              ]
-              
-              const sortedRanks = [...currentRanks].sort((a: any, b: any) => b.threshold - a.threshold)
-              const rankObj = sortedRanks.find((r: any) => newPoints >= r.threshold)
-              const rankName = rankObj ? rankObj.name : sortedRanks[sortedRanks.length - 1].name
-
-              const memberNo = newUserId.substring(0, 8).toUpperCase()
+              const rankName = resolveMembershipRank(newPoints, rankSettingsRef.current)
+              const memberNo = formatMemberNo(newUserId)
 
               console.log('Calculated Customer Data:', {
                 line_user_id: newUserId,
@@ -198,15 +183,7 @@ export default function MemberCardLIFF() {
           // Fallback for dev/mock (if needed, or just keep defaults)
           console.log('No access token available, using mock/guest data')
           
-          // Calculate Rank for mock
-          const currentRanks = rankSettingsRef.current.length > 0 ? rankSettingsRef.current : [
-            { name: 'Bronze', threshold: 0 },
-            { name: 'Silver', threshold: 100 },
-            { name: 'Gold', threshold: 500 }
-          ]
-          const sortedRanks = [...currentRanks].sort((a: any, b: any) => b.threshold - a.threshold)
-          const rankObj = sortedRanks.find((r: any) => currentPoints >= r.threshold)
-          const rankName = rankObj ? rankObj.name : sortedRanks[sortedRanks.length - 1].name
+          const rankName = resolveMembershipRank(currentPoints, rankSettingsRef.current)
           
           setCustomer({
             id: userId,
@@ -215,7 +192,7 @@ export default function MemberCardLIFF() {
             real_name: realName,
             points: currentPoints,
             rank: rankName,
-            member_no: userId.substring(0, 8).toUpperCase()
+            member_no: formatMemberNo(userId)
           })
         }
 

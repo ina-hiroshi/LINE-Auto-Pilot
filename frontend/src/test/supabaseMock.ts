@@ -29,6 +29,16 @@ export type QueryHandler = (op: QueryOp) => QueryResult | undefined
 
 export type FunctionInvocation = { name: string; body: unknown }
 
+/** channel(...).on(...) で登録された購読 */
+export type ChannelSubscription = {
+  topic: string
+  event: string
+  table?: string
+  filter?: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  callback?: (payload: any) => void
+}
+
 const FILTER_METHODS: FilterOp[] = ['eq', 'neq', 'lt', 'lte', 'gt', 'gte', 'in', 'is']
 const PASSTHROUGH_METHODS = ['order', 'limit', 'range', 'filter', 'not', 'like', 'ilike', 'contains', 'abortSignal']
 
@@ -113,11 +123,22 @@ export function createSupabaseMock(options: SupabaseMockOptions) {
   const invocations: FunctionInvocation[] = []
 
   const broadcasts: Array<{ topic: string; payload: unknown }> = []
+  const subscriptions: ChannelSubscription[] = []
 
   const makeChannel = (topic: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const channel: any = {
-      on: () => channel,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      on: (event: string, config: any, callback?: (payload: any) => void) => {
+        subscriptions.push({
+          topic,
+          event,
+          table: config?.table,
+          filter: config?.filter,
+          callback: typeof config === 'function' ? config : callback,
+        })
+        return channel
+      },
       subscribe: () => channel,
       unsubscribe: () => channel,
       send: vi.fn(async (payload: unknown) => {
@@ -154,7 +175,14 @@ export function createSupabaseMock(options: SupabaseMockOptions) {
   const filterValue = (op: QueryOp, column: string) =>
     op.filters.find((f) => f.column === column)?.value
 
-  return { supabase, ops, invocations, broadcasts, findOps, filterValue }
+  /** 購読しているコンポーネントへリアルタイム変更を届ける */
+  const emitRealtime = (table: string, payload: unknown) => {
+    for (const sub of subscriptions) {
+      if (sub.table === table) sub.callback?.(payload)
+    }
+  }
+
+  return { supabase, ops, invocations, broadcasts, subscriptions, emitRealtime, findOps, filterValue }
 }
 
 export type SupabaseMock = ReturnType<typeof createSupabaseMock>

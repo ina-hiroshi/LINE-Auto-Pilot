@@ -3,6 +3,7 @@ import type { ChangeEvent, DragEvent } from 'react'
 import { Upload, User } from 'lucide-react'
 import Modal from '../../../components/Modal'
 import { supabase } from '../../../lib/supabase'
+import { removeOrphanedStoreAssets } from '../../../lib/storageAssets'
 import type { Staff } from '../types'
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
@@ -32,10 +33,15 @@ export function StaffModal({ isOpen, isLoading, storeId, formData, isEditing, on
   const formDataRef = useRef(formData)
   formDataRef.current = formData
 
+  // このモーダルでアップロードした、まだ保存されていないファイル。
+  // 差し替え・キャンセル時にここだけを消す。保存済みの画像は保存成功後に呼び出し側が消す。
+  const unsavedUploadRef = useRef<string | null>(null)
+
   useEffect(() => {
     if (isOpen) {
       setUploading(false)
       setIsDragging(false)
+      unsavedUploadRef.current = null
     }
   }, [isOpen])
 
@@ -91,7 +97,11 @@ export function StaffModal({ isOpen, isLoading, storeId, formData, isEditing, on
         return
       }
 
-      onChange({ ...formDataRef.current, image_url: `${urlData.publicUrl}?v=${Date.now()}` })
+      const newUrl = `${urlData.publicUrl}?v=${Date.now()}`
+      await removeOrphanedStoreAssets([unsavedUploadRef.current], [newUrl])
+      unsavedUploadRef.current = newUrl
+
+      onChange({ ...formDataRef.current, image_url: newUrl })
       onToast?.('スタッフ画像をアップロードしました', 'success')
     } catch (error) {
       console.error('Staff image upload failed:', error)
@@ -127,14 +137,23 @@ export function StaffModal({ isOpen, isLoading, storeId, formData, isEditing, on
   }
 
   const handleImageDelete = () => {
+    void removeOrphanedStoreAssets([unsavedUploadRef.current], [])
+    unsavedUploadRef.current = null
     onChange({ ...formDataRef.current, image_url: '' })
     onToast?.('スタッフ画像を削除しました', 'success')
+  }
+
+  // キャンセル時は、保存されないまま残るアップロード済みファイルを片付ける
+  const handleClose = () => {
+    void removeOrphanedStoreAssets([unsavedUploadRef.current], [])
+    unsavedUploadRef.current = null
+    onClose()
   }
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       onConfirm={onConfirm}
       title={isEditing ? 'スタッフ編集' : 'スタッフ追加'}
       confirmText={isEditing ? '更新' : '追加'}
