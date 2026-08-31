@@ -56,11 +56,14 @@ export function usePointOperation(storeId: string | null, storeSettings: Members
 
         // 残高はすでに保存済み。リアルタイム通知の失敗で
         // 「更新に失敗しました」と表示してしまうと、実態と食い違う。
+        // 残高も載せる。会員証側が再取得に失敗しても表示をすぐ更新できる。
         try {
-          await supabase.channel(`points:${storeId}`).send({
+          const channel = supabase.channel(`points:${storeId}`)
+          channel.subscribe()
+          await channel.send({
             type: 'broadcast',
             event: 'update',
-            payload: { line_user_id: lineUserId },
+            payload: { line_user_id: lineUserId, balance: newBalance },
           })
         } catch (broadcastError) {
           console.warn('Point broadcast failed (balance is already saved):', broadcastError)

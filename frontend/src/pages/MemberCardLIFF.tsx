@@ -159,7 +159,7 @@ export default function MemberCardLIFF() {
             if (data) {
               console.log('Fetched Data:', data)
               const newUserId = data.lineProfile?.userId || userId
-              const newPoints = data.points?.balance || 0
+              const newPoints = data.points?.balance ?? 0
               
               const rankName = resolveMembershipRank(newPoints, rankSettingsRef.current)
               const memberNo = formatMemberNo(newUserId)
@@ -213,10 +213,26 @@ export default function MemberCardLIFF() {
           if (myUserId) {
             supabase.channel(`points:${storeId}`)
               .on('broadcast', { event: 'update' }, (payload) => {
-                if (payload.payload?.line_user_id === myUserId) {
-                  console.log('Received point update signal, refetching...')
-                  fetchData(accessToken)
+                const body = payload?.payload ?? payload
+                if (body?.line_user_id !== myUserId) return
+
+                // 残高が載っていれば再取得を待たずに反映する（利用時の取りこぼし防止）
+                if (typeof body.balance === 'number') {
+                  const next = body.balance
+                  setCustomer((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          points: next,
+                          rank: resolveMembershipRank(next, rankSettingsRef.current),
+                        }
+                      : null,
+                  )
+                  return
                 }
+
+                console.log('Received point update signal, refetching...')
+                fetchData(accessToken)
               })
               .subscribe()
           }

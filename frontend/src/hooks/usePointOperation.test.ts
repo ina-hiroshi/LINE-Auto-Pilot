@@ -73,6 +73,9 @@ describe('usePointOperation', () => {
 
       expect(res).toMatchObject({ success: true, newBalance: 100 })
       expect(upsertedPoints()).toMatchObject({ balance: 100 })
+      expect(mock.broadcasts[0].payload).toMatchObject({
+        payload: { line_user_id: LINE_USER_ID, balance: 100 },
+      })
     })
 
     it('残高ちょうどの利用は許可する', async () => {
@@ -177,7 +180,7 @@ describe('usePointOperation', () => {
       expect(mock.broadcasts[0].payload).toMatchObject({
         type: 'broadcast',
         event: 'update',
-        payload: { line_user_id: LINE_USER_ID },
+        payload: { line_user_id: LINE_USER_ID, balance: 10 },
       })
     })
 

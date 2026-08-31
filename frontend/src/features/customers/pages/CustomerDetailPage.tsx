@@ -30,7 +30,6 @@ export default function CustomerDetailPage() {
     error,
     refreshPoints,
     updateCustomerLocal,
-    fetchCustomer,
   } = useCustomerDetail(customerId)
 
   const { updatePoints, saving: pointsSaving } = usePointOperation(storeId, storeSettings)
@@ -120,7 +119,6 @@ export default function CustomerDetailPage() {
         'success',
       )
       refreshPoints(result.newBalance)
-      fetchCustomer()
     } else {
       showToast(
         result.error === 'insufficient' ? '残高が不足しています' : 'ポイント更新に失敗しました',

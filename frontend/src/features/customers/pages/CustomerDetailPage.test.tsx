@@ -213,4 +213,29 @@ describe('顧客詳細', () => {
       })
     })
   })
+
+  describe('ポイント管理', () => {
+    it('概要の見出し「ポイント管理」は1つだけ表示する', async () => {
+      setup()
+      renderPage()
+      await screen.findByText('顧客詳細')
+
+      expect(screen.getAllByText('ポイント管理')).toHaveLength(1)
+    })
+
+    it('ポイント利用後、残高が画面上ですぐ減る', async () => {
+      setup({ balance: 250 })
+      renderPage()
+      await screen.findByText('顧客詳細')
+      expect(screen.getByText('250')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: '利用する' }))
+      fireEvent.change(screen.getByPlaceholderText('0'), { target: { value: '50' } })
+      fireEvent.click(screen.getByRole('button', { name: '実行' }))
+
+      await screen.findByText('ポイントを利用しました')
+      expect(screen.getByText('200')).toBeInTheDocument()
+      expect(screen.queryByText('250')).not.toBeInTheDocument()
+    })
+  })
 })
