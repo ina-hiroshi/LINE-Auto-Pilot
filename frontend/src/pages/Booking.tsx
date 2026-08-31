@@ -421,10 +421,12 @@ export default function Booking() {
         throw new Error('VITE_LIFF_ID が設定されていません')
       }
       
-      await liff.init({
-        liffId: LIFF_ID,
-        withLoginOnExternalBrowser: true,
-      })
+      if (!liff.id) {
+        await liff.init({
+          liffId: LIFF_ID,
+          withLoginOnExternalBrowser: true,
+        })
+      }
 
       if (!liff.isLoggedIn()) {
         liff.login()

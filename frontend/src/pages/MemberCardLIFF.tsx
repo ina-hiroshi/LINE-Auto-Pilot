@@ -47,10 +47,19 @@ export default function MemberCardLIFF() {
   useEffect(() => {
     const init = async () => {
       try {
-        // 1. Initialize LIFF
-        // Note: In a real app, you should use the LIFF ID from the store settings or env
-        // For now, we assume LIFF is initialized or we are in a dev environment
-        // await liff.init({ liffId: "YOUR_LIFF_ID" }) 
+        const LIFF_ID = import.meta.env.VITE_LIFF_ID
+        if (LIFF_ID && window.self === window.top) {
+          if (!liff.id) {
+            await liff.init({
+              liffId: LIFF_ID,
+              withLoginOnExternalBrowser: true,
+            })
+          }
+          if (!liff.isLoggedIn()) {
+            liff.login()
+            return
+          }
+        }
 
         if (!storeId) {
           throw new Error('Store ID is required')

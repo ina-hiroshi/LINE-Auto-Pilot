@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import Layout from './components/Layout'
@@ -22,6 +22,8 @@ import SpecifiedCommercialTransactions from './pages/SpecifiedCommercialTransact
 import SecurityPolicy from './pages/SecurityPolicy'
 
 import MemberCardLIFF from './pages/MemberCardLIFF'
+import LiffRootBootstrap from './components/liff/LiffRootBootstrap'
+import { looksLikeLiffEntryAtRoot } from './lib/liffEntry'
 import FeatureAutoResponse from './pages/FeatureAutoResponse'
 import FeatureReservation from './pages/FeatureReservation'
 import FeatureMembership from './pages/FeatureMembership'
@@ -63,6 +65,11 @@ function App() {
   const [hasStore, setHasStore] = useState<boolean | null>(null)
   const [hasLineAccount, setHasLineAccount] = useState<boolean | null>(null)
   const lastCheckedUserId = useRef<string | null>(null)
+  const [liffRootPassed, setLiffRootPassed] = useState(false)
+  const passLiffRoot = useCallback(() => setLiffRootPassed(true), [])
+  const liffRootPending =
+    !liffRootPassed &&
+    looksLikeLiffEntryAtRoot(window.location.pathname, window.location.search, window.location.hash)
 
   // ストアとLINE連携の存在確認関数（タイムアウト付き）
   const checkStoreAndLine = async (userId: string): Promise<{ hasStore: boolean; hasLine: boolean }> => {
@@ -175,6 +182,10 @@ function App() {
     console.log('Setup complete, updating state...')
     setHasStore(true)
     setHasLineAccount(true)
+  }
+
+  if (liffRootPending) {
+    return <LiffRootBootstrap onPass={passLiffRoot} />
   }
 
   if (loading) {
