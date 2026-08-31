@@ -393,11 +393,13 @@ export default function BookingSettingsPage() {
       <StaffModal
         isOpen={isStaffModalOpen}
         isLoading={saving}
+        storeId={storeId}
         onClose={() => setIsStaffModalOpen(false)}
         onConfirm={handleSaveStaff}
         formData={staffFormData}
         onChange={setStaffFormData}
         isEditing={!!editingStaffId}
+        onToast={showToast}
       />
       <MenuModal
         isOpen={isMenuModalOpen}
