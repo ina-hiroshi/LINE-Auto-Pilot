@@ -87,6 +87,15 @@ const renderPage = (search = '') =>
 
 const tab = (label: string) => screen.getByRole('button', { name: new RegExp(label) })
 
+/**
+ * editForm は customer 取得後の useEffect で初期化される。
+ * 見出しの描画だけを待って保存を押すと、反映前の空フォームを送ってしまう。
+ */
+const waitForEditFormReady = async (realName: string) => {
+  const input = screen.getByPlaceholderText('山田 太郎') as HTMLInputElement
+  await waitFor(() => expect(input.value).toBe(realName))
+}
+
 describe('顧客詳細', () => {
   describe('読み込み', () => {
     it('顧客と店舗を自分の所有店舗スコープで取得する', async () => {
@@ -161,6 +170,7 @@ describe('顧客詳細', () => {
       setup()
       renderPage()
       await screen.findByText('顧客詳細')
+      await waitForEditFormReady('山田 太郎')
 
       fireEvent.click(screen.getByRole('button', { name: /保存/ }))
 
@@ -175,6 +185,7 @@ describe('顧客詳細', () => {
       setup()
       renderPage()
       await screen.findByText('顧客詳細')
+      await waitForEditFormReady('山田 太郎')
 
       fireEvent.click(screen.getByRole('button', { name: /保存/ }))
 
@@ -190,6 +201,7 @@ describe('顧客詳細', () => {
       setup({ customer: customerRow({ real_name: '', furigana: '', notes: '' }) })
       renderPage()
       await screen.findByText('顧客詳細')
+      await waitForEditFormReady('')
 
       fireEvent.click(screen.getByRole('button', { name: /保存/ }))
 
