@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { type SupabaseClient } from '@supabase/supabase-js'
 import { isAdminUser } from './admin-check.ts'
 
 /**
@@ -30,10 +30,17 @@ function denyResponse(
   })
 }
 
+/** `Authorization: Bearer <token>` からトークンを取り出す */
+export function extractBearerToken(authHeader: string | null): string | null {
+  if (!authHeader) return null
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim()
+  return token.length > 0 ? token : null
+}
+
 /**
  * 呼び出し元が storeId の店舗を操作してよいかを判定する。
  *
- * @param admin サービスロールのクライアント（stores / profiles の参照に使う）
+ * @param admin サービスロールのクライアント（JWT検証と stores / profiles の参照に使う）
  */
 export async function requireStoreAccess(
   req: Request,
@@ -47,18 +54,15 @@ export async function requireStoreAccess(
     response: denyResponse(status, error, corsHeaders),
   })
 
-  const authHeader = req.headers.get('Authorization')
-  if (!authHeader) return deny(401, 'Unauthorized')
+  // Authorization ヘッダのトークンを明示的に渡して検証する。
+  // getUser() を引数なしで呼ぶ形は、クライアント生成時に渡した Authorization
+  // ヘッダに暗黙で依存する。検証したいトークンを引数で示すほうが、
+  // どのトークンで誰を判定しているかがコード上で追える。
+  const token = extractBearerToken(req.headers.get('Authorization'))
+  if (!token) return deny(401, 'Unauthorized')
 
-  // 呼び出し元の JWT でユーザーを解決する。
-  // anon キーをそのまま渡された場合は sub を持たないので user は得られない。
-  const caller = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-    { global: { headers: { Authorization: authHeader } } },
-  )
-
-  const { data: { user }, error: userError } = await caller.auth.getUser()
+  const { data, error: userError } = await admin.auth.getUser(token)
+  const user = data?.user
   if (userError || !user) return deny(401, 'Unauthorized')
 
   const { data: store } = await admin

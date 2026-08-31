@@ -84,6 +84,21 @@ describe('useStoreResources', () => {
     expect(result.current.menuList).toEqual([])
   })
 
+  it('取得に失敗したことを error で伝える', async () => {
+    // 空配列のまま黙って返すと、予約ページでは「スタッフが登録されていません」と
+    // 出るだけで権限エラーに気づけない。未登録と区別できるようにする。
+    const { result } = setup({ staffData: null, menuData: null, error: { message: 'permission denied' } })
+
+    await waitFor(() => expect(result.current.error).toBe('permission denied'))
+  })
+
+  it('取得できたときは error を残さない', async () => {
+    const { result } = setup()
+
+    await waitFor(() => expect(result.current.staffList).toHaveLength(2))
+    expect(result.current.error).toBeNull()
+  })
+
   it('データが null なら直前の一覧を消さない', async () => {
     const { result } = setup()
     await waitFor(() => expect(result.current.staffList).toHaveLength(2))

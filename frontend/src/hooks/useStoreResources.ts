@@ -6,12 +6,17 @@ export function useStoreResources(storeId: string | null) {
   const [staffList, setStaffList] = useState<StoreStaff[]>([])
   const [menuList, setMenuList] = useState<StoreMenu[]>([])
   const [loading, setLoading] = useState(false)
+  // 取得に失敗したのか、そもそも未登録なのかを呼び出し側が区別できるようにする。
+  // 権限エラーで空配列のままになると、予約ページでは「スタッフが登録されていません」と
+  // 表示されるだけで、原因が画面にもコンソールにも出てこない。
+  const [error, setError] = useState<string | null>(null)
 
   const refreshResources = useCallback(async () => {
     if (!storeId) return
     setLoading(true)
+    setError(null)
     try {
-      const [{ data: staff }, { data: menus }] = await Promise.all([
+      const [{ data: staff, error: staffError }, { data: menus, error: menuError }] = await Promise.all([
         supabase
           .from('staff_members')
           .select('id, name, role, image_url, is_active')
@@ -26,10 +31,16 @@ export function useStoreResources(storeId: string | null) {
           .order('created_at', { ascending: true })
       ])
 
+      if (staffError || menuError) {
+        console.error('Failed to fetch store resources', { staffError, menuError })
+        setError((staffError ?? menuError)?.message ?? '店舗情報の取得に失敗しました')
+      }
+
       if (staff) setStaffList(staff)
       if (menus) setMenuList(menus)
-    } catch (error) {
-      console.error('Failed to fetch store resources', error)
+    } catch (e) {
+      console.error('Failed to fetch store resources', e)
+      setError(e instanceof Error ? e.message : '店舗情報の取得に失敗しました')
     } finally {
       setLoading(false)
     }
@@ -39,5 +50,5 @@ export function useStoreResources(storeId: string | null) {
     refreshResources()
   }, [refreshResources])
 
-  return { staffList, menuList, loading, refreshResources, setStaffList, setMenuList }
+  return { staffList, menuList, loading, error, refreshResources, setStaffList, setMenuList }
 }

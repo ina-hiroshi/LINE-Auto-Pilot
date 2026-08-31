@@ -60,7 +60,7 @@ export default function Booking() {
   })
 
   // Salon/Restaurant Data
-  const { staffList, menuList, setStaffList, setMenuList } = useStoreResources(storeId)
+  const { staffList, menuList, error: resourcesError, setStaffList, setMenuList } = useStoreResources(storeId)
   const [selectedStaff, setSelectedStaff] = useState<StoreStaff | null>(null)
   const [selectedMenu, setSelectedMenu] = useState<StoreMenu | null>(null)
   const [partySize, setPartySize] = useState<number>(1)
@@ -325,6 +325,7 @@ export default function Booking() {
           console.error('store_id が指定されておらず、店舗を一意に決められません', {
             candidates: fallbackStores?.length ?? 0,
           })
+          setStep('error')
           setErrorMsg('店舗情報が見つかりませんでした。予約ページのURLに store_id が必要です。')
           return
         }
@@ -1542,7 +1543,9 @@ export default function Booking() {
               <div className="space-y-4 mt-6">
                 {staffList.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                    スタッフが登録されていません
+                    {resourcesError
+                      ? 'スタッフ情報を読み込めませんでした。時間をおいて開き直してください。'
+                      : 'スタッフが登録されていません'}
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-4">
@@ -1599,7 +1602,9 @@ export default function Booking() {
               <div className="space-y-4 mt-6">
                 {menuList.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                    メニューが登録されていません
+                    {resourcesError
+                      ? 'メニューを読み込めませんでした。時間をおいて開き直してください。'
+                      : 'メニューが登録されていません'}
                   </div>
                 ) : (
                   <div className="space-y-3">
