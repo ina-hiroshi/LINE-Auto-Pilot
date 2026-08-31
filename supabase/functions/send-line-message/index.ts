@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { ClientVisibleError, clientVisibleErrorResponse, safeErrorResponse } from '../_shared/error-utils.ts'
+import { buildRecipientCandidates, resolveLogLabel } from '../_shared/line-recipient.ts'
 
 async function pushLineMessage(token: string, to: string, text: string): Promise<Response> {
   return fetch('https://api.line.me/v2/bot/message/push', {
@@ -86,7 +87,7 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const candidateIds = new Set<string>([userId])
+    let candidateIds: string[] = [userId]
     let logLabel: string | null = displayName?.trim() || null
 
     if (customerId) {
@@ -97,26 +98,46 @@ Deno.serve(async (req: Request) => {
         .eq('store_id', storeId)
         .maybeSingle()
 
-      if (customerRow?.line_user_id) candidateIds.add(customerRow.line_user_id)
+      logLabel = resolveLogLabel(customerRow, displayName)
 
-      logLabel =
-        customerRow?.real_name?.trim() ||
-        customerRow?.display_name?.trim() ||
-        displayName?.trim() ||
-        null
-      const name = logLabel ?? displayName
-      if (name) {
-        const { data: logsByName } = await supabaseAdmin
-          .from('customer_logs')
-          .select('line_user_id')
-          .eq('store_id', storeId)
-          .eq('display_name', name)
-          .order('created_at', { ascending: false })
-          .limit(10)
-        for (const row of logsByName ?? []) {
-          if (row.line_user_id) candidateIds.add(row.line_user_id)
+      let logsByName: { line_user_id?: string | null }[] | null = null
+      let nameIsAmbiguous = false
+
+      if (logLabel) {
+        // 同名の顧客が他にもいるなら、名前一致で拾った ID は別人のものかもしれない。
+        // その場合は候補に入れず、指定された ID と顧客レコードの ID だけを使う。
+        // .or() に名前をそのまま埋めると、カンマや括弧を含む名前でフィルタが壊れる。
+        // 列ごとに .eq() で引いて突き合わせる。
+        const [byDisplay, byReal] = await Promise.all([
+          supabaseAdmin.from('customers').select('id').eq('store_id', storeId)
+            .eq('display_name', logLabel).limit(3),
+          supabaseAdmin.from('customers').select('id').eq('store_id', storeId)
+            .eq('real_name', logLabel).limit(3),
+        ])
+        const sameNameIds = new Set<string>()
+        for (const row of [...(byDisplay.data ?? []), ...(byReal.data ?? [])]) {
+          sameNameIds.add(row.id)
+        }
+        nameIsAmbiguous = sameNameIds.size > 1
+
+        if (!nameIsAmbiguous) {
+          const { data } = await supabaseAdmin
+            .from('customer_logs')
+            .select('line_user_id')
+            .eq('store_id', storeId)
+            .eq('display_name', logLabel)
+            .order('created_at', { ascending: false })
+            .limit(10)
+          logsByName = data
         }
       }
+
+      candidateIds = buildRecipientCandidates({
+        requestedUserId: userId,
+        customer: customerRow,
+        logsByName,
+        nameIsAmbiguous,
+      })
     }
 
     let lastLineError = ''
