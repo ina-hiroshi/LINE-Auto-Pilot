@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users, Calendar, AlertCircle, Bot, User, MessageSquare, Sparkles, BarChart3, TrendingUp, Search, Lightbulb, Target, FolderOpen, ExternalLink } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { loadAIAnalysisCache, saveAIAnalysisCache } from '../lib/aiAnalysisCache'
 import Modal from '../components/Modal'
 import { type LineQuotaInfo } from '../components/line/LineMessagingQuotaNotice'
 import Toast from '../components/Toast'
@@ -555,48 +556,13 @@ export default function Dashboard() {
       }
   }
 
-  // Load AI analysis from localStorage
-  const loadAIAnalysisFromStorage = useCallback(() => {
-    if (!storeId) return null
-    
-    try {
-      const storageKey = `ai-analysis-${storeId}`
-      const stored = localStorage.getItem(storageKey)
-      if (!stored) return null
-      
-      const parsed = JSON.parse(stored)
-      const now = Date.now()
-      const oneDayInMs = 24 * 60 * 60 * 1000 // 24時間
-      
-      // 24時間以内のデータのみ有効
-      if (parsed.timestamp && (now - parsed.timestamp) < oneDayInMs) {
-        return parsed.data
-      }
-      
-      // 古いデータは削除
-      localStorage.removeItem(storageKey)
-      return null
-    } catch (error) {
-      console.error('Error loading AI analysis from storage:', error)
-      return null
-    }
-  }, [storeId])
+  // AIレポートのキャッシュ（lib/aiAnalysisCache.ts が単一の情報源）
+  const loadAIAnalysisFromStorage = useCallback(() => loadAIAnalysisCache(storeId), [storeId])
 
-  // Save AI analysis to localStorage
-  const saveAIAnalysisToStorage = useCallback((data: Omit<AIAnalysis, 'loading' | 'error'>) => {
-    if (!storeId) return
-    
-    try {
-      const storageKey = `ai-analysis-${storeId}`
-      const storageData = {
-        timestamp: Date.now(),
-        data: data
-      }
-      localStorage.setItem(storageKey, JSON.stringify(storageData))
-    } catch (error) {
-      console.error('Error saving AI analysis to storage:', error)
-    }
-  }, [storeId])
+  const saveAIAnalysisToStorage = useCallback(
+    (data: Omit<AIAnalysis, 'loading' | 'error'>) => saveAIAnalysisCache(storeId, data),
+    [storeId],
+  )
 
   // AI Analysis
   const fetchAIAnalysis = async (forceRefresh = false) => {

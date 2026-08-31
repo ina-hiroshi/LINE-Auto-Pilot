@@ -109,9 +109,16 @@ export async function recordAiUsage(
  */
 export async function maybeCleanupRateLimits(supabase: SupabaseClient): Promise<void> {
   if (Math.random() > 0.1) return
-  await supabase.rpc('cleanup_old_rate_limits').then(() => {
+  try {
+    // PostgREST はエラーを throw せず error として返すため、両方を握る
+    const { error } = await supabase.rpc('cleanup_old_rate_limits')
+    if (error) {
+      console.warn('[RateLimiter] Cleanup failed:', error.message)
+      return
+    }
     console.log('[RateLimiter] Cleaned up old rate limit records')
-  }).catch(() => {
-    // クリーンアップ失敗は無視
-  })
+  } catch (e) {
+    // クリーンアップ失敗は本処理に影響させない
+    console.warn('[RateLimiter] Cleanup threw:', e)
+  }
 }
