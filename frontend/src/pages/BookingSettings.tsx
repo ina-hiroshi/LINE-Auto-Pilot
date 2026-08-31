@@ -229,6 +229,7 @@ export default function BookingSettingsPage() {
           .from('staff_members')
           .update({ ...staffFormData })
           .eq('id', editingStaffId)
+          .eq('store_id', storeId)
         if (error) throw error
       } else {
         const { error } = await supabase
@@ -282,6 +283,7 @@ export default function BookingSettingsPage() {
           .from('booking_menus')
           .update({ ...menuFormData })
           .eq('id', editingMenuId)
+          .eq('store_id', storeId)
         if (error) throw error
       } else {
         const { error } = await supabase
@@ -304,11 +306,15 @@ export default function BookingSettingsPage() {
 
   // --- Delete Handler ---
   const handleConfirmDelete = async () => {
-    if (!deletingItem) return
+    if (!deletingItem || !storeId) return
     setSaving(true)
     try {
       const table = deletingItem.type === 'staff' ? 'staff_members' : 'booking_menus'
-      const { error } = await supabase.from(table).delete().eq('id', deletingItem.id)
+      const { error } = await supabase
+        .from(table)
+        .delete()
+        .eq('id', deletingItem.id)
+        .eq('store_id', storeId)
       if (error) throw error
 
       if (deletingItem.type === 'staff') {

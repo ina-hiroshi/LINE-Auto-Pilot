@@ -6,6 +6,7 @@ import { getGeminiUrl, KNOWLEDGE_BASE_MAX_CHARS } from '../_shared/ai-config.ts'
 import { createLogger } from '../_shared/logger.ts'
 import { isPaidPlan } from '../_shared/plan-utils.ts'
 import { checkAiRateLimit, recordAiUsage, maybeCleanupRateLimits } from '../_shared/rate-limiter.ts'
+import { selectAutoResponse } from '../_shared/auto-response.ts'
 import type { SupabaseClientType, AISettings } from '../_shared/types.ts'
 
 const log = createLogger('line-webhook')
@@ -20,17 +21,6 @@ const CONFIG = {
   GEMINI_MAX_OUTPUT_TOKENS: 500,
   /** Gemini API の温度パラメータ */
   GEMINI_TEMPERATURE: 0.4,
-  /** 自動応答スコアリング */
-  SCORING: {
-    /** キーワード完全一致時のスコア */
-    EXACT_MATCH: 100,
-    /** キーワード部分一致時のスコア */
-    PARTIAL_MATCH: 30,
-    /** サブキーワード一致時のスコア */
-    SUB_KEYWORD_MATCH: 10,
-    /** 自動応答を発動するしきい値 */
-    THRESHOLD: 25,
-  },
   RATE_LIMIT_FALLBACK: "お問い合わせありがとうございます。\nただいま多くのお問い合わせをいただいております。\n担当者が確認次第、返信させていただきます。",
 } as const;
 
@@ -118,15 +108,6 @@ async function startLoadingAnimation(accessToken: string, userId: string) {
     console.error('Error starting loading animation:', e)
     // Do not throw error to continue processing
   }
-}
-
-// Helper to normalize text for keyword matching
-function normalizeText(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFKC')
-    .replace(/\s+/g, '')
-    .replace(/[？！。、]/g, '');
 }
 
 // Helper to generate AI response using Gemini API
@@ -369,51 +350,13 @@ Deno.serve(async (req: Request) => {
                         .eq('store_id', storeId)
                         .eq('is_active', true)
                     
-                    // 2. Scoring Logic (improved with normalization and length weighting)
-                    let bestScore = 0
-                    let bestRule = null
-                    let bestKeywordLength = 0
+                    // 2-3. Scoring & Threshold（_shared/auto-response.ts）
+                    const autoMatch = selectAutoResponse(text, rules)
 
-                    if (rules && rules.length > 0) {
-                        const normalizedText = normalizeText(text);
-                        
-                        for (const rule of rules) {
-                            let score = 0
-                            const normalizedKeyword = normalizeText(rule.keyword);
-                            
-                            // Exact match check
-                            if (normalizedText === normalizedKeyword) {
-                                score = CONFIG.SCORING.EXACT_MATCH
-                            } else if (normalizedText.includes(normalizedKeyword)) {
-                                // Partial match with length bonus
-                                const lengthBonus = Math.min(rule.keyword.length * 2, 20);
-                                score += CONFIG.SCORING.PARTIAL_MATCH + lengthBonus;
-                            }
-
-                            // Sub-keyword matching
-                            if (rule.sub_keywords && Array.isArray(rule.sub_keywords)) {
-                                for (const sub of rule.sub_keywords) {
-                                    const normalizedSub = normalizeText(sub);
-                                    if (normalizedText.includes(normalizedSub)) {
-                                        score += CONFIG.SCORING.SUB_KEYWORD_MATCH
-                                    }
-                                }
-                            }
-                            
-                            // Select best rule (higher score, or same score but longer keyword)
-                            if (score > bestScore || (score === bestScore && rule.keyword.length > bestKeywordLength)) {
-                                bestScore = score
-                                bestRule = rule
-                                bestKeywordLength = rule.keyword.length
-                            }
-                        }
-                    }
-                    
-                    // 3. Threshold Check
-                    if (bestScore >= CONFIG.SCORING.THRESHOLD && bestRule) {
-                        replyText = bestRule.response_text
+                    if (autoMatch) {
+                        replyText = autoMatch.rule.response_text
                         status = 'auto_replied'
-                        console.log('Selected auto-response rule:', bestRule.keyword)
+                        console.log('Selected auto-response rule:', autoMatch.rule.keyword)
                     } else {
                         // Fallback
                         if (isAiEnabled && geminiApiKey) {

@@ -308,15 +308,24 @@ export default function AutoResponses() {
 
   const handleSaveRule = async () => {
     if (!currentRule || !storeId) return;
-    
+
+    // 空白のみのキーワードは正規化すると空文字になり、
+    // line-webhook 側で全メッセージに一致してしまう（全受信を横取りする）。
+    const keyword = currentRule.mainKeyword.trim();
+    const response = currentRule.response.trim();
+    if (!keyword || !response) {
+      setToast({ isVisible: true, message: 'キーワードと応答メッセージを入力してください', type: 'error' });
+      return;
+    }
+
     try {
       setSavingRule(true);
-      
+
       const ruleData = {
         store_id: storeId,
-        keyword: currentRule.mainKeyword,
-        sub_keywords: currentRule.subKeywords,
-        response_text: currentRule.response,
+        keyword,
+        sub_keywords: currentRule.subKeywords.map(k => k.trim()).filter(Boolean),
+        response_text: response,
         is_active: currentRule.isActive,
         updated_at: new Date().toISOString()
       };
@@ -325,7 +334,8 @@ export default function AutoResponses() {
         const { error } = await supabase
           .from('auto_responses')
           .update(ruleData)
-          .eq('id', currentRule.id);
+          .eq('id', currentRule.id)
+          .eq('store_id', storeId);
         if (error) throw error;
       } else {
         const { error } = await supabase
@@ -346,13 +356,14 @@ export default function AutoResponses() {
   };
 
   const handleDeleteRule = async () => {
-    if (!deleteModal.ruleId) return;
+    if (!deleteModal.ruleId || !storeId) return;
 
     try {
       const { error } = await supabase
         .from('auto_responses')
         .delete()
-        .eq('id', deleteModal.ruleId);
+        .eq('id', deleteModal.ruleId)
+        .eq('store_id', storeId);
 
       if (error) throw error;
 
@@ -392,7 +403,8 @@ export default function AutoResponses() {
       const { error } = await supabase
         .from('auto_responses')
         .update({ is_active: !rule.isActive })
-        .eq('id', rule.id);
+        .eq('id', rule.id)
+        .eq('store_id', storeId);
 
       if (error) throw error;
 
@@ -1257,7 +1269,7 @@ export default function AutoResponses() {
             </button>
             <button
               onClick={handleSaveRule}
-              disabled={savingRule || !currentRule?.mainKeyword || !currentRule?.response}
+              disabled={savingRule || !currentRule?.mainKeyword.trim() || !currentRule?.response.trim()}
               className="px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors font-bold shadow-sm flex items-center gap-2"
             >
               {savingRule ? (
