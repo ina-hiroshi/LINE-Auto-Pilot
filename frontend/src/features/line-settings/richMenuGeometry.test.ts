@@ -76,3 +76,51 @@ describe('getRichMenuPreviewAspect', () => {
     expect(getRichMenuPreviewAspect('compact_2')).toBe('2500 / 843')
   })
 })
+
+describe('タップ領域との一致', () => {
+  /**
+   * apply-rich-menu (supabase/functions/_shared/rich-menu-areas.ts) が LINE に送る
+   * bounds と同じ規則で分割していることを確かめる。ここがずれると、
+   * 描画された画像の境界とタップ領域が食い違う。
+   */
+  const backendBounds = (layoutId: string) => {
+    const divide = (total: number, parts: number) => {
+      const base = Math.floor(total / parts)
+      const rem = total % parts
+      return Array.from({ length: parts }, (_, i) => base + (i < rem ? 1 : 0))
+    }
+    const { width, height } = getRichMenuSize(layoutId)
+
+    if (layoutId === 'large_3_upper') {
+      const rh = divide(height, 2)
+      const cw = divide(width, 2)
+      return [
+        { x: 0, y: 0, width, height: rh[0] },
+        { x: 0, y: rh[0], width: cw[0], height: rh[1] },
+        { x: cw[0], y: rh[0], width: cw[1], height: rh[1] },
+      ]
+    }
+    const cols = layoutId === 'large_6' || layoutId === 'compact_3' ? 3 : 2
+    const rows = layoutId.startsWith('compact') ? 1 : 2
+    const cw = divide(width, cols)
+    const rh = divide(height, rows)
+    const rects: { x: number; y: number; width: number; height: number }[] = []
+    let y = 0
+    for (let r = 0; r < rows; r++) {
+      let x = 0
+      for (let c = 0; c < cols; c++) {
+        rects.push({ x, y, width: cw[c], height: rh[r] })
+        x += cw[c]
+      }
+      y += rh[r]
+    }
+    return rects
+  }
+
+  it.each(['large_4', 'large_6', 'large_3_upper', 'compact_2', 'compact_3'])(
+    '%s の描画領域が送信する bounds と一致する',
+    (layoutId) => {
+      expect(getSlotRects(layoutId)).toEqual(backendBounds(layoutId))
+    },
+  )
+})
