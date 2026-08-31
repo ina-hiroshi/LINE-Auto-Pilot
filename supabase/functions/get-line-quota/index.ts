@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { safeErrorResponse } from '../_shared/error-utils.ts'
+import { requireStoreAccess } from '../_shared/store-access.ts'
 
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get('Origin')
@@ -45,6 +46,9 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
+
+    const access = await requireStoreAccess(req, storeId, supabaseAdmin, corsHeaders)
+    if (!access.ok) return access.response
 
     const { data: lineAccount, error: dbError } = await supabaseAdmin
       .from('line_accounts')

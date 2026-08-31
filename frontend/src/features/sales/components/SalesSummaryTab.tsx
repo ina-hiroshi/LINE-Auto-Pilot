@@ -46,6 +46,20 @@ type DailyChartRow = {
   [staffName: string]: string | number
 }
 
+/**
+ * CSV の1フィールドを安全な形に整える。
+ *
+ * メニュー名・スタッフ名は自由入力なので、カンマや改行が入ると列がずれる。
+ * また Excel は先頭が = + - @ の値を数式として解釈するため、
+ * 引用符で囲ったうえで先頭にシングルクォートを付けて無害化する。
+ */
+export function toCsvField(value: string | number | null | undefined): string {
+  if (value == null) return '""'
+  const text = String(value)
+  const guarded = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text
+  return `"${guarded.replace(/"/g, '""')}"`
+}
+
 function getMonthRangeJst(): { from: Date; to: Date } {
   const now = new Date()
   const jstYear = parseInt(
@@ -175,12 +189,17 @@ export function SalesSummaryTab({ storeId }: SalesSummaryTabProps) {
     return { total, count, menuTop, staffTop, dailyChartByStaff, staffNames, staffColors }
   }, [paidReservations])
 
+  /** Proプランで期間を指定している間は、集計は「今月」ではなく指定期間になる */
+  const hasCustomRange = isPro && Boolean(dateFrom || dateTo)
+
   const handleExportCsv = () => {
     const header = '決済日時,金額税込,メニュー,担当\n'
     const rows = paidReservations
       .map((r) => {
         const at = r.paid_at ? new Date(r.paid_at).toLocaleString('ja-JP') : ''
-        return `${at},${r.paid_amount ?? 0},${r.menu?.name ?? ''},${r.staff?.name ?? ''}`
+        return [at, r.paid_amount ?? 0, r.menu?.name ?? '', r.staff?.name ?? '']
+          .map(toCsvField)
+          .join(',')
       })
       .join('\n')
     const blob = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8' })
@@ -198,11 +217,14 @@ export function SalesSummaryTab({ storeId }: SalesSummaryTabProps) {
 
   return (
     <div className="space-y-6">
-      <p className="text-xs text-gray-500">決済完了した予約のみを売上（税込）に含みます。</p>
+      <p className="text-xs text-gray-500">
+        決済完了した予約のみを売上（税込）に含みます。
+        {hasCustomRange && ' 下の期間指定が、上の集計にも反映されています。'}
+      </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <p className="text-sm text-gray-500 mb-1">今月の総売上</p>
+          <p className="text-sm text-gray-500 mb-1">{hasCustomRange ? '選択期間の総売上' : '今月の総売上'}</p>
           <p className="text-2xl font-bold text-gray-900">{formatYen(stats.total)}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">

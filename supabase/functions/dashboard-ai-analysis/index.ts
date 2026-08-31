@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { safeErrorResponse } from '../_shared/error-utils.ts'
 import { getGeminiUrl } from '../_shared/ai-config.ts'
+import { requireStoreAccess } from '../_shared/store-access.ts'
 
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get('Origin')
@@ -25,6 +26,11 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // 呼び出し元がこの店舗のオーナー（または管理者）であることを確認する。
+    // ここが無いと store_id を差し替えるだけで他店舗の顧客ログ・売上を読めてしまう。
+    const access = await requireStoreAccess(req, storeId, supabase, corsHeaders)
+    if (!access.ok) return access.response
 
     // Check Pro plan
     const { data: storeData, error: storeError } = await supabase
@@ -104,7 +110,7 @@ Deno.serve(async (req: Request) => {
     // Fetch menus
     const { data: menusData, error: menusError } = await supabase
       .from('booking_menus')
-      .select('id, name, price, duration')
+      .select('id, name, price, duration_minutes')
       .eq('store_id', storeId)
 
     if (menusError) {
@@ -290,7 +296,7 @@ Deno.serve(async (req: Request) => {
       .slice(0, 10)
 
     // Calculate revenue (決済完了のみ) and duration
-    const menuDurationMap = new Map(menus.map(m => [m.id, m.duration || 0]))
+    const menuDurationMap = new Map(menus.map(m => [m.id, m.duration_minutes || 0]))
     
     let totalRevenue = 0
     let totalDuration = 0

@@ -2,6 +2,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { safeErrorResponse } from '../_shared/error-utils.ts'
+import { requireStoreAccess } from '../_shared/store-access.ts'
 
 Deno.serve(async (req) => {
   const origin = req.headers.get('Origin')
@@ -24,6 +25,11 @@ Deno.serve(async (req) => {
     if (!store_id) {
       throw new Error('store_id is required')
     }
+
+    // 無認証だと store_id を知っているだけで他店舗の LINE 公式アカウントの
+    // リッチメニューを任意の画像に差し替えられてしまう。
+    const access = await requireStoreAccess(req, store_id, supabaseClient, corsHeaders)
+    if (!access.ok) return access.response
 
     // 1. Fetch Store Settings
     const { data: store, error: storeError } = await supabaseClient

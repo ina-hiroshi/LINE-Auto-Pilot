@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { safeErrorResponse } from '../_shared/error-utils.ts'
+import { requireStoreAccess } from '../_shared/store-access.ts'
 
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get('Origin')
@@ -33,6 +34,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // 代行セットアップで管理者が他店舗に対して実行するため、
+    // オーナー本人に加えて管理者も許可する。
+    const access = await requireStoreAccess(req, storeId, supabase, corsHeaders)
+    if (!access.ok) return access.response
 
     const { data: lineAccount, error: dbError } = await supabase
       .from('line_accounts')

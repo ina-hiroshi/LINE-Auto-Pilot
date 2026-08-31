@@ -17,7 +17,12 @@ export type QueryOp = {
   cardinality: 'many' | 'single' | 'maybeSingle'
 }
 
-export type QueryResult = { data: unknown; error: unknown }
+export type QueryResult = {
+  data: unknown
+  error: unknown
+  /** `.select(col, { count: 'exact', head: true })` 用 */
+  count?: number | null
+}
 
 /** op を受け取って結果を返す。undefined を返すと `{ data: null, error: null }` になる。 */
 export type QueryHandler = (op: QueryOp) => QueryResult | undefined

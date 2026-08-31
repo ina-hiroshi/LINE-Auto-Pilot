@@ -7,6 +7,7 @@ import { getGeminiUrl, KNOWLEDGE_BASE_MAX_CHARS } from '../_shared/ai-config.ts'
 // Helper to generate AI response using Gemini API
 import type { SupabaseClientType, AISettings } from '../_shared/types.ts'
 import { generateSystemPrompt } from '../_shared/ai-prompt.ts'
+import { requireStoreAccess } from '../_shared/store-access.ts'
 
 async function generateAIResponse(apiKey: string, message: string, settings: AISettings, storeId: string, supabase: SupabaseClientType): Promise<string> {
   try {
@@ -88,6 +89,16 @@ Deno.serve(async (req: Request) => {
     if (!message) {
       throw new Error('Message is required')
     }
+
+    if (!store_id) {
+      throw new Error('store_id is required')
+    }
+
+    // 無認証だと store_id を差し替えるだけで他店舗の AI 学習データ（knowledge_base）を
+    // AI に読み上げさせて抜き出せる。ai_settings も呼び出し元が自由に指定できるため、
+    // システムプロンプトごと乗っ取られる。オーナー本人か管理者に限定する。
+    const access = await requireStoreAccess(req, store_id, supabase, corsHeaders)
+    if (!access.ok) return access.response
 
     const reply = await generateAIResponse(geminiApiKey, message, ai_settings, store_id, supabase)
 
