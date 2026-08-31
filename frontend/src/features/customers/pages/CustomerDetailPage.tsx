@@ -89,6 +89,7 @@ export default function CustomerDetailPage() {
           notes: editForm.notes || null,
         })
         .eq('id', customer.id)
+        .eq('store_id', storeId)
 
       if (saveError) throw saveError
       updateCustomerLocal(editForm)
@@ -121,7 +122,10 @@ export default function CustomerDetailPage() {
       refreshPoints(result.newBalance)
       fetchCustomer()
     } else {
-      showToast('ポイント更新に失敗しました', 'error')
+      showToast(
+        result.error === 'insufficient' ? '残高が不足しています' : 'ポイント更新に失敗しました',
+        'error',
+      )
     }
   }
 

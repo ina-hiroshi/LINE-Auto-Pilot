@@ -34,12 +34,23 @@ const DEFAULT_LINE_SETTINGS: LineSettingsState = {
 	line_user_id: '',
 }
 
+type LineAccountRow = {
+	channel_id?: string | null
+	channel_secret?: string | null
+	channel_access_token?: string | null
+	bot_id?: string | null
+	line_user_id?: string | null
+}
+
 const DEFAULT_PASSWORD_DATA = {
 	newPassword: '',
 	confirmPassword: '',
 }
 
 const WEBHOOK_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/line-webhook`
+
+/** PasswordTab の案内文（「6文字以上」）と揃える */
+const MIN_PASSWORD_LENGTH = 6
 
 
 export default function LineSettings() {
@@ -90,13 +101,19 @@ export default function LineSettings() {
 			}
 
 			// Line Account
-			const { data: lineAccounts } = await supabase
-				.from('line_accounts')
-				.select('*')
-				.eq('user_id', user.id)
-				.limit(1)
+			// 保存側・Edge Function 側と同じく store_id を鍵にする。
+			// user_id で引くと、代行セットアップ等で user_id がずれた行を取りこぼし、
+			// 空欄のまま保存して既存の認証情報を空文字で上書きしてしまう。
+			let lineAccount: LineAccountRow | null = null
+			if (store) {
+				const { data: lineAccounts } = await supabase
+					.from('line_accounts')
+					.select('*')
+					.eq('store_id', store.id)
+					.limit(1)
+				lineAccount = lineAccounts && lineAccounts.length > 0 ? lineAccounts[0] : null
+			}
 
-			const lineAccount = lineAccounts && lineAccounts.length > 0 ? lineAccounts[0] : null
 			if (lineAccount) {
 				setLineSettings({
 					channel_id: lineAccount.channel_id || '',
@@ -198,19 +215,18 @@ export default function LineSettings() {
 				body: { storeId: currentStoreId }
 			})
 			
+			// Bot User ID が取れないと line-webhook が destination から店舗を特定できず、
+			// 署名検証に失敗して LINE からのメッセージが無言で捨てられる。
+			// 「保存できた」で終わらせず、必ず利用者に伝える。
+			let botUserId: string | null = null
 			if (funcError) {
 				console.warn('Bot info fetch warning:', funcError)
-				// Bot情報取得エラーは致命的ではないので警告のみ
-				// ただし、LINE設定が正しく保存されていない可能性がある
-				if (funcError.message?.includes('LINE account not found')) {
-					console.warn('LINE account may not be saved yet. Please try saving again.')
-				}
 			} else if (botInfoData) {
-				console.log('Bot info received:', botInfoData)
 				// Edge Functionが既にデータベースを更新しているので、状態のみ更新
 				const updates: Partial<typeof lineSettings> = {}
 				if (botInfoData.userId) {
 					updates.line_user_id = botInfoData.userId
+					botUserId = botInfoData.userId
 				}
 				if (botInfoData.basicId) {
 					updates.bot_id = botInfoData.basicId
@@ -220,7 +236,14 @@ export default function LineSettings() {
 				}
 			}
 
-			setMessage({ type: 'success', text: 'LINE設定を保存しました' })
+			if (botUserId) {
+				setMessage({ type: 'success', text: 'LINE設定を保存しました' })
+			} else {
+				setMessage({
+					type: 'error',
+					text: 'LINE設定は保存しましたが、Bot情報を取得できませんでした。このままではLINEのメッセージを受信できません。Channel Access Token を確認して、もう一度保存してください。',
+				})
+			}
 		} catch (error) {
 			console.error('Save Error:', error)
 			setMessage({ type: 'error', text: `保存に失敗しました: ${toErrorMessage(error)}` })
@@ -250,21 +273,32 @@ export default function LineSettings() {
 			if (profileError) throw profileError
 
 			// Store Update
-			if (storeId) {
-				const { error: storeError } = await supabase
+			// 店舗が未作成のまま黙って店舗情報を捨てないよう、無ければ先に作る
+			let currentStoreId = storeId
+			if (!currentStoreId) {
+				const { data: newStore, error: storeInsertError } = await supabase
 					.from('stores')
-					.update({
-						name: profileData.store_name,
-						postal_code: profileData.postal_code,
-						address: profileData.address,
-						phone_number: profileData.store_phone_number,
-						industry: profileData.industry,
-						updated_at: new Date().toISOString(),
-					})
-					.eq('id', storeId)
-
-				if (storeError) throw storeError
+					.insert({ owner_id: user.id, name: profileData.store_name || 'My Store' })
+					.select()
+					.single()
+				if (storeInsertError) throw storeInsertError
+				currentStoreId = newStore.id
+				setStoreId(newStore.id)
 			}
+
+			const { error: storeError } = await supabase
+				.from('stores')
+				.update({
+					name: profileData.store_name,
+					postal_code: profileData.postal_code,
+					address: profileData.address,
+					phone_number: profileData.store_phone_number,
+					industry: profileData.industry,
+					updated_at: new Date().toISOString(),
+				})
+				.eq('id', currentStoreId)
+
+			if (storeError) throw storeError
 
 			// Notify other components
 			window.dispatchEvent(new Event('profile-updated'))
@@ -278,6 +312,10 @@ export default function LineSettings() {
 	}, [storeId, profileData])
 
 	const handleUpdatePassword = useCallback(async () => {
+		if (passwordData.newPassword.length < MIN_PASSWORD_LENGTH) {
+			setMessage({ type: 'error', text: `パスワードは${MIN_PASSWORD_LENGTH}文字以上で入力してください` })
+			return
+		}
 		if (passwordData.newPassword !== passwordData.confirmPassword) {
 			setMessage({ type: 'error', text: 'パスワードが一致しません' })
 			return

@@ -15,6 +15,7 @@ export default function Customers() {
   const [customers, setCustomers] = useState<CustomerData[]>([])
   const [filteredCustomers, setFilteredCustomers] = useState<CustomerData[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [storeId, setStoreId] = useState<string | null>(null)
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false)
@@ -84,6 +85,7 @@ export default function Customers() {
   }, [searchQuery, customers])
 
   const fetchCustomers = async () => {
+    setLoadError(null)
     try {
       const {
         data: { user },
@@ -97,7 +99,10 @@ export default function Customers() {
         .limit(1)
 
       const store = stores?.[0]
-      if (!store) return
+      if (!store) {
+        setLoadError('店舗が見つかりません。先に店舗情報を登録してください。')
+        return
+      }
       setStoreId(store.id)
 
       const { data: customersData, error: custError } = await supabase
@@ -147,7 +152,9 @@ export default function Customers() {
 
       setCustomers(mergedData)
     } catch (error) {
+      // 握り潰すと「顧客が0件」と見分けがつかなくなるので、必ず画面に出す
       console.error('Error fetching customers:', error)
+      setLoadError('顧客情報の取得に失敗しました。時間をおいて再度お試しください。')
     } finally {
       setLoading(false)
     }
@@ -262,7 +269,13 @@ export default function Customers() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredCustomers.length === 0 ? (
+                  {loadError ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-4 text-center text-red-600">
+                        {loadError}
+                      </td>
+                    </tr>
+                  ) : filteredCustomers.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
                         {searchQuery ? '該当する顧客が見つかりません' : '顧客データがありません'}

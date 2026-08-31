@@ -709,7 +709,10 @@ export default function Reservations() {
       })
       setCustomerPointBalance(result.newBalance)
     } else {
-      setToast({ message: 'ポイント更新に失敗しました', type: 'error' })
+      setToast({
+        message: result.error === 'insufficient' ? '残高が不足しています' : 'ポイント更新に失敗しました',
+        type: 'error',
+      })
     }
   }
 
@@ -720,7 +723,10 @@ export default function Reservations() {
       setCustomerPointBalance(result.newBalance)
       setToast({ message: type === 'add' ? 'ポイントを更新しました' : 'ポイントを利用しました', type: 'success' })
     } else {
-      setToast({ message: 'ポイント更新に失敗しました', type: 'error' })
+      setToast({
+        message: result.error === 'insufficient' ? '残高が不足しています' : 'ポイント更新に失敗しました',
+        type: 'error',
+      })
     }
   }
 

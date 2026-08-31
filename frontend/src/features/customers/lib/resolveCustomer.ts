@@ -13,18 +13,41 @@ export type LogForCustomerResolve = {
 }
 
 /** customers 一覧から line_user_id / 表示名 / 本名 のルックアップ表を構築 */
+/**
+ * 名前 → customers.id の索引を作る。
+ * LINE の表示名も本名も一意ではないので、同名が複数いる名前は索引から落とす。
+ * 後勝ちで残すと、3人目の同名ユーザーのトークが無関係な顧客に紐づいてしまう。
+ */
+function indexUniqueNames(
+  entries: Array<{ name: string | null | undefined; id: string }>,
+): Record<string, string> {
+  const index: Record<string, string> = {}
+  const ambiguous = new Set<string>()
+
+  for (const { name, id } of entries) {
+    const key = name?.trim()
+    if (!key || ambiguous.has(key)) continue
+
+    const existing = index[key]
+    if (existing !== undefined && existing !== id) {
+      delete index[key]
+      ambiguous.add(key)
+      continue
+    }
+    index[key] = id
+  }
+
+  return index
+}
+
 export function buildCustomerLookupMaps(customers: CustomerLookupRow[]) {
   const byLineUserId: Record<string, string> = {}
-  const byDisplayName: Record<string, string> = {}
-  const byRealName: Record<string, string> = {}
-
   for (const c of customers) {
     byLineUserId[c.line_user_id] = c.id
-    const lineName = c.display_name?.trim()
-    if (lineName) byDisplayName[lineName] = c.id
-    const realName = c.real_name?.trim()
-    if (realName) byRealName[realName] = c.id
   }
+
+  const byDisplayName = indexUniqueNames(customers.map((c) => ({ name: c.display_name, id: c.id })))
+  const byRealName = indexUniqueNames(customers.map((c) => ({ name: c.real_name, id: c.id })))
 
   return { byLineUserId, byDisplayName, byRealName }
 }

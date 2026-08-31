@@ -316,9 +316,19 @@ export default function Booking() {
     let targetStoreId = params.get('store_id')
 
     if (!targetStoreId) {
-        // Fallback: Get first store
-        const { data } = await supabase.from('stores').select('id, name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type, slot_interval_minutes, capacity_per_slot, max_booking_days, business_hours, booking_enable_party_size, booking_enable_staff, booking_enable_menu').limit(1).maybeSingle()
-        targetStoreId = data?.id
+        // Fallback: 店舗が1つしか無い環境に限り、その店舗を使う。
+        // 複数店舗があるのに「最初の1件」を採ると、別テナントの予約ページを
+        // 出してしまう（他店の予約枠・メニュー・スタッフが見えることになる）。
+        const { data: fallbackStores } = await supabase.from('stores').select('id, name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type, slot_interval_minutes, capacity_per_slot, max_booking_days, business_hours, booking_enable_party_size, booking_enable_staff, booking_enable_menu').limit(2)
+        const data = fallbackStores?.length === 1 ? fallbackStores[0] : null
+        if (!data) {
+          console.error('store_id が指定されておらず、店舗を一意に決められません', {
+            candidates: fallbackStores?.length ?? 0,
+          })
+          setErrorMsg('店舗情報が見つかりませんでした。予約ページのURLに store_id が必要です。')
+          return
+        }
+        targetStoreId = data.id
         if (data) {
           if (data.name) document.title = data.name
           
