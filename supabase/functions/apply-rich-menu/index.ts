@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { safeErrorResponse } from '../_shared/error-utils.ts'
 import { requireStoreAccess } from '../_shared/store-access.ts'
+import { purgeGeneratedRichMenuImages } from '../_shared/rich-menu-assets.ts'
 
 Deno.serve(async (req) => {
   const origin = req.headers.get('Origin')
@@ -323,6 +324,10 @@ Deno.serve(async (req) => {
       throw new Error(`Failed to upload rich menu image: ${errText}`)
     }
     console.log('Image upload successful')
+
+    // LINE が画像の実体を取り込んだので、生成した合成画像はもう誰も参照しない。
+    // 適用のたびに残すと Storage が際限なく膨らむため、過去分ごとここで消す。
+    await purgeGeneratedRichMenuImages(supabaseClient.storage, store_id)
 
     // 8. Set as Default
     console.log('Setting as default rich menu...')

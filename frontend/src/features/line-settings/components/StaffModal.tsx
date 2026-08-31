@@ -17,6 +17,8 @@ interface StaffModalProps {
   isLoading: boolean
   storeId: string | null
   formData: StaffFormData
+  /** DBに保存済みの画像URL。これ以外のファイルは未保存なので、差し替え・中断時に消してよい */
+  savedImageUrl: string
   isEditing: boolean
   onClose: () => void
   onConfirm: () => void
@@ -24,7 +26,7 @@ interface StaffModalProps {
   onToast?: (message: string, type: 'success' | 'error') => void
 }
 
-export function StaffModal({ isOpen, isLoading, storeId, formData, isEditing, onClose, onConfirm, onChange, onToast }: StaffModalProps) {
+export function StaffModal({ isOpen, isLoading, storeId, formData, savedImageUrl, isEditing, onClose, onConfirm, onChange, onToast }: StaffModalProps) {
   const [uploading, setUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -32,18 +34,23 @@ export function StaffModal({ isOpen, isLoading, storeId, formData, isEditing, on
   // アップロード完了時に入力中の名前・役職を巻き戻さないよう最新値を参照する
   const formDataRef = useRef(formData)
   formDataRef.current = formData
-
-  // このモーダルでアップロードした、まだ保存されていないファイル。
-  // 差し替え・キャンセル時にここだけを消す。保存済みの画像は保存成功後に呼び出し側が消す。
-  const unsavedUploadRef = useRef<string | null>(null)
+  const savedImageUrlRef = useRef(savedImageUrl)
+  savedImageUrlRef.current = savedImageUrl
 
   useEffect(() => {
     if (isOpen) {
       setUploading(false)
       setIsDragging(false)
-      unsavedUploadRef.current = null
     }
   }, [isOpen])
+
+  /**
+   * 表示中の画像が未保存のアップロードなら実ファイルを消す。
+   * 保存済みの画像は、キャンセルされた場合にDBのURLが宙に浮くため消さない
+   * （保存が成功した時点で呼び出し側が消す）。
+   */
+  const discardUnsavedUpload = (nextUrls: (string | null)[] = []) =>
+    removeOrphanedStoreAssets([formDataRef.current.image_url], [...nextUrls, savedImageUrlRef.current])
 
   const handleImageUpload = useCallback(async (file: File) => {
     if (!storeId) {
@@ -98,8 +105,7 @@ export function StaffModal({ isOpen, isLoading, storeId, formData, isEditing, on
       }
 
       const newUrl = `${urlData.publicUrl}?v=${Date.now()}`
-      await removeOrphanedStoreAssets([unsavedUploadRef.current], [newUrl])
-      unsavedUploadRef.current = newUrl
+      await discardUnsavedUpload([newUrl])
 
       onChange({ ...formDataRef.current, image_url: newUrl })
       onToast?.('スタッフ画像をアップロードしました', 'success')
@@ -137,16 +143,13 @@ export function StaffModal({ isOpen, isLoading, storeId, formData, isEditing, on
   }
 
   const handleImageDelete = () => {
-    void removeOrphanedStoreAssets([unsavedUploadRef.current], [])
-    unsavedUploadRef.current = null
+    void discardUnsavedUpload()
     onChange({ ...formDataRef.current, image_url: '' })
     onToast?.('スタッフ画像を削除しました', 'success')
   }
 
-  // キャンセル時は、保存されないまま残るアップロード済みファイルを片付ける
   const handleClose = () => {
-    void removeOrphanedStoreAssets([unsavedUploadRef.current], [])
-    unsavedUploadRef.current = null
+    void discardUnsavedUpload()
     onClose()
   }
 

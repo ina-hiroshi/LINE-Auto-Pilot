@@ -13,6 +13,7 @@ import { stripe } from '../_shared/stripe-client.ts'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { safeErrorResponse } from '../_shared/error-utils.ts'
 import { isAdminUser } from '../_shared/admin-check.ts'
+import { GENERATED_RICH_MENU_BUCKET, selectGeneratedRichMenuFiles } from '../_shared/rich-menu-assets.ts'
 
 /** Stripe 側で既に終了しており、解約 API を呼ぶ必要がないステータス */
 const TERMINAL_SUBSCRIPTION_STATUSES = ['canceled', 'incomplete_expired']
@@ -208,12 +209,10 @@ async function purgeStorage(admin: SupabaseClient, storeIds: string[]): Promise<
   // rich_menus はフォルダを切らず rich-menu-{storeId}-{timestamp}.png で保存しているため、
   // バケット直下を一度だけ列挙して該当店舗のファイルを拾う。
   try {
-    const { data, error } = await admin.storage.from('rich_menus').list('', { limit: 1000 })
+    const { data, error } = await admin.storage.from(GENERATED_RICH_MENU_BUCKET).list('', { limit: 1000 })
     if (error || !data?.length) return
-    const paths = data
-      .filter((file) => storeIds.some((storeId) => file.name.startsWith(`rich-menu-${storeId}-`)))
-      .map((file) => file.name)
-    if (paths.length > 0) await admin.storage.from('rich_menus').remove(paths)
+    const paths = selectGeneratedRichMenuFiles(data.map((file) => file.name), storeIds)
+    if (paths.length > 0) await admin.storage.from(GENERATED_RICH_MENU_BUCKET).remove(paths)
   } catch (error) {
     console.error('[delete-account] failed to purge rich_menus (ignoring):', error)
   }

@@ -9,6 +9,7 @@ import ProBadge from '../../../components/ProBadge'
 import { UnderlineTabs } from '../../../components/UnderlineTabs'
 import ProUpgradeButton from '../../../components/ProUpgradeButton'
 import { supabase } from '../../../lib/supabase'
+import { removeOrphanedStoreAssets } from '../../../lib/storageAssets'
 // プリセットカラー
 const PRESET_COLORS = [
   { name: 'ブルー', color: '#3B82F6' },
@@ -23,6 +24,8 @@ const PRESET_COLORS = [
 interface BookingPageTabProps {
   storeId: string | null
   bookingSettings: BookingSettings
+  /** DBに保存済みのロゴURL。これ以外のファイルは未保存なので、差し替え時に消してよい */
+  savedLogoUrl: string
   staffList: Staff[]
   menuList: Menu[]
   previewRefreshKey: number
@@ -50,6 +53,7 @@ const SLOT_OPTIONS = [15, 30, 60]
 export function BookingPageTab({
   storeId,
   bookingSettings,
+  savedLogoUrl,
   staffList,
   menuList,
   previewRefreshKey,
@@ -72,6 +76,17 @@ export function BookingPageTab({
   const [uploading, setUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  /**
+   * 表示中のロゴが未保存のアップロードなら実ファイルを消す。
+   * 保存済みのロゴは、保存されずに離脱した場合にDBのURLが宙に浮くため消さない
+   * （「設定を保存」が成功した時点で親が消す）。
+   */
+  const discardUnsavedLogo = useCallback(
+    (nextUrls: string[] = []) =>
+      removeOrphanedStoreAssets([bookingSettings.liff_logo_url], [...nextUrls, savedLogoUrl]),
+    [bookingSettings.liff_logo_url, savedLogoUrl],
+  )
 
   // ロゴ画像アップロード処理
   const handleLogoUpload = useCallback(async (file: File) => {
@@ -139,7 +154,9 @@ export function BookingPageTab({
 
       // キャッシュバスティング用のタイムスタンプを付加
       const publicUrlWithCacheBust = `${urlData.publicUrl}?v=${Date.now()}`
-      
+
+      await discardUnsavedLogo([publicUrlWithCacheBust])
+
       // 設定を更新
       onBookingSettingsChange({ ...bookingSettings, liff_logo_url: publicUrlWithCacheBust })
       onToast('ロゴ画像をアップロードしました', 'success')
@@ -189,13 +206,13 @@ export function BookingPageTab({
     setIsDragging(false)
   }
 
-  // ロゴ画像削除処理。実ファイルは「設定を保存」が成功した時点で消す
   const handleLogoDelete = useCallback(() => {
     if (!bookingSettings.liff_logo_url) return
 
+    void discardUnsavedLogo()
     onBookingSettingsChange({ ...bookingSettings, liff_logo_url: '' })
     onToast('ロゴ画像を削除しました', 'success')
-  }, [bookingSettings, onBookingSettingsChange, onToast])
+  }, [bookingSettings, discardUnsavedLogo, onBookingSettingsChange, onToast])
 
   return (
     <div>

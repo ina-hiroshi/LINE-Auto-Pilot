@@ -36,8 +36,8 @@ export default function BookingSettingsPage() {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0)
   // DBに保存済みの画像URL。保存が成功した時点で、使われなくなった方をStorageから消すために持つ
-  const savedLogoUrlRef = useRef('')
-  const savedStaffImageUrlRef = useRef('')
+  const [savedLogoUrl, setSavedLogoUrl] = useState('')
+  const [savedStaffImageUrl, setSavedStaffImageUrl] = useState('')
 
   // Modals
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false)
@@ -74,7 +74,7 @@ export default function BookingSettingsPage() {
         const store = stores && stores.length > 0 ? stores[0] : null
         if (store) {
           setStoreId(store.id)
-          savedLogoUrlRef.current = store.liff_logo_url || ''
+          setSavedLogoUrl(store.liff_logo_url || '')
           setBookingSettings({
             liff_template_id: store.liff_template_id || DEFAULT_BOOKING_SETTINGS.liff_template_id,
             liff_theme_color: store.liff_theme_color || DEFAULT_BOOKING_SETTINGS.liff_theme_color,
@@ -200,8 +200,8 @@ export default function BookingSettingsPage() {
       if (error) throw error
 
       const newLogoUrl = bookingSettings.liff_logo_url || ''
-      await removeOrphanedStoreAssets([savedLogoUrlRef.current], [newLogoUrl])
-      savedLogoUrlRef.current = newLogoUrl
+      await removeOrphanedStoreAssets([savedLogoUrl], [newLogoUrl])
+      setSavedLogoUrl(newLogoUrl)
 
       setToast({ isVisible: true, message: '予約ページ設定を保存しました', type: 'success' })
     } catch (error) {
@@ -215,13 +215,13 @@ export default function BookingSettingsPage() {
   // --- Staff Handlers ---
   const handleAddStaff = () => {
     setStaffFormData({ name: '', role: '', image_url: '' })
-    savedStaffImageUrlRef.current = ''
+    setSavedStaffImageUrl('')
     setEditingStaffId(null)
     setIsStaffModalOpen(true)
   }
   const handleEditStaff = (staff: Staff) => {
     setStaffFormData({ name: staff.name, role: staff.role || '', image_url: staff.image_url || '' })
-    savedStaffImageUrlRef.current = staff.image_url || ''
+    setSavedStaffImageUrl(staff.image_url || '')
     setEditingStaffId(staff.id)
     setIsStaffModalOpen(true)
   }
@@ -251,8 +251,8 @@ export default function BookingSettingsPage() {
       }
 
       const newImageUrl = staffFormData.image_url || ''
-      await removeOrphanedStoreAssets([savedStaffImageUrlRef.current], [newImageUrl])
-      savedStaffImageUrlRef.current = newImageUrl
+      await removeOrphanedStoreAssets([savedStaffImageUrl], [newImageUrl])
+      setSavedStaffImageUrl(newImageUrl)
 
       // Refresh list
       const { data } = await supabase.from('staff_members').select('*').eq('store_id', storeId).order('created_at', { ascending: true })
@@ -392,6 +392,7 @@ export default function BookingSettingsPage() {
         <BookingPageTab
           storeId={storeId}
           bookingSettings={bookingSettings}
+          savedLogoUrl={savedLogoUrl}
           onBookingSettingsChange={setBookingSettings}
           staffList={staffList}
           menuList={menuList}
@@ -416,6 +417,7 @@ export default function BookingSettingsPage() {
         onClose={() => setIsStaffModalOpen(false)}
         onConfirm={handleSaveStaff}
         formData={staffFormData}
+        savedImageUrl={savedStaffImageUrl}
         onChange={setStaffFormData}
         isEditing={!!editingStaffId}
         onToast={showToast}

@@ -6,6 +6,7 @@ import ProUpgradeButton from '../components/ProUpgradeButton'
 import Toast from '../components/Toast'
 import { UnderlineTabs } from '../components/UnderlineTabs'
 import { usePlan } from '../hooks/usePlan'
+import { removeOrphanedStoreAssets } from '../lib/storageAssets'
 import { DESIGN_THEMES } from '../constants/designThemes'
 
 // プリセットカラー
@@ -79,6 +80,10 @@ export default function MembershipCard() {
   const [uploading, setUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // DBに保存済みのロゴURL。これ以外のファイルは未保存なので、差し替え時に消してよい
+  const savedLogoUrlRef = useRef<string | null>(null)
+  const logoUrlRef = useRef<string | null>(null)
+  logoUrlRef.current = settings.logo_url
   const [toast, setToast] = useState<{ isVisible: boolean; message: string; type: 'success' | 'error' }>({
     isVisible: false,
     message: '',
@@ -98,6 +103,7 @@ export default function MembershipCard() {
 
       if (store) {
         setStoreId(store.id)
+        savedLogoUrlRef.current = store.membership_card_logo_url || null
         
         // Merge JSON settings with type safety
         const cardSettings = (store.membership_card_settings ?? {}) as Partial<{
@@ -168,6 +174,10 @@ export default function MembershipCard() {
         .eq('id', storeId)
 
       if (error) throw error
+
+      await removeOrphanedStoreAssets([savedLogoUrlRef.current], [settings.logo_url])
+      savedLogoUrlRef.current = settings.logo_url
+
       setToast({ isVisible: true, message: '設定を保存しました', type: 'success' })
     } catch (error) {
       console.error('Error saving settings:', error)
@@ -176,6 +186,17 @@ export default function MembershipCard() {
       setSaving(false)
     }
   }
+
+  /**
+   * 表示中のロゴが未保存のアップロードなら実ファイルを消す。
+   * 保存済みのロゴは、保存されずに離脱した場合にDBのURLが宙に浮くため消さない
+   * （保存が成功した時点で handleSave が消す）。
+   */
+  const discardUnsavedLogo = useCallback(
+    (nextUrls: (string | null)[] = []) =>
+      removeOrphanedStoreAssets([logoUrlRef.current], [...nextUrls, savedLogoUrlRef.current]),
+    [],
+  )
 
   // ロゴ画像アップロード処理
   const handleLogoUpload = useCallback(async (file: File) => {
@@ -210,6 +231,7 @@ export default function MembershipCard() {
         .getPublicUrl(filePath)
 
       const newUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`
+      await discardUnsavedLogo([newUrl])
       setSettings(prev => ({ ...prev, logo_url: newUrl }))
       setToast({ isVisible: true, message: 'ロゴ画像をアップロードしました', type: 'success' })
     } catch (error) {
@@ -218,7 +240,7 @@ export default function MembershipCard() {
     } finally {
       setUploading(false)
     }
-  }, [storeId])
+  }, [storeId, discardUnsavedLogo])
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -243,9 +265,10 @@ export default function MembershipCard() {
   }, [])
 
   const handleLogoDelete = useCallback(() => {
+    void discardUnsavedLogo()
     setSettings(prev => ({ ...prev, logo_url: null }))
     setToast({ isVisible: true, message: 'ロゴ画像を削除しました', type: 'success' })
-  }, [])
+  }, [discardUnsavedLogo])
 
   if (loading) {
     return (
