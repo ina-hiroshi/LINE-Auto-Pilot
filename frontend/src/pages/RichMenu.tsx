@@ -7,7 +7,9 @@ import Toast from '../components/Toast'
 import { RichMenuTab } from '../features/line-settings/components/RichMenuTab'
 import type { RichMenuSettings, RichMenuAction } from '../features/line-settings/types'
 import { AVAILABLE_ICONS, RICH_MENU_LAYOUTS } from '../features/line-settings/constants'
+import { drawImageCover, getRichMenuSize, getSlotRects } from '../features/line-settings/richMenuGeometry'
 import { usePlan } from '../hooks/usePlan'
+import { removeOrphanedStoreAssets } from '../lib/storageAssets'
 
 const DEFAULT_RICH_MENU_SETTINGS: RichMenuSettings = {
   template_id: 'simple',
@@ -28,6 +30,8 @@ export default function RichMenu() {
     type: 'success'
   })
   const previewRef = useRef<HTMLDivElement>(null)
+  // DBに保存済みの背景画像。保存が成功した時点で、使われなくなった方をStorageから消すために持つ
+  const [savedSlotImages, setSavedSlotImages] = useState<Record<number, string>>({})
 
   const handleToast = (message: string, type: 'success' | 'error') => {
     setToast({ isVisible: true, message, type })
@@ -52,6 +56,7 @@ export default function RichMenu() {
           // actionsからslot_background_imagesを抽出
           const rawActions = store.rich_menu_actions || {}
           const slotBgImages = rawActions._slot_background_images || {}
+          setSavedSlotImages(slotBgImages)
           const actions = Object.entries(rawActions).reduce((acc, [key, value]) => {
             if (key === '_slot_background_images') return acc // スキップ
             const numKey = Number(key)
@@ -98,8 +103,7 @@ export default function RichMenu() {
         if (!ctx) throw new Error('Canvas context not supported')
         
         const layout = RICH_MENU_LAYOUTS.find(l => l.id === richMenuSettings.layout_id) || RICH_MENU_LAYOUTS[0]
-        const width = 1200
-        const height = layout.id.startsWith('compact') ? 405 : 810
+        const { width, height } = getRichMenuSize(layout.id)
         canvas.width = width
         canvas.height = height
 
@@ -127,18 +131,11 @@ export default function RichMenu() {
             img.onerror = reject
             img.src = richMenuSettings.custom_image_url
           })
-          // Cover
-          const scale = Math.max(width / img.width, height / img.height)
-          const x = (width - img.width * scale) / 2
-          const y = (height - img.height * scale) / 2
-          ctx.drawImage(img, x, y, img.width * scale, img.height * scale)
+          drawImageCover(ctx, img, { x: 0, y: 0, width, height })
           
           return new Promise<Blob>((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error('Blob failed')), 'image/png'))
         }
 
-        // Draw Slots
-        const gap = 4
-        
         const drawSlot = async (slotNum: number, x: number, y: number, w: number, h: number) => {
           // スロットごとの背景画像があれば使用
           const slotBgImage = richMenuSettings.slot_background_images?.[slotNum]
@@ -154,20 +151,7 @@ export default function RichMenu() {
                 bgImg.onerror = reject
                 bgImg.src = slotBgImage
               })
-              // object-cover のように描画
-              const scale = Math.max(w / bgImg.width, h / bgImg.height)
-              const drawW = bgImg.width * scale
-              const drawH = bgImg.height * scale
-              const offsetX = x + (w - drawW) / 2
-              const offsetY = y + (h - drawH) / 2
-              
-              // クリッピングでスロット領域に制限
-              ctx.save()
-              ctx.beginPath()
-              ctx.rect(x, y, w, h)
-              ctx.clip()
-              ctx.drawImage(bgImg, offsetX, offsetY, drawW, drawH)
-              ctx.restore()
+              drawImageCover(ctx, bgImg, { x, y, width: w, height: h })
               hasSlotBgImage = true
               // アイコン・ラベルも描画するため、returnしない
             } catch (err) {
@@ -230,11 +214,16 @@ export default function RichMenu() {
 
           if (!isSet) ctx.globalAlpha = 0.5
 
+          const uiScale = width / 1200
+          const iconSize = Math.round(64 * uiScale)
+          const fontSize = Math.round(36 * uiScale)
+          const iconLabelGap = Math.round(20 * uiScale)
+
           // Icon（表示設定がONの場合のみ）
           if (showIcon) {
             const svgString = renderToStaticMarkup(
               <IconComp 
-                size={64} 
+                size={iconSize} 
                 color={iconColor} 
                 strokeWidth={2}
               />
@@ -248,9 +237,8 @@ export default function RichMenu() {
               img.src = url
             })
             
-            const iconSize = 64
             const iconX = x + (w - iconSize) / 2
-            const iconY = y + (h - iconSize) / 2 - (showLabel ? 20 : 0)
+            const iconY = y + (h - iconSize) / 2 - (showLabel ? iconLabelGap : 0)
 
             ctx.drawImage(img, iconX, iconY, iconSize, iconSize)
             URL.revokeObjectURL(url)
@@ -259,40 +247,21 @@ export default function RichMenu() {
           // Text（表示設定がONの場合のみ）
           if (showLabel) {
             ctx.fillStyle = labelColor
-            ctx.font = 'bold 36px sans-serif'
+            ctx.font = `bold ${fontSize}px sans-serif`
             ctx.textAlign = 'center'
             ctx.textBaseline = 'top'
             
-            const textY = showIcon ? y + (h - 64) / 2 - 20 + 64 + 16 : y + h / 2 - 18
+            const textY = showIcon ? y + (h - iconSize) / 2 - iconLabelGap + iconSize + Math.round(16 * uiScale) : y + h / 2 - fontSize / 2
             ctx.fillText(label, x + w / 2, textY)
           }
           
           ctx.globalAlpha = 1.0
         }
 
-        // Grid Logic
-        if (layout.id === 'large_3_upper') {
-          const h = (height - gap) / 2
-          const w = (width - gap) / 2
-          await drawSlot(1, 0, 0, width, h)
-          await drawSlot(2, 0, h + gap, w, h)
-          await drawSlot(3, w + gap, h + gap, w, h)
-        } else {
-          const rows = layout.id.startsWith('compact') ? 1 : 2
-          const cols = (layout.id.includes('3') && !layout.id.includes('upper')) || layout.id.includes('6') ? 3 : 2
-          
-          const cellW = (width - (cols - 1) * gap) / cols
-          const cellH = (height - (rows - 1) * gap) / rows
-
-          let slotCount = 1
-          for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-              const x = c * (cellW + gap)
-              const y = r * (cellH + gap)
-              await drawSlot(slotCount, x, y, cellW, cellH)
-              slotCount++
-            }
-          }
+        const slotRects = getSlotRects(layout.id)
+        for (let i = 0; i < slotRects.length; i++) {
+          const rect = slotRects[i]
+          await drawSlot(i + 1, rect.x, rect.y, rect.width, rect.height)
         }
 
         // PNG圧縮: 品質を下げてサイズを削減（LINE APIの1MB制限対応）
@@ -376,6 +345,10 @@ export default function RichMenu() {
         throw error
       }
 
+      const newSlotImages = richMenuSettings.slot_background_images || {}
+      await removeOrphanedStoreAssets(Object.values(savedSlotImages), Object.values(newSlotImages))
+      setSavedSlotImages(newSlotImages)
+
       // Apply Rich Menu via Edge Function
       console.log('Calling apply-rich-menu with:', {
         store_id: storeId,
@@ -450,6 +423,7 @@ export default function RichMenu() {
         <div className="w-full">
         <RichMenuTab
           richMenuSettings={richMenuSettings}
+          savedSlotImages={savedSlotImages}
           onChangeSettings={setRichMenuSettings}
           previewRef={previewRef}
           isPro={isPro}

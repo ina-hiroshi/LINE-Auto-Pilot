@@ -5,12 +5,14 @@ import {
   Trash2, Info, ArrowUpDown, Type, ChevronDown
 } from 'lucide-react'
 import { AVAILABLE_ICONS, RICH_MENU_LAYOUTS } from '../constants'
+import { getRichMenuPreviewAspect, getSlotAspectRatio } from '../richMenuGeometry'
 import type { RichMenuAction, RichMenuSettings } from '../types'
 import { DESIGN_THEMES } from '../../../constants/designThemes'
 import ProBadge from '../../../components/ProBadge'
 import { UnderlineTabs } from '../../../components/UnderlineTabs'
 import ProUpgradeButton from '../../../components/ProUpgradeButton'
 import { supabase } from '../../../lib/supabase'
+import { removeOrphanedStoreAssets } from '../../../lib/storageAssets'
 
 // プリセットカラー定義
 const PRESET_COLORS = [
@@ -35,6 +37,8 @@ const DEFAULT_ACTIONS = {
 
 interface RichMenuTabProps {
   richMenuSettings: RichMenuSettings
+  /** DBに保存済みの背景画像。これ以外のファイルは未保存なので、差し替え時に消してよい */
+  savedSlotImages: Record<number, string>
   onChangeSettings: (next: RichMenuSettings) => void
   previewRef?: React.RefObject<HTMLDivElement | null>
   isPro: boolean
@@ -42,7 +46,7 @@ interface RichMenuTabProps {
   onToast?: (message: string, type: 'success' | 'error') => void
 }
 
-export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, isPro, storeId, onToast }: RichMenuTabProps) {
+export function RichMenuTab({ richMenuSettings, savedSlotImages, onChangeSettings, previewRef, isPro, storeId, onToast }: RichMenuTabProps) {
   const [activeTab, setActiveTab] = useState<'design' | 'actions'>('design')
   const [openIconSelector, setOpenIconSelector] = useState<number | null>(null)
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null)
@@ -58,6 +62,25 @@ export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, is
     const nextAction = updater(prev)
     onChangeSettings({ ...richMenuSettings, actions: { ...richMenuSettings.actions, [slot]: nextAction } })
   }
+
+  /**
+   * そのスロットに表示中の画像が未保存のアップロードなら実ファイルを消す。
+   * 保存済みの画像は、適用されずに離脱した場合にDBのURLが宙に浮くため消さない
+   * （保存が成功した時点で親が消す）。
+   */
+  const discardUnsavedSlotImage = useCallback(
+    (slot: number, nextUrls: string[] = []) => {
+      const current = richMenuSettings.slot_background_images ?? {}
+      const stillUsed = Object.entries(current)
+        .filter(([key]) => Number(key) !== slot)
+        .map(([, url]) => url)
+      return removeOrphanedStoreAssets(
+        [current[slot]],
+        [...nextUrls, ...stillUsed, ...Object.values(savedSlotImages)],
+      )
+    },
+    [richMenuSettings.slot_background_images, savedSlotImages],
+  )
 
   // スロットごとの背景画像アップロード処理
   const handleSlotImageUpload = useCallback(async (file: File, slot: number) => {
@@ -90,6 +113,8 @@ export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, is
         .getPublicUrl(filePath)
 
       const newUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`
+      await discardUnsavedSlotImage(slot, [newUrl])
+
       const newSlotImages = { ...richMenuSettings.slot_background_images, [slot]: newUrl }
       onChangeSettings({ ...richMenuSettings, slot_background_images: newSlotImages })
       onToast?.(`ボタン${slot}の背景画像をアップロードしました`, 'success')
@@ -99,15 +124,16 @@ export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, is
     } finally {
       setUploadingSlot(null)
     }
-  }, [storeId, richMenuSettings, onChangeSettings, onToast])
+  }, [storeId, richMenuSettings, discardUnsavedSlotImage, onChangeSettings, onToast])
 
   // スロット背景画像を削除
   const handleSlotImageDelete = useCallback((slot: number) => {
+    void discardUnsavedSlotImage(slot)
     const newSlotImages = { ...richMenuSettings.slot_background_images }
     delete newSlotImages[slot]
     onChangeSettings({ ...richMenuSettings, slot_background_images: newSlotImages })
     onToast?.(`ボタン${slot}の背景画像を削除しました`, 'success')
-  }, [richMenuSettings, onChangeSettings, onToast])
+  }, [richMenuSettings, discardUnsavedSlotImage, onChangeSettings, onToast])
 
   // スロット画像のドロップ処理
   const handleSlotDrop = useCallback((e: React.DragEvent<HTMLDivElement>, slot: number) => {
@@ -341,11 +367,14 @@ export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, is
                             </div>
                             
                             {slotImage ? (
-                              <div className="relative group aspect-square bg-gray-100 rounded-lg border border-gray-200">
+                              <div
+                                className="relative group bg-gray-100 rounded-lg border border-gray-200 overflow-hidden"
+                                style={{ aspectRatio: getSlotAspectRatio(layout.id, slotNum) }}
+                              >
                                 <img
                                   src={slotImage}
                                   alt={`ボタン${slotNum}の背景`}
-                                  className="w-full h-full object-contain rounded-lg"
+                                  className="w-full h-full object-cover object-center"
                                 />
                                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex flex-col items-center justify-center gap-1">
                                   <button
@@ -369,9 +398,10 @@ export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, is
                                 onDragOver={(e) => { e.preventDefault(); setDraggingSlot(slotNum) }}
                                 onDragLeave={(e) => { e.preventDefault(); setDraggingSlot(null) }}
                                 className={`
-                                  aspect-square border-2 border-dashed rounded-lg flex flex-col items-center justify-center transition-all cursor-pointer
+                                  border-2 border-dashed rounded-lg flex flex-col items-center justify-center transition-all cursor-pointer
                                   ${isDraggingThis ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'}
                                 `}
+                                style={{ aspectRatio: getSlotAspectRatio(layout.id, slotNum) }}
                               >
                                 {isUploading ? (
                                   <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
@@ -387,7 +417,7 @@ export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, is
                         )
                       })}
                     </div>
-                    <p className="text-xs text-gray-500 mt-3">推奨: 正方形の画像（PNG/JPG形式、5MB以下）</p>
+                    <p className="text-xs text-gray-500 mt-3">登録した画像は、実際のリッチメニューのボタン比率に合わせて中央トリミングされます（PNG/JPG、5MB以下）。</p>
                   </div>
                 </div>
               </>
@@ -848,7 +878,8 @@ export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, is
                   </div>
                   <div 
                     ref={previewRef}
-                    className={`w-full relative ${richMenuSettings.layout_id.startsWith('compact') ? 'aspect-[3/1]' : 'aspect-[1.5/1]'}`}
+                    className="w-full relative"
+                    style={{ aspectRatio: getRichMenuPreviewAspect(richMenuSettings.layout_id) }}
                   >
                     {/* Custom Image Background if set */}
                     {richMenuSettings.custom_image_url ? (
@@ -859,7 +890,7 @@ export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, is
                       />
                     ) : (
                       <div
-                        className={`absolute inset-0 w-full h-full grid gap-0.5 p-0.5
+                        className={`absolute inset-0 w-full h-full grid
                           ${(() => {
                             if (layout.id === 'large_3_upper') return 'grid-cols-2 grid-rows-2'
                             return layout.grid || 'grid-cols-2 grid-rows-2'
@@ -947,13 +978,13 @@ export function RichMenuTab({ richMenuSettings, onChangeSettings, previewRef, is
                           }
 
                           return (
-                            <div key={slotNum} className={`${styleClass} ${gridSpan} ${slotBgImage ? 'bg-gray-800' : ''}`}>
-                              {/* スロット背景画像 */}
+                            <div key={slotNum} className={`${styleClass} ${gridSpan}`}>
+                              {/* スロット背景画像はボタン比率で中央トリミング */}
                               {slotBgImage && (
                                 <img
                                   src={slotBgImage}
                                   alt={`ボタン${slotNum}背景`}
-                                  className="absolute inset-0 w-full h-full object-contain"
+                                  className="absolute inset-0 w-full h-full object-cover object-center"
                                 />
                               )}
                               {/* コンテンツ（背景画像の上に表示） */}
