@@ -9,6 +9,7 @@ Deno.serve(async (req: Request) => {
     const channelId = req.headers.get('x-goog-channel-id')
     const resourceId = req.headers.get('x-goog-resource-id')
     const resourceState = req.headers.get('x-goog-resource-state')
+    const channelToken = req.headers.get('x-goog-channel-token')
     const _channelExpiration = req.headers.get('x-goog-channel-expiration') // For future use
 
     console.log(`Received Webhook: Channel=${channelId}, State=${resourceState}`)
@@ -43,7 +44,17 @@ Deno.serve(async (req: Request) => {
     if (settingsError || !settings) {
       console.error('Settings not found for channel:', channelId)
       // Return 200 to stop Google from retrying if channel is invalid
-      return new Response('Channel not found', { status: 200 }) 
+      return new Response('Channel not found', { status: 200 })
+    }
+
+    // x-goog-channel-id は watch 開始時にこちらが発行した値だが、リクエスト
+    // ヘッダは呼び出し側が自由に詐称できるため、これだけでは「本当にGoogle
+    // からの通知か」の証明にならない。watch開始時にだけ知り得るトークンが
+    // 一致するかを見て初めて、なりすましリクエストによる不要な再同期・
+    // データ操作を防げる（Google公式が推奨する検証方法）。
+    if (!settings.channel_token || channelToken !== settings.channel_token) {
+      console.error('Channel token mismatch for channel:', channelId)
+      return new Response('Invalid channel token', { status: 403 })
     }
 
     // 4. Get Store ID associated with this user

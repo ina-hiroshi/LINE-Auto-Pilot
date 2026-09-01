@@ -137,6 +137,11 @@ Deno.serve(async (req: Request) => {
     if (action === 'watch') {
       const calendarId = url.searchParams.get('calendar_id') || 'primary'
       const channelId = crypto.randomUUID()
+      // google-calendar-webhook は x-goog-channel-id ヘッダだけで通知元を
+      // 特定しており、Googleからの通知であることを検証していなかった。
+      // Googleの推奨に従い、watch開始時にトークンを発行してGoogleに渡し、
+      // Webhook側で X-Goog-Channel-Token として返ってくる値を照合する。
+      const channelToken = crypto.randomUUID()
       const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
       const webhookUrl = `${supabaseUrl}/functions/v1/google-calendar-webhook`
 
@@ -154,6 +159,7 @@ Deno.serve(async (req: Request) => {
             id: channelId,
             type: 'web_hook',
             address: webhookUrl,
+            token: channelToken,
           })
         }
       )
@@ -171,6 +177,7 @@ Deno.serve(async (req: Request) => {
         .update({
           calendar_id: calendarId,
           channel_id: watchData.id,
+          channel_token: channelToken,
           resource_id: watchData.resourceId,
           expiration: watchData.expiration,
           sync_token: null // Reset sync token on new watch
