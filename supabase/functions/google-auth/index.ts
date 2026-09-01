@@ -51,6 +51,23 @@ Deno.serve(async (req: Request) => {
         throw new Error('Missing redirect_uri')
       }
 
+      // state に user.id をそのまま使うと、第三者が「自分のGoogleアカウント」で
+      // 認可を取った上で state だけ被害者の user.id に差し替えたURLを踏ませる
+      // CSRFが成立してしまう（user.id は推測・入手されうる値であり、それ自体は
+      // 「このブラウザが認可を開始した」ことの証明にならない）。
+      // サーバー側で乱数ナンスを発行し、呼び出し元(user.id)に紐づけて保存する。
+      // POST側では「現在の認証ユーザー自身に保存された値」との一致のみを見るため、
+      // 攻撃者が発行したstateは攻撃者自身のuser_id宛にしか保存されず、
+      // 被害者のセッションでは一致しない。
+      const oauthState = crypto.randomUUID()
+      const { error: stateError } = await supabaseClient
+        .from('google_oauth_states')
+        .upsert({ user_id: user.id, state: oauthState, created_at: new Date().toISOString() }, { onConflict: 'user_id' })
+
+      if (stateError) {
+        throw new Error(`Failed to persist oauth state: ${stateError.message}`)
+      }
+
       const params = new URLSearchParams({
         client_id: GOOGLE_CLIENT_ID,
         redirect_uri: redirectUri,
@@ -58,9 +75,9 @@ Deno.serve(async (req: Request) => {
         scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
         access_type: 'offline',
         prompt: 'consent', // Force consent to ensure we get a refresh token
-        state: user.id,
+        state: oauthState,
       })
-      
+
       const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
       
       return new Response(JSON.stringify({ url }), {
@@ -84,15 +101,34 @@ Deno.serve(async (req: Request) => {
         throw new Error('Missing redirect_uri')
       }
 
-      // state は GET (認可URL発行) 時点でその時ログインしていたユーザーの
-      // user.id を埋め込んでいる。ここで現在のセッションのユーザーIDと
-      // 一致するか検証しないと、第三者が「自分のGoogleアカウント」で
-      // 認可を取り、未ログイン状態でリダイレクトを受けて code だけを
-      // 温存し、その ?code=...&state=... を含むURLを被害者（ログイン中の
-      // 店舗オーナー）に踏ませることで、攻撃者のGoogleカレンダーを
-      // 被害者の店舗に連携させてしまうCSRFが成立する（連携後は被害者の
-      // 顧客の氏名・予約日時が攻撃者のカレンダーに書き込まれ続ける）。
-      if (!state || state !== user.id) {
+      // state は GET 時に「現在の認証ユーザー自身」に紐づけてサーバーに
+      // 保存した乱数ナンスと完全一致する場合のみ受理する。第三者が別の
+      // Googleアカウントで認可を取って組み立てた state は、攻撃者自身の
+      // user_id にしか保存されていないため、被害者のセッション（別の
+      // user.id）で照合すると必ず不一致になる。5分を超えたものは失効
+      // とみなし、成否によらず使用後は必ず削除して使い回しを防ぐ。
+      if (!state) {
+        throw new Error('Invalid state parameter')
+      }
+
+      const { data: storedState, error: stateFetchError } = await supabaseClient
+        .from('google_oauth_states')
+        .select('state, created_at')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      // 成否によらず単発利用のため即座に削除する
+      await supabaseClient.from('google_oauth_states').delete().eq('user_id', user.id)
+
+      if (stateFetchError) {
+        throw new Error(`Failed to verify oauth state: ${stateFetchError.message}`)
+      }
+
+      const isFresh = storedState?.created_at
+        ? Date.now() - new Date(storedState.created_at).getTime() < 5 * 60 * 1000
+        : false
+
+      if (!storedState || storedState.state !== state || !isFresh) {
         throw new Error('Invalid state parameter')
       }
 
