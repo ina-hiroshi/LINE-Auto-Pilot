@@ -3,6 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { Users, Calendar, AlertCircle, Bot, User, MessageSquare, Sparkles, BarChart3, TrendingUp, Search, Lightbulb, Target, FolderOpen, ExternalLink } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { loadAIAnalysisCache, saveAIAnalysisCache } from '../lib/aiAnalysisCache'
+import {
+  buildDailyCounts,
+  buildDailyUniqueUserCounts,
+  buildStatusDistribution,
+  buildTopNameCounts,
+  buildWeekdayCounts,
+} from '../lib/dashboardGraphs'
 import Modal from '../components/Modal'
 import { type LineQuotaInfo } from '../components/line/LineMessagingQuotaNotice'
 import Toast from '../components/Toast'
@@ -94,15 +101,6 @@ type AIAnalysis = {
   error: string | null
 }
 
-// Summary Cardsの色と統一したカラーパレット
-const STATUS_COLORS = {
-  auto_replied: '#0d9488', // primary-600 (自動応答カードと同じ)
-  ai_replied: '#2563eb', // blue-600 (AI応答カードと同じ)
-  manual_reply_needed: '#dc2626', // red-600 (要対応カードと同じ)
-  manual_replied: '#0f766e', // primary-700
-  resolved: '#94a3b8' // slate-400 (グレー系)
-}
-
 // グラフ用カラーパレット（サイドバーのprimary-600と統一 - index.cssの値を使用）
 const CHART_COLORS = {
   primary: '#00a3b8', // primary-600 (サイドバーと同じ - index.cssの値)
@@ -118,8 +116,6 @@ const CHART_COLORS = {
     stroke: '#00a3b8', // primary-600
   }
 }
-
-const WEEKDAY_NAMES = ['日', '月', '火', '水', '木', '金', '土']
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -185,100 +181,23 @@ export default function Dashboard() {
 
   // Process logs for graph data
   const processGraphData = useCallback((logs: LogEntry[]) => {
-    // Daily data (last 14 days)
-    const dailyMap = new Map<string, number>()
     const now = new Date()
-    for (let i = 13; i >= 0; i--) {
-      const date = new Date(now)
-      date.setDate(date.getDate() - i)
-      const key = `${date.getMonth() + 1}/${date.getDate()}`
-      dailyMap.set(key, 0)
-    }
-    
-    logs.forEach(log => {
-      const date = new Date(log.created_at)
-      const key = `${date.getMonth() + 1}/${date.getDate()}`
-      if (dailyMap.has(key)) {
-        dailyMap.set(key, (dailyMap.get(key) || 0) + 1)
-      }
-    })
-    
-    setDailyData(Array.from(dailyMap.entries()).map(([date, count]) => ({ date, count })))
-
-    // Weekday data
-    const weekdayMap = new Map<number, number>()
-    for (let i = 0; i < 7; i++) weekdayMap.set(i, 0)
-    
-    logs.forEach(log => {
-      const day = new Date(log.created_at).getDay()
-      weekdayMap.set(day, (weekdayMap.get(day) || 0) + 1)
-    })
-    
-    setWeekdayData(WEEKDAY_NAMES.map((day, i) => ({ day, count: weekdayMap.get(i) || 0 })))
-
-    // Status distribution
-    const statusMap = new Map<string, number>()
-    logs.forEach(log => {
-      statusMap.set(log.status, (statusMap.get(log.status) || 0) + 1)
-    })
-    
-    setStatusData([
-      { name: '自動応答', value: statusMap.get('auto_replied') || 0, color: STATUS_COLORS.auto_replied },
-      { name: 'AI応答', value: statusMap.get('ai_replied') || 0, color: STATUS_COLORS.ai_replied },
-      { name: '要対応', value: statusMap.get('manual_reply_needed') || 0, color: STATUS_COLORS.manual_reply_needed },
-      { name: '手動返信', value: statusMap.get('manual_replied') || 0, color: STATUS_COLORS.manual_replied },
-      { name: '対応済', value: statusMap.get('resolved') || 0, color: STATUS_COLORS.resolved },
-    ].filter(item => item.value > 0))
+    setDailyData(buildDailyCounts(now, 14, logs.map((l) => l.created_at)))
+    setWeekdayData(buildWeekdayCounts(logs.map((l) => l.created_at)))
+    setStatusData(buildStatusDistribution(logs.map((l) => l.status)))
   }, [])
 
   // Process user graph data (daily unique users)
   const processUserGraphData = useCallback((logs: LogEntry[]) => {
-    const dailyUserMap = new Map<string, Set<string>>()
     const now = new Date()
-    for (let i = 13; i >= 0; i--) {
-      const date = new Date(now)
-      date.setDate(date.getDate() - i)
-      const key = `${date.getMonth() + 1}/${date.getDate()}`
-      dailyUserMap.set(key, new Set())
-    }
-    
-    logs.forEach(log => {
-      const date = new Date(log.created_at)
-      const key = `${date.getMonth() + 1}/${date.getDate()}`
-      const userSet = dailyUserMap.get(key)
-      if (userSet) {
-        userSet.add(log.line_user_id)
-      }
-    })
-    
-    setDailyUserData(Array.from(dailyUserMap.entries()).map(([date, userSet]) => ({ 
-      date, 
-      count: userSet.size 
-    })))
+    setDailyUserData(buildDailyUniqueUserCounts(now, 14, logs))
   }, [])
 
   // Process reservation graph data
   const processReservationGraphData = useCallback((reservations: ReservationData[]) => {
-    const dailyResMap = new Map<string, number>()
     const now = new Date()
-    for (let i = 13; i >= 0; i--) {
-      const date = new Date(now)
-      date.setDate(date.getDate() - i)
-      const key = `${date.getMonth() + 1}/${date.getDate()}`
-      dailyResMap.set(key, 0)
-    }
-    
-    reservations.forEach(res => {
-      if (res.start_time) {
-        const date = new Date(res.start_time)
-        const key = `${date.getMonth() + 1}/${date.getDate()}`
-        if (dailyResMap.has(key)) {
-          dailyResMap.set(key, (dailyResMap.get(key) || 0) + 1)
-        }
-      }
-    })
-    
-    setDailyReservationData(Array.from(dailyResMap.entries()).map(([date, count]) => ({ date, count })))
+    const timestamps = reservations.map((r) => r.start_time).filter((t): t is string => Boolean(t))
+    setDailyReservationData(buildDailyCounts(now, 14, timestamps))
   }, [])
 
   // Process menu and staff data
@@ -287,36 +206,11 @@ export default function Dashboard() {
     menus: MenuData[],
     staffMembers: StaffData[]
   ) => {
-    const menuMap = new Map(menus.map(m => [m.id, m.name]))
-    const staffMap = new Map(staffMembers.map(s => [s.id, s.name]))
+    const menuNameById = new Map(menus.map(m => [m.id, m.name]))
+    const staffNameById = new Map(staffMembers.map(s => [s.id, s.name]))
 
-    // Menu counts
-    const menuCounts = new Map<string, number>()
-    reservations.forEach(res => {
-      if (res.menu_id) {
-        const menuName = menuMap.get(res.menu_id) || '未設定'
-        menuCounts.set(menuName, (menuCounts.get(menuName) || 0) + 1)
-      }
-    })
-    
-    setMenuData(Array.from(menuCounts.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10))
-
-    // Staff counts
-    const staffCounts = new Map<string, number>()
-    reservations.forEach(res => {
-      if (res.staff_id) {
-        const staffName = staffMap.get(res.staff_id) || '未設定'
-        staffCounts.set(staffName, (staffCounts.get(staffName) || 0) + 1)
-      }
-    })
-    
-    setStaffData(Array.from(staffCounts.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10))
+    setMenuData(buildTopNameCounts(reservations.map((r) => r.menu_id), menuNameById))
+    setStaffData(buildTopNameCounts(reservations.map((r) => r.staff_id), staffNameById))
   }, [])
 
   const fetchDashboardData = useCallback(async () => {
