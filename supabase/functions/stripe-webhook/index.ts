@@ -283,10 +283,15 @@ Deno.serve(async (req: Request) => {
             // トライアル期間があるかどうかをチェック
             const isTrialing = status === 'trialing';
             
-            console.log(`Subscription status: ${status}, Plan: ${status === 'active' || status === 'trialing' ? 'pro' : 'free'}, isTrialing: ${isTrialing}`);
+            // past_due はStripeの自動リトライ（Smart Retries）期間中のステータス。
+            // ここで即座にfreeへ落とすと、一時的なカード拒否（残高不足等、数時間後の
+            // 再試行で通ることも多い）でも支払っている顧客がPro機能を即座に失う。
+            // リトライが尽きて最終的に canceled/unpaid 等になった時点で初めて free に落とす。
+            const isPastDue = status === 'past_due';
+            console.log(`Subscription status: ${status}, Plan: ${status === 'active' || status === 'trialing' || isPastDue ? 'pro' : 'free'}, isTrialing: ${isTrialing}, isPastDue: ${isPastDue}`);
 
             let plan = 'free';
-            if (status === 'active' || status === 'trialing') {
+            if (status === 'active' || status === 'trialing' || isPastDue) {
               plan = 'pro';
             }
 
@@ -348,8 +353,10 @@ Deno.serve(async (req: Request) => {
         const customerId = subscription.customer;
 
         // Map Stripe status to internal plan
+        // past_due はStripeの自動リトライ期間中のステータスなので、リトライが尽きて
+        // canceled/unpaid 等になるまではPro扱いを維持する（理由は上のcheckout.session.completed側と同じ）。
         let plan = 'free';
-        if (status === 'active' || status === 'trialing') {
+        if (status === 'active' || status === 'trialing' || status === 'past_due') {
           plan = 'pro';
         }
 
