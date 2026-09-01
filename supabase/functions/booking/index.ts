@@ -11,6 +11,7 @@ import { createLogger } from '../_shared/logger.ts'
 
 const log = createLogger('booking')
 import { handleGetAvailableSlots } from './handlers/slots.ts'
+import { handleGetBookingResources } from './handlers/resources.ts'
 import { handleCheckCustomer, handleGetActiveReservation } from './handlers/customer.ts'
 import { handleHoldSlot, handleReleaseHold } from './handlers/hold.ts'
 import { isValidUUID } from './handlers/utils.ts'
@@ -140,7 +141,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const publicActions = ['get_available_slots']
+    const publicActions = ['get_available_slots', 'get_booking_resources']
     const sensitiveActions = ['create_reservation', 'cancel_reservation', 'update_reservation', 'complete_payment', 'hold_slot', 'release_hold', 'check_customer', 'get_active_reservation']
 
     /** 予約変更時: reservation_id が有効なら空き枠・仮押さえは予約所有者として処理 */
@@ -203,6 +204,10 @@ Deno.serve(async (req: Request) => {
 
     if (action === 'check_customer') {
       return await handleCheckCustomer(supabaseClient, params, corsHeaders)
+    }
+
+    if (action === 'get_booking_resources') {
+      return await handleGetBookingResources(supabaseClient, params, corsHeaders)
     }
 
     if (action === 'hold_slot') {

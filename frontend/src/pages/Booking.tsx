@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getJstDayOfWeek, getJstDateString, getJstDateStringWithOffset } from '../lib/jstDate'
 import { toErrorMessageAsync } from '../lib/errorUtils'
-import { useStoreResources } from '../hooks/useStoreResources'
+import { usePublicBookingResources } from '../hooks/usePublicBookingResources'
 import type { StoreMenu, StoreStaff } from '../types/storeResources'
 import { Calendar, User, CheckCircle, Loader2, AlertCircle, Grid, Clock, Edit2, XCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -60,7 +60,15 @@ export default function Booking() {
   })
 
   // Salon/Restaurant Data
-  const { staffList, menuList, error: resourcesError, setStaffList, setMenuList } = useStoreResources(storeId)
+  const {
+    staffList,
+    menuList,
+    specialDates,
+    error: resourcesError,
+    setStaffList,
+    setMenuList,
+    setSpecialDates,
+  } = usePublicBookingResources(storeId)
   const [selectedStaff, setSelectedStaff] = useState<StoreStaff | null>(null)
   const [selectedMenu, setSelectedMenu] = useState<StoreMenu | null>(null)
   const [partySize, setPartySize] = useState<number>(1)
@@ -137,10 +145,9 @@ export default function Booking() {
   const [loadingMultiDateSlots, setLoadingMultiDateSlots] = useState(false)
   const [displayDates, setDisplayDates] = useState<string[]>([]) // 表示する日付リスト
   const [allTimeSlots, setAllTimeSlots] = useState<string[]>([]) // 全時間帯のリスト
-  
-  // Special Dates (臨時休業・営業時間上書き)
-  const [specialDates, setSpecialDates] = useState<Record<string, { is_closed: boolean; override_hours: { start: string; end: string }[] | null }>>({})
-  
+
+  // Special Dates (臨時休業・営業時間上書き) は usePublicBookingResources から取得
+
   // User Data
   const [lineUserId, setLineUserId] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -461,32 +468,6 @@ export default function Booking() {
   useEffect(() => {
     initializeLiff()
   }, [initializeLiff])
-
-  // Fetch special dates when storeId changes
-  useEffect(() => {
-    const fetchSpecialDates = async () => {
-      if (!storeId) return
-      
-      try {
-        const { data: dates } = await supabase
-          .from('booking_special_dates')
-          .select('date, is_closed, override_hours')
-          .eq('store_id', storeId)
-        
-        if (dates) {
-          const datesMap: Record<string, { is_closed: boolean; override_hours: { start: string; end: string }[] | null }> = {}
-          dates.forEach((d: { date: string; is_closed: boolean; override_hours: { start: string; end: string }[] | null }) => {
-            datesMap[d.date] = { is_closed: d.is_closed, override_hours: d.override_hours }
-          })
-          setSpecialDates(datesMap)
-        }
-      } catch (e) {
-        console.error('Failed to fetch special dates:', e)
-      }
-    }
-    
-    fetchSpecialDates()
-  }, [storeId])
 
   // Set default date to today (Local Time)
   useEffect(() => {
