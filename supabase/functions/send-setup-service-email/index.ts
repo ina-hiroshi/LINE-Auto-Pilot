@@ -1,5 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getCorsHeaders } from '../_shared/cors.ts'
+import { isAdminUser } from '../_shared/admin-check.ts'
+import { isServiceRoleCaller } from '../_shared/service-role-auth.ts'
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -41,13 +43,23 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Supabaseクライアント初期化
+    // Supabaseクライアント初期化（サービスロール。以降の読み書きに使う）
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: {
         autoRefreshToken: false,
         persistSession: false
       }
     })
+
+    // 認可チェック。
+    // 以前はここに認証チェックが一切無く、order_id さえ分かれば誰でも
+    // （未ログインでも）この注文宛にメールを送信できた。
+    // 正規の呼び出し元は次の2つだけ:
+    //   1. stripe-webhook（サービスロールキーで自分自身を呼ぶ）
+    //   2. 管理画面・オンボーディング画面（ログイン済みユーザーのセッション）
+    // 2 は「注文の本人」か「管理者」のどちらかに限る。
+    const authHeader = req.headers.get('Authorization')
+    const callerIsServiceRole = isServiceRoleCaller(authHeader, SUPABASE_SERVICE_ROLE_KEY)
 
     // 注文情報を取得
     const { data: order, error: orderError } = await supabase
@@ -61,9 +73,49 @@ Deno.serve(async (req) => {
       throw new Error('注文情報の取得に失敗しました')
     }
 
+    if (!callerIsServiceRole) {
+      const anonClient = createClient(
+        SUPABASE_URL,
+        Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+        { global: { headers: { Authorization: authHeader ?? '' } } },
+      )
+      const { data: { user } } = await anonClient.auth.getUser()
+      if (!user) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+      const isOwner = order.user_id === user.id
+      // admin-check.ts は jsr: 指定の SupabaseClient 型を要求するが、ここでは
+      // esm.sh 指定で作っている。実体は同じクライアントだが、モジュール指定子が
+      // 違うと TS 上は別型になるため橋渡しする。
+      const anonClientForAdminCheck = anonClient as unknown as Parameters<typeof isAdminUser>[0]
+      const isAdmin = isOwner ? false : await isAdminUser(anonClientForAdminCheck, user.id, user.email)
+      if (!isOwner && !isAdmin) {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+    }
+
     const email = order.contact_email
     if (!email) {
       throw new Error('メールアドレスが設定されていません')
+    }
+
+    // 冪等性: 既に送信済みなら再送しない。
+    // completion メールは「作業が終わったのでスタッフのLINE権限を削除してください」と
+    // 案内するため、二重送信されると顧客が作業完了前に権限を削除してしまいかねない。
+    const sentColumnCheck = email_type === 'completion'
+      ? 'completion_email_sent_at'
+      : 'payment_confirmation_email_sent_at'
+    if (order[sentColumnCheck]) {
+      return new Response(
+        JSON.stringify({ success: true, skipped: 'already_sent', sent_to: email }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
     }
 
     // Resendでメール送信
