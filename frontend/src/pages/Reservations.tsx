@@ -215,10 +215,10 @@ export default function Reservations() {
     }
   }
 
-  const handleGoogleCallback = useCallback(async (code: string) => {
+  const handleGoogleCallback = useCallback(async (code: string, state: string | null) => {
     try {
       setCalendarLoading(true)
-      
+
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
 
@@ -230,7 +230,7 @@ export default function Reservations() {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ code, redirect_uri: redirectUri })
+        body: JSON.stringify({ code, redirect_uri: redirectUri, state })
       })
       
       const result = await response.json()
@@ -507,7 +507,7 @@ export default function Reservations() {
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
     if (code) {
-      handleGoogleCallback(code)
+      handleGoogleCallback(code, params.get('state'))
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [checkGoogleConnection, fetchReservations, handleGoogleCallback])

@@ -70,8 +70,8 @@ Deno.serve(async (req: Request) => {
 
     // POST: Exchange Code for Tokens
     if (req.method === 'POST') {
-      const { code, redirect_uri: clientRedirectUri } = await req.json()
-      
+      const { code, redirect_uri: clientRedirectUri, state } = await req.json()
+
       if (clientRedirectUri) {
         redirectUri = clientRedirectUri
       }
@@ -82,6 +82,18 @@ Deno.serve(async (req: Request) => {
 
       if (!redirectUri) {
         throw new Error('Missing redirect_uri')
+      }
+
+      // state は GET (認可URL発行) 時点でその時ログインしていたユーザーの
+      // user.id を埋め込んでいる。ここで現在のセッションのユーザーIDと
+      // 一致するか検証しないと、第三者が「自分のGoogleアカウント」で
+      // 認可を取り、未ログイン状態でリダイレクトを受けて code だけを
+      // 温存し、その ?code=...&state=... を含むURLを被害者（ログイン中の
+      // 店舗オーナー）に踏ませることで、攻撃者のGoogleカレンダーを
+      // 被害者の店舗に連携させてしまうCSRFが成立する（連携後は被害者の
+      // 顧客の氏名・予約日時が攻撃者のカレンダーに書き込まれ続ける）。
+      if (!state || state !== user.id) {
+        throw new Error('Invalid state parameter')
       }
 
       // Exchange code for tokens
