@@ -58,6 +58,29 @@ serve(async (req) => {
       }
     }
 
+    // このエンドポイントは未認証で誰でも呼べる。連投を防がないと、
+    // 任意の第三者のメールアドレスに対して認証コードメール（＝スパム）を
+    // 無制限に送りつけられてしまう（フロントの60秒クールダウンは表示上の
+    // ものでしかなく、直接APIを叩けば素通りする）。直近の送信から60秒
+    // 経っていなければ送信自体を拒否する。
+    const { data: recentCode } = await supabase
+      .from('verification_codes')
+      .select('created_at')
+      .eq('email', email)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (recentCode && Date.now() - new Date(recentCode.created_at).getTime() < 60 * 1000) {
+      return new Response(
+        JSON.stringify({ error: '送信間隔が短すぎます。しばらくしてから再度お試しください。' }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      )
+    }
+
     // 6桁の認証コード生成
     const code = Math.floor(100000 + Math.random() * 900000).toString()
 
