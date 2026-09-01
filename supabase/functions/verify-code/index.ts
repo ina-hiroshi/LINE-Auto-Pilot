@@ -131,6 +131,13 @@ serve(async (req) => {
     // アドレスで即座にログイン済みアカウントを作れてしまう）。
     // admin.createUser はサービスロールでのみ呼べるため、このコード
     // 検証を通った場合にのみアカウントが作られることを保証できる。
+    //
+    // 【重要】この保証はSupabase Dashboard側の
+    // Authentication > Sign In / Providers > 「Allow new users to sign up」
+    // が OFF であることとセットで初めて成立する。ONに戻すと
+    // /auth/v1/signup が復活し、このコード検証を経由しないアカウント作成
+    // バイパスが再び開いてしまう。デバッグ等で一時的にONへ戻す場合は
+    // 作業後に必ずOFFへ戻すこと。
     const { error: createUserError } = await supabase.auth.admin.createUser({
       email,
       password,
