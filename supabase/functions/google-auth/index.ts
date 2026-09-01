@@ -105,8 +105,13 @@ Deno.serve(async (req: Request) => {
       // 保存した乱数ナンスと完全一致する場合のみ受理する。第三者が別の
       // Googleアカウントで認可を取って組み立てた state は、攻撃者自身の
       // user_id にしか保存されていないため、被害者のセッション（別の
-      // user.id）で照合すると必ず不一致になる。5分を超えたものは失効
+      // user.id）で照合すると必ず不一致になる。15分を超えたものは失効
       // とみなし、成否によらず使用後は必ず削除して使い回しを防ぐ。
+      // （Googleログイン→2段階認証→アカウント選択→同意画面の一読、という
+      // 一連の流れはモバイルでは数分かかりうるため、5分だと正当な
+      // ユーザーまで弾いてしまう恐れがあり15分に緩和した。Googleの
+      // 認可コード自体の有効期限も約10分であり、15分がstateの実質的な
+      // ボトルネックになることはない）
       if (!state) {
         throw new Error('Invalid state parameter')
       }
@@ -125,7 +130,7 @@ Deno.serve(async (req: Request) => {
       }
 
       const isFresh = storedState?.created_at
-        ? Date.now() - new Date(storedState.created_at).getTime() < 5 * 60 * 1000
+        ? Date.now() - new Date(storedState.created_at).getTime() < 15 * 60 * 1000
         : false
 
       if (!storedState || storedState.state !== state || !isFresh) {
