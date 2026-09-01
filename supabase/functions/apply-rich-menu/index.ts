@@ -5,6 +5,7 @@ import { safeErrorResponse } from '../_shared/error-utils.ts'
 import { requireStoreAccess } from '../_shared/store-access.ts'
 import { purgeGeneratedRichMenuImages } from '../_shared/rich-menu-assets.ts'
 import { buildRichMenuAreas, getRichMenuSize } from '../_shared/rich-menu-areas.ts'
+import { safeFetch } from '../_shared/safe-fetch.ts'
 
 Deno.serve(async (req) => {
   const origin = req.headers.get('Origin')
@@ -159,8 +160,11 @@ Deno.serve(async (req) => {
     }
 
     console.log('Fetching image from:', imageUrl)
-    const imageRes = await fetch(imageUrl)
-    
+    // SSRF対策: generated_image_url / rich_menu_custom_image_url は
+    // 店舗オーナーが指定できる値のため、実際に名前解決したIPが内部
+    // ネットワーク/クラウドメタデータでないか検証してから取得する。
+    const imageRes = await safeFetch(imageUrl)
+
     if (!imageRes.ok) {
       throw new Error(`Failed to fetch image: ${imageRes.status} ${imageRes.statusText}`)
     }

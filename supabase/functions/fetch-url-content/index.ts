@@ -4,33 +4,7 @@ import { encodeBase64 } from "@std/encoding/base64";
 import { createClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { safeErrorResponse } from '../_shared/error-utils.ts'
-
-// URLホワイトリスト（許可するドメイン）
-const ALLOWED_URL_PATTERNS = [
-  /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b/,
-];
-
-// ブロックするドメイン（内部ネットワーク等）
-const BLOCKED_PATTERNS = [
-  /^https?:\/\/localhost/i,
-  /^https?:\/\/127\./,
-  /^https?:\/\/10\./,
-  /^https?:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\./,
-  /^https?:\/\/192\.168\./,
-  /^https?:\/\/169\.254\./,
-  /^https?:\/\/\[::1\]/,
-  /^https?:\/\/\[fc00:/i,
-  /^https?:\/\/\[fe80:/i,
-];
-
-function isUrlAllowed(url: string): boolean {
-  // ブロックパターンに一致するか確認
-  if (BLOCKED_PATTERNS.some(pattern => pattern.test(url))) {
-    return false;
-  }
-  // 許可パターンに一致するか確認
-  return ALLOWED_URL_PATTERNS.some(pattern => pattern.test(url));
-}
+import { safeFetch } from '../_shared/safe-fetch.ts'
 
 // Extract meta information from HTML (including Open Graph tags)
 function extractMetaInfo(html: string): { title: string; description: string; keywords: string } {
@@ -155,17 +129,13 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // SSRF対策: URLの検証
-    if (!isUrlAllowed(url)) {
-      return new Response(
-        JSON.stringify({ error: 'URL is not allowed. Internal network addresses are blocked.' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
-      )
-    }
-
+    // SSRF対策: URLの検証（実際に名前解決したIPも内部ネットワーク/クラウド
+    // メタデータでないか検証し、リダイレクト先も同様に検証する）。
+    // ブロック時も含め詳細な失敗理由は返さず、下の catch で一律の
+    // エラーメッセージにする（内部ネットワーク構成を推測させないため）。
     console.log(`[fetch-url-content] User ${user.id} fetching URL: ${url}`);
-    const response = await fetch(url);
-    
+    const response = await safeFetch(url);
+
     if (!response.ok) {
       throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
     }
