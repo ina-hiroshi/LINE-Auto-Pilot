@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { stripe } from '../_shared/stripe-client.ts'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { safeErrorResponse } from '../_shared/error-utils.ts'
+import { isAllowedPriceId, parseAllowedPriceIds } from '../_shared/stripe-price-guard.ts'
 
 // プレリリースモード: 2ヶ月無料トライアル
 // 正式リリース時は false に変更するか、トライアル日数を調整
@@ -41,6 +42,16 @@ Deno.serve(async (req: Request) => {
     }
 
     const { price_id, return_url } = await req.json()
+
+    const allowedPriceIds = parseAllowedPriceIds(Deno.env.get('STRIPE_PRICE_ID_PRO'))
+    if (allowedPriceIds.length === 0) {
+      console.error('STRIPE_PRICE_ID_PRO is not set')
+      throw new Error('価格設定が正しくありません。')
+    }
+    if (!isAllowedPriceId(price_id, allowedPriceIds)) {
+      console.error('Rejected checkout session request with unexpected price_id:', price_id)
+      throw new Error('指定された価格IDは利用できません。')
+    }
 
     // Get profile to check for existing stripe_customer_id and trial usage
     const { data: profile } = await supabaseClient

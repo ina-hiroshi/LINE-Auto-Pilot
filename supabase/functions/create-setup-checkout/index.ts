@@ -30,15 +30,31 @@ Deno.serve(async (req: Request) => {
       store_id
     } = await req.json()
 
-    // store_idが指定されていない場合、ユーザーの店舗情報を取得
-    let finalStoreId = store_id
+    // クライアントから渡された store_id は、他人の店舗IDを指定すれば
+    // 決済注文(setup_service_orders)を他店舗に紐付けられてしまう
+    // （INSERT の RLS は user_id しか見ておらず store_id は素通り）。
+    // 必ず自分が所有する店舗かどうかを確かめてから使う。
+    // 未指定・所有権不一致の場合は、自分の店舗を自動で引く。
+    let finalStoreId: string | null = null
+    if (typeof store_id === 'string' && store_id) {
+      const { data: ownedStore } = await supabaseClient
+        .from('stores')
+        .select('id')
+        .eq('id', store_id)
+        .eq('owner_id', user.id)
+        .maybeSingle()
+      finalStoreId = ownedStore?.id ?? null
+      if (!finalStoreId) {
+        console.warn('Ignoring store_id not owned by caller:', store_id)
+      }
+    }
     if (!finalStoreId) {
       const { data: storeData } = await supabaseClient
         .from('stores')
         .select('id')
         .eq('owner_id', user.id)
         .maybeSingle()
-      
+
       if (storeData) {
         finalStoreId = storeData.id
         console.log('Store ID found:', finalStoreId)
