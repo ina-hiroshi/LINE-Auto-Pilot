@@ -452,12 +452,18 @@ Deno.serve(async (req: Request) => {
   } catch (error: unknown) {
     console.error('Error processing webhook:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
-    // エラーが発生しても200 OKを返す（Stripeの再送を防ぐため）
-    // エラーはログに記録されているので、後で確認可能
+    // このファイルには throw が一切ないため、ここに来るのは常に「本当に
+    // 予期しない例外」（stripe.subscriptions.retrieve等の通信エラー、
+    // items.data[0] が空配列で undefined 参照、等）のみで、DB更新の失敗は
+    // 個別に console.error するだけでここには来ない（処理は継続する）。
+    // 以前は「Stripeの再送を防ぐため」200を返していたが、これは
+    // 「本当に処理が失敗した1件」もStripeの自動リトライ（3日間）の
+    // 対象から外してしまい、その1件だけ永久に反映されないまま放置される
+    // 副作用があった。500を返してStripe側のリトライに委ねる。
     return new Response(
-      JSON.stringify({ received: true, error: message }), 
+      JSON.stringify({ received: false, error: message }), 
       { 
-        status: 200,
+        status: 500,
         headers: { 'Content-Type': 'application/json' }
       }
     )
