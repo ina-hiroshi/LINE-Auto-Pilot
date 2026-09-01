@@ -17,6 +17,7 @@ const MAX_ATTEMPTS = 5
 interface RequestBody {
   email: string
   code: string
+  password: string
 }
 
 serve(async (req) => {
@@ -27,12 +28,24 @@ serve(async (req) => {
   }
 
   try {
-    const { email, code }: RequestBody = await req.json()
+    const { email, code, password }: RequestBody = await req.json()
 
-    if (!email || !code) {
+    if (!email || !code || !password) {
       return new Response(
-        JSON.stringify({ error: 'メールアドレスと認証コードが必要です' }),
+        JSON.stringify({ error: 'メールアドレスと認証コードとパスワードが必要です' }),
         { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    // フロント側の minLength={6} と合わせる。ここを抜けると
+    // admin.createUser が弱いパスワードのアカウントを作ってしまう。
+    if (password.length < 6) {
+      return new Response(
+        JSON.stringify({ error: 'パスワードは6文字以上で入力してください' }),
+        {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
@@ -109,6 +122,30 @@ serve(async (req) => {
     if (updateError) {
       console.error('Update error:', updateError)
       throw new Error('認証コードの更新に失敗しました')
+    }
+
+    // アカウント作成はここでのみ行う。従来はコード検証後にフロントが
+    // supabase.auth.signUp() を直接呼んでいたが、signUp は公開の
+    // /auth/v1/signup エンドポイントであり anon key だけで誰でも
+    // 直接叩けてしまう（このコード検証を一切経由せず、他人のメール
+    // アドレスで即座にログイン済みアカウントを作れてしまう）。
+    // admin.createUser はサービスロールでのみ呼べるため、このコード
+    // 検証を通った場合にのみアカウントが作られることを保証できる。
+    const { error: createUserError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    })
+
+    if (createUserError) {
+      // send-verification-code 側の checkExisting で通常は弾かれているが、
+      // 複数タブでの同時登録などの競合で既に作成済みの場合はここに来うる。
+      // その場合はエラーにせず「既存アカウントとして扱う」ことでフロントの
+      // signInWithPassword にそのまま繋げる。
+      if (!createUserError.message?.includes('already been registered')) {
+        console.error('createUser error:', createUserError)
+        throw new Error('アカウントの作成に失敗しました')
+      }
     }
 
     return new Response(

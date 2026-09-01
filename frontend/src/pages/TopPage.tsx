@@ -177,50 +177,28 @@ export default function TopPage() {
     setLoading(true)
     
     try {
-      // 認証コードを検証
+      // 認証コードを検証（アカウント作成もこの呼び出しの中でのみ行われる。
+      // 以前はここでフロントから直接 supabase.auth.signUp() を呼んでいたが、
+      // signUp は anon key だけで誰でも直接叩ける公開APIであり、この
+      // コード検証を一切経由せずアカウントを作成できてしまっていた。
+      // 今はサーバー側の admin.createUser がコード検証成功時にのみ
+      // 実行されるため、ここでは検証結果を受けてログインするだけでよい）
       const { data, error } = await supabase.functions.invoke('verify-code', {
-        body: { email, code: verificationCode }
+        body: { email, code: verificationCode, password }
       })
-      
+
       if (error || !data?.valid) {
         throw new Error(data?.error || '認証コードが正しくありません')
       }
-      
-      // 検証成功 → アカウント作成（メール確認スキップ設定が必要）
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
-        options: {
-          // メール確認をスキップするためのメタデータ
-          data: {
-            email_verified: true
-          }
-        }
       })
-      
-      if (signUpError) {
-        // 既にアカウントが存在する場合はログインを試みる
-        if (signUpError.message?.includes('already registered')) {
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          })
-          if (signInError) throw signInError
-        } else {
-          throw signUpError
-        }
-      } else if (signUpData.session) {
-        // セッションが作成された（メール確認不要の設定の場合）
-        setToast({ message: 'アカウントを作成しました', type: 'success' })
-      } else {
-        // セッションがない場合はログインを試みる
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-        if (signInError) throw signInError
-      }
-      
+      if (signInError) throw signInError
+
+      setToast({ message: 'アカウントを作成しました', type: 'success' })
+
       // App.tsxのonAuthStateChangeで自動的にオンボーディングへ遷移
     } catch (error: unknown) {
       console.error('Verification error:', error)
