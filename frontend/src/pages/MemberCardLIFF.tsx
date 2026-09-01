@@ -5,6 +5,7 @@ import { Loader2, AlertCircle, Stamp } from 'lucide-react'
 import liff from '@line/liff'
 import { motion } from 'framer-motion'
 import { formatMemberNo, normalizeRankSettings, resolveMembershipRank } from '../lib/membershipRank'
+import { fetchPublicStoreInfo } from '../lib/publicStoreInfo'
 
 type CardSettings = {
   title: string
@@ -66,13 +67,8 @@ export default function MemberCardLIFF() {
         }
 
         // 2. Fetch Store Settings
-        const { data: store, error: storeError } = await supabase
-          .from('stores')
-          .select('name, membership_card_title, membership_card_color, membership_card_logo_url, membership_card_template_id, membership_card_settings, membership_rank_settings')
-          .eq('id', storeId)
-          .single()
-
-        if (storeError) throw storeError
+        const store = await fetchPublicStoreInfo(storeId)
+        if (!store) throw new Error('店舗情報が見つかりませんでした')
 
         // Check Plan
         const { data: plan } = await supabase.rpc('get_store_plan', { p_store_id: storeId })

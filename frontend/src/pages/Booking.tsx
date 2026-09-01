@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { getJstDayOfWeek, getJstDateString, getJstDateStringWithOffset } from '../lib/jstDate'
 import { toErrorMessageAsync } from '../lib/errorUtils'
 import { usePublicBookingResources } from '../hooks/usePublicBookingResources'
+import { fetchPublicStoreInfo } from '../lib/publicStoreInfo'
 import type { StoreMenu, StoreStaff } from '../types/storeResources'
 import { Calendar, User, CheckCircle, Loader2, AlertCircle, Grid, Clock, Edit2, XCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -322,86 +323,57 @@ export default function Booking() {
 
     let targetStoreId = params.get('store_id')
 
+    let data: Awaited<ReturnType<typeof fetchPublicStoreInfo>> = null
+    try {
+      data = await fetchPublicStoreInfo(targetStoreId)
+    } catch (e) {
+      console.error('Failed to fetch store info:', e)
+    }
+
     if (!targetStoreId) {
-        // Fallback: 店舗が1つしか無い環境に限り、その店舗を使う。
-        // 複数店舗があるのに「最初の1件」を採ると、別テナントの予約ページを
-        // 出してしまう（他店の予約枠・メニュー・スタッフが見えることになる）。
-        const { data: fallbackStores } = await supabase.from('stores').select('id, name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type, slot_interval_minutes, capacity_per_slot, max_booking_days, business_hours, booking_enable_party_size, booking_enable_staff, booking_enable_menu').limit(2)
-        const data = fallbackStores?.length === 1 ? fallbackStores[0] : null
-        if (!data) {
-          console.error('store_id が指定されておらず、店舗を一意に決められません', {
-            candidates: fallbackStores?.length ?? 0,
-          })
-          setStep('error')
-          setErrorMsg('店舗情報が見つかりませんでした。予約ページのURLに store_id が必要です。')
-          return
-        }
-        targetStoreId = data.id
-        if (data) {
-          if (data.name) document.title = data.name
-          
-          // Check Plan
-          let isPro = false
-          try {
-            const { data: plan, error: planError } = await supabase.rpc('get_store_plan', { p_store_id: data.id })
-            if (planError) {
-              console.error('Failed to check plan:', planError)
-            } else {
-              isPro = plan === 'pro'
-            }
-          } catch (e) {
-            console.error('Error checking plan:', e)
-          }
+      // Fallback: 店舗が1つしか無い環境に限り、その店舗を使う。
+      // 複数店舗があるのに「最初の1件」を採ると、別テナントの予約ページを
+      // 出してしまう（他店の予約枠・メニュー・スタッフが見えることになる）。
+      // 判定自体は get_store_public_info がサーバー側（サービスロール）で行う。
+      if (!data) {
+        console.error('store_id が指定されておらず、店舗を一意に決められません')
+        setStep('error')
+        setErrorMsg('店舗情報が見つかりませんでした。予約ページのURLに store_id が必要です。')
+        return
+      }
+      targetStoreId = data.id
+    }
 
-          setStoreSettings({
-            name: data.name || '',
-            liff_template_id: isPro ? (data.liff_template_id || 'simple') : 'simple',
-            liff_theme_color: isPro ? (data.liff_theme_color || '#00c3dc') : '#00c3dc',
-            liff_logo_url: isPro ? (data.liff_logo_url || '') : '',
-            booking_system_type: data.booking_system_type || 'generic',
-            slot_interval_minutes: data.slot_interval_minutes || 60,
-            capacity_per_slot: data.capacity_per_slot || 1,
-            max_booking_days: data.max_booking_days || 60,
-            business_hours: data.business_hours || null,
-            booking_enable_party_size: data.booking_enable_party_size ?? false,
-            booking_enable_staff: data.booking_enable_staff ?? false,
-            booking_enable_menu: data.booking_enable_menu ?? false,
-          })
-        }
-    } else {
-        // Fetch specific store settings
-        const { data } = await supabase.from('stores').select('name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type, slot_interval_minutes, capacity_per_slot, max_booking_days, business_hours, booking_enable_party_size, booking_enable_staff, booking_enable_menu').eq('id', targetStoreId).maybeSingle()
-        if (data) {
-          if (data.name) document.title = data.name
+    if (data) {
+      if (data.name) document.title = data.name
 
-          // Check Plan
-          let isPro = false
-          try {
-            const { data: plan, error: planError } = await supabase.rpc('get_store_plan', { p_store_id: targetStoreId })
-            if (planError) {
-              console.error('Failed to check plan:', planError)
-            } else {
-              isPro = plan === 'pro'
-            }
-          } catch (e) {
-            console.error('Error checking plan:', e)
-          }
-
-          setStoreSettings({
-            name: data.name || '',
-            liff_template_id: isPro ? (data.liff_template_id || 'simple') : 'simple',
-            liff_theme_color: isPro ? (data.liff_theme_color || '#00c3dc') : '#00c3dc',
-            liff_logo_url: isPro ? (data.liff_logo_url || '') : '',
-            booking_system_type: data.booking_system_type || 'generic',
-            slot_interval_minutes: data.slot_interval_minutes || 60,
-            capacity_per_slot: data.capacity_per_slot || 1,
-            max_booking_days: data.max_booking_days || 60,
-            business_hours: data.business_hours || null,
-            booking_enable_party_size: data.booking_enable_party_size ?? false,
-            booking_enable_staff: data.booking_enable_staff ?? false,
-            booking_enable_menu: data.booking_enable_menu ?? false,
-          })
+      // Check Plan
+      let isPro = false
+      try {
+        const { data: plan, error: planError } = await supabase.rpc('get_store_plan', { p_store_id: targetStoreId })
+        if (planError) {
+          console.error('Failed to check plan:', planError)
+        } else {
+          isPro = plan === 'pro'
         }
+      } catch (e) {
+        console.error('Error checking plan:', e)
+      }
+
+      setStoreSettings({
+        name: data.name || '',
+        liff_template_id: isPro ? (data.liff_template_id || 'simple') : 'simple',
+        liff_theme_color: isPro ? (data.liff_theme_color || '#00c3dc') : '#00c3dc',
+        liff_logo_url: isPro ? (data.liff_logo_url || '') : '',
+        booking_system_type: data.booking_system_type || 'generic',
+        slot_interval_minutes: data.slot_interval_minutes || 60,
+        capacity_per_slot: data.capacity_per_slot || 1,
+        max_booking_days: data.max_booking_days || 60,
+        business_hours: data.business_hours || null,
+        booking_enable_party_size: data.booking_enable_party_size ?? false,
+        booking_enable_staff: data.booking_enable_staff ?? false,
+        booking_enable_menu: data.booking_enable_menu ?? false,
+      })
     }
 
     if (targetStoreId) {
