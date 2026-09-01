@@ -81,6 +81,31 @@ serve(async (req) => {
       )
     }
 
+    // メール単位のクールダウンだけだと、宛先メールアドレスを変えながら
+    // 連投されるとIP単位では無制限にResend送信（＝コスト）を発生させられる。
+    // 同一送信元IPからの直近10分間の送信数にも上限を設ける。
+    const forwardedFor = req.headers.get('x-forwarded-for')
+    const requestIp = forwardedFor?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown'
+
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+    const { count: recentIpCount } = await supabase
+      .from('verification_codes')
+      .select('id', { count: 'exact', head: true })
+      .eq('request_ip', requestIp)
+      .gte('created_at', tenMinutesAgo)
+
+    const IP_RATE_LIMIT = 5
+    if (requestIp !== 'unknown' && recentIpCount !== null && recentIpCount >= IP_RATE_LIMIT) {
+      console.warn(`[send-verification-code] IP rate limit exceeded: ${requestIp}`)
+      return new Response(
+        JSON.stringify({ error: '送信回数が上限に達しました。しばらくしてから再度お試しください。' }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      )
+    }
+
     // 6桁の認証コード生成
     const code = Math.floor(100000 + Math.random() * 900000).toString()
 
@@ -102,6 +127,7 @@ serve(async (req) => {
         code,
         expires_at: expiresAt,
         verified: false,
+        request_ip: requestIp,
       })
 
     if (dbError) {
