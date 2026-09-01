@@ -191,10 +191,15 @@ export async function handleGetAvailableSlots(
     .maybeSingle()
 
   if (specialDate?.is_closed) {
+    if (includeDebug) {
+      console.log('[Booking] get_available_slots debug:', JSON.stringify({
+        received: { reservation_id, staff_id, line_user_id, date },
+        closed: true,
+      }))
+    }
     return new Response(JSON.stringify({
       version: SLOTS_API_VERSION,
       slots: [],
-      ...(includeDebug ? { _debug: { received: { reservation_id, staff_id, line_user_id, date }, closed: true } } : {}),
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
@@ -291,16 +296,16 @@ export async function handleGetAvailableSlots(
     effectiveHours = resolveStaffEffectiveHours(workPattern, specialSchedule)
 
     if (effectiveHours.length === 0) {
+      if (includeDebug) {
+        console.log('[Booking] get_available_slots debug:', JSON.stringify({
+          received: { reservation_id, staff_id, line_user_id, date, menu_duration: durationMinutes },
+          modifyExclude,
+          noWorkingHours: true,
+        }))
+      }
       return new Response(JSON.stringify({
         version: SLOTS_API_VERSION,
         slots: [],
-        ...(includeDebug ? {
-          _debug: {
-            received: { reservation_id, staff_id, line_user_id, date, menu_duration: durationMinutes },
-            modifyExclude,
-            noWorkingHours: true,
-          },
-        } : {}),
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -494,7 +499,12 @@ export async function handleGetAvailableSlots(
   }
 
   if (includeDebug) {
-    responseBody._debug = {
+    // get_available_slots は無認証で呼べる公開アクションであり、reservation_id を
+    // 渡すだけで isModifyMode = true になる（所有者確認はしていない、意図的な仕様。
+    // 上の modifyReservationFlow のコメント参照）。そのため _debug は他の顧客の
+    // LINE user ID・予約時間帯・Googleカレンダーの内容（氏名を含み得る）を漏らす
+    // 情報漏洩になり得るため、レスポンスボディには含めずサーバーログのみに出力する。
+    console.log('[Booking] get_available_slots debug:', JSON.stringify({
       received: {
         reservation_id: reservation_id ?? null,
         staff_id: staff_id ?? null,
@@ -513,7 +523,7 @@ export async function handleGetAvailableSlots(
       blockingReservationCount: blockingReservations.length,
       googleEventCount: googleEvents.length,
       blocked,
-    }
+    }))
   }
 
   return new Response(JSON.stringify(responseBody), {
