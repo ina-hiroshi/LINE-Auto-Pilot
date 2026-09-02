@@ -40,7 +40,12 @@ export default function MonitorApplication() {
 
   // 登録フォームはトップページの #auth セクション。
   // 他の機能ページと同じ遷移方法に合わせる。
-  const goToSignup = () => navigate('/', { state: { scrollTo: 'auth' } })
+  const goToSignup = () => {
+    // モニター申込導線への遷移。真の申込完了（登録後のインタビュー協力同意)
+    // より手前だが、広告経由の見込み度を測る指標としてLeadを発火する。
+    ;(window as unknown as { fbq?: (...args: unknown[]) => void }).fbq?.('track', 'Lead')
+    navigate('/', { state: { scrollTo: 'auth' } })
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
