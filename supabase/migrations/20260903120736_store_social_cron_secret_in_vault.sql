@@ -1,0 +1,10 @@
+-- Secret value itself was set directly against the remote project via the Supabase
+-- MCP tooling (not committed here). This migration file exists only to keep the
+-- local migration ledger in sync with supabase_migrations.schema_migrations.
+-- If replaying this migration on a fresh environment, set a real secret value:
+--
+-- select vault.create_secret(
+--   '<random-secret>',
+--   'social_cron_secret',
+--   'Shared secret for pg_cron -> social-post-publish Edge Function auth'
+-- );
