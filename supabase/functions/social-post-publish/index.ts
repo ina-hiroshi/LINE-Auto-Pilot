@@ -41,10 +41,10 @@ async function publishInstagramCarousel(post: SocialPost, token: string, igUserI
     childIds.push(json.id);
   }
 
-  // 2. wait for children to finish processing
-  for (const id of childIds) {
-    await pollIgStatus(id, token);
-  }
+  // 2. wait for children to finish processing. Polled together rather than one
+  // after another: serially, a 5-image carousel could burn 5x the poll timeout
+  // before the parent container is even created.
+  await Promise.all(childIds.map((id) => pollIgStatus(id, token)));
 
   // 3. create parent carousel container
   const parentParams = new URLSearchParams({
@@ -165,24 +165,26 @@ Deno.serve(async (req: Request) => {
       FACEBOOK_PAGE_ID: Deno.env.get("FACEBOOK_PAGE_ID"),
     };
 
-    const results = [];
-    for (const post of posts) {
+    // Instagram and Facebook are independent APIs, so publish them concurrently:
+    // sequentially, the slowest carousel plus the slowest feed post can exceed
+    // the function's wall-clock limit and strand both rows in 'publishing'.
+    const results = await Promise.all(posts.map(async (post) => {
       try {
         const { mediaId, permalink } = await publishOne(post, env);
         await supabase
           .from("social_posts")
           .update({ status: "posted", platform_media_id: mediaId, permalink, posted_at: new Date().toISOString() })
           .eq("id", post.id);
-        results.push({ platform: post.platform, published: post.slug, mediaId, permalink });
+        return { platform: post.platform, published: post.slug, mediaId, permalink };
       } catch (publishError) {
         const message = publishError instanceof Error ? publishError.message : String(publishError);
         await supabase
           .from("social_posts")
           .update({ status: "failed", error: message })
           .eq("id", post.id);
-        results.push({ platform: post.platform, error: message, slug: post.slug });
+        return { platform: post.platform, error: message, slug: post.slug };
       }
-    }
+    }));
 
     const hasError = results.some((r) => "error" in r);
     return new Response(JSON.stringify({ results }), { status: hasError ? 207 : 200 });
