@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IToguchi UI Capture</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#ecfeff',
+              100: '#cffafe',
+              500: '#00a3b8',
+              600: '#00c3dc',
+              700: '#0e7490',
+              800: '#155e75',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background: #f1f5f9; font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; }
+    .panel { margin: 40px auto; background: #fff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.08); overflow: hidden; }
+  </style>
+</head>
+<body class="p-8 space-y-16">
+
+  <!-- customers list: matches Customers.tsx -->
+  <section id="customers" class="panel max-w-5xl">
+    <div class="px-8 py-4 border-b border-gray-200">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900 mb-1">顧客一覧</h1>
+          <p class="text-sm text-gray-500">顧客を選択すると詳細ページで施術メモ・LINEメッセージを管理できます。</p>
+        </div>
+        <div class="flex gap-2">
+          <div class="relative w-64">
+            <input class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="名前で検索..." value="" readonly />
+          </div>
+          <button class="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-bold">会員証読取</button>
+        </div>
+      </div>
+    </div>
+    <table class="min-w-full divide-y divide-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">本名</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">LINE名</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ポイント残高</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">最終来店日</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ステータス</th>
+          <th class="px-6 py-3"></th>
+        </tr>
+      </thead>
+      <tbody class="bg-white divide-y divide-gray-200">
+        <tr>
+          <td class="px-6 py-4"><div class="flex items-center"><div class="h-8 w-8 rounded-full bg-primary-100 mr-3"></div><span class="text-sm font-medium">山田 花子</span></div></td>
+          <td class="px-6 py-4 text-sm text-gray-500">hana_y</td>
+          <td class="px-6 py-4 text-sm">1,250 pt</td>
+          <td class="px-6 py-4 text-sm text-gray-500">2026/9/1</td>
+          <td class="px-6 py-4"><span class="px-2 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">VIP</span></td>
+          <td class="px-6 py-4 text-right text-gray-400">›</td>
+        </tr>
+        <tr>
+          <td class="px-6 py-4"><div class="flex items-center"><div class="h-8 w-8 rounded-full bg-gray-200 mr-3"></div><span class="text-sm font-medium">佐藤 太郎</span></div></td>
+          <td class="px-6 py-4 text-sm text-gray-500">taro_s</td>
+          <td class="px-6 py-4 text-sm">480 pt</td>
+          <td class="px-6 py-4 text-sm text-gray-500">2026/8/28</td>
+          <td class="px-6 py-4"><span class="px-2 text-xs font-semibold rounded-full bg-primary-100 text-primary-800">会員</span></td>
+          <td class="px-6 py-4 text-right text-gray-400">›</td>
+        </tr>
+        <tr>
+          <td class="px-6 py-4"><div class="flex items-center"><div class="h-8 w-8 rounded-full bg-gray-200 mr-3"></div><span class="text-sm font-medium">鈴木 美咲</span></div></td>
+          <td class="px-6 py-4 text-sm text-gray-500">misaki</td>
+          <td class="px-6 py-4 text-sm">2,100 pt</td>
+          <td class="px-6 py-4 text-sm text-gray-500">2026/9/3</td>
+          <td class="px-6 py-4"><span class="px-2 text-xs font-semibold rounded-full bg-primary-100 text-primary-800">会員</span></td>
+          <td class="px-6 py-4 text-right text-gray-400">›</td>
+        </tr>
+        <tr>
+          <td class="px-6 py-4"><div class="flex items-center"><div class="h-8 w-8 rounded-full bg-gray-200 mr-3"></div><span class="text-sm font-medium">高橋 健</span></div></td>
+          <td class="px-6 py-4 text-sm text-gray-500">ken_t</td>
+          <td class="px-6 py-4 text-sm">90 pt</td>
+          <td class="px-6 py-4 text-sm text-gray-500">2026/8/20</td>
+          <td class="px-6 py-4"><span class="px-2 text-xs font-semibold rounded-full bg-primary-100 text-primary-800">会員</span></td>
+          <td class="px-6 py-4 text-right text-gray-400">›</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- customer detail: matches CustomerDetailPage tabs -->
+  <section id="customer-detail" class="panel max-w-4xl">
+    <div class="px-6 py-4 border-b flex items-center gap-3">
+      <span class="text-gray-400">←</span>
+      <div class="h-12 w-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold">山田</div>
+      <div>
+        <div class="text-xl font-bold text-gray-900">山田 花子</div>
+        <div class="text-sm text-gray-500">LINE: hana_y ・ 1,250 pt ・ VIP</div>
+      </div>
+    </div>
+    <div class="px-6 pt-4 flex gap-6 border-b">
+      <button class="pb-3 text-sm text-gray-500">概要</button>
+      <button class="pb-3 text-sm font-bold text-primary-600 border-b-2 border-primary-600">施術メモ</button>
+      <button class="pb-3 text-sm text-gray-500">メッセージ</button>
+    </div>
+    <div class="p-6 space-y-3">
+      <div class="p-4 rounded-xl bg-gray-50 border border-gray-100">
+        <div class="text-sm font-bold text-primary-700 mb-1">2026/9/1</div>
+        <div class="text-sm text-gray-800">右肩の張り強め。次回も同じメニュー推奨。</div>
+      </div>
+      <div class="p-4 rounded-xl bg-gray-50 border border-gray-100">
+        <div class="text-sm font-bold text-primary-700 mb-1">2026/8/18</div>
+        <div class="text-sm text-gray-800">腰の可動域が改善。ストレッチ指導済み。</div>
+      </div>
+      <div class="p-4 rounded-xl bg-gray-50 border border-gray-100">
+        <div class="text-sm font-bold text-primary-700 mb-1">2026/8/4</div>
+        <div class="text-sm text-gray-800">初診。姿勢のクセとデスクワークの影響。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- sales: matches SalesSummaryTab -->
+  <section id="sales" class="panel max-w-5xl p-6 space-y-6">
+    <p class="text-xs text-gray-500">決済完了した予約のみを売上（税込）に含みます。</p>
+    <div class="grid grid-cols-3 gap-4">
+      <div class="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+        <p class="text-sm text-gray-500 mb-1">今月の総売上</p>
+        <p class="text-2xl font-bold text-gray-900">¥428,000</p>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+        <p class="text-sm text-gray-500 mb-1">決済完了件数</p>
+        <p class="text-2xl font-bold text-gray-900">86件</p>
+      </div>
+      <div class="rounded-xl border border-amber-100 p-5 shadow-sm bg-amber-50/50">
+        <p class="text-sm text-amber-800 mb-1">未決済（全期間）</p>
+        <p class="text-2xl font-bold text-amber-900">4件</p>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-6">
+      <div class="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+        <h3 class="font-bold text-gray-800 mb-3">メニュー別 TOP</h3>
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between"><span>カット</span><span class="font-bold">¥186,000</span></div>
+          <div class="flex justify-between"><span>カラー</span><span class="font-bold">¥142,000</span></div>
+          <div class="flex justify-between"><span>ヘッドスパ</span><span class="font-bold">¥100,000</span></div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+        <h3 class="font-bold text-gray-800 mb-3">スタッフ別 TOP</h3>
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between"><span>田中</span><span class="font-bold">¥210,000</span></div>
+          <div class="flex justify-between"><span>佐藤</span><span class="font-bold">¥128,000</span></div>
+          <div class="flex justify-between"><span>鈴木</span><span class="font-bold">¥90,000</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
+      <h3 class="font-bold text-gray-800 mb-4">日別売上（担当別）</h3>
+      <div class="h-40 flex items-end gap-3 px-2">
+        <div class="flex-1 bg-primary-600 rounded-t" style="height:55%"></div>
+        <div class="flex-1 bg-primary-600 rounded-t" style="height:70%"></div>
+        <div class="flex-1 bg-primary-600 rounded-t" style="height:40%"></div>
+        <div class="flex-1 bg-primary-600 rounded-t" style="height:85%"></div>
+        <div class="flex-1 bg-primary-600 rounded-t" style="height:60%"></div>
+        <div class="flex-1 bg-primary-600 rounded-t" style="height:75%"></div>
+        <div class="flex-1 bg-primary-600 rounded-t" style="height:50%"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- guide: matches GuideTab.tsx -->
+  <section id="guide" class="panel max-w-3xl p-6">
+    <div class="flex items-center gap-2 mb-6 pb-2 border-b">
+      <div class="w-6 h-6 rounded-full bg-[#06C755]"></div>
+      <h2 class="text-xl font-bold text-gray-800">導入ガイド</h2>
+    </div>
+    <div class="space-y-6">
+      <div class="p-4 bg-gray-50 rounded-lg border border-gray-100">
+        <h3 class="font-bold text-gray-800 mb-2 flex items-center gap-2">
+          <span class="bg-[#06C755] text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">1</span>
+          LINE公式アカウントの作成
+        </h3>
+        <p class="text-sm text-gray-600 ml-8">まだLINE公式アカウントをお持ちでない場合は、開設ページから作成してください。</p>
+      </div>
+      <div class="p-4 bg-gray-50 rounded-lg border border-gray-100">
+        <h3 class="font-bold text-gray-800 mb-2 flex items-center gap-2">
+          <span class="bg-[#06C755] text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">2</span>
+          LINE Developersへの登録とチャネル作成
+        </h3>
+        <p class="text-sm text-gray-600 ml-8">Messaging APIを利用するために、LINE Developersへの登録が必要です。</p>
+      </div>
+      <div class="p-4 bg-gray-50 rounded-lg border border-gray-100">
+        <h3 class="font-bold text-gray-800 mb-2 flex items-center gap-2">
+          <span class="bg-[#06C755] text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">3</span>
+          設定情報の取得と入力
+        </h3>
+        <p class="text-sm text-gray-600 ml-8">Channel ID / Channel Secret / Channel Access Token を接続設定に入力します。</p>
+      </div>
+      <div class="p-4 bg-gray-50 rounded-lg border border-gray-100">
+        <h3 class="font-bold text-gray-800 mb-2 flex items-center gap-2">
+          <span class="bg-[#06C755] text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">4</span>
+          Webhookの設定
+        </h3>
+        <p class="text-sm text-gray-600 ml-8">Webhook URLをコピーし、LINE Developers Consoleに貼り付けて検証します。</p>
+      </div>
+      <div class="p-4 bg-gray-50 rounded-lg border border-gray-100">
+        <h3 class="font-bold text-gray-800 mb-2 flex items-center gap-2">
+          <span class="bg-[#06C755] text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">5</span>
+          応答設定の変更
+        </h3>
+        <p class="text-sm text-gray-600 ml-8">応答メッセージをオフ、Webhookをオンに設定します。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- rich menu using real slot assets -->
+  <section id="rich-menu" class="panel max-w-3xl p-6">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">リッチメニュー</h2>
+        <p class="text-sm text-gray-500">トーク下部のボタンを編集</p>
+      </div>
+      <button class="px-4 py-2 bg-primary-600 text-white text-sm font-bold rounded-lg">LINEに反映</button>
+    </div>
+    <div class="rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 aspect-[2500/1686] max-w-xl mx-auto grid grid-cols-2 grid-rows-2">
+      <img src="../../line-oa-assets/slot-01-booking.png" class="w-full h-full object-cover" alt="予約" />
+      <img src="../../line-oa-assets/slot-02-inquiry.png" class="w-full h-full object-cover" alt="問い合わせ" />
+      <img src="../../line-oa-assets/slot-03-member-card.png" class="w-full h-full object-cover" alt="会員証" />
+      <img src="../../line-oa-assets/slot-04-website.png" class="w-full h-full object-cover" alt="サイト" />
+    </div>
+  </section>
+
+  <!-- booking LIFF-like: matches Booking page visual language -->
+  <section id="booking" class="panel max-w-md mx-auto">
+    <div class="bg-primary-600 text-white px-5 py-4 font-bold text-lg">ご予約</div>
+    <div class="p-5 space-y-4">
+      <div>
+        <div class="text-sm font-bold text-gray-800 mb-2">人数</div>
+        <div class="grid grid-cols-4 gap-2">
+          <button class="py-2 rounded-lg bg-gray-100 text-sm">1名</button>
+          <button class="py-2 rounded-lg bg-primary-600 text-white text-sm font-bold">2名</button>
+          <button class="py-2 rounded-lg bg-gray-100 text-sm">3名</button>
+          <button class="py-2 rounded-lg bg-gray-100 text-sm">4名</button>
+        </div>
+      </div>
+      <div>
+        <div class="text-sm font-bold text-gray-800 mb-2">コース</div>
+        <div class="space-y-2">
+          <div class="p-3 rounded-xl border-2 border-primary-600 bg-primary-50">
+            <div class="font-bold text-gray-900">ランチコース</div>
+            <div class="text-sm text-gray-500">¥2,800</div>
+          </div>
+          <div class="p-3 rounded-xl border border-gray-200">
+            <div class="font-bold text-gray-900">ディナーコース</div>
+            <div class="text-sm text-gray-500">¥5,500</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="text-sm font-bold text-gray-800 mb-2">日時</div>
+        <div class="grid grid-cols-3 gap-2">
+          <button class="py-2 rounded-lg bg-primary-600 text-white text-sm font-bold">11:00</button>
+          <button class="py-2 rounded-lg bg-gray-100 text-sm">11:30</button>
+          <button class="py-2 rounded-lg bg-gray-100 text-sm">12:00</button>
+        </div>
+      </div>
+      <button class="w-full py-3 rounded-xl bg-primary-600 text-white font-bold">予約を確定する</button>
+    </div>
+  </section>
+
+</body>
+</html>

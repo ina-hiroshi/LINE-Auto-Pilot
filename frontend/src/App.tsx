@@ -30,6 +30,7 @@ import FeatureMembership from './pages/FeatureMembership'
 import FeatureAI from './pages/FeatureAI'
 import AdminDashboard from './pages/AdminDashboard'
 import MonitorApplication from './pages/MonitorApplication'
+import SocialUiCapture from './pages/SocialUiCapture'
 import { UserFeaturesProvider, useUserFeatures } from './hooks/useUserFeatures'
 
 import type { Session } from '@supabase/supabase-js'
@@ -225,6 +226,7 @@ function App() {
         <Route path="/feature/membership" element={<FeatureMembership />} />
         <Route path="/feature/ai" element={<FeatureAI />} />
         <Route path="/monitor" element={<MonitorApplication />} />
+        <Route path="/social-ui-capture" element={<SocialUiCapture />} />
         {!session ? (
           <Route path="*" element={<TopPage />} />
         ) : hasStore === null ? (
