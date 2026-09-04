@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User, Code, Calendar, CreditCard, Grid, CalendarCheck } from 'lucide-react'
+import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User, Code, Calendar, CreditCard, Grid, CalendarCheck, Send } from 'lucide-react'
 import Modal from './Modal'
 import Logo from './Logo'
 import { useUserFeatures } from '../hooks/useUserFeatures'
@@ -53,6 +53,7 @@ export default function Layout() {
     { path: '/', label: 'ダッシュボード', icon: <LayoutDashboard size={20} /> },
     { path: '/reservations', label: '予約売上管理', icon: <Calendar size={20} /> },
     { path: '/customers', label: '顧客一覧', icon: <Users size={20} /> },
+    { path: '/message-campaigns', label: 'メッセージ配信', icon: <Send size={20} /> },
     { path: '/auto-responses', label: '自動応答', icon: <MessageSquare size={20} /> },
     { path: '/membership-card', label: 'デジタル会員証', icon: <CreditCard size={20} /> },
     { path: '/rich-menu', label: 'リッチメニュー', icon: <Grid size={20} /> },

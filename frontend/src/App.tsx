@@ -9,6 +9,8 @@ import LineSettings from './pages/LineSettings'
 import AutoResponses from './pages/AutoResponses'
 import Customers from './pages/Customers'
 import CustomerDetailPage from './features/customers/pages/CustomerDetailPage'
+import MessageCampaigns from './pages/MessageCampaigns'
+import MessageCampaignDetail from './features/messaging/pages/MessageCampaignDetail'
 import MembershipCard from './pages/MembershipCard'
 import RichMenu from './pages/RichMenu'
 import BookingSettings from './pages/BookingSettings'
@@ -259,6 +261,8 @@ function App() {
             <Route path="/auto-responses" element={<AutoResponses />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/customers/:customerId" element={<CustomerDetailPage />} />
+            <Route path="/message-campaigns" element={<MessageCampaigns />} />
+            <Route path="/message-campaigns/:campaignId" element={<MessageCampaignDetail />} />
             <Route path="/membership-card" element={<MembershipCard />} />
             <Route path="/rich-menu" element={<RichMenu />} />
             <Route path="/booking-settings" element={<BookingSettings />} />

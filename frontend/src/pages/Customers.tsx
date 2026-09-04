@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Loader2, User, Search, ChevronRight, QrCode } from 'lucide-react'
+import { Loader2, User, Search, ChevronRight, QrCode, Send } from 'lucide-react'
 import Toast from '../components/Toast'
 import QRScannerModal from '../components/QRScannerModal'
 import { formatCustomerLabel } from '../features/customers/lib/customerDisplayName'
@@ -19,6 +19,7 @@ export default function Customers() {
   const [searchQuery, setSearchQuery] = useState('')
   const [storeId, setStoreId] = useState<string | null>(null)
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const [toast, setToast] = useState<{ isVisible: boolean; message: string; type: 'success' | 'error' }>({
     isVisible: false,
@@ -83,6 +84,43 @@ export default function Customers() {
       )
     }
   }, [searchQuery, customers])
+
+  // 一覧に出ていない顧客を選択したまま配信すると、画面で確認できない相手に
+  // メッセージが飛ぶ。絞り込みや再取得で消えた行の選択は落とす。
+  useEffect(() => {
+    setSelectedIds((current) => {
+      if (current.size === 0) return current
+      const visibleIds = new Set(filteredCustomers.map((c) => c.id))
+      const next = new Set([...current].filter((id) => visibleIds.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [filteredCustomers])
+
+  const toggleSelection = (customerId: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(customerId)) {
+        next.delete(customerId)
+      } else {
+        next.add(customerId)
+      }
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    setSelectedIds((current) =>
+      current.size === filteredCustomers.length
+        ? new Set()
+        : new Set(filteredCustomers.map((c) => c.id)),
+    )
+  }
+
+  const sendToSelected = () => {
+    navigate('/message-campaigns', {
+      state: { presetSegment: 'manual', customerIds: [...selectedIds] },
+    })
+  }
 
   const fetchCustomers = async () => {
     setLoadError(null)
@@ -250,6 +288,18 @@ export default function Customers() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="px-4 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        aria-label="すべて選択"
+                        checked={
+                          filteredCustomers.length > 0 &&
+                          selectedIds.size === filteredCustomers.length
+                        }
+                        onChange={toggleSelectAll}
+                        className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       本名
                     </th>
@@ -271,13 +321,13 @@ export default function Customers() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {loadError ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-4 text-center text-red-600">
+                      <td colSpan={7} className="px-6 py-4 text-center text-red-600">
                         {loadError}
                       </td>
                     </tr>
                   ) : filteredCustomers.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                         {searchQuery ? '該当する顧客が見つかりません' : '顧客データがありません'}
                       </td>
                     </tr>
@@ -288,6 +338,15 @@ export default function Customers() {
                         className="hover:bg-gray-50 cursor-pointer transition"
                         onClick={() => openCustomer(customer)}
                       >
+                        <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            aria-label={`${formatCustomerLabel(customer)}を選択`}
+                            checked={selectedIds.has(customer.id)}
+                            onChange={() => toggleSelection(customer.id)}
+                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          />
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             {customer.profile_picture_url ? (
@@ -351,6 +410,31 @@ export default function Customers() {
           </div>
         </div>
       </div>
+
+      {selectedIds.size > 0 && (
+        <div className="shrink-0 border-t border-gray-200 bg-white px-4 sm:px-8 py-3 flex items-center justify-between gap-4">
+          <span className="text-sm text-gray-700">
+            <span className="font-bold">{selectedIds.size}名</span>を選択中
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              className="px-3 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-100 transition"
+            >
+              選択を解除
+            </button>
+            <button
+              type="button"
+              onClick={sendToSelected}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition text-sm font-bold"
+            >
+              <Send className="w-4 h-4" />
+              選択した方に配信
+            </button>
+          </div>
+        </div>
+      )}
 
       <QRScannerModal
         isOpen={isQRScannerOpen}
