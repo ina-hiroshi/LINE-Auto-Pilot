@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User, Code, Calendar, CreditCard, Grid, CalendarCheck, Send } from 'lucide-react'
+import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User, Code, Calendar, CreditCard, Grid, CalendarCheck, Send, Megaphone } from 'lucide-react'
 import Modal from './Modal'
 import Logo from './Logo'
 import { useUserFeatures } from '../hooks/useUserFeatures'
@@ -62,7 +62,11 @@ export default function Layout() {
 
   // 管理者専用メニュー（isAdminの場合のみ追加）
   const navItems = isAdmin 
-    ? [...baseNavItems, { path: '/dev', label: '開発', icon: <Code size={20} /> }]
+    ? [
+        ...baseNavItems,
+        { path: '/marketing/posts', label: '広報', icon: <Megaphone size={20} /> },
+        { path: '/dev', label: '開発', icon: <Code size={20} /> },
+      ]
     : baseNavItems
 
   const handleLogout = async () => {

@@ -401,6 +401,16 @@ verify_jwt = false
 [functions.create-setup-checkout]
 verify_jwt = false
 
+# cron (pg_net) から x-cron-secret ヘッダだけで叩かれる。JWT は付かないので
+# verify_jwt を true にすると毎日 21:00 の自動投稿が 401 で止まる。
+# 本番は false。ここに明記が無いと CLI デプロイのたびに true へ戻ってしまう。
+[functions.social-post-publish]
+verify_jwt = false
+
+# 管理画面から呼ぶので JWT は必須。関数内でさらに isAdminUser を通す。
+[functions.marketing-posts]
+verify_jwt = true
+
 [functions.dashboard-ai-analysis]
 verify_jwt = false
 

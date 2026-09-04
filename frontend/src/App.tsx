@@ -31,6 +31,8 @@ import FeatureReservation from './pages/FeatureReservation'
 import FeatureMembership from './pages/FeatureMembership'
 import FeatureAI from './pages/FeatureAI'
 import AdminDashboard from './pages/AdminDashboard'
+import MarketingLayout from './pages/marketing/MarketingLayout'
+import PostsPage from './pages/marketing/PostsPage'
 import MonitorApplication from './pages/MonitorApplication'
 import SocialUiCapture from './pages/SocialUiCapture'
 import { UserFeaturesProvider, useUserFeatures } from './hooks/useUserFeatures'
@@ -267,6 +269,12 @@ function App() {
             <Route path="/rich-menu" element={<RichMenu />} />
             <Route path="/booking-settings" element={<BookingSettings />} />
             <Route path="/dev" element={<AdminDashboard />} />
+            {/* 広報（管理者専用）。認可の実体は各 Edge Function の isAdminUser で、
+                ここの出し分けと withAdminOnly は表示上のものにすぎない。 */}
+            <Route path="/marketing" element={<MarketingLayout />}>
+              <Route index element={<Navigate to="/marketing/posts" replace />} />
+              <Route path="posts" element={<PostsPage />} />
+            </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
           </>

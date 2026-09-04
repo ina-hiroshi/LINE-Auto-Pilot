@@ -1,4 +1,5 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { sendAdminAlert } from "../_shared/admin-alert.ts";
 
 const IG_BASE = "https://graph.instagram.com/v21.0";
 const FB_BASE = "https://graph.facebook.com/v21.0";
@@ -186,8 +187,25 @@ Deno.serve(async (req: Request) => {
       }
     }));
 
-    const hasError = results.some((r) => "error" in r);
-    return new Response(JSON.stringify({ results }), { status: hasError ? 207 : 200 });
+    // flatMap で絞ると型述語を書かずに narrowing できる
+    const failures = results.flatMap((r) => ("error" in r ? [r] : []));
+
+    if (failures.length > 0) {
+      // 失敗は social_posts.error に残るが、それだけでは誰にも届かない。
+      // さらに claim_next_social_post_batch() は未完了の最古 slug を掴み続けるため、
+      // 直さない限り後続の投稿日が丸ごと後ろへずれていく。放置させない。
+      await sendAdminAlert(
+        `SNS自動投稿が失敗しました（${failures.length}件）`,
+        [
+          ...failures.map((f) => `・${f.slug} / ${f.platform}: ${f.error}`),
+          "",
+          "この投稿が片付くまで、後続の投稿は先に進みません。",
+          "管理画面の「広報 > 投稿」から再試行するか、キューから外してください。",
+        ],
+      );
+    }
+
+    return new Response(JSON.stringify({ results }), { status: failures.length > 0 ? 207 : 200 });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return new Response(JSON.stringify({ error: message }), { status: 500 });
