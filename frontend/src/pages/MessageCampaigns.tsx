@@ -205,7 +205,7 @@ export default function MessageCampaigns() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
-        <div className="max-w-3xl mx-auto">
+        <div className="w-full">
           <UnderlineTabs<TabId>
             activeId={tab}
             onChange={(id) => setTab(id)}
