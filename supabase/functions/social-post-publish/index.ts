@@ -1,5 +1,6 @@
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { sendAdminAlert } from "../_shared/admin-alert.ts";
+import { getToken } from "../_shared/meta-tokens.ts";
 
 const IG_BASE = "https://graph.instagram.com/v21.0";
 const FB_BASE = "https://graph.facebook.com/v21.0";
@@ -117,19 +118,29 @@ async function publishFacebookPost(post: SocialPost, token: string, pageId: stri
   return { mediaId, permalink: `https://www.facebook.com/${mediaId}` };
 }
 
-async function publishOne(post: SocialPost, env: Record<string, string | undefined>) {
+async function publishOne(post: SocialPost, supabase: SupabaseClient) {
+  // _shared/meta-tokens.ts は npm: 指定の SupabaseClient 型を要求するが、
+  // この関数は jsr: 指定で import している。実体は同じクライアントだが、
+  // モジュール指定子が違うと TS 上は別型になるため橋渡しする
+  // （_shared/admin-access.ts が isAdminUser に対して行っているのと同じ処理）。
+  const supabaseForTokens = supabase as unknown as Parameters<typeof getToken>[0];
+
   if (post.platform === "instagram") {
-    const igToken = env.INSTAGRAM_ACCESS_TOKEN;
-    const igUserId = env.INSTAGRAM_USER_ID;
+    // Vault優先、無ければ env（meta-token-refresh 導入前の移行期フォールバック）。
+    // Vaultのトークンは meta-token-refresh が定期的に回転させるため、生の
+    // env値をここで直接読むと、回転後に env 側だけが静かに古くなる
+    // （2026-09-04 障害と同じ壊れ方）。
+    const igToken = await getToken(supabaseForTokens, "instagram_login");
+    const igUserId = Deno.env.get("INSTAGRAM_USER_ID");
     if (!igToken || !igUserId) throw new Error("missing instagram credentials");
-    return await publishInstagramCarousel(post, igToken, igUserId);
+    return await publishInstagramCarousel(post, igToken.token, igUserId);
   }
 
   if (post.platform === "facebook") {
-    const fbToken = env.FACEBOOK_ACCESS_TOKEN;
-    const fbPageId = env.FACEBOOK_PAGE_ID;
+    const fbToken = await getToken(supabaseForTokens, "facebook_page");
+    const fbPageId = Deno.env.get("FACEBOOK_PAGE_ID");
     if (!fbToken || !fbPageId) throw new Error("missing facebook credentials");
-    return await publishFacebookPost(post, fbToken, fbPageId);
+    return await publishFacebookPost(post, fbToken.token, fbPageId);
   }
 
   throw new Error(`unknown platform: ${post.platform}`);
@@ -143,14 +154,29 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 });
     }
 
-    if (Deno.env.get("SOCIAL_AUTOPOST_ENABLED") === "false") {
-      return new Response(JSON.stringify({ skipped: "autopost disabled" }), { status: 200 });
-    }
-
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // marketing_settings（管理画面から切り替え可能）を優先し、行が無ければ
+    // 従来の env（Supabase Secrets の SOCIAL_AUTOPOST_ENABLED）にフォールバックする。
+    // env は UI から変更できないため、行があるのに env だけを見続けると
+    // 設定画面のトグルが何も効かない見た目になる。
+    const { data: settings, error: settingsError } = await supabase
+      .from("marketing_settings")
+      .select("social_autopost_enabled")
+      .eq("id", "global")
+      .maybeSingle();
+    if (settingsError) {
+      console.error("marketing_settings の読み込みに失敗。env にフォールバックする:", settingsError);
+    }
+    const autopostEnabled = settings
+      ? settings.social_autopost_enabled
+      : Deno.env.get("SOCIAL_AUTOPOST_ENABLED") !== "false";
+    if (!autopostEnabled) {
+      return new Response(JSON.stringify({ skipped: "autopost disabled" }), { status: 200 });
+    }
 
     const { data: claimed, error: claimError } = await supabase.rpc("claim_next_social_post_batch");
     if (claimError) throw claimError;
@@ -159,19 +185,12 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ skipped: "no pending posts" }), { status: 200 });
     }
 
-    const env = {
-      INSTAGRAM_ACCESS_TOKEN: Deno.env.get("INSTAGRAM_ACCESS_TOKEN"),
-      INSTAGRAM_USER_ID: Deno.env.get("INSTAGRAM_USER_ID"),
-      FACEBOOK_ACCESS_TOKEN: Deno.env.get("FACEBOOK_ACCESS_TOKEN"),
-      FACEBOOK_PAGE_ID: Deno.env.get("FACEBOOK_PAGE_ID"),
-    };
-
     // Instagram and Facebook are independent APIs, so publish them concurrently:
     // sequentially, the slowest carousel plus the slowest feed post can exceed
     // the function's wall-clock limit and strand both rows in 'publishing'.
     const results = await Promise.all(posts.map(async (post) => {
       try {
-        const { mediaId, permalink } = await publishOne(post, env);
+        const { mediaId, permalink } = await publishOne(post, supabase);
         await supabase
           .from("social_posts")
           .update({ status: "posted", platform_media_id: mediaId, permalink, posted_at: new Date().toISOString() })

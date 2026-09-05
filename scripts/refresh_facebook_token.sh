@@ -81,6 +81,9 @@ echo "    OK"
 
 echo
 echo "トークンの差し替えは完了しました。"
+echo "meta-token-refresh が次回実行時（日次 cron、または設定画面の"
+echo "「更新を確認」ボタン）に Supabase Secrets との差分を検知して Vault へ"
+echo "自動で同期します。今すぐ反映したい場合は設定画面から実行してください。"
 echo
 echo "止まっている投稿を 21:00 を待たずに流す場合は、Supabase の SQL エディタで"
 echo "以下を実行してください。cron 本体と同じ経路です。"

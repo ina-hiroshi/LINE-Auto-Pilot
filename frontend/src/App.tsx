@@ -33,6 +33,10 @@ import FeatureAI from './pages/FeatureAI'
 import AdminDashboard from './pages/AdminDashboard'
 import MarketingLayout from './pages/marketing/MarketingLayout'
 import PostsPage from './pages/marketing/PostsPage'
+import AdsPage from './pages/marketing/AdsPage'
+import InboxPage from './pages/marketing/InboxPage'
+import AutoRepliesPage from './pages/marketing/AutoRepliesPage'
+import SettingsPage from './pages/marketing/SettingsPage'
 import MonitorApplication from './pages/MonitorApplication'
 import SocialUiCapture from './pages/SocialUiCapture'
 import { UserFeaturesProvider, useUserFeatures } from './hooks/useUserFeatures'
@@ -274,6 +278,10 @@ function App() {
             <Route path="/marketing" element={<MarketingLayout />}>
               <Route index element={<Navigate to="/marketing/posts" replace />} />
               <Route path="posts" element={<PostsPage />} />
+              <Route path="ads" element={<AdsPage />} />
+              <Route path="inbox" element={<InboxPage />} />
+              <Route path="replies" element={<AutoRepliesPage />} />
+              <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

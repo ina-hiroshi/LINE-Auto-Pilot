@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { requireAdmin } from '../_shared/admin-access.ts'
+import { getToken } from '../_shared/meta-tokens.ts'
 import {
   ABANDON_MARKER,
   MAX_ATTEMPTS,
@@ -171,8 +172,9 @@ Deno.serve(async (req: Request) => {
       }
 
       case 'insights': {
-        const token = Deno.env.get('INSTAGRAM_ACCESS_TOKEN')
-        if (!token) return json({ error: 'INSTAGRAM_ACCESS_TOKEN is not configured' }, 500)
+        const lookup = await getToken(admin, 'instagram_login')
+        if (!lookup) return json({ error: 'instagram token is not configured' }, 500)
+        const token = lookup.token
 
         const rows = await loadRows()
         const targets = rows.filter(

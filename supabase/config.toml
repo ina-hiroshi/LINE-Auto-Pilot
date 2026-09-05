@@ -411,6 +411,45 @@ verify_jwt = false
 [functions.marketing-posts]
 verify_jwt = true
 
+# pg_cron（x-cron-secret のみ、JWTなし）と設定画面からの手動実行（JWTあり）の
+# 両方を受け付ける。true にすると cron 呼び出しがゲートウェイで 401 になる。
+# 認可は関数内で x-cron-secret 一致 or isAdminUser のどちらかを要求している。
+[functions.meta-token-refresh]
+verify_jwt = false
+
+# 設定画面の管理者操作のみ。関数内で isAdminUser を通す。
+[functions.marketing-settings]
+verify_jwt = true
+
+[functions.marketing-ads]
+# summary は管理画面（JWT あり）専用。sync_now は pg_cron（JWT なし、
+# x-cron-secret）と管理画面手動実行の両方を受け付けるため、ゲートウェイの
+# JWT 検証はここで切り、認可判定は関数内部（requireAdmin / cron secret）で行う。
+# meta-token-refresh と同じ理由・同じ形。
+verify_jwt = false
+
+[functions.social-dm-poll]
+# pg_cron（x-cron-secret のみ、JWTなし）と管理画面の「今すぐ取得」（JWTあり）の
+# 両方を受け付ける。marketing-ads / meta-token-refresh と同じ二重受付の形。
+verify_jwt = false
+
+[functions.social-outbound-drain]
+# pg_cron（毎分、x-cron-secret のみ）と管理画面からの手動実行（JWTあり）の
+# 両方を受け付ける。social-dm-poll と同じ二重受付の形。
+verify_jwt = false
+
+# 以下3つは管理画面の管理者操作のみ（cron からは呼ばれない）。
+# marketing-posts と同じく verify_jwt = true のままゲートウェイで弾き、
+# 関数内でさらに requireAdmin を通す。
+[functions.social-send-reply]
+verify_jwt = true
+
+[functions.social-draft-reply]
+verify_jwt = true
+
+[functions.social-auto-reply-rules]
+verify_jwt = true
+
 [functions.dashboard-ai-analysis]
 verify_jwt = false
 
