@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
-import { AlertTriangle, Loader2, RefreshCw, ShieldAlert } from 'lucide-react'
+import {
+  AlertTriangle, Info, Loader2, RefreshCw, ShieldAlert, TrendingDown, TrendingUp,
+} from 'lucide-react'
 import {
   CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import Toast from '../../components/Toast'
-import { useMarketingAds, type AdSummary } from '../../features/marketing/hooks/useMarketingAds'
+import { useMarketingAds, type AdInsight, type AdSummary } from '../../features/marketing/hooks/useMarketingAds'
 
 const UNPARSED_BUCKET = 'その他'
 
@@ -26,6 +28,28 @@ function StatusDot({ status }: { status: string | null }) {
 /** 業種×訴求のグループキー。表示ラベルにも使う。 */
 function groupKey(industry: string, appeal: string): string {
   return `${industry} / ${appeal}`
+}
+
+const INSIGHT_STYLE: Record<AdInsight['severity'], { wrap: string; iconWrap: string; icon: typeof TrendingUp }> = {
+  good: { wrap: 'border-emerald-200 bg-emerald-50', iconWrap: 'bg-emerald-100 text-emerald-700', icon: TrendingUp },
+  warn: { wrap: 'border-amber-200 bg-amber-50', iconWrap: 'bg-amber-100 text-amber-700', icon: TrendingDown },
+  neutral: { wrap: 'border-gray-200 bg-gray-50', iconWrap: 'bg-gray-200 text-gray-600', icon: Info },
+}
+
+function InsightCard({ insight }: { insight: AdInsight }) {
+  const style = INSIGHT_STYLE[insight.severity]
+  const Icon = style.icon
+  return (
+    <div className={`flex gap-3 rounded-lg border p-3.5 ${style.wrap}`}>
+      <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${style.iconWrap}`}>
+        <Icon size={14} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-gray-900">{insight.title}</p>
+        <p className="mt-0.5 text-sm leading-relaxed text-gray-600">{insight.body}</p>
+      </div>
+    </div>
+  )
 }
 
 export default function AdsPage() {
@@ -149,6 +173,17 @@ export default function AdsPage() {
         </div>
       ) : (
         <>
+          {view.insights.length > 0 && (
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
+              <h3 className="mb-3 text-sm font-bold text-gray-900">分析</h3>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                {view.insights.map((insight) => (
+                  <InsightCard key={insight.id} insight={insight} />
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="rounded-lg border border-gray-200 bg-white p-4">
             <h3 className="mb-3 text-sm font-bold text-gray-900">業種 × 訴求</h3>
             <div className="overflow-x-auto">

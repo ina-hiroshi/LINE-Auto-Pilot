@@ -46,6 +46,32 @@ type GraphInsightsPage = {
   error?: unknown
 }
 
+/** insights の fields パラメータには effective_status を渡せない
+ * （(#100) effective_status is not valid for fields param、2026-09-06 実測）。
+ * ad 一覧エンドポイントから別途取得して ad_id でマージする。
+ */
+async function fetchEffectiveStatusByAdId(token: string): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  let cursor: string | null =
+    `${FB_BASE}/act_${AD_ACCOUNT_ID}/ads?fields=id,effective_status&limit=500&access_token=${encodeURIComponent(token)}`
+  let pages = 0
+  while (cursor && pages < 20) {
+    pages += 1
+    const res: Response = await fetch(cursor)
+    const body: GraphInsightsPage = await res.json()
+    if (body.error) {
+      throw new Error(`Marketing API error: ${JSON.stringify(body.error)}`)
+    }
+    for (const entry of body.data ?? []) {
+      if (entry.id != null && entry.effective_status != null) {
+        map.set(String(entry.id), String(entry.effective_status))
+      }
+    }
+    cursor = body.paging?.next ?? null
+  }
+  return map
+}
+
 async function fetchAndUpsertInsights(
   admin: SupabaseClient,
   token: string,
@@ -53,9 +79,11 @@ async function fetchAndUpsertInsights(
   untilDate: string,
 ): Promise<{ upserted: number }> {
   const fields = [
-    'ad_id', 'ad_name', 'adset_name', 'campaign_name', 'effective_status',
+    'ad_id', 'ad_name', 'adset_name', 'campaign_name',
     'spend', 'impressions', 'reach', 'clicks', 'ctr', 'cpm', 'actions',
   ].join(',')
+
+  const statusById = await fetchEffectiveStatusByAdId(token)
 
   let cursor: string | null =
     `${FB_BASE}/act_${AD_ACCOUNT_ID}/insights?level=ad&fields=${fields}` +
@@ -83,7 +111,7 @@ async function fetchAndUpsertInsights(
         ad_name: entry.ad_name != null ? String(entry.ad_name) : adId,
         adset_name: entry.adset_name != null ? String(entry.adset_name) : null,
         campaign_name: entry.campaign_name != null ? String(entry.campaign_name) : null,
-        effective_status: entry.effective_status != null ? String(entry.effective_status) : null,
+        effective_status: statusById.get(adId) ?? null,
         spend,
         impressions: Number(entry.impressions ?? 0),
         reach: Number(entry.reach ?? 0),
@@ -154,23 +182,27 @@ Deno.serve(async (req: Request) => {
       if (error) throw error
 
       const rows = (data ?? []) as RawAdInsightRow[]
-      const { ads, crossTab, daily } = buildAdsSummary(rows)
+      const { ads, crossTab, daily, insights } = buildAdsSummary(rows)
 
       const { data: cred } = await admin
         .from('meta_credentials')
         .select('scopes')
-        .eq('id', 'facebook_page')
+        .eq('id', 'facebook_ads_system_user')
         .maybeSingle()
       const hasAdsRead = ((cred?.scopes as string[] | null) ?? []).includes('ads_read')
 
-      return json({ ads, crossTab, daily, hasAdsRead, since })
+      return json({ ads, crossTab, daily, insights, hasAdsRead, since })
     }
 
     if (action === 'sync_now') {
+      // Marketing API のアクセス権限は Page トークンではなく、広告アカウントに
+      // 明示的に割り当てた System User トークン（facebook_ads_system_user）が持つ。
+      // Page トークンはページ運用のスコープしか持たず、広告アカウント配下の
+      // オブジェクトには (#100) Unsupported get request で弾かれる（2026-09-06 実測）。
       const { data: cred } = await admin
         .from('meta_credentials')
         .select('scopes')
-        .eq('id', 'facebook_page')
+        .eq('id', 'facebook_ads_system_user')
         .maybeSingle()
       const scopes = (cred?.scopes as string[] | null) ?? []
       if (!scopes.includes('ads_read')) {
@@ -179,8 +211,8 @@ Deno.serve(async (req: Request) => {
         return json({ ok: true, skipped: true, reason: 'ads_read スコープが未取得です。設定画面で再認可の状況を確認してください' })
       }
 
-      const lookup = await getToken(admin, 'facebook_page')
-      if (!lookup) return json({ error: 'facebook token is not configured' }, 500)
+      const lookup = await getToken(admin, 'facebook_ads_system_user')
+      if (!lookup) return json({ error: 'facebook ads system user token is not configured' }, 500)
 
       const until = new Date().toISOString().slice(0, 10)
       const since = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)

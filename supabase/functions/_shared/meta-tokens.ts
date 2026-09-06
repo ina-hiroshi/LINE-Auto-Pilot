@@ -12,7 +12,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  * 各関数を getToken() 経由に切り替え、最後に env を消す。
  */
 
-export type CredentialId = 'instagram_login' | 'facebook_page'
+export type CredentialId = 'instagram_login' | 'facebook_page' | 'facebook_ads_system_user'
 export type TokenLookup = { token: string; source: 'vault' | 'env' }
 
 /**

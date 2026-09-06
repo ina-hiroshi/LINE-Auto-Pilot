@@ -68,10 +68,18 @@ export type DailyPoint = {
   clicks: number
 }
 
+export type AdInsight = {
+  id: string
+  severity: 'good' | 'warn' | 'neutral'
+  title: string
+  body: string
+}
+
 export type AdsSummaryView = {
   ads: AdSummary[]
   crossTab: CrossTabCell[]
   daily: DailyPoint[]
+  insights: AdInsight[]
   hasAdsRead: boolean
   since: string
 }

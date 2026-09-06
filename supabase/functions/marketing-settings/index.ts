@@ -54,7 +54,12 @@ Deno.serve(async (req: Request) => {
           admin.from('marketing_settings').select('*').eq('id', 'global').maybeSingle(),
           admin.from('meta_credentials').select(
             'id, platform, account_ref, token_type, expires_at, data_access_expires_at, scopes, last_refreshed_at, last_checked_at, last_error, status',
-          ),
+          )
+            // facebook_ads_system_user は広告読み取り専用の内部クレデンシャルで、
+            // Page トークンとはスコープの前提が異なる（pages_messaging 等を持たない）。
+            // 同じ画面に混ぜると「Facebook」カードが2枚並び、かつ的外れな
+            // missingExtendedScopes 警告が出るため、この画面には出さない。
+            .in('id', ['instagram_login', 'facebook_page']),
         ])
 
         const credentials = ((credRows ?? []) as CredentialRow[]).map((c) => ({
