@@ -30,6 +30,10 @@ import FeatureAutoResponse from './pages/FeatureAutoResponse'
 import FeatureReservation from './pages/FeatureReservation'
 import FeatureMembership from './pages/FeatureMembership'
 import FeatureAI from './pages/FeatureAI'
+import FeatureCustomers from './pages/FeatureCustomers'
+import FeaturePoints from './pages/FeaturePoints'
+import FeatureMessaging from './pages/FeatureMessaging'
+import FeatureRichMenu from './pages/FeatureRichMenu'
 import AdminDashboard from './pages/AdminDashboard'
 import MarketingLayout from './pages/marketing/MarketingLayout'
 import PostsPage from './pages/marketing/PostsPage'
@@ -233,6 +237,10 @@ function App() {
         <Route path="/feature/reservation" element={<FeatureReservation />} />
         <Route path="/feature/membership" element={<FeatureMembership />} />
         <Route path="/feature/ai" element={<FeatureAI />} />
+        <Route path="/feature/customers" element={<FeatureCustomers />} />
+        <Route path="/feature/points" element={<FeaturePoints />} />
+        <Route path="/feature/messaging" element={<FeatureMessaging />} />
+        <Route path="/feature/rich-menu" element={<FeatureRichMenu />} />
         <Route path="/monitor" element={<MonitorApplication />} />
         <Route path="/social-ui-capture" element={<SocialUiCapture />} />
         {!session ? (

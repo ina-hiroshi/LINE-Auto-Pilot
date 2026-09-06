@@ -9,9 +9,11 @@ import {
   MessageSquare,
   CreditCard,
   Play,
-  Settings
+  Settings,
+  Gift
 } from 'lucide-react'
 import BasicInfoStep from '../features/onboarding/components/BasicInfoStep'
+import MonitorConfirmStep from '../features/onboarding/components/MonitorConfirmStep'
 import PlanSelectStep from '../features/onboarding/components/PlanSelectStep'
 import LineSetupStep from '../features/onboarding/components/LineSetupStep'
 import TutorialStep from '../features/onboarding/components/TutorialStep'
@@ -29,7 +31,7 @@ interface OnboardingProps {
   onComplete: () => void
 }
 
-type OnboardingStep = 'basic_info' | 'plan_select' | 'line_setup' | 'tutorial'
+type OnboardingStep = 'basic_info' | 'monitor_confirm' | 'plan_select' | 'line_setup' | 'tutorial'
 
 const WEBHOOK_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/line-webhook`
 
@@ -64,11 +66,14 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   // プラン選択
   const [selectedPlan, setSelectedPlan] = useState<'free' | 'pro' | 'executive'>('pro')
 
-  // モニター特典（初期設定代行の無償提供）への同意。チェック自体が申込になる。
+  // モニター特典（初期設定代行の無償提供）への同意。モニター確認画面で応募すると true になる。
   const [monitorConsent, setMonitorConsent] = useState(false)
   // 初期設定手順メールは公式アカウントの有無で本文が変わる。
   // 同名のローカル変数が別処理にあるため、状態は monitor 接頭辞で区別する。
   const [monitorHasLineAccount, setMonitorHasLineAccount] = useState(false)
+  // モニター確認画面で作成された monitor_applications.id。
+  // 管理者の決済スキップ検証パスで setup_service_orders を作る際に使う。
+  const [monitorApplicationId, setMonitorApplicationId] = useState<string | null>(null)
 
   // LINE設定
   const [lineSettings, setLineSettings] = useState({
@@ -438,7 +443,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       }
       
       setToast({ isVisible: true, message: '基本情報を保存しました', type: 'success' })
-      setCurrentStep('plan_select')
+      setCurrentStep('monitor_confirm')
     } catch (error: unknown) {
       console.error('Setup error:', error)
       const message = error instanceof Error ? error.message : '予期せぬエラーが発生しました'
@@ -450,21 +455,20 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   }
 
   /**
-   * モニター特典の申込を記録する。
+   * モニター特典の申込を記録する。モニター確認画面の「応募する」から呼ぶ。
    *
    * ここでは申込を残すだけで、特典の実体（無償の初期設定代行）は付与しない。
    * 付与は Stripe Webhook がサブスクリプションの成立を確認してから行う。
    * 以前はこの時点で代行注文まで作っており、決済ページで離脱した相手にも
    * ¥9,980 相当の作業だけが渡ってしまう状態だった。
    *
-   * 特典が付かなくても登録は続行させたいので、失敗しても例外を投げない。
-   *
-   * @param grantImmediately 決済を経由しない管理者の検証用。true のとき即座に付与する。
+   * 特典が付かなくても登録は続行させたいので、失敗しても例外を投げず null を返す。
+   * 戻り値の id は setup_service_orders 作成（管理者の検証パス）で使う。
    */
-  const submitMonitorApplication = async (grantImmediately = false) => {
+  const submitMonitorApplication = async (): Promise<string | null> => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) return null
 
       const { data: application, error: applicationError } = await supabase
         .from('monitor_applications')
@@ -492,16 +496,34 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         console.error('モニター申込の通知に失敗しました:', notifyError)
       }
 
-      if (!grantImmediately) return
+      return application.id as string
+    } catch (error) {
+      // 申込の記録に失敗しても登録は止めない。運営側で拾えるようログに残す。
+      console.error('モニター特典の登録に失敗しました:', error)
+      return null
+    }
+  }
 
-      // 管理者の検証用。決済を通さないため Webhook が発火せず、
-      // ここで付与しないと代行注文とメールの確認ができない。
+  /**
+   * モニター特典を即時付与する。管理者の決済スキップ検証専用。
+   *
+   * 通常は Stripe Webhook がサブスクリプション成立を確認してから付与するが、
+   * 決済をスキップする検証パスでは Webhook が発火しないため、ここで直接行う。
+   * monitor_confirm で作成済みの application id を必須にすることで、
+   * 申込insertが失敗（null）していた場合に setup_service_orders へ
+   * monitor_application_id: null のレコードを作ってしまうのを防ぐ。
+   */
+  const grantMonitorBenefitImmediately = async (applicationId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
       const { data: createdOrder, error: orderError } = await supabase
         .from('setup_service_orders')
         .insert({
           user_id: user.id,
           store_id: storeId,
-          monitor_application_id: application.id,
+          monitor_application_id: applicationId,
           amount: 0,
           status: 'in_progress',
           paid_at: new Date().toISOString(),
@@ -518,7 +540,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       await supabase
         .from('monitor_applications')
         .update({ status: 'approved' })
-        .eq('id', application.id)
+        .eq('id', applicationId)
 
       const { error: setupMailError } = await supabase.functions.invoke('send-setup-service-email', {
         body: { order_id: createdOrder.id, email_type: 'payment_confirmation' },
@@ -527,9 +549,33 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         console.error('初期設定手順メールの送信に失敗しました:', setupMailError)
       }
     } catch (error) {
-      // 申込の記録に失敗しても登録は止めない。運営側で拾えるようログに残す。
-      console.error('モニター特典の登録に失敗しました:', error)
+      console.error('モニター特典の即時付与に失敗しました:', error)
     }
+  }
+
+  // モニター確認画面: 「応募する」。申込を記録してからプラン選択へ進む。
+  // 特典の対象はProプランのみのため、以前Freeプランを選んで戻っていた場合に
+  // 備えて selectedPlan を必ず pro に揃える。
+  const handleMonitorApply = async () => {
+    setLoading(true)
+    setProgressMsg('応募内容を記録中...')
+    try {
+      setMonitorConsent(true)
+      setSelectedPlan('pro')
+      const applicationId = await submitMonitorApplication()
+      setMonitorApplicationId(applicationId)
+      setCurrentStep('plan_select')
+    } finally {
+      setLoading(false)
+      setProgressMsg('')
+    }
+  }
+
+  // モニター確認画面: 「スキップして通常登録に進む」。何も記録しない。
+  const handleMonitorSkip = () => {
+    setMonitorConsent(false)
+    setMonitorApplicationId(null)
+    setCurrentStep('plan_select')
   }
 
   /**
@@ -545,8 +591,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     setLoading(true)
     setProgressMsg('決済をスキップしています...')
     try {
-      if (monitorConsent) {
-        await submitMonitorApplication(true)
+      if (monitorConsent && monitorApplicationId) {
+        await grantMonitorBenefitImmediately(monitorApplicationId)
       }
       setToast({
         isVisible: true,
@@ -562,6 +608,18 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   // プラン選択完了
   const handlePlanSelect = async () => {
+    // モニター特典に応募済みなのにFreeプランで完了してしまう事態を防ぐ安全弁。
+    // 通常はPlanSelectStep側でFreeカードを選べなくしているため到達しないはずだが、
+    // 状態の不整合が起きても登録がすり抜けないようここでも止める。
+    if (selectedPlan === 'free' && monitorConsent) {
+      setToast({
+        isVisible: true,
+        message: 'モニター特典はProプラン限定です。Proプランを選択してください。',
+        type: 'error',
+      })
+      return
+    }
+
     if (selectedPlan === 'free') {
       // Freeプランは支払い不要
       setCurrentStep('line_setup')
@@ -574,23 +632,19 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         console.log('User already has Pro plan, skipping payment')
         // 決済を経由しないため Webhook が発火しない。既に課金中の相手なので
         // 「決済していないのに特典だけ渡る」問題は起きず、ここで付与してよい。
-        if (monitorConsent) {
-          await submitMonitorApplication(true)
+        if (monitorConsent && monitorApplicationId) {
+          await grantMonitorBenefitImmediately(monitorApplicationId)
         }
         setToast({ isVisible: true, message: '既にProプランをご利用中です', type: 'success' })
         setCurrentStep('line_setup')
         return
       }
-      
+
       setLoading(true)
       setProgressMsg('Stripe決済ページへ移動中...')
 
-      // 決済ページへ遷移すると画面を離れるため、申込の記録だけ先に済ませる。
+      // モニター申込の記録は monitor_confirm で完了済み。
       // 特典の付与は Stripe Webhook が決済の成立を確認してから行う。
-      if (monitorConsent) {
-        await submitMonitorApplication()
-      }
-
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) {
@@ -790,6 +844,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   // ステップインジケーター
   const steps = [
     { key: 'basic_info', label: '基本情報', icon: User },
+    { key: 'monitor_confirm', label: 'モニター確認', icon: Gift },
     { key: 'plan_select', label: 'プラン選択', icon: CreditCard },
     { key: 'line_setup', label: 'LINE接続', icon: MessageSquare },
     { key: 'tutorial', label: 'チュートリアル', icon: Play },
@@ -878,7 +933,20 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             />
           )}
 
-          {/* Step 2: プラン選択 */}
+          {/* Step 2: モニター確認 */}
+          {currentStep === 'monitor_confirm' && (
+            <MonitorConfirmStep
+              hasLineAccount={monitorHasLineAccount}
+              onHasLineAccountChange={setMonitorHasLineAccount}
+              loading={loading}
+              progressMsg={progressMsg}
+              onApply={handleMonitorApply}
+              onSkip={handleMonitorSkip}
+              onBack={() => setCurrentStep('basic_info')}
+            />
+          )}
+
+          {/* Step 3: プラン選択 */}
           {currentStep === 'plan_select' && (
             <PlanSelectStep
               selectedPlan={selectedPlan}
@@ -886,19 +954,16 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               hasUsedTrial={hasUsedTrial}
               isPreReleaseMode={IS_PRE_RELEASE_MODE}
               monitorConsent={monitorConsent}
-              onMonitorConsentChange={setMonitorConsent}
-              hasLineAccount={monitorHasLineAccount}
-              onHasLineAccountChange={setMonitorHasLineAccount}
               isAdmin={isAdmin}
               onSkipPayment={handleSkipPayment}
               loading={loading}
               progressMsg={progressMsg}
               onPlanSelect={handlePlanSelect}
-              onBack={() => setCurrentStep('basic_info')}
+              onBack={() => setCurrentStep('monitor_confirm')}
             />
           )}
 
-          {/* Step 3: LINE接続設定 */}
+          {/* Step 4: LINE接続設定 */}
           {currentStep === 'line_setup' && (
             <LineSetupStep
               lineSettings={lineSettings}
@@ -918,7 +983,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             />
           )}
 
-          {/* Step 4: チュートリアル */}
+          {/* Step 5: チュートリアル */}
           {currentStep === 'tutorial' && (
             <TutorialStep
               tutorialIndex={tutorialIndex}

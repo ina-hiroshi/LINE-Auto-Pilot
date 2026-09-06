@@ -10,6 +10,11 @@ import yoyakuImage from '../assets/yoyaku.png'
 import membersImage from '../assets/members.png'
 import Logo from '../components/Logo'
 import itoguchiaiImage from '../assets/itoguchiai.png'
+import featureCustomersImage from '../assets/feature-customers.png'
+import featurePointsImage from '../assets/feature-points.png'
+import featureMessagingImage from '../assets/feature-messaging.png'
+import featureRichMenuImage from '../assets/feature-richmenu.png'
+import featureAiImage from '../assets/feature-ai.png'
 
 // FAQ Item Component
 function FAQItem({ question, answer }: { question: string; answer: string }) {
@@ -59,7 +64,11 @@ export default function TopPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [isLoginMode, setIsLoginMode] = useState(true)
+  // /monitor 等からの遷移時は新規登録タブを既定表示にする（authMode: 'signup'）。
+  // それ以外は従来通りログインタブから始める。
+  const [isLoginMode, setIsLoginMode] = useState(
+    () => (location.state as { authMode?: string } | null)?.authMode !== 'signup'
+  )
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   
@@ -80,13 +89,13 @@ export default function TopPage() {
     }
   }, [toast])
 
-  // Scroll to auth section if navigated from feature pages
+  // Scroll to a target section if navigated from feature pages / monitor LP
   useEffect(() => {
     const state = location.state as { scrollTo?: string } | null
-    if (state?.scrollTo === 'auth') {
-      const authElement = document.getElementById('auth')
-      if (authElement) {
-        authElement.scrollIntoView({ behavior: 'smooth' })
+    if (state?.scrollTo) {
+      const targetElement = document.getElementById(state.scrollTo)
+      if (targetElement) {
+        targetElement.scrollIntoView({ behavior: 'smooth' })
       }
     }
   }, [location])
@@ -234,6 +243,7 @@ export default function TopPage() {
               <a href="#features" className="text-sm font-medium text-slate-600 hover:text-primary-600 transition">機能</a>
               <a href="#customization" className="text-sm font-medium text-slate-600 hover:text-primary-600 transition">カスタマイズ</a>
               <a href="#pricing" className="text-sm font-medium text-slate-600 hover:text-primary-600 transition">料金</a>
+              <Link to="/monitor" className="text-sm font-medium text-primary-600 hover:text-primary-700 transition">モニター特典</Link>
               <a href="#auth" className="px-5 py-2.5 bg-primary-600 text-white rounded-full text-sm font-medium hover:bg-primary-700 transition shadow-md hover:shadow-lg">
                 ログイン / 登録
               </a>
@@ -545,7 +555,7 @@ export default function TopPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-20">
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4">
-              つながりを深める、3つの機能
+              つながりを深める、8つの機能
             </h2>
             <p className="text-slate-600 max-w-2xl mx-auto px-4 text-sm sm:text-base leading-relaxed">
               IToguchiは、店舗運営に必要な機能をひとつにまとめました。<br className="hidden md:block" />
@@ -554,23 +564,58 @@ export default function TopPage() {
           </div>
           <div className="grid md:grid-cols-3 gap-10">
             {[
-              { 
-                image: smartAutoChatImage, 
-                title: 'スマート自動応答', 
+              {
+                image: smartAutoChatImage,
+                title: 'スマート自動応答',
                 desc: 'よくある質問にはAIがその場で対応。お客様を待たせず、取りこぼしも減らせます。',
                 link: '/feature/auto-response'
               },
-              { 
-                image: yoyakuImage, 
-                title: 'かんたん予約管理', 
+              {
+                image: yoyakuImage,
+                title: 'かんたん予約管理',
                 desc: 'LINEのトーク画面からそのまま予約完了。電話対応の手間が減り、お客様も予約しやすくなります。',
                 link: '/feature/reservation'
               },
-              { 
-                image: membersImage, 
-                title: 'デジタル会員証', 
+              {
+                image: membersImage,
+                title: 'デジタル会員証',
                 desc: 'かさばらないLINE上の会員証。ポイントもそのまま貯まるので、また来たくなります。',
                 link: '/feature/membership'
+              },
+              {
+                image: featureCustomersImage,
+                title: '顧客一覧・来店メモ',
+                desc: '来店履歴やメモをお客様ごとに記録。担当が変わっても、その場で確認できます。',
+                link: '/feature/customers',
+                screenshot: true
+              },
+              {
+                image: featurePointsImage,
+                title: 'ポイント管理',
+                desc: '来店・購入に応じてポイントを付与。スタンプカード運用にも切り替えられます。',
+                link: '/feature/points',
+                screenshot: true
+              },
+              {
+                image: featureMessagingImage,
+                title: 'メッセージ配信',
+                desc: '目的を書くだけでAIが文章を下書き。条件で絞ってLINEに一斉配信できます。',
+                link: '/feature/messaging',
+                screenshot: true
+              },
+              {
+                image: featureRichMenuImage,
+                title: 'リッチメニュー',
+                desc: 'お店の写真をボタンごとに設定できる、オリジナルの入り口。レイアウトも自由に選べます。',
+                link: '/feature/rich-menu',
+                screenshot: true
+              },
+              {
+                image: featureAiImage,
+                title: 'AIチャット',
+                desc: 'キーワードのルールでは拾えない自由な質問にも、学習させた情報をもとにAIが会話します。',
+                link: '/feature/ai',
+                screenshot: true
               }
             ].map((feature, index) => (
               <Link to={feature.link} key={index}>
@@ -581,9 +626,19 @@ export default function TopPage() {
                   transition={{ delay: index * 0.2 }}
                   className="group bg-slate-50 rounded-3xl overflow-hidden hover:bg-white hover:shadow-xl transition-all duration-300 border border-slate-100 cursor-pointer h-full"
                 >
-                  <div className="h-56 overflow-hidden relative">
-                    <div className="absolute inset-0 bg-slate-900/10 group-hover:bg-transparent transition-colors z-10"></div>
-                    <img src={feature.image} alt={feature.title} className="w-full h-full object-cover transform group-hover:scale-105 transition duration-700" />
+                  <div className={`h-56 overflow-hidden relative ${feature.screenshot ? 'bg-slate-100' : ''}`}>
+                    {!feature.screenshot && (
+                      <div className="absolute inset-0 bg-slate-900/10 group-hover:bg-transparent transition-colors z-10"></div>
+                    )}
+                    <img
+                      src={feature.image}
+                      alt={feature.title}
+                      className={
+                        feature.screenshot
+                          ? 'w-full h-full object-contain p-4'
+                          : 'w-full h-full object-cover transform group-hover:scale-105 transition duration-700'
+                      }
+                    />
                   </div>
                   <div className="p-8">
                     <h3 className="text-xl font-bold mb-3 text-slate-900 group-hover:text-primary-600 transition-colors">{feature.title}</h3>
@@ -1884,6 +1939,7 @@ export default function TopPage() {
               <ul className="space-y-4">
                 <li><a href="#features" className="hover:text-white transition">機能一覧</a></li>
                 <li><a href="#pricing" className="hover:text-white transition">料金プラン</a></li>
+                <li><Link to="/monitor" className="hover:text-white transition">モニター特典</Link></li>
                 <li><a href="#" className="hover:text-white transition">導入事例</a></li>
               </ul>
             </div>
