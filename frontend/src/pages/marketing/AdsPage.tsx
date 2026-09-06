@@ -3,12 +3,19 @@ import {
   AlertTriangle, Info, Loader2, RefreshCw, ShieldAlert, TrendingDown, TrendingUp,
 } from 'lucide-react'
 import {
-  CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ReferenceLine,
+  ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps,
 } from 'recharts'
 import Toast from '../../components/Toast'
-import { useMarketingAds, type AdInsight, type AdSummary } from '../../features/marketing/hooks/useMarketingAds'
+import {
+  useMarketingAds, type AdInsight, type AdSummary, type CrossTabCell,
+} from '../../features/marketing/hooks/useMarketingAds'
 
 const UNPARSED_BUCKET = 'その他'
+const ACTIVE_COLOR = '#00acc4'
+const PAUSED_COLOR = '#cbd5e1'
+const GOOD_COLOR = '#10b981'
+const WARN_COLOR = '#f59e0b'
 
 function yen(n: number): string {
   return `¥${Math.round(n).toLocaleString('ja-JP')}`
@@ -18,16 +25,22 @@ function pct(n: number): string {
   return `${n.toFixed(2)}%`
 }
 
-function StatusDot({ status }: { status: string | null }) {
-  const active = status === 'ACTIVE'
-  return (
-    <span className={`inline-block h-1.5 w-1.5 rounded-full ${active ? 'bg-emerald-500' : 'bg-gray-300'}`} />
-  )
+function yenAxisTick(n: number): string {
+  return n >= 1000 ? `¥${(n / 1000).toFixed(1)}k` : `¥${n}`
 }
 
 /** 業種×訴求のグループキー。表示ラベルにも使う。 */
 function groupKey(industry: string, appeal: string): string {
   return `${industry} / ${appeal}`
+}
+
+/** 広告一覧をグラフの軸ラベルに詰めるための短縮名。命名規約に沿う広告は
+ *  「業種/訴求 vN」で十分に一意なので、長い元の広告名は出さない。 */
+function adLabel(a: AdSummary): string {
+  if (a.parsed && a.version != null) {
+    return `${a.industry}/${a.appeal} v${a.version}${a.suffix ? `(${a.suffix})` : ''}`
+  }
+  return a.name
 }
 
 const INSIGHT_STYLE: Record<AdInsight['severity'], { wrap: string; iconWrap: string; icon: typeof TrendingUp }> = {
@@ -52,12 +65,121 @@ function InsightCard({ insight }: { insight: AdInsight }) {
   )
 }
 
+function TooltipCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-[180px] rounded-lg border border-gray-200 bg-white p-3 text-xs shadow-lg">
+      <p className="mb-1.5 font-semibold text-gray-900">{title}</p>
+      {children}
+    </div>
+  )
+}
+
+function TooltipRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-0.5 text-gray-600">
+      <span>{label}</span>
+      <span className="ml-2 font-medium tabular-nums text-gray-900">{value}</span>
+    </div>
+  )
+}
+
+/** 横棒グラフの1本分。original に元データを持たせ、Tooltip 側で内訳を出す。 */
+type BarDatum<T> = { label: string; value: number; fill: string; original: T }
+
+/** 業種×訴求・広告一覧・稼働状況比較で使い回す横棒グラフ。
+ *  項目数に応じて高さを可変にし、少数項目でも間延びしないようにする。 */
+function HorizontalBarChart<T>({
+  data, valueTickFormatter, referenceValue, tooltipContent,
+}: {
+  data: BarDatum<T>[]
+  valueTickFormatter: (v: number) => string
+  referenceValue?: number
+  tooltipContent: (props: TooltipContentProps<number, string>) => React.ReactNode
+}) {
+  const height = Math.max(data.length * 30, 72)
+  return (
+    <div style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#eee" horizontal={false} />
+          <XAxis type="number" tick={{ fontSize: 10, fill: '#9ca3af' }} tickFormatter={valueTickFormatter} />
+          <YAxis type="category" dataKey="label" width={168} tick={{ fontSize: 11, fill: '#4b5563' }} interval={0} />
+          {referenceValue != null && (
+            <ReferenceLine x={referenceValue} stroke="#9ca3af" strokeDasharray="4 4" />
+          )}
+          <Tooltip content={tooltipContent} cursor={{ fill: 'rgba(15, 23, 42, 0.04)' }} />
+          <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={16}>
+            {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+function crossTabTooltip(props: TooltipContentProps<number, string>): React.ReactNode {
+  const { active, payload } = props
+  if (!active || !payload?.length) return null
+  const d = (payload[0].payload as BarDatum<CrossTabCell>).original
+  return (
+    <TooltipCard title={groupKey(d.industry, d.appeal)}>
+      <TooltipRow label="消化金額" value={yen(d.spend)} />
+      <TooltipRow label="インプレッション" value={d.impressions.toLocaleString('ja-JP')} />
+      <TooltipRow label="クリック" value={d.clicks.toLocaleString('ja-JP')} />
+      <TooltipRow label="CTR" value={pct(d.ctr)} />
+      <TooltipRow label="CPM" value={yen(d.cpm)} />
+      <TooltipRow label="リード" value={String(d.leads)} />
+      <TooltipRow label="CPA" value={d.costPerLead != null ? yen(d.costPerLead) : '—'} />
+    </TooltipCard>
+  )
+}
+
+function adTooltip(props: TooltipContentProps<number, string>): React.ReactNode {
+  const { active, payload } = props
+  if (!active || !payload?.length) return null
+  const d = (payload[0].payload as BarDatum<AdSummary>).original
+  return (
+    <TooltipCard title={adLabel(d)}>
+      <TooltipRow label="ステータス" value={d.effectiveStatus === 'ACTIVE' ? '稼働中' : '停止中'} />
+      <TooltipRow label="消化金額" value={yen(d.spend)} />
+      <TooltipRow label="インプレッション" value={d.impressions.toLocaleString('ja-JP')} />
+      <TooltipRow label="クリック" value={d.clicks.toLocaleString('ja-JP')} />
+      <TooltipRow label="CTR" value={pct(d.ctr)} />
+      <TooltipRow label="CPM" value={yen(d.cpm)} />
+      <TooltipRow label="CPA" value={d.costPerLead != null ? yen(d.costPerLead) : '—'} />
+    </TooltipCard>
+  )
+}
+
+type StatusGroup = { status: 'ACTIVE' | 'PAUSED'; count: number; spend: number; ctr: number }
+
+function statusTooltip(props: TooltipContentProps<number, string>): React.ReactNode {
+  const { active, payload } = props
+  if (!active || !payload?.length) return null
+  const d = (payload[0].payload as BarDatum<StatusGroup>).original
+  return (
+    <TooltipCard title={d.status === 'ACTIVE' ? '稼働中' : '停止中'}>
+      <TooltipRow label="本数" value={`${d.count}本`} />
+      <TooltipRow label="消化金額" value={yen(d.spend)} />
+      <TooltipRow label="CTR" value={pct(d.ctr)} />
+    </TooltipCard>
+  )
+}
+
+const TREND_METRICS = [
+  { key: 'ctr' as const, label: 'CTR' },
+  { key: 'spend' as const, label: '消化金額' },
+  { key: 'clicks' as const, label: 'クリック' },
+]
+type TrendMetric = (typeof TREND_METRICS)[number]['key']
+
 export default function AdsPage() {
   const { view, loading, busy, loadError, days, setDays, syncNow } = useMarketingAds()
   const [toast, setToast] = useState<{ isVisible: boolean; message: string; type: 'success' | 'error' }>({
     isVisible: false, message: '', type: 'success',
   })
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
+  const [trendMetric, setTrendMetric] = useState<TrendMetric>('ctr')
 
   const notify = (r: { success: boolean; message: string }) =>
     setToast({ isVisible: true, message: r.message, type: r.success ? 'success' : 'error' })
@@ -75,8 +197,8 @@ export default function AdsPage() {
 
   const activeGroup = selectedGroup && groups.includes(selectedGroup) ? selectedGroup : groups[0] ?? null
 
-  const chartData = useMemo(() => {
-    if (!view || !activeGroup) return { series: [], lines: [] as { key: string; label: string }[] }
+  const trendData = useMemo(() => {
+    if (!view || !activeGroup) return { series: [] as Record<string, unknown>[], lines: [] as { key: string; label: string }[] }
     const points = view.daily.filter((d) => groupKey(d.industry, d.appeal) === activeGroup)
     const lineMeta = new Map<string, string>()
     for (const p of points) {
@@ -86,14 +208,16 @@ export default function AdsPage() {
     const byDate = new Map<string, Record<string, unknown>>()
     for (const p of points) {
       const row = byDate.get(p.date) ?? { date: p.date }
-      const ctr = p.impressions > 0 ? (p.clicks / p.impressions) * 100 : 0
-      row[p.adId] = Number(ctr.toFixed(2))
+      const raw = trendMetric === 'ctr'
+        ? (p.impressions > 0 ? (p.clicks / p.impressions) * 100 : 0)
+        : trendMetric === 'spend' ? p.spend : p.clicks
+      row[p.adId] = Number(raw.toFixed(trendMetric === 'ctr' ? 2 : 0))
       byDate.set(p.date, row)
     }
     const series = [...byDate.values()].sort((a, b) => String(a.date).localeCompare(String(b.date)))
     const lines = [...lineMeta.entries()].map(([key, label]) => ({ key, label }))
     return { series, lines }
-  }, [view, activeGroup])
+  }, [view, activeGroup, trendMetric])
 
   if (loading) {
     return (
@@ -114,9 +238,47 @@ export default function AdsPage() {
     )
   }
 
-  const sortedAds = [...view.ads].sort((a, b) => b.spend - a.spend)
-  const sortedCrossTab = [...view.crossTab].sort((a, b) => b.spend - a.spend)
   const totalSpend = view.ads.reduce((s, a) => s + a.spend, 0)
+  const totalImpressions = view.ads.reduce((s, a) => s + a.impressions, 0)
+  const totalClicks = view.ads.reduce((s, a) => s + a.clicks, 0)
+  const overallCtr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0
+
+  const crossTabBySpend: BarDatum<CrossTabCell>[] = [...view.crossTab]
+    .sort((a, b) => b.spend - a.spend)
+    .map((c) => ({ label: groupKey(c.industry, c.appeal), value: c.spend, fill: ACTIVE_COLOR, original: c }))
+  const crossTabByCtr: BarDatum<CrossTabCell>[] = [...view.crossTab]
+    .sort((a, b) => b.ctr - a.ctr)
+    .map((c) => ({
+      label: groupKey(c.industry, c.appeal),
+      value: Number(c.ctr.toFixed(2)),
+      fill: c.ctr >= overallCtr ? GOOD_COLOR : WARN_COLOR,
+      original: c,
+    }))
+
+  const activeAds = view.ads.filter((a) => a.effectiveStatus === 'ACTIVE')
+  const pausedAds = view.ads.filter((a) => a.effectiveStatus && a.effectiveStatus !== 'ACTIVE')
+  const activeSpend = activeAds.reduce((s, a) => s + a.spend, 0)
+  const pausedSpend = pausedAds.reduce((s, a) => s + a.spend, 0)
+  const activeImp = activeAds.reduce((s, a) => s + a.impressions, 0)
+  const pausedImp = pausedAds.reduce((s, a) => s + a.impressions, 0)
+  const activeCtr = activeImp > 0 ? (activeAds.reduce((s, a) => s + a.clicks, 0) / activeImp) * 100 : 0
+  const pausedCtr = pausedImp > 0 ? (pausedAds.reduce((s, a) => s + a.clicks, 0) / pausedImp) * 100 : 0
+  const hasStatusSplit = activeAds.length > 0 && pausedAds.length > 0
+  const statusSpendData: BarDatum<StatusGroup>[] = [
+    { label: `稼働中（${activeAds.length}本）`, value: activeSpend, fill: ACTIVE_COLOR, original: { status: 'ACTIVE', count: activeAds.length, spend: activeSpend, ctr: activeCtr } },
+    { label: `停止中（${pausedAds.length}本）`, value: pausedSpend, fill: PAUSED_COLOR, original: { status: 'PAUSED', count: pausedAds.length, spend: pausedSpend, ctr: pausedCtr } },
+  ]
+  const statusCtrData: BarDatum<StatusGroup>[] = [
+    { label: `稼働中（${activeAds.length}本）`, value: Number(activeCtr.toFixed(2)), fill: ACTIVE_COLOR, original: { status: 'ACTIVE', count: activeAds.length, spend: activeSpend, ctr: activeCtr } },
+    { label: `停止中（${pausedAds.length}本）`, value: Number(pausedCtr.toFixed(2)), fill: PAUSED_COLOR, original: { status: 'PAUSED', count: pausedAds.length, spend: pausedSpend, ctr: pausedCtr } },
+  ]
+
+  const adsBySpend: BarDatum<AdSummary>[] = [...view.ads]
+    .sort((a, b) => b.spend - a.spend)
+    .map((a) => ({ label: adLabel(a), value: a.spend, fill: a.effectiveStatus === 'ACTIVE' ? ACTIVE_COLOR : PAUSED_COLOR, original: a }))
+  const adsByCtr: BarDatum<AdSummary>[] = [...view.ads]
+    .sort((a, b) => b.ctr - a.ctr)
+    .map((a) => ({ label: adLabel(a), value: Number(a.ctr.toFixed(2)), fill: a.effectiveStatus === 'ACTIVE' ? ACTIVE_COLOR : PAUSED_COLOR, original: a }))
 
   return (
     <div className="space-y-6">
@@ -167,7 +329,7 @@ export default function AdsPage() {
         </div>
       )}
 
-      {sortedAds.length === 0 ? (
+      {view.ads.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
           この期間のデータがまだありません。
         </div>
@@ -185,73 +347,95 @@ export default function AdsPage() {
           )}
 
           <div className="rounded-lg border border-gray-200 bg-white p-4">
-            <h3 className="mb-3 text-sm font-bold text-gray-900">業種 × 訴求</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 text-left text-xs text-gray-500">
-                    <th className="py-1.5 pr-3 font-medium">業種</th>
-                    <th className="py-1.5 pr-3 font-medium">訴求</th>
-                    <th className="py-1.5 pr-3 text-right font-medium">消化金額</th>
-                    <th className="py-1.5 pr-3 text-right font-medium">imp</th>
-                    <th className="py-1.5 pr-3 text-right font-medium">クリック</th>
-                    <th className="py-1.5 pr-3 text-right font-medium">CTR</th>
-                    <th className="py-1.5 pr-3 text-right font-medium">CPM</th>
-                    <th className="py-1.5 pr-3 text-right font-medium">リード</th>
-                    <th className="py-1.5 text-right font-medium">CPA</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedCrossTab.map((c) => (
-                    <tr
-                      key={groupKey(c.industry, c.appeal)}
-                      className={`border-b border-gray-100 last:border-0 ${c.industry === UNPARSED_BUCKET ? 'text-gray-400' : 'text-gray-700'}`}
-                    >
-                      <td className="py-1.5 pr-3">{c.industry}</td>
-                      <td className="py-1.5 pr-3">{c.appeal}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">{yen(c.spend)}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">{c.impressions.toLocaleString('ja-JP')}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">{c.clicks.toLocaleString('ja-JP')}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">{pct(c.ctr)}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">{yen(c.cpm)}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">{c.leads}</td>
-                      <td className="py-1.5 text-right tabular-nums">{c.costPerLead != null ? yen(c.costPerLead) : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <h3 className="mb-1 text-sm font-bold text-gray-900">業種 × 訴求 比較</h3>
+            <p className="mb-3 text-xs text-gray-400">バーにカーソルを合わせると内訳（imp・クリック・CPM・リード）を表示します。</p>
+            <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+              <div>
+                <p className="mb-2 text-xs font-medium text-gray-500">消化金額</p>
+                <HorizontalBarChart data={crossTabBySpend} valueTickFormatter={yenAxisTick} tooltipContent={crossTabTooltip} />
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-medium text-gray-500">
+                  CTR <span className="text-gray-400">（点線は全体平均 {pct(overallCtr)}）</span>
+                </p>
+                <HorizontalBarChart
+                  data={crossTabByCtr}
+                  valueTickFormatter={(v) => `${v}%`}
+                  referenceValue={overallCtr}
+                  tooltipContent={crossTabTooltip}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="rounded-lg border border-gray-200 bg-white p-4">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-bold text-gray-900">バージョン推移（CTR）</h3>
-              <div className="flex flex-wrap gap-1">
-                {groups.map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => setSelectedGroup(g)}
-                    className={`rounded-full px-2.5 py-1 text-xs ${
-                      g === activeGroup ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {g}
-                  </button>
-                ))}
+          {hasStatusSplit && (
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
+              <h3 className="mb-3 text-sm font-bold text-gray-900">稼働中 vs 停止中</h3>
+              <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+                <div>
+                  <p className="mb-2 text-xs font-medium text-gray-500">消化金額</p>
+                  <HorizontalBarChart data={statusSpendData} valueTickFormatter={yenAxisTick} tooltipContent={statusTooltip} />
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-medium text-gray-500">CTR</p>
+                  <HorizontalBarChart data={statusCtrData} valueTickFormatter={(v) => `${v}%`} tooltipContent={statusTooltip} />
+                </div>
               </div>
             </div>
-            {chartData.series.length === 0 ? (
+          )}
+
+          <div className="rounded-lg border border-gray-200 bg-white p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-bold text-gray-900">クリエイティブ推移</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex gap-0.5 rounded-lg bg-gray-100 p-0.5">
+                  {TREND_METRICS.map((m) => (
+                    <button
+                      key={m.key}
+                      type="button"
+                      onClick={() => setTrendMetric(m.key)}
+                      className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
+                        trendMetric === m.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="mb-3 flex flex-wrap gap-1">
+              {groups.map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setSelectedGroup(g)}
+                  className={`rounded-full px-2.5 py-1 text-xs ${
+                    g === activeGroup ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+            {trendData.series.length === 0 ? (
               <p className="py-8 text-center text-sm text-gray-400">このグループのデータがありません</p>
             ) : (
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData.series}>
+                  <LineChart data={trendData.series}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
                     <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} unit="%" width={48} />
-                    <Tooltip formatter={(v?: number) => `${v ?? 0}%`} />
-                    {chartData.lines.map((l, i) => (
+                    <YAxis
+                      tick={{ fontSize: 11 }}
+                      width={trendMetric === 'spend' ? 56 : 48}
+                      unit={trendMetric === 'ctr' ? '%' : undefined}
+                      tickFormatter={trendMetric === 'spend' ? yenAxisTick : undefined}
+                    />
+                    <Tooltip
+                      formatter={(v?: number) => (trendMetric === 'ctr' ? `${v ?? 0}%` : trendMetric === 'spend' ? yen(v ?? 0) : `${v ?? 0}件`)}
+                    />
+                    {trendData.lines.map((l, i) => (
                       <Line
                         key={l.key}
                         type="monotone"
@@ -270,41 +454,27 @@ export default function AdsPage() {
           </div>
 
           <div className="rounded-lg border border-gray-200 bg-white p-4">
-            <h3 className="mb-3 text-sm font-bold text-gray-900">広告一覧</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 text-left text-xs text-gray-500">
-                    <th className="py-1.5 pr-3 font-medium"></th>
-                    <th className="py-1.5 pr-3 font-medium">広告名</th>
-                    <th className="py-1.5 pr-3 font-medium">業種</th>
-                    <th className="py-1.5 pr-3 font-medium">訴求</th>
-                    <th className="py-1.5 pr-3 font-medium">v</th>
-                    <th className="py-1.5 pr-3 text-right font-medium">消化金額</th>
-                    <th className="py-1.5 pr-3 text-right font-medium">CTR</th>
-                    <th className="py-1.5 pr-3 text-right font-medium">CPM</th>
-                    <th className="py-1.5 text-right font-medium">CPA</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedAds.map((a: AdSummary) => (
-                    <tr key={a.adId} className="border-b border-gray-100 last:border-0 text-gray-700">
-                      <td className="py-1.5 pr-3"><StatusDot status={a.effectiveStatus} /></td>
-                      <td className="py-1.5 pr-3">
-                        <span className={a.parsed ? '' : 'text-gray-400'}>{a.name}</span>
-                        {a.suffix && <span className="ml-1 text-xs text-gray-400">({a.suffix})</span>}
-                      </td>
-                      <td className="py-1.5 pr-3">{a.industry}</td>
-                      <td className="py-1.5 pr-3">{a.appeal}</td>
-                      <td className="py-1.5 pr-3">{a.version != null ? `v${a.version}` : '—'}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">{yen(a.spend)}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">{pct(a.ctr)}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">{yen(a.cpm)}</td>
-                      <td className="py-1.5 text-right tabular-nums">{a.costPerLead != null ? yen(a.costPerLead) : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <h3 className="mb-1 text-sm font-bold text-gray-900">広告別比較</h3>
+            <p className="mb-3 text-xs text-gray-400">
+              <span className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ background: ACTIVE_COLOR }} />稼働中
+              <span className="mx-1 inline-block h-2 w-2 rounded-full align-middle" style={{ background: PAUSED_COLOR }} />停止中
+            </p>
+            <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+              <div>
+                <p className="mb-2 text-xs font-medium text-gray-500">消化金額</p>
+                <HorizontalBarChart data={adsBySpend} valueTickFormatter={yenAxisTick} tooltipContent={adTooltip} />
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-medium text-gray-500">
+                  CTR <span className="text-gray-400">（点線は全体平均 {pct(overallCtr)}）</span>
+                </p>
+                <HorizontalBarChart
+                  data={adsByCtr}
+                  valueTickFormatter={(v) => `${v}%`}
+                  referenceValue={overallCtr}
+                  tooltipContent={adTooltip}
+                />
+              </div>
             </div>
           </div>
         </>
