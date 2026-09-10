@@ -211,7 +211,7 @@ export default function MonitorApplication() {
 
       <section className="max-w-4xl mx-auto px-4 -mt-8 relative z-10">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 md:p-6">
-          <div className="grid sm:grid-cols-3 gap-4 text-sm text-slate-600">
+          <div className="grid md:grid-cols-3 gap-4 text-sm text-slate-600">
             <div className="flex items-start gap-2">
               <Lock className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
               <span>通信はすべて暗号化（HTTPS）</span>
