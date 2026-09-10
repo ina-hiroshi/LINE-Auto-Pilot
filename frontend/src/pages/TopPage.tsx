@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { motion } from 'framer-motion'
-import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff, Loader2, AlertTriangle, Sparkles, Layout, Palette, Smartphone, MousePointerClick, Clock, Users, Crown, Code, Zap, HelpCircle, Star, MessageSquare, ChevronDown, Scissors, HeartPulse, Utensils, Dumbbell, Gem, Flower2 } from 'lucide-react'
+import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff, Loader2, AlertTriangle, Sparkles, Layout, Palette, Smartphone, MousePointerClick, Clock, Users, Crown, Code, Zap, HelpCircle, Star, MessageSquare, ChevronDown, Scissors, HeartPulse, Utensils, Dumbbell, Gem, Flower2, ShieldCheck } from 'lucide-react'
 import Toast from '../components/Toast'
 import topHeroImage from '../assets/top_hero.jpg'
 import smartAutoChatImage from '../assets/smartautochat.jpg'
@@ -1654,6 +1654,36 @@ export default function TopPage() {
               <FAQItem key={index} question={faq.question} answer={faq.answer} />
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Security Guide Teaser Section */}
+      <section className="py-20 bg-slate-50">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="bg-white rounded-3xl p-8 md:p-12 shadow-xl border border-slate-100 text-center"
+          >
+            <div className="w-14 h-14 rounded-full bg-primary-100 flex items-center justify-center mx-auto mb-6">
+              <ShieldCheck className="w-7 h-7 text-primary-600" />
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
+              お客様のデータ、しっかり守っています
+            </h2>
+            <p className="text-slate-600 max-w-2xl mx-auto leading-relaxed mb-8">
+              LINEに連携する大切な情報だから、安全性を最優先にしています。
+              店舗ごとのデータ分離、通信の暗号化、カード情報の非保持など、専門用語を使わずにご説明します。
+            </p>
+            <Link
+              to="/security-guide"
+              className="inline-flex items-center gap-2 bg-white border border-primary-200 text-primary-700 px-6 py-3 rounded-xl font-bold hover:bg-primary-50 transition"
+            >
+              セキュリティへの取り組みを見る
+              <ArrowRight size={18} />
+            </Link>
+          </motion.div>
         </div>
       </section>
 
