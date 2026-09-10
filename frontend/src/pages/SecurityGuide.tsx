@@ -101,7 +101,7 @@ export default function SecurityGuide() {
             </h1>
             <p className="text-sm sm:text-base lg:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed mb-8">
               IToguchiは、店舗ごとにデータを厳密に分離し、通信もすべて暗号化しています。
-              専門用語を使わず、その仕組みをご紹介します。
+              わかりやすく、その仕組みをご紹介します。
             </p>
             <Link to="/" state={{ scrollTo: 'auth' }} className="inline-flex px-6 sm:px-8 py-3 sm:py-4 bg-primary-600 text-white rounded-full font-bold hover:bg-primary-700 transition shadow-lg hover:shadow-primary-200 items-center justify-center gap-2 group text-sm sm:text-base">
               無料で始める

@@ -1674,7 +1674,7 @@ export default function TopPage() {
             </h2>
             <p className="text-slate-600 max-w-2xl mx-auto leading-relaxed mb-8">
               LINEに連携する大切な情報だから、安全性を最優先にしています。
-              店舗ごとのデータ分離、通信の暗号化、カード情報の非保持など、専門用語を使わずにご説明します。
+              店舗ごとのデータ分離、通信の暗号化、カード情報の非保持など、わかりやすくご説明します。
             </p>
             <Link
               to="/security-guide"
