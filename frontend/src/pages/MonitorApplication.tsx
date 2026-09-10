@@ -15,6 +15,8 @@ import {
   Send,
   BarChart3,
   TrendingUp,
+  Lock,
+  Shield,
 } from 'lucide-react'
 import Logo from '../components/Logo'
 import smartAutoChatImage from '../assets/smartautochat.jpg'
@@ -204,6 +206,30 @@ export default function MonitorApplication() {
               />
             </div>
           </motion.div>
+        </div>
+      </section>
+
+      <section className="max-w-4xl mx-auto px-4 -mt-8 relative z-10">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 md:p-6">
+          <div className="grid sm:grid-cols-3 gap-4 text-sm text-slate-600">
+            <div className="flex items-start gap-2">
+              <Lock className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
+              <span>通信はすべて暗号化（HTTPS）</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <Shield className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
+              <span>お客様データは店舗オーナー以外は閲覧できません</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <CreditCard className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
+              <span>決済情報はStripeが管理し、当サービスには保存されません</span>
+            </div>
+          </div>
+          <div className="text-right mt-3">
+            <Link to="/security" className="text-xs text-primary-600 hover:text-primary-700 underline">
+              セキュリティポリシーを見る
+            </Link>
+          </div>
         </div>
       </section>
 
