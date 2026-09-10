@@ -15,6 +15,7 @@ import {
   Send,
   BarChart3,
   TrendingUp,
+  ShieldCheck,
 } from 'lucide-react'
 import Logo from '../components/Logo'
 import smartAutoChatImage from '../assets/smartautochat.jpg'
@@ -336,6 +337,26 @@ export default function MonitorApplication() {
             インタビューへのご協力は任意で、ご協力いただかない場合も
             Proプランは通常どおりご利用いただけます（初期設定代行は通常価格 ¥9,980 になります）。
           </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 mb-10">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5 text-primary-600" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900">お客様のデータ、しっかり守っています</h2>
+          </div>
+          <p className="text-slate-600 leading-relaxed mb-6">
+            LINEに連携する大切な情報だから、安全性を最優先にしています。
+            店舗ごとのデータ分離、通信の暗号化、カード情報の非保持など、専門用語を使わずにご説明します。
+          </p>
+          <Link
+            to="/security-guide"
+            className="inline-flex items-center gap-2 bg-white border border-primary-200 text-primary-700 px-6 py-3 rounded-xl font-bold hover:bg-primary-50 transition"
+          >
+            セキュリティへの取り組みを見る
+            <ArrowRight size={18} />
+          </Link>
         </div>
 
         <div className="text-center">

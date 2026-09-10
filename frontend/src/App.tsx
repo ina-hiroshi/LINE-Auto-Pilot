@@ -22,6 +22,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
 import SpecifiedCommercialTransactions from './pages/SpecifiedCommercialTransactions'
 import SecurityPolicy from './pages/SecurityPolicy'
+import SecurityGuide from './pages/SecurityGuide'
 
 import MemberCardLIFF from './pages/MemberCardLIFF'
 import LiffRootBootstrap from './components/liff/LiffRootBootstrap'
@@ -233,6 +234,7 @@ function App() {
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/specified-commercial-transactions" element={<SpecifiedCommercialTransactions />} />
         <Route path="/security" element={<SecurityPolicy />} />
+        <Route path="/security-guide" element={<SecurityGuide />} />
         <Route path="/feature/auto-response" element={<FeatureAutoResponse />} />
         <Route path="/feature/reservation" element={<FeatureReservation />} />
         <Route path="/feature/membership" element={<FeatureMembership />} />
