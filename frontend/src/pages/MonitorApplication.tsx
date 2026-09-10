@@ -15,7 +15,6 @@ import {
   Send,
   BarChart3,
   TrendingUp,
-  Lock,
   Shield,
 } from 'lucide-react'
 import Logo from '../components/Logo'
@@ -209,30 +208,6 @@ export default function MonitorApplication() {
         </div>
       </section>
 
-      <section className="max-w-4xl mx-auto px-4 -mt-8 relative z-10">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 md:p-6">
-          <div className="grid md:grid-cols-3 gap-4 text-sm text-slate-600">
-            <div className="flex items-start gap-2">
-              <Lock className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
-              <span>通信はすべて暗号化（HTTPS）</span>
-            </div>
-            <div className="flex items-start gap-2">
-              <Shield className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
-              <span>お客様データは店舗オーナー以外は閲覧できません</span>
-            </div>
-            <div className="flex items-start gap-2">
-              <CreditCard className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
-              <span>決済情報はStripeが管理し、当サービスには保存されません</span>
-            </div>
-          </div>
-          <div className="text-right mt-3">
-            <Link to="/security" className="text-xs text-primary-600 hover:text-primary-700 underline">
-              セキュリティポリシーを見る
-            </Link>
-          </div>
-        </div>
-      </section>
-
       <section className="max-w-4xl mx-auto px-4 py-14">
         {/* まずはお試しください: 会員登録もフォーム記入も不要。既存のLINE公式アカウント
             (@431cghfd) は自動応答・予約・会員証がすべて稼働中のデモを兼ねている。 */}
@@ -361,6 +336,14 @@ export default function MonitorApplication() {
             「ここが分かりにくい」と言っていただけると、いちばん助かります。
             インタビューへのご協力は任意で、ご協力いただかない場合も
             Proプランは通常どおりご利用いただけます（初期設定代行は通常価格 ¥9,980 になります）。
+          </p>
+          <p className="text-xs text-slate-500 mt-4 flex items-center gap-1.5">
+            <Shield className="w-3.5 h-3.5 shrink-0" />
+            セキュリティ対策の詳細は
+            <Link to="/security" className="text-primary-600 hover:text-primary-700 underline">
+              セキュリティポリシー
+            </Link>
+            をご確認ください。
           </p>
         </div>
 
