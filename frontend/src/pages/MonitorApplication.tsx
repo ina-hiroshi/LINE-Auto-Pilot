@@ -176,25 +176,32 @@ export default function MonitorApplication() {
                 お客様との「つながり」を、<br className="md:hidden" />
                 IToguchiでつくりませんか？
               </h1>
-              <p className="text-primary-100 mb-6 leading-relaxed">
+              <p className="text-primary-100 mb-8 leading-relaxed">
                 「同じ質問に、何度も答えていませんか。」「あのお客様、二度目は来ましたか。」
                 その答えのカギは、お客様とのつながりです。
                 LINE公式アカウントなら、予約・自動応答・会員証・来店履歴をまとめて自動で記録し、次の接客に活かせます。
               </p>
-              <p className="text-primary-100 mb-8 leading-relaxed text-sm">
-                その第一歩となるLINE公式アカウントの接続設定を、モニター店舗は
-                <span className="font-bold text-white">初期設定代行（通常 ¥9,980）を無料</span>
-                でお任せいただけます。
-              </p>
-              <button
-                onClick={goToSignup}
-                className="inline-flex items-center gap-2 bg-white text-primary-700 px-8 py-4 rounded-xl font-bold shadow-lg hover:bg-primary-50 transition"
-              >
-                無料で登録して特典を受け取る
-                <ArrowRight size={20} />
-              </button>
-              <p className="text-primary-200 text-xs mt-4">
-                登録は無料です。Proプランは30日間無料でお試しいただけます。
+              <div className="flex flex-col gap-3 items-center md:items-start mb-4">
+                <a
+                  href={LINE_ADD_FRIEND_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={trackDemoClick}
+                  className="w-full sm:w-auto justify-center inline-flex items-center gap-2 bg-[#06C755] text-white px-8 py-4 rounded-xl font-bold shadow-lg hover:brightness-95 transition"
+                >
+                  <MessageCircle size={20} />
+                  LINEを友だち追加してお試しする
+                </a>
+                <button
+                  onClick={goToSignup}
+                  className="w-full sm:w-auto justify-center inline-flex items-center gap-2 bg-white/15 border border-white/40 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/25 transition"
+                >
+                  無料で登録して特典を受け取る
+                  <ArrowRight size={20} />
+                </button>
+              </div>
+              <p className="text-primary-200 text-xs">
+                登録は無料です。初期設定代行（通常¥9,980）も無料、Proプランは30日間無料でお試しいただけます。
               </p>
             </div>
             <div className="hidden md:block">
@@ -214,7 +221,7 @@ export default function MonitorApplication() {
         <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 mb-10">
           <h2 className="text-xl font-bold text-slate-900 mb-1">まずはお試しください</h2>
           <p className="text-sm text-slate-500 mb-6">
-            登録は不要です。LINEを友だち追加するだけで、実際の画面を今すぐ確認できます。
+            「同じ質問」に自動で答える様子を、今すぐLINEで確認できます。予約・会員証の体験もこのままどうぞ。
           </p>
 
           <div className="grid sm:grid-cols-3 gap-4 mb-6">
