@@ -74,6 +74,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   // モニター確認画面で作成された monitor_applications.id。
   // 管理者の決済スキップ検証パスで setup_service_orders を作る際に使う。
   const [monitorApplicationId, setMonitorApplicationId] = useState<string | null>(null)
+  // モニター枠（先着10店舗）の残数。取得できるまではnull（バッジ非表示）。
+  const [monitorCapacity, setMonitorCapacity] = useState<{ remaining: number; isFull: boolean } | null>(null)
 
   // LINE設定
   const [lineSettings, setLineSettings] = useState({
@@ -338,6 +340,19 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     loadExistingData()
   }, []) // 初回マウント時のみ実行
 
+  // モニター確認画面に入るたびに残り枠数を取り直す（画面を開いたまま長時間
+  // 待たれるケースは想定しないが、他ユーザーの申込で数字が動く可能性はあるため）。
+  useEffect(() => {
+    if (currentStep !== 'monitor_confirm') return
+    supabase.functions
+      .invoke('get-monitor-capacity')
+      .then(({ data, error }) => {
+        if (error || !data) return
+        setMonitorCapacity({ remaining: data.remaining, isFull: data.isFull })
+      })
+      .catch(() => {})
+  }, [currentStep])
+
   const handleLogout = async () => {
     localStorage.clear()
     sessionStorage.clear()
@@ -462,13 +477,19 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
    * 以前はこの時点で代行注文まで作っており、決済ページで離脱した相手にも
    * ¥9,980 相当の作業だけが渡ってしまう状態だった。
    *
-   * 特典が付かなくても登録は続行させたいので、失敗しても例外を投げず null を返す。
+   * 特典が付かなくても登録は続行させたいので、失敗しても例外を投げず
+   * SubmitMonitorApplicationResult を返す（呼び出し元でメッセージを出し分ける）。
    * 戻り値の id は setup_service_orders 作成（管理者の検証パス）で使う。
    */
-  const submitMonitorApplication = async (): Promise<string | null> => {
+  type SubmitMonitorApplicationResult =
+    | { status: 'ok'; applicationId: string }
+    | { status: 'capacity_full' }
+    | { status: 'error' }
+
+  const submitMonitorApplication = async (): Promise<SubmitMonitorApplicationResult> => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return null
+      if (!user) return { status: 'error' }
 
       const { data: application, error: applicationError } = await supabase
         .from('monitor_applications')
@@ -486,7 +507,14 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         .select('id')
         .single()
 
-      if (applicationError) throw applicationError
+      if (applicationError) {
+        // enforce_monitor_application_cap トリガー（20260914060000）が投げる
+        // 固定マーカー文字列。他のinsertエラーと区別して案内を出し分ける。
+        if (applicationError.message?.includes('MONITOR_CAPACITY_FULL')) {
+          return { status: 'capacity_full' }
+        }
+        throw applicationError
+      }
 
       // 運営に申込を通知する。これがないと申込に気づけない。
       const { error: notifyError } = await supabase.functions.invoke('notify-monitor-application', {
@@ -496,11 +524,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         console.error('モニター申込の通知に失敗しました:', notifyError)
       }
 
-      return application.id as string
+      return { status: 'ok', applicationId: application.id as string }
     } catch (error) {
       // 申込の記録に失敗しても登録は止めない。運営側で拾えるようログに残す。
       console.error('モニター特典の登録に失敗しました:', error)
-      return null
+      return { status: 'error' }
     }
   }
 
@@ -560,10 +588,26 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     setLoading(true)
     setProgressMsg('応募内容を記録中...')
     try {
-      setMonitorConsent(true)
       setSelectedPlan('pro')
-      const applicationId = await submitMonitorApplication()
-      setMonitorApplicationId(applicationId)
+      const result = await submitMonitorApplication()
+
+      if (result.status === 'capacity_full') {
+        // 応募UIを表示していた間に他の人の申込で枠が埋まったケース。
+        // モニター特典なしの通常登録として続行する。
+        setMonitorConsent(false)
+        setMonitorApplicationId(null)
+        setMonitorCapacity({ remaining: 0, isFull: true })
+        setToast({
+          isVisible: true,
+          message: 'モニター枠（先着10店舗）は満枠になりました。通常のご登録として進めます',
+          type: 'error',
+        })
+        setCurrentStep('plan_select')
+        return
+      }
+
+      setMonitorConsent(true)
+      setMonitorApplicationId(result.status === 'ok' ? result.applicationId : null)
       setCurrentStep('plan_select')
     } finally {
       setLoading(false)
@@ -943,6 +987,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               onApply={handleMonitorApply}
               onSkip={handleMonitorSkip}
               onBack={() => setCurrentStep('basic_info')}
+              capacity={monitorCapacity}
             />
           )}
 

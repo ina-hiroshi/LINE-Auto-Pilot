@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft,
@@ -16,6 +17,7 @@ import {
   BarChart3,
   TrendingUp,
   ShieldCheck,
+  Flame,
 } from 'lucide-react'
 import Logo from '../components/Logo'
 import smartAutoChatImage from '../assets/smartautochat.jpg'
@@ -121,13 +123,27 @@ const MORE_FEATURES = [
   },
 ]
 
+type MonitorCapacity = { remaining: number; isFull: boolean }
+
 export default function MonitorApplication() {
   const location = useLocation()
   const navigate = useNavigate()
+  const [capacity, setCapacity] = useState<MonitorCapacity | null>(null)
 
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [location.pathname])
+
+  useEffect(() => {
+    // API呼び出しが失敗した場合はバッジ自体を出さない（訴求のためにダミー値は出さない）。
+    supabase.functions
+      .invoke('get-monitor-capacity')
+      .then(({ data, error }) => {
+        if (error || !data) return
+        setCapacity({ remaining: data.remaining, isFull: data.isFull })
+      })
+      .catch(() => {})
+  }, [])
 
   // 登録フォームはトップページの #auth セクション。
   // 他の機能ページと同じ遷移方法に合わせる。
@@ -181,6 +197,30 @@ export default function MonitorApplication() {
                 その答えのカギは、お客様とのつながりです。
                 LINE公式アカウントなら、予約・自動応答・会員証・来店履歴をまとめて自動で記録し、次の接客に活かせます。
               </p>
+              {capacity && (
+                <div
+                  className={`w-full sm:w-auto inline-flex items-center gap-3 rounded-2xl px-5 py-4 mb-6 ${
+                    capacity.isFull
+                      ? 'bg-white/10 border border-white/30'
+                      : 'bg-amber-400 shadow-lg shadow-amber-900/30'
+                  }`}
+                >
+                  <Flame
+                    size={28}
+                    className={capacity.isFull ? 'text-primary-200 shrink-0' : 'text-primary-900 shrink-0'}
+                  />
+                  <p className={`font-extrabold leading-snug ${capacity.isFull ? 'text-primary-100 text-base' : 'text-primary-900 text-lg'}`}>
+                    {capacity.isFull ? (
+                      'おかげさまでモニター店舗（先着10店舗）は受付を終了しました'
+                    ) : (
+                      <>
+                        好評につき、モニター店舗は<br />
+                        <span className="text-2xl">残り{capacity.remaining}店舗</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              )}
               <div className="flex flex-col gap-3 items-center md:items-start mb-4">
                 <a
                   href={LINE_ADD_FRIEND_URL}

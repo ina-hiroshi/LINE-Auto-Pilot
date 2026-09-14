@@ -13,6 +13,11 @@ interface MonitorConfirmStepProps {
   /** 「スキップ」。何も記録せずプラン選択へ進む。 */
   onSkip: () => void
   onBack: () => void
+  /**
+   * モニター枠（先着10店舗）の残数。取得できていない間はnull。
+   * isFull の間は応募自体をここでブロックする（DB側のトリガーでも二重に強制済み）。
+   */
+  capacity: { remaining: number; isFull: boolean } | null
 }
 
 /**
@@ -31,9 +36,11 @@ export default function MonitorConfirmStep({
   onApply,
   onSkip,
   onBack,
+  capacity,
 }: MonitorConfirmStepProps) {
   // 「応募する」を押した後、LINE公式アカウントの所有確認を挟んでから確定する。
   const [wantsToApply, setWantsToApply] = useState(false)
+  const isFull = capacity?.isFull ?? false
 
   return (
     <motion.div
@@ -72,8 +79,30 @@ export default function MonitorConfirmStep({
           （初期設定代行は通常価格 ¥9,980 になります）。
         </p>
 
-        {!wantsToApply ? (
+        {isFull ? (
+          <div className="space-y-4">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-600">
+              モニター枠（先着10店舗）は満枠になりました。通常のご登録はこのままお使いいただけます
+              （初期設定代行は通常価格 ¥9,980 になります）。
+            </div>
+            <button
+              type="button"
+              onClick={onSkip}
+              disabled={loading}
+              className="w-full px-6 py-4 rounded-xl font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition disabled:opacity-50"
+            >
+              通常登録に進む
+            </button>
+          </div>
+        ) : !wantsToApply ? (
           <div className="grid sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              {capacity && (
+                <p className="text-xs font-bold text-primary-600 mb-2 text-center sm:text-left">
+                  モニター枠は残り{capacity.remaining}店舗です
+                </p>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => setWantsToApply(true)}

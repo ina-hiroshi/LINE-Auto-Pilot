@@ -489,6 +489,16 @@ verify_jwt = false
 [functions.debug-db]
 verify_jwt = false
 
+# pg_cron（日次、x-cron-secretのみ）と管理画面からの手動実行（JWTあり）の
+# 両方を受け付ける。meta-token-refresh と同じ二重受付の形。
+[functions.sync-line-friend-count]
+verify_jwt = false
+
+# 未登録の匿名訪問者もLPで残り枠数を見られる必要がある公開エンドポイント。
+# 集計値（件数）のみを返し行の中身は返さない。send-verification-code と同じ形。
+[functions.get-monitor-capacity]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
