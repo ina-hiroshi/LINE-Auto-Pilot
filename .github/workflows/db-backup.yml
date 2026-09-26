@@ -1,0 +1,90 @@
+# Supabase（無料プラン）には自動バックアップがないため、毎日DBを書き出して暗号化し、
+# Actionsの成果物として30日間保管する。復元手順は DB_BACKUP.md。
+#
+# このリポジトリは公開なので、成果物もログも第三者に見られる前提で扱う。
+# - 成果物は必ず暗号化してから保存する（顧客の個人情報を含むため）
+# - ダンプの中身や接続文字列をログに出さない（set -x、cat、head を使わない）
+#
+# 必要なSecrets:
+#   SUPABASE_DB_URL    Session pooler の接続文字列（Dashboard → Connect → Session pooler）
+#   BACKUP_PASSPHRASE  暗号化用のパスフレーズ。GitHubからは読み出せないので、必ず別に控えておく
+name: DB backup
+
+on:
+  schedule:
+    - cron: '0 18 * * *' # 毎日 3:00 JST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Dump database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_DB_URL}" ]; then
+            echo "::error::SUPABASE_DB_URL が設定されていません"
+            exit 1
+          fi
+          mkdir -p backup
+          supabase db dump --db-url "$SUPABASE_DB_URL" --role-only -f backup/roles.sql
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/schema.sql
+          # cron / pg_net の実行ログはDB容量の大半を占めるが、復元には不要なので除く
+          supabase db dump --db-url "$SUPABASE_DB_URL" --data-only --use-copy \
+            -x cron.job_run_details,net._http_response \
+            -f backup/data.sql
+
+      # 接続先の取り違えや権限不足で中身が空のまま「成功」するのを防ぐ。
+      # auth.users がないと、復元してもだれもログインできない。
+      - name: Verify dump contents
+        run: |
+          set -euo pipefail
+          for table in '"auth"."users"' '"public"."stores"' '"public"."reservations"'; do
+            if ! grep -qF "COPY ${table}" backup/data.sql; then
+              echo "::error::data.sql に ${table} のデータがありません"
+              exit 1
+            fi
+          done
+          grep -qF 'CREATE TABLE IF NOT EXISTS "public"."stores"' backup/schema.sql \
+            || { echo "::error::schema.sql に public.stores の定義がありません"; exit 1; }
+          ls -l backup
+
+      # 復号はMac側で行うため、アルゴリズムと反復回数を明示して固定する。
+      - name: Encrypt
+        id: encrypt
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BACKUP_PASSPHRASE}" ]; then
+            echo "::error::BACKUP_PASSPHRASE が設定されていません"
+            exit 1
+          fi
+          name="db-backup-$(TZ=Asia/Tokyo date +%Y%m%d-%H%M)"
+          tar -czf - -C backup . \
+            | openssl enc -aes-256-cbc -md sha256 -pbkdf2 -iter 600000 -salt \
+                -pass env:BACKUP_PASSPHRASE -out "${name}.tar.gz.enc"
+          rm -rf backup
+          ls -l "${name}.tar.gz.enc"
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.encrypt.outputs.name }}
+          path: ${{ steps.encrypt.outputs.name }}.tar.gz.enc
+          retention-days: 30
+          if-no-files-found: error
