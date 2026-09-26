@@ -27,9 +27,25 @@ export type MarketingSettingsView = {
   social_autopost_enabled: boolean
   auto_reply_enabled: boolean
   auto_reply_dry_run: boolean
+  ai_reply_enabled: boolean
+  ai_reply_dry_run: boolean
+  knowledge_store_id: string | null
 }
 
-type GetResponse = { settings: MarketingSettingsView; credentials: CredentialView[] }
+/** DM の AI 応答が参照する学習データ（LINE の自動応答と共通）の要約。 */
+export type KnowledgeSummary = {
+  storeId: string
+  storeName: string | null
+  tone: 'polite' | 'friendly'
+  hasPersona: boolean
+  docs: { id: string; fileName: string; isActive: boolean; chars: number }[]
+  activeChars: number
+  maxChars: number
+}
+
+type SettingsFlag = 'social_autopost_enabled' | 'auto_reply_enabled' | 'auto_reply_dry_run' | 'ai_reply_enabled' | 'ai_reply_dry_run'
+
+type GetResponse = { settings: MarketingSettingsView; credentials: CredentialView[]; knowledge: KnowledgeSummary | null }
 type ActionResult = { success: boolean; message?: string }
 
 async function extractFunctionError(error: unknown, fallback: string): Promise<string> {
@@ -49,6 +65,7 @@ async function extractFunctionError(error: unknown, fallback: string): Promise<s
 export function useMarketingSettings() {
   const [settings, setSettings] = useState<MarketingSettingsView | null>(null)
   const [credentials, setCredentials] = useState<CredentialView[]>([])
+  const [knowledge, setKnowledge] = useState<KnowledgeSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -65,6 +82,7 @@ export function useMarketingSettings() {
       const data = (await call({ action: 'get' })) as GetResponse
       setSettings(data.settings)
       setCredentials(data.credentials)
+      setKnowledge(data.knowledge ?? null)
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : '読み込みに失敗しました')
     } finally {
@@ -77,7 +95,7 @@ export function useMarketingSettings() {
   }, [refresh])
 
   const updateSetting = useCallback(
-    async (patch: Partial<MarketingSettingsView>): Promise<ActionResult> => {
+    async (patch: Partial<Pick<MarketingSettingsView, SettingsFlag>>): Promise<ActionResult> => {
       const key = Object.keys(patch)[0] ?? 'settings'
       setBusy(key)
       try {
@@ -110,5 +128,5 @@ export function useMarketingSettings() {
     }
   }, [call, refresh])
 
-  return { settings, credentials, loading, busy, loadError, refresh, updateSetting, refreshTokensNow }
+  return { settings, credentials, knowledge, loading, busy, loadError, refresh, updateSetting, refreshTokensNow }
 }

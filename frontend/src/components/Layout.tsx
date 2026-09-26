@@ -129,7 +129,10 @@ export default function Layout() {
           {navItems.map((item) => {
             const isItemActive = item.path?.includes('?') 
               ? (location.pathname + location.search) === item.path
-              : location.pathname === item.path
+              // 広報はサブページ（/marketing/inbox 等）でも同じ項目を選択中にする。
+              : item.path?.startsWith('/marketing/')
+                ? location.pathname.startsWith('/marketing/')
+                : location.pathname === item.path
 
             return (
               <Link
@@ -224,7 +227,10 @@ export default function Layout() {
           {navItems.map((item) => {
             const isItemActive = item.path?.includes('?') 
               ? (location.pathname + location.search) === item.path
-              : location.pathname === item.path
+              // 広報はサブページ（/marketing/inbox 等）でも同じ項目を選択中にする。
+              : item.path?.startsWith('/marketing/')
+                ? location.pathname.startsWith('/marketing/')
+                : location.pathname === item.path
 
             return (
               <Link

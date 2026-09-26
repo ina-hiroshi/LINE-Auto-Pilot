@@ -47,9 +47,9 @@ function formatJst(iso: string | null, withTime = true): string {
 
 function StatCard({ label, value, tone }: { label: string; value: number; tone?: 'danger' }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className={`text-2xl font-bold ${tone === 'danger' && value > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm px-4 py-3">
+      <div className="text-xs font-medium text-gray-500">{label}</div>
+      <div className={`mt-1 text-2xl font-bold ${tone === 'danger' && value > 0 ? 'text-red-600' : 'text-gray-900'}`}>
         {value}
       </div>
     </div>
@@ -72,15 +72,15 @@ export default function PostsPage() {
 
   if (q.loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-gray-500">
-        <Loader2 className="mr-2 animate-spin" size={20} /> 読み込み中...
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
       </div>
     )
   }
 
   if (q.loadError || !q.view) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-700">
+      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">
         <div className="mb-2 flex items-center gap-2 font-medium">
           <AlertTriangle size={18} /> 投稿キューを読み込めませんでした
         </div>
@@ -154,6 +154,11 @@ export default function PostsPage() {
         </div>
       </Modal>
 
+      <div>
+        <h2 className="text-lg font-bold text-gray-900">投稿キュー</h2>
+        <p className="text-sm text-gray-500">Instagram / Facebook へ、上から順に毎日1件ずつ自動で投稿します。</p>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
         <StatCard label="待機中" value={summary.pending} />
         <StatCard label="処理中" value={summary.publishing} />
@@ -163,7 +168,7 @@ export default function PostsPage() {
         <StatCard label="見送り" value={summary.abandoned} />
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3">
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white shadow-sm px-4 py-3">
         <div className="text-sm text-gray-600">
           次回の自動投稿：<span className="font-medium text-gray-900">{formatJst(nextCronAt)}</span>
           <span className="ml-2 text-xs text-gray-400">毎日 21:00 に1件ずつ</span>
@@ -201,7 +206,7 @@ export default function PostsPage() {
       </div>
 
       {queue.length === 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-8 text-center text-sm text-gray-500">
           投稿待ちはありません。
         </div>
       )}
@@ -230,7 +235,7 @@ export default function PostsPage() {
         ))}
       </div>
 
-      <details className="rounded-lg border border-gray-200 bg-white">
+      <details className="rounded-xl border border-gray-200 bg-white shadow-sm">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700">
           投稿済み・見送り（{finished.length}件）
         </summary>
@@ -308,7 +313,7 @@ function PostCard({
 
   return (
     <div
-      className={`rounded-lg border bg-white p-4 ${
+      className={`rounded-xl border bg-white p-5 shadow-sm ${
         view.needsAttention ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
       }`}
     >

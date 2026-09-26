@@ -5,8 +5,23 @@ import { getToken } from '../_shared/meta-tokens.ts'
 import { classifyMessages, extractOtherParticipant, latestInboundOccurredAt, latestOccurredAt, type GraphConversation } from '../_shared/social-dm-normalize.ts'
 import { pickNewestInbound } from '../_shared/social-auto-reply-eval.ts'
 import { selectAutoResponse, type ScorableRule } from '../_shared/auto-response.ts'
+import { loadStoreKnowledge, type StoreKnowledge } from '../_shared/store-knowledge.ts'
+import { generateSocialReply } from '../_shared/social-reply-ai.ts'
 
 type AutoReplyRule = ScorableRule & { id: string; response_text: string }
+
+/**
+ * AI 自動応答の実行条件。null なら AI 応答は一切行わない（Gemini も呼ばない）。
+ * dispatch=false の間は生成結果を status='dry_run' で記録するだけ。
+ */
+type AiReplyConfig = {
+  apiKey: string
+  knowledge: StoreKnowledge
+  dispatch: boolean
+}
+
+/** AI が「人の対応が必要」と判断したときの queue.last_error。フロントで日本語に読み替える。 */
+const AI_NEEDS_HUMAN = 'ai: needs_human'
 
 const IG_BASE = 'https://graph.instagram.com/v21.0'
 const FB_BASE = 'https://graph.facebook.com/v21.0'
@@ -42,7 +57,8 @@ async function pollPlatform(
   // ―― フェイルクローズ。SettingsPage の「オフの間は下書きの作成のみ行い
   // 送信しません」という既存の文言とも一致する挙動。
   shouldDispatchAutoReply: boolean,
-): Promise<{ conversations: number; messages: number }> {
+  aiReply: AiReplyConfig | null,
+): Promise<{ conversations: number; messages: number; aiReplies: number }> {
   const { data: rules } = await admin
     .from('social_auto_reply_rules')
     .select('id, keyword, sub_keywords, response_text')
@@ -61,6 +77,7 @@ async function pollPlatform(
 
   let conversationCount = 0
   let messageCount = 0
+  let aiReplyCount = 0
   let pages = 0
 
   while (cursor && pages < 5) {
@@ -182,8 +199,10 @@ async function pollPlatform(
         // 失敗した場合、次回以降 unique(conversation_id, message_id) に
         // 弾かれてこのメッセージには二度と自動応答が発動しなくなる。
         const newestInbound = pickNewestInbound(insertedMessages)
-        if (newestInbound && activeRules.length > 0) {
-          const match = selectAutoResponse(newestInbound.text ?? '', activeRules)
+        const match = newestInbound && activeRules.length > 0
+          ? selectAutoResponse(newestInbound.text ?? '', activeRules)
+          : null
+        if (newestInbound) {
           if (match) {
             const messageId = insertedIdByKey.get(newestInbound.dedupeKey)!
             const { error: queueError } = await admin
@@ -213,6 +232,28 @@ async function pollPlatform(
                 { onConflict: 'conversation_id,message_id', ignoreDuplicates: true },
               )
             if (hitError) throw hitError
+          } else if (
+            aiReply &&
+            newestInbound.messageType === 'text' &&
+            (newestInbound.text ?? '').trim().length > 0
+          ) {
+            // キーワードに当たらなかった DM だけを AI に回す（LINE の自動応答と同じ順序）。
+            // AI の失敗（タイムアウト・解釈不能・API エラー）は握りつぶして次の会話へ進む。
+            // ここで throw すると、以降の全会話の DM 取り込みまで止まってしまう。
+            // 失敗したメッセージは再評価されない（insertedMessages は初回取り込み時だけ）が、
+            // DM 受信箱には残るので人が拾える。
+            const messageId = insertedIdByKey.get(newestInbound.dedupeKey)!
+            try {
+              if (await enqueueAiReply(admin, aiReply, {
+                conversationId: conversation.id,
+                messageId,
+                recipientId: other.id,
+                platform,
+                displayName: other.username ?? other.name ?? null,
+              })) aiReplyCount += 1
+            } catch (e) {
+              console.error('[social-dm-poll] AI reply failed:', e instanceof Error ? e.message : String(e))
+            }
           }
         }
       }
@@ -221,7 +262,74 @@ async function pollPlatform(
     cursor = body.paging?.next ?? null
   }
 
-  return { conversations: conversationCount, messages: messageCount }
+  return { conversations: conversationCount, messages: messageCount, aiReplies: aiReplyCount }
+}
+
+/**
+ * 1件の受信 DM に AI 返信を生成し、送信キューへ積む。
+ *
+ * 送信は必ず social_outbound_queue 経由（social-outbound-drain が 24 時間
+ * ウィンドウを送信直前に再判定する）。ここから直接送ることはしない。
+ * キーワード応答と同じく、キュー → hits の順で確定させる（理由は pollPlatform 内のコメント参照）。
+ */
+async function enqueueAiReply(
+  admin: SupabaseClient,
+  ai: AiReplyConfig,
+  target: {
+    conversationId: string
+    messageId: string
+    recipientId: string
+    platform: 'instagram' | 'facebook'
+    displayName: string | null
+  },
+): Promise<boolean> {
+  const { data: history, error: historyError } = await admin
+    .from('social_messages')
+    .select('direction, text')
+    .eq('conversation_id', target.conversationId)
+    .order('occurred_at', { ascending: false })
+    .limit(10)
+  if (historyError) throw historyError
+
+  const result = await generateSocialReply(ai.apiKey, {
+    storeName: ai.knowledge.storeName,
+    platform: target.platform,
+    displayName: target.displayName,
+    recentMessages: (history ?? []).reverse(),
+    knowledgeText: ai.knowledge.text,
+    tone: ai.knowledge.tone,
+    personaPrompt: ai.knowledge.personaPrompt,
+    mode: 'auto',
+  })
+
+  // 店舗情報で答えられない（needsHuman）ときは送らない。「AI が見送った」ことが
+  // 自動応答の履歴に見えるよう、status='skipped' の行として残す。
+  const needsHuman = result.needsHuman || !result.draft
+  const { error: queueError } = await admin
+    .from('social_outbound_queue')
+    .upsert(
+      {
+        conversation_id: target.conversationId,
+        idempotency_key: target.messageId,
+        recipient: { id: target.recipientId },
+        message: needsHuman ? {} : { text: result.draft },
+        sent_by: 'ai_auto',
+        status: needsHuman ? 'skipped' : ai.dispatch ? 'pending' : 'dry_run',
+        last_error: needsHuman ? AI_NEEDS_HUMAN : null,
+      },
+      { onConflict: 'idempotency_key', ignoreDuplicates: true },
+    )
+  if (queueError) throw queueError
+
+  const { error: hitError } = await admin
+    .from('social_auto_reply_hits')
+    .upsert(
+      { conversation_id: target.conversationId, message_id: target.messageId, rule_id: null, matched_score: null },
+      { onConflict: 'conversation_id,message_id', ignoreDuplicates: true },
+    )
+  if (hitError) throw hitError
+
+  return !needsHuman
 }
 
 Deno.serve(async (req: Request) => {
@@ -259,11 +367,31 @@ Deno.serve(async (req: Request) => {
     // ここで ?? true のような「読めなければ有効扱い」は絶対にしない。
     const { data: settings, error: settingsError } = await admin
       .from('marketing_settings')
-      .select('auto_reply_enabled, auto_reply_dry_run')
+      .select('auto_reply_enabled, auto_reply_dry_run, ai_reply_enabled, ai_reply_dry_run, knowledge_store_id')
       .eq('id', 'global')
       .maybeSingle()
     const shouldDispatchAutoReply =
       !settingsError && !!settings && settings.auto_reply_enabled === true && settings.auto_reply_dry_run !== true
+
+    // AI 応答も同じくフェイルクローズ。ai_reply_enabled が明示的に true で、
+    // 参照する店舗と学習データがあるときだけ動かす。実送信（pending）には
+    // 全体の自動応答オン・全体のドライランオフに加え、AI 専用のドライランオフも要る。
+    let aiReply: AiReplyConfig | null = null
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
+    if (!settingsError && settings?.ai_reply_enabled === true && settings.knowledge_store_id && geminiApiKey) {
+      try {
+        const knowledge = await loadStoreKnowledge(admin, settings.knowledge_store_id)
+        if (knowledge.text.trim().length > 0) {
+          aiReply = {
+            apiKey: geminiApiKey,
+            knowledge,
+            dispatch: shouldDispatchAutoReply && settings.ai_reply_dry_run !== true,
+          }
+        }
+      } catch (e) {
+        console.error('[social-dm-poll] failed to load knowledge:', e instanceof Error ? e.message : String(e))
+      }
+    }
 
     const igLookup = await getToken(admin, 'instagram_login')
     if (igLookup) {
@@ -280,6 +408,7 @@ Deno.serve(async (req: Request) => {
           IG_BASE,
           igLookup.token,
           shouldDispatchAutoReply,
+          aiReply,
         )
       }
     } else {
@@ -302,6 +431,7 @@ Deno.serve(async (req: Request) => {
           FB_BASE,
           fbLookup.token,
           shouldDispatchAutoReply,
+          aiReply,
         )
       }
     } else {

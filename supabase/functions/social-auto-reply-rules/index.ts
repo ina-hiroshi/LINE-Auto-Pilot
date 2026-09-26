@@ -56,8 +56,8 @@ Deno.serve(async (req: Request) => {
 
       const { data: queue, error: queueError } = await admin
         .from('social_outbound_queue')
-        .select('id, conversation_id, message, status, created_at, sent_at, last_error')
-        .eq('sent_by', 'keyword_rule')
+        .select('id, conversation_id, message, status, sent_by, created_at, sent_at, last_error, social_conversations(platform, social_identities(display_name))')
+        .in('sent_by', ['keyword_rule', 'ai_auto'])
         .order('created_at', { ascending: false })
         .limit(50)
       if (queueError) throw queueError

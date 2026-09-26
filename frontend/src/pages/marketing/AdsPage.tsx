@@ -221,15 +221,15 @@ export default function AdsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-gray-500">
-        <Loader2 className="mr-2 animate-spin" size={20} /> 読み込み中...
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
       </div>
     )
   }
 
   if (loadError || !view) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-700">
+      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">
         <div className="mb-2 flex items-center gap-2 font-medium">
           <AlertTriangle size={18} /> 読み込めませんでした
         </div>
@@ -291,7 +291,7 @@ export default function AdsPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-bold text-gray-900">広告ダッシュボード</h2>
+          <h2 className="text-lg font-bold text-gray-900">広告ダッシュボード</h2>
           <p className="text-sm text-gray-500">
             直近{days}日間の合計 {yen(totalSpend)}（{view.since} 以降）
           </p>
@@ -330,13 +330,13 @@ export default function AdsPage() {
       )}
 
       {view.ads.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-8 text-center text-sm text-gray-500">
           この期間のデータがまだありません。
         </div>
       ) : (
         <>
           {view.insights.length > 0 && (
-            <div className="rounded-lg border border-gray-200 bg-white p-4">
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
               <h3 className="mb-3 text-sm font-bold text-gray-900">分析</h3>
               <div className="grid gap-2.5 sm:grid-cols-2">
                 {view.insights.map((insight) => (
@@ -346,7 +346,7 @@ export default function AdsPage() {
             </div>
           )}
 
-          <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
             <h3 className="mb-1 text-sm font-bold text-gray-900">業種 × 訴求 比較</h3>
             <p className="mb-3 text-xs text-gray-400">バーにカーソルを合わせると内訳（imp・クリック・CPM・リード）を表示します。</p>
             <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
@@ -369,7 +369,7 @@ export default function AdsPage() {
           </div>
 
           {hasStatusSplit && (
-            <div className="rounded-lg border border-gray-200 bg-white p-4">
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
               <h3 className="mb-3 text-sm font-bold text-gray-900">稼働中 vs 停止中</h3>
               <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
                 <div>
@@ -384,7 +384,7 @@ export default function AdsPage() {
             </div>
           )}
 
-          <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-bold text-gray-900">クリエイティブ推移</h3>
               <div className="flex flex-wrap items-center gap-2">
@@ -453,7 +453,7 @@ export default function AdsPage() {
             )}
           </div>
 
-          <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
             <h3 className="mb-1 text-sm font-bold text-gray-900">広告別比較</h3>
             <p className="mb-3 text-xs text-gray-400">
               <span className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ background: ACTIVE_COLOR }} />稼働中

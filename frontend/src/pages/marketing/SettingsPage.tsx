@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
-  AlertTriangle, CheckCircle2, Loader2, RefreshCw, ShieldAlert, ShieldCheck,
+  AlertTriangle, CheckCircle2, ChevronRight, Loader2, MessageSquareReply, RefreshCw, ShieldAlert, ShieldCheck,
 } from 'lucide-react'
 import Toast from '../../components/Toast'
 import { useMarketingSettings, type CredentialView } from '../../features/marketing/hooks/useMarketingSettings'
@@ -50,7 +51,7 @@ function CredentialCard({ cred }: { cred: CredentialView }) {
   const dataAccessDays = daysUntil(cred.data_access_expires_at)
 
   return (
-    <div className={`rounded-lg border bg-white p-4 ${cred.status !== 'active' ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'}`}>
+    <div className={`rounded-xl border bg-white p-5 shadow-sm ${cred.status !== 'active' ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'}`}>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="font-bold text-gray-900">{PLATFORM_LABEL[cred.platform]}</span>
         <StatusBadge status={cred.status} />
@@ -114,15 +115,15 @@ export default function SettingsPage() {
 
   if (s.loading) {
     return (
-      <div className="flex items-center justify-center py-20 text-gray-500">
-        <Loader2 className="mr-2 animate-spin" size={20} /> 読み込み中...
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
       </div>
     )
   }
 
   if (s.loadError || !s.settings) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-700">
+      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">
         <div className="mb-2 flex items-center gap-2 font-medium">
           <AlertTriangle size={18} /> 読み込めませんでした
         </div>
@@ -144,7 +145,7 @@ export default function SettingsPage() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-bold text-gray-900">接続状態</h2>
+          <h2 className="text-lg font-bold text-gray-900">接続設定</h2>
           <p className="text-sm text-gray-500">
             投稿・DM・広告が使う Meta のトークンです。IG は毎日自動で更新されます。
           </p>
@@ -161,7 +162,7 @@ export default function SettingsPage() {
       </div>
 
       {anyNeedsReauth && (
-        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           <ShieldAlert size={16} className="mt-0.5 shrink-0" />
           <p>対応が必要な項目があります。下のカードを確認してください。</p>
         </div>
@@ -171,8 +172,8 @@ export default function SettingsPage() {
         {s.credentials.map((c) => <CredentialCard key={c.id} cred={c} />)}
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <h3 className="mb-3 text-sm font-bold text-gray-900">運用設定</h3>
+      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h3 className="mb-4 font-bold text-gray-900">運用設定</h3>
         <div className="space-y-4">
           <ToggleRow
             label="自動投稿"
@@ -181,25 +182,28 @@ export default function SettingsPage() {
             busy={s.busy === 'social_autopost_enabled'}
             onChange={async (v) => notify(await s.updateSetting({ social_autopost_enabled: v }))}
           />
-          <ToggleRow
-            label="自動応答"
-            note="DMのキーワード自動返信・AI下書きの自動送信。オフの間は下書きの作成のみ行い送信しません。"
-            checked={s.settings.auto_reply_enabled}
-            busy={s.busy === 'auto_reply_enabled'}
-            onChange={async (v) => notify(await s.updateSetting({ auto_reply_enabled: v }))}
-          />
-          <ToggleRow
-            label="自動応答をドライランにする"
-            note="オンの間は実際には送信せず「送るはずだった内容」だけを記録します。動作を確認してからオフにしてください。"
-            checked={s.settings.auto_reply_dry_run}
-            busy={s.busy === 'auto_reply_dry_run'}
-            onChange={async (v) => notify(await s.updateSetting({ auto_reply_dry_run: v }))}
-            tone={s.settings.auto_reply_dry_run ? 'safe' : 'warn'}
-          />
+          {/* DM 自動応答（キーワード・AI・ドライラン）のスイッチは、効き方を確かめながら
+              切り替えられるよう自動応答タブにまとめた。ここには入口だけ置く。 */}
+          <Link
+            to="/marketing/replies"
+            className="group flex items-center justify-between gap-4 rounded-lg border border-gray-200 px-4 py-3 transition-colors hover:border-primary-300 hover:bg-primary-50/40"
+          >
+            <span className="flex items-center gap-3">
+              <MessageSquareReply size={18} className="text-primary-600" />
+              <span>
+                <span className="block text-sm font-medium text-gray-900">DMの自動応答</span>
+                <span className="block text-xs text-gray-500">
+                  {!s.settings.auto_reply_enabled ? 'オフ' : s.settings.auto_reply_dry_run ? 'ドライラン中' : '送信中'}
+                  ・キーワード応答とAI応答の設定は「自動応答」タブで行います
+                </span>
+              </span>
+            </span>
+            <ChevronRight size={16} className="text-gray-300 group-hover:text-primary-500" />
+          </Link>
         </div>
       </div>
 
-      <div className="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
+      <div className="flex items-start gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
         <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
         <p>
           Facebook の再認可（同意ダイアログ）だけは自動化できません。実行後は「今すぐ確認」を押すと

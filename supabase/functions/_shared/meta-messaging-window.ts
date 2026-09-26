@@ -21,7 +21,7 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000
 const SEVEN_DAYS_MS = 7 * ONE_DAY_MS
 
 export type ManualSentBy = 'manual' | 'ai_draft_approved'
-export type AutomatedSentBy = 'keyword_rule' | 'private_reply'
+export type AutomatedSentBy = 'keyword_rule' | 'ai_auto' | 'private_reply'
 
 export type WindowDecision =
   | { allowed: true; tag: null }

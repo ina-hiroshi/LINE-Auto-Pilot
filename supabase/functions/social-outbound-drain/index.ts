@@ -10,8 +10,8 @@ const MAX_ATTEMPTS = 3
 /**
  * social_outbound_queue の 'pending' 行（自動応答経路のみ）をドレインする。
  *
- * 'pending' に積まれるのは social-dm-poll がキーワードルールにマッチさせた
- * 自動応答だけ（sent_by: 'keyword_rule' / 将来の 'private_reply'）。
+ * 'pending' に積まれるのは social-dm-poll が積んだ自動応答だけ
+ * （sent_by: 'keyword_rule' / 'ai_auto' / 将来の 'private_reply'）。
  * 手動送信・AI下書き承認送信は social-send-reply から同期的に送るため、
  * ここでは扱わない（自動系だけを扱うことで、送信直前の再判定を
  * evaluateAutomatedWindow 一本に絞れる＝HUMAN_AGENT に倒れる経路が無い）。
@@ -53,7 +53,7 @@ Deno.serve(async (req: Request) => {
         'id, conversation_id, recipient, message, attempts, social_conversations(platform, account_ref, last_inbound_at)',
       )
       .eq('status', 'pending')
-      .in('sent_by', ['keyword_rule', 'private_reply'])
+      .in('sent_by', ['keyword_rule', 'ai_auto', 'private_reply'])
       .order('created_at', { ascending: true })
       .limit(50)
     if (rowsError) throw rowsError

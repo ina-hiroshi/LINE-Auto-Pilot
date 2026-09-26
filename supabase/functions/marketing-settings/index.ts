@@ -1,7 +1,8 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { requireAdmin } from '../_shared/admin-access.ts'
 import { checkFacebookScopes } from '../_shared/meta-token-policy.ts'
+import { KNOWLEDGE_BASE_MAX_CHARS } from '../_shared/ai-config.ts'
 
 /** 「接続状態」画面用のエンドポイント。
  *
@@ -73,17 +74,48 @@ Deno.serve(async (req: Request) => {
             social_autopost_enabled: true,
             auto_reply_enabled: false,
             auto_reply_dry_run: true,
+            ai_reply_enabled: false,
+            ai_reply_dry_run: true,
+            knowledge_store_id: null,
           },
           credentials,
+          knowledge: await loadKnowledgeSummary(
+            admin,
+            (settings?.knowledge_store_id as string | null | undefined) ?? (await findOwnStoreId(admin, access.userId)),
+          ),
         })
       }
 
       case 'update_settings': {
-        const patch: Record<string, boolean> = {}
-        for (const key of ['social_autopost_enabled', 'auto_reply_enabled', 'auto_reply_dry_run'] as const) {
+        const patch: Record<string, boolean | string> = {}
+        for (
+          const key of [
+            'social_autopost_enabled',
+            'auto_reply_enabled',
+            'auto_reply_dry_run',
+            'ai_reply_enabled',
+            'ai_reply_dry_run',
+          ] as const
+        ) {
           if (typeof body?.[key] === 'boolean') patch[key] = body[key]
         }
         if (Object.keys(patch).length === 0) return json({ error: 'no valid fields' }, 400)
+
+        // AI 応答をオンにするとき、参照する学習データの店舗が未設定なら
+        // 操作した管理者自身の店舗（LINE の自動応答で使っているもの）に結び付ける。
+        // cron にはログインユーザーが居ないため、ここで確定させておく必要がある。
+        if (patch.ai_reply_enabled === true) {
+          const { data: current } = await admin
+            .from('marketing_settings')
+            .select('knowledge_store_id')
+            .eq('id', 'global')
+            .maybeSingle()
+          if (!current?.knowledge_store_id) {
+            const storeId = await findOwnStoreId(admin, access.userId)
+            if (!storeId) return json({ error: 'AI学習データを持つ店舗が見つかりません' }, 400)
+            patch.knowledge_store_id = storeId
+          }
+        }
 
         const { error } = await admin
           .from('marketing_settings')
@@ -123,3 +155,40 @@ Deno.serve(async (req: Request) => {
     return json({ error: message }, 500)
   }
 })
+
+async function findOwnStoreId(admin: SupabaseClient, userId: string): Promise<string | null> {
+  const { data } = await admin.from('stores').select('id').eq('owner_id', userId).maybeSingle()
+  return (data?.id as string | undefined) ?? null
+}
+
+/**
+ * 自動応答画面に出す「AI が参照する学習データ」の要約。本文そのものは返さない
+ * （文字数と資料名だけで十分で、編集は LINE の自動応答画面で行う）。
+ */
+async function loadKnowledgeSummary(admin: SupabaseClient, storeId: string | null) {
+  if (!storeId) return null
+  const [{ data: store }, { data: docs }, { data: ai }] = await Promise.all([
+    admin.from('stores').select('name').eq('id', storeId).maybeSingle(),
+    admin
+      .from('knowledge_base')
+      .select('id, file_name, is_active, extracted_text, created_at')
+      .eq('store_id', storeId)
+      .order('created_at', { ascending: true }),
+    admin.from('ai_settings').select('tone, persona_prompt').eq('store_id', storeId).maybeSingle(),
+  ])
+  const docViews = (docs ?? []).map((d) => ({
+    id: d.id as string,
+    fileName: d.file_name as string,
+    isActive: d.is_active as boolean,
+    chars: ((d.extracted_text as string | null) ?? '').length,
+  }))
+  return {
+    storeId,
+    storeName: (store?.name as string | null | undefined) ?? null,
+    tone: ai?.tone === 'friendly' ? 'friendly' : 'polite',
+    hasPersona: !!(ai?.persona_prompt as string | null | undefined)?.trim(),
+    docs: docViews,
+    activeChars: docViews.filter((d) => d.isActive).reduce((sum, d) => sum + d.chars, 0),
+    maxChars: KNOWLEDGE_BASE_MAX_CHARS,
+  }
+}

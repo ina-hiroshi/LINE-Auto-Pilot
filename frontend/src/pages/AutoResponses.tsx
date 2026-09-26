@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, Edit2, Trash2, X, Save, MessageSquare, Tag, Loader2, Upload, FileText, Settings, BookOpen, Search, Crown, Smartphone, RefreshCw, Send, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import ProBadge from '../components/ProBadge';
 import { supabase } from '../lib/supabase';
@@ -148,7 +149,12 @@ const ChatPreview = ({
 };
 
 export default function AutoResponses() {
-  const [activeTab, setActiveTab] = useState<TabType>('keyword');
+  // 広報の自動応答画面などから ?tab=knowledge で直接開けるようにする。
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<TabType>(
+    initialTab === 'ai_settings' || initialTab === 'knowledge' ? initialTab : 'keyword'
+  );
   const [loading, setLoading] = useState(true);
   const [storeId, setStoreId] = useState<string | null>(null);
   const [isPro, setIsPro] = useState(false);

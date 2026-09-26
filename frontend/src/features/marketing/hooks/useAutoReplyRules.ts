@@ -34,6 +34,10 @@ export type OutboundQueueRow = {
   id: string
   conversation_id: string
   text: string | null
+  /** keyword_rule = キーワード応答、ai_auto = AI 応答 */
+  sentBy: 'keyword_rule' | 'ai_auto'
+  displayName: string | null
+  platform: 'instagram' | 'facebook' | null
   status: 'pending' | 'dry_run' | 'sent' | 'skipped' | 'failed'
   created_at: string
   sent_at: string | null
@@ -99,6 +103,11 @@ export function useAutoReplyRules() {
           id: string
           conversation_id: string
           message: { text?: string } | null
+          sent_by: OutboundQueueRow['sentBy']
+          social_conversations: {
+            platform: 'instagram' | 'facebook'
+            social_identities: { display_name: string | null } | null
+          } | null
           status: OutboundQueueRow['status']
           created_at: string
           sent_at: string | null
@@ -122,6 +131,9 @@ export function useAutoReplyRules() {
           id: q.id,
           conversation_id: q.conversation_id,
           text: q.message?.text ?? null,
+          sentBy: q.sent_by,
+          displayName: q.social_conversations?.social_identities?.display_name ?? null,
+          platform: q.social_conversations?.platform ?? null,
           status: q.status,
           created_at: q.created_at,
           sent_at: q.sent_at,
@@ -203,7 +215,28 @@ export function useAutoReplyRules() {
     [call, refresh],
   )
 
-  return { rules, hits, queue, loading, busy, loadError, refresh, createRule, updateRule, deleteRule, setActive }
+  /**
+   * AI 自動応答のプレビュー。送信はしない（social-draft-reply の previewMessages モード）。
+   * needsHuman=true は「実際に届いたら AI は返さず担当者に回す」という意味。
+   */
+  const previewAiReply = useCallback(
+    async (
+      messages: { direction: 'inbound' | 'outbound'; text: string }[],
+    ): Promise<{ success: true; draft: string | null; needsHuman: boolean } | { success: false; message: string }> => {
+      try {
+        const { data, error } = await supabase.functions.invoke('social-draft-reply', {
+          body: { previewMessages: messages },
+        })
+        if (error) throw new Error(await extractFunctionError(error, 'AI応答の生成に失敗しました'))
+        return { success: true, draft: data?.draft ?? null, needsHuman: data?.needsHuman === true }
+      } catch (e) {
+        return { success: false, message: e instanceof Error ? e.message : 'AI応答の生成に失敗しました' }
+      }
+    },
+    [],
+  )
+
+  return { rules, hits, queue, loading, busy, loadError, refresh, createRule, updateRule, deleteRule, setActive, previewAiReply }
 }
 
 function toPayload(input: RuleInput) {
