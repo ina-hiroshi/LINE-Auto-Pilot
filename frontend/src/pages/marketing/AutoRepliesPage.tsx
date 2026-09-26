@@ -241,7 +241,7 @@ function FlowOverview({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-          <label className="flex items-center gap-3 text-sm font-bold text-gray-700">
+          <div className="flex items-center gap-3 text-sm font-bold text-gray-700">
             自動応答
             <Switch
               label="自動応答"
@@ -249,8 +249,8 @@ function FlowOverview({
               disabled={busy !== null}
               onChange={(v) => onToggle({ auto_reply_enabled: v })}
             />
-          </label>
-          <label className="flex items-center gap-3 text-sm font-bold text-gray-700" title="オンの間は送信せず、送るはずだった内容だけを記録します">
+          </div>
+          <div className="flex items-center gap-3 text-sm font-bold text-gray-700" title="オンの間は送信せず、送るはずだった内容だけを記録します">
             ドライラン
             <Switch
               label="ドライラン"
@@ -258,7 +258,7 @@ function FlowOverview({
               disabled={busy !== null || !s.auto_reply_enabled}
               onChange={(v) => onToggle({ auto_reply_dry_run: v })}
             />
-          </label>
+          </div>
         </div>
       </div>
 
