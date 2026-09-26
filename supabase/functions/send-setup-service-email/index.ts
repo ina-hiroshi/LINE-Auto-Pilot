@@ -6,7 +6,6 @@ import { isServiceRoleCaller } from '../_shared/service-role-auth.ts'
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const STAFF_LINE_ID = Deno.env.get('SETUP_SERVICE_STAFF_LINE_ID') || 'voltric424'
 const FRONTEND_URL = 'https://itoguchi-app.jp/#auth'
 // LINE公式アカウントの開設ページ。
 // 案内先を2度間違えているので、変更するときは必ず実際に開いて確認すること。
@@ -17,6 +16,26 @@ const FRONTEND_URL = 'https://itoguchi-app.jp/#auth'
 //   https://www.lycbiz.com/jp/service/line-official-account/
 //                                 → 採用。公式の製品ページで、開設の導線と説明が揃っている
 const LINE_ENTRY_URL = 'https://www.lycbiz.com/jp/service/line-official-account/'
+
+// LINE公式アカウントのメンバー追加は「LINE IDを入力して招待」ができない。
+// オーナーが招待URLを発行し、招待される側がそれを開いて承認する方式のため、
+// URLを発行して返信で送ってもらう手順を案内する。
+// 以前は「LINE ID: xxx で招待してください」と書いており、初のモニター応募者が
+// 招待画面にID入力欄がなく手が止まった。
+const STAFF_INVITE_STEPS_HTML = `
+            <p>以下の手順で招待用URLを発行し、<strong>このメールへの返信でURLをお送りください</strong>（2〜3分で終わります）。</p>
+            <ol style="line-height: 1.8;">
+              <li>LINE Official Account Manager にログイン<br>
+              <a href="https://manager.line.biz/" style="color: #00c3dc;">https://manager.line.biz/</a></li>
+              <li>対象のアカウントを選び、右上の「設定」→ 左メニューの「権限管理」を開く</li>
+              <li>「メンバーを追加」を押し、権限は「管理者」を選択</li>
+              <li>「URLを発行」を押し、表示されたURLをコピー</li>
+              <li>コピーしたURLを、このメールへの返信でお送りください</li>
+            </ol>
+            <p style="font-size: 14px; color: #666;">※URLの有効期限は発行から24時間で、使えるのは1回限りです。お手数ですが、送っていただく直前に発行をお願いいたします。<br>
+            ※Messaging APIとWebhookの設定に必要なため、権限は「管理者」でお願いしております。<br>
+            ※設定完了後は、同じ「権限管理」の画面から当社スタッフを削除していただけます。</p>
+`
 
 interface RequestBody {
   order_id: string
@@ -166,8 +185,10 @@ Deno.serve(async (req) => {
             メールでのやり取りを通じて設定作業を実施します。<br>
             作業完了後、すぐにメンバー権限を削除していただきます。</p>
             
-            <p>以下のLINE IDでスタッフを招待してください：<br>
-            <strong>LINE ID: ${STAFF_LINE_ID}</strong></p>
+            ${STAFF_INVITE_STEPS_HTML}
+            ${basicIdText ? '' : `
+            <p>あわせて、アカウントのベーシックID（「@」から始まるID）も返信で教えていただけますと、作業がスムーズです。</p>
+            `}
             
             ${basicIdText ? `
             <h3 style="color: #333; margin-top: 24px; margin-bottom: 12px;">【確認済み情報】</h3>
@@ -225,7 +246,7 @@ Deno.serve(async (req) => {
             メールでのやり取りを通じて設定作業を実施します。<br>
             作業完了後、すぐにメンバー権限を削除していただきます。</p>
             
-            <p>スタッフのLINE ID: <strong>${STAFF_LINE_ID}</strong></p>
+            ${STAFF_INVITE_STEPS_HTML}
             
             <p style="margin-top: 24px;">設定完了まで通常3〜5営業日程度かかります。</p>
             
@@ -256,6 +277,7 @@ Deno.serve(async (req) => {
           
           <h3 style="color: #333; margin-top: 24px; margin-bottom: 12px;">【重要】スタッフのメンバー削除について</h3>
           <p>設定作業が完了いたしましたので、LINE公式アカウントから当社スタッフのメンバー権限を削除してください。<br>
+          （LINE Official Account Manager の「設定」→「権限管理」から削除できます）<br>
           セキュリティのため、お早めの削除をお願いいたします。</p>
           
           <h3 style="color: #333; margin-top: 24px; margin-bottom: 12px;">【次のステップ】</h3>
