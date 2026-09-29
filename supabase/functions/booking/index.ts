@@ -186,7 +186,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    console.log(`[Booking] Action: ${action}, User: ${line_user_id}, Name: ${display_name}, Pic: ${profile_picture_url ? 'Yes' : 'No'}`)
+    console.log(`[Booking] Action: ${action}`)
 
     const params = {
       store_id,

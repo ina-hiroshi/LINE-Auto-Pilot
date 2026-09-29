@@ -74,7 +74,7 @@ describe('usePointOperation', () => {
       expect(res).toMatchObject({ success: true, newBalance: 100 })
       expect(upsertedPoints()).toMatchObject({ balance: 100 })
       expect(mock.broadcasts[0].payload).toMatchObject({
-        payload: { line_user_id: LINE_USER_ID, balance: 100 },
+        payload: { balance: 100 },
       })
     })
 
@@ -176,11 +176,12 @@ describe('usePointOperation', () => {
       await result.current.updatePoints(LINE_USER_ID, 0, 10, 'add')
 
       expect(mock.broadcasts).toHaveLength(1)
-      expect(mock.broadcasts[0].topic).toBe(`points:${STORE_ID}`)
+      // お客様ごとのチャンネルにする（同じ店舗の他のお客様のポイント変動を受信させない）
+      expect(mock.broadcasts[0].topic).toBe(`points:${STORE_ID}:${LINE_USER_ID}`)
       expect(mock.broadcasts[0].payload).toMatchObject({
         type: 'broadcast',
         event: 'update',
-        payload: { line_user_id: LINE_USER_ID, balance: 10 },
+        payload: { balance: 10 },
       })
     })
 

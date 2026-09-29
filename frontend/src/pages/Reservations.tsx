@@ -936,10 +936,10 @@ export default function Reservations() {
     <div className="flex flex-col h-full">
       <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
         <div className="px-4 sm:px-8 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <div className="min-w-0 flex-1 basis-40">
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">予約売上管理</h1>
-              <p className="text-sm text-gray-500">予約の確認・決済・売上の管理を行います。</p>
+              <p className="hidden sm:block text-sm text-gray-500">予約の確認・決済・売上の管理を行います。</p>
             </div>
             <div className="flex gap-2 shrink-0">
               {pageTab === 'bookings' && (

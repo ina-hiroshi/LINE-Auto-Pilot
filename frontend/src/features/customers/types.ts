@@ -1,6 +1,8 @@
 export type Customer = {
   id: string
   line_user_id: string
+  /** 予約時に紐付いた Bot 側の ID（未紐付けなら null） */
+  line_messaging_user_id?: string | null
   display_name: string | null
   profile_picture_url: string | null
   real_name: string | null

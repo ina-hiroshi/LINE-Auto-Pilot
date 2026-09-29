@@ -12,6 +12,10 @@ type Props = {
   segmentParams: SegmentParams
   resourceName?: string | null
   recipientCount: number
+  /** 友だち全員への配信（宛先の ID を使わない） */
+  broadcast?: boolean
+  /** broadcast のとき、recipientCount が LINE の統計に基づくか */
+  friendCountKnown?: boolean
   messageText: string
   quotaInfo: LineQuotaInfo | null
   sending: boolean
@@ -23,6 +27,8 @@ export default function CampaignReviewStep({
   segmentParams,
   resourceName,
   recipientCount,
+  broadcast = false,
+  friendCountKnown = false,
   messageText,
   quotaInfo,
   sending,
@@ -33,7 +39,9 @@ export default function CampaignReviewStep({
       ? quotaInfo.limit - quotaInfo.totalUsage
       : null
 
-  const quotaShortfall = remaining !== null && remaining < recipientCount
+  // 友だち全員の人数が分からないときは、事前に不足を判定できない（LINE が上限超過を断る）
+  const countKnown = !broadcast || friendCountKnown
+  const quotaShortfall = countKnown && remaining !== null && remaining < recipientCount
 
   return (
     <div className="space-y-5">
@@ -51,7 +59,11 @@ export default function CampaignReviewStep({
             <dt className="text-gray-500 w-24 shrink-0">送信数</dt>
             <dd className="text-gray-900 font-medium flex items-center gap-1">
               <Users className="w-4 h-4 text-gray-400" />
-              {recipientCount.toLocaleString()}名
+              {broadcast
+                ? friendCountKnown
+                  ? `友だち全員（約${recipientCount.toLocaleString()}名）`
+                  : '友だち全員（人数はLINE側で集計）'
+                : `${recipientCount.toLocaleString()}名`}
             </dd>
           </div>
         </dl>
@@ -71,7 +83,9 @@ export default function CampaignReviewStep({
         <LineMessagingQuotaPanel quotaInfo={quotaInfo} />
         {remaining !== null && (
           <p className="text-xs text-gray-500 mt-2">
-            今月の残り{remaining.toLocaleString()}通のうち、{recipientCount.toLocaleString()}通を使います。
+            {countKnown
+              ? `今月の残り${remaining.toLocaleString()}通のうち、${recipientCount.toLocaleString()}通を使います。`
+              : `今月の残り${remaining.toLocaleString()}通のうち、友だちの人数ぶんを使います。残りが足りない場合は送信できません。`}
           </p>
         )}
         <div className="mt-2">
@@ -98,11 +112,16 @@ export default function CampaignReviewStep({
       <button
         type="button"
         onClick={onSend}
-        disabled={sending || quotaShortfall || recipientCount === 0 || messageText.trim().length === 0}
+        disabled={
+          sending ||
+          quotaShortfall ||
+          (!broadcast && recipientCount === 0) ||
+          messageText.trim().length === 0
+        }
         className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed font-bold"
       >
         <Send className="w-4 h-4" />
-        {recipientCount.toLocaleString()}名に配信する
+        {broadcast ? '友だち全員に配信する' : `${recipientCount.toLocaleString()}名に配信する`}
       </button>
     </div>
   )

@@ -10,6 +10,8 @@
 
 export type CustomerForRecipient = {
   line_user_id?: string | null
+  /** 予約時に紐付いた Bot 側の ID。あればこれが一番確実に届く */
+  line_messaging_user_id?: string | null
   display_name?: string | null
   real_name?: string | null
 }
@@ -42,9 +44,10 @@ export type BuildRecipientCandidatesInput = {
 
 /**
  * 送信先候補を優先順に並べて返す。
- * 1. 画面が指定した ID
- * 2. 顧客レコードの ID
- * 3. 名前一致のログから拾った ID（同名が他にいなければ）
+ * 1. 顧客に紐付いた Bot 側の ID（予約時の確認コードで紐付いたもの）
+ * 2. 画面が指定した ID
+ * 3. 顧客レコードの ID（予約側）
+ * 4. 名前一致のログから拾った ID（同名が他にいなければ）
  */
 export function buildRecipientCandidates({
   requestedUserId,
@@ -59,6 +62,7 @@ export function buildRecipientCandidates({
     candidates.push(value)
   }
 
+  add(customer?.line_messaging_user_id)
   add(requestedUserId)
   add(customer?.line_user_id)
 

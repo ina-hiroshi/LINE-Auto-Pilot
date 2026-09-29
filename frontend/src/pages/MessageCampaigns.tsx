@@ -62,7 +62,7 @@ export default function MessageCampaigns() {
   })
 
   const { staffList, menuList } = useStoreResources(storeId)
-  const { preview, loading: previewLoading, error: previewError, fetchPreview } = useSegmentPreview()
+  const { preview, loading: previewLoading, error: previewError, fetchPreview, setPreview } = useSegmentPreview()
   const { send, sending } = useCampaignSend()
 
   useEffect(() => {
@@ -144,16 +144,22 @@ export default function MessageCampaigns() {
   const handleSegmentChange = useCallback((type: SegmentType, params: SegmentParams) => {
     setSegmentType(type)
     setSegmentParams(type === 'manual' ? { customer_ids: params.customer_ids ?? [] } : params)
-  }, [])
+    // 条件を変えた直後は前回の人数を消す。残したまま「次へ」を押せると、
+    // 確認画面の「N名に配信する」が実際の宛先とずれる。
+    setPreview(null)
+  }, [setPreview])
 
   const canProceedFromSegment = useMemo(() => {
-    if (!preview || preview.count === 0) return false
+    if (previewLoading || !preview) return false
+    // 友だち全員は宛先の ID を使わないので、人数が分からなくても進める
+    if (preview.broadcast) return true
+    if (preview.count === 0) return false
     const definition = findSegmentDefinition(segmentType)
     if (definition?.resource === 'menu' && !segmentParams.menu_id) return false
     if (definition?.resource === 'staff' && !segmentParams.staff_id) return false
     if (segmentType === 'manual' && (segmentParams.customer_ids?.length ?? 0) === 0) return false
     return true
-  }, [preview, segmentType, segmentParams])
+  }, [preview, previewLoading, segmentType, segmentParams])
 
   const handleSend = async () => {
     if (!storeId) return
@@ -275,6 +281,8 @@ export default function MessageCampaigns() {
                   segmentParams={segmentParams}
                   resourceName={resourceName}
                   recipientCount={preview?.count ?? 0}
+                  broadcast={preview?.broadcast === true}
+                  friendCountKnown={preview?.friendCountKnown === true}
                   messageText={messageText}
                   quotaInfo={quotaInfo}
                   sending={sending}

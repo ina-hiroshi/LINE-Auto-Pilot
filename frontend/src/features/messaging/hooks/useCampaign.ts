@@ -32,8 +32,15 @@ async function extractFunctionError(error: unknown, fallback: string): Promise<{
 }
 
 export type SegmentPreview = {
+  /** 配信できる人数（友だち全員のときは友だち数の目安。分からなければ 0） */
   count: number
   sampleNames: string[]
+  /** 友だち全員への配信（宛先の ID を使わない）。 */
+  broadcast?: boolean
+  /** broadcast のとき、count が LINE の統計に基づくか */
+  friendCountKnown?: boolean
+  /** 予約時の紐付けが済んでおらず、配信できないお客様の数 */
+  undeliverableCount?: number
 }
 
 export function useSegmentPreview() {
@@ -57,7 +64,13 @@ export function useSegmentPreview() {
           return
         }
 
-        setPreview({ count: data?.count ?? 0, sampleNames: data?.sampleNames ?? [] })
+        setPreview({
+          count: data?.count ?? 0,
+          sampleNames: data?.sampleNames ?? [],
+          broadcast: data?.broadcast === true,
+          friendCountKnown: data?.friendCountKnown === true,
+          undeliverableCount: data?.undeliverableCount ?? 0,
+        })
       } catch (e) {
         console.error('Segment preview error:', e)
         setError('配信対象の取得に失敗しました')

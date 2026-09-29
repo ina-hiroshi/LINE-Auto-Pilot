@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { toErrorMessageAsync } from '../lib/errorUtils'
 import { 
   Settings, 
   Search, 
@@ -158,7 +159,12 @@ export default function AdminSetupService() {
   const handleSaveLineSettings = async () => {
     if (!selectedOrder) return
 
-    if (!lineSettings.channel_id || !lineSettings.channel_secret || !lineSettings.channel_token) {
+    // コピー元の前後の空白・改行が入ると署名検証が常に失敗し、LINEのメッセージが無言で捨てられる
+    const channelId = lineSettings.channel_id.trim()
+    const channelSecret = lineSettings.channel_secret.trim()
+    const channelToken = lineSettings.channel_token.replace(/\s+/g, '')
+
+    if (!channelId || !channelSecret || !channelToken) {
       setToast({ isVisible: true, message: 'すべてのLINE設定項目を入力してください', type: 'error' })
       return
     }
@@ -173,9 +179,20 @@ export default function AdminSetupService() {
       // 既存のレコードを確認
       const { data: existingLineAccount } = await supabase
         .from('line_accounts')
-        .select('id')
+        .select('id, channel_id, channel_secret, channel_access_token')
         .eq('store_id', selectedOrder.store_id)
         .maybeSingle()
+
+      const credentialsChanged =
+
+        !existingLineAccount ||
+
+        existingLineAccount.channel_id !== channelId ||
+
+        existingLineAccount.channel_secret !== channelSecret ||
+
+        existingLineAccount.channel_access_token !== channelToken
+
 
       let lineError
       if (existingLineAccount) {
@@ -183,9 +200,11 @@ export default function AdminSetupService() {
         const { error } = await supabase
           .from('line_accounts')
           .update({
-            channel_id: lineSettings.channel_id,
-            channel_secret: lineSettings.channel_secret,
-            channel_access_token: lineSettings.channel_token,
+            channel_id: channelId,
+            channel_secret: channelSecret,
+            channel_access_token: channelToken,
+            // 認証情報を差し替えたときだけ、旧チャネルのBot情報が残らないよう取得し直す
+            ...(credentialsChanged ? { line_user_id: null, bot_id: null } : {}),
             updated_at: new Date().toISOString(),
           })
           .eq('store_id', selectedOrder.store_id)
@@ -197,9 +216,9 @@ export default function AdminSetupService() {
           .insert({
             user_id: selectedOrder.user_id,
             store_id: selectedOrder.store_id,
-            channel_id: lineSettings.channel_id,
-            channel_secret: lineSettings.channel_secret,
-            channel_access_token: lineSettings.channel_token,
+            channel_id: channelId,
+            channel_secret: channelSecret,
+            channel_access_token: channelToken,
             updated_at: new Date().toISOString(),
           })
         lineError = error
@@ -207,39 +226,17 @@ export default function AdminSetupService() {
 
       if (lineError) throw lineError
 
-      // Bot情報の取得とbot_id、line_user_idの保存
-      try {
-        const { data: botInfoData, error: funcError } = await supabase.functions.invoke('get-line-bot-info', {
-          body: { storeId: selectedOrder.store_id }
-        })
-        
-        if (funcError) {
-          console.warn('Bot info fetch warning:', funcError)
-        } else if (botInfoData) {
-          // bot_idとline_user_idを更新
-          const updateData: Record<string, unknown> = {}
-          if (botInfoData.basicId) {
-            updateData.bot_id = botInfoData.basicId
-          }
-          if (botInfoData.userId) {
-            updateData.line_user_id = botInfoData.userId
-          }
-          
-          if (Object.keys(updateData).length > 0) {
-            const { error: updateError } = await supabase
-              .from('line_accounts')
-              .update(updateData)
-              .eq('store_id', selectedOrder.store_id)
-            
-            if (updateError) {
-              console.warn('Failed to update bot_id/line_user_id:', updateError)
-            } else {
-              console.log('Updated bot_id and line_user_id successfully')
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Bot info fetch warning:', e)
+      // Bot情報の取得（Edge Function が bot_id / line_user_id を保存する）。
+      // line_user_id が取れないと line-webhook が店舗を特定できず、メッセージが無言で捨てられる。
+      // 取れていない状態で注文を完了にしたりお客様へ完了メールを送ったりしないよう、ここで止める。
+      const { data: botInfoData, error: funcError } = await supabase.functions.invoke('get-line-bot-info', {
+        body: { storeId: selectedOrder.store_id }
+      })
+      if (funcError || !botInfoData?.userId) {
+        const reason = funcError
+          ? await toErrorMessageAsync(funcError)
+          : 'Bot情報（userId）を取得できませんでした'
+        throw new Error(`LINE設定は保存しましたが、Bot情報を取得できないため完了にしていません: ${reason}`)
       }
 
       // ステータスを完了に更新

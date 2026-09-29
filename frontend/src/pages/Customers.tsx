@@ -251,12 +251,12 @@ export default function Customers() {
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">顧客一覧</h1>
-              <p className="text-sm text-gray-500">
+              <p className="hidden sm:block text-sm text-gray-500">
                 顧客を選択すると詳細ページで施術メモ・LINEメッセージを管理できます。
               </p>
             </div>
             <div className="flex gap-2 shrink-0">
-              <div className="relative w-64 hidden sm:block">
+              <div className="relative w-36 sm:w-64">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search className="h-5 w-5 text-gray-400" />
                 </div>
@@ -329,6 +329,11 @@ export default function Customers() {
                     <tr>
                       <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                         {searchQuery ? '該当する顧客が見つかりません' : '顧客データがありません'}
+                        {!searchQuery && (
+                          <span className="block mt-1 text-xs text-gray-400">
+                            LINEの予約ページから予約したお客様が、ここに表示されます。
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ) : (

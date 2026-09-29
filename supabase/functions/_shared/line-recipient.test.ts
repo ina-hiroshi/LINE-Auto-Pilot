@@ -88,3 +88,19 @@ Deno.test('候補: 順序を保つ（先に成功した宛先に送るため）'
   })
   assertEquals(ids, [REQUESTED, 'U-customer', 'U-log-1', 'U-log-2'])
 })
+
+Deno.test('buildRecipientCandidates: 紐付いた Bot 側の ID を最優先にする', () => {
+  const candidates = buildRecipientCandidates({
+    requestedUserId: REQUESTED,
+    customer: { line_user_id: 'U-liff', line_messaging_user_id: 'U-bot' },
+  })
+  assertEquals(candidates, ['U-bot', REQUESTED, 'U-liff'])
+})
+
+Deno.test('buildRecipientCandidates: Bot 側の ID が未設定でも従来どおり', () => {
+  const candidates = buildRecipientCandidates({
+    requestedUserId: REQUESTED,
+    customer: { line_user_id: 'U-liff', line_messaging_user_id: null },
+  })
+  assertEquals(candidates, [REQUESTED, 'U-liff'])
+})

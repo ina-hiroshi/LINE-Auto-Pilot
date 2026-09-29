@@ -1,3 +1,4 @@
+import { issueLinkMessage } from './link.ts'
 import type { SupabaseClientType } from '../../_shared/types.ts'
 import { ClientVisibleError, toErrorMessage } from '../../_shared/error-utils.ts'
 import type { CorsHeaders } from './types.ts'
@@ -583,7 +584,15 @@ export async function handleCreateReservation(
     googleClient,
   )
 
-  return new Response(JSON.stringify({ success: true, reservation_id: reservationId }), {
+  const link_message = await issueLinkMessage(supabaseClient, {
+    store_id,
+    line_user_id,
+    reservation_id: reservationId,
+    kind: 'created',
+    isManualRegistration,
+  })
+
+  return new Response(JSON.stringify({ success: true, reservation_id: reservationId, link_message }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }
@@ -719,7 +728,15 @@ export async function handleCancelReservation(
     }
   }
 
-  return new Response(JSON.stringify({ success: true }), {
+  const link_message = await issueLinkMessage(supabaseClient, {
+    store_id: reservation.store_id,
+    line_user_id: reservation.line_user_id,
+    reservation_id,
+    kind: 'cancelled',
+    isManualRegistration,
+  })
+
+  return new Response(JSON.stringify({ success: true, link_message }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }
@@ -772,7 +789,7 @@ export async function handleUpdateReservation(
 
   const { data: oldReservation, error: fetchError } = await supabaseClient
     .from('reservations')
-    .select('google_event_id, store_id, line_user_id')
+    .select('google_event_id, store_id, line_user_id, quoted_amount')
     .eq('id', reservation_id)
     .single()
 
@@ -812,11 +829,18 @@ export async function handleUpdateReservation(
 
   // 新予約を先に作成（旧予約は excludeReservationId で容量チェックから除外）
   // 失敗した場合でも旧予約は残るため、予約消失を防ぐ
+  // メニュー未選択の予約は、元の見込み金額を引き継ぐ。引き継がないと、店舗側の
+  // 予約変更が「見込み金額の入力が必要です」で必ず失敗する（変更画面に金額欄がない）。
+  // メニューを選んだ場合は、そのメニューの価格を使う。
+  const carriedQuotedAmount =
+    !menu_id && typeof oldReservation.quoted_amount === 'number'
+      ? oldReservation.quoted_amount
+      : undefined
   const resolvedQuoted = await resolveQuotedAmount(
     supabaseClient,
     menu_id || null,
-    undefined,
-    isManualRegistration,
+    carriedQuotedAmount,
+    isManualRegistration && carriedQuotedAmount !== undefined,
   )
 
   const newReservationId = await createReservationWithCapacityCheck({
@@ -879,7 +903,15 @@ export async function handleUpdateReservation(
     googleClient,
   )
 
-  return new Response(JSON.stringify({ success: true }), {
+  const link_message = await issueLinkMessage(supabaseClient, {
+    store_id,
+    line_user_id,
+    reservation_id: newReservationId,
+    kind: 'updated',
+    isManualRegistration,
+  })
+
+  return new Response(JSON.stringify({ success: true, reservation_id: newReservationId, link_message }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }

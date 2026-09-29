@@ -1,5 +1,5 @@
-import type { FormEvent } from 'react'
-import { MessageSquare, Save, Loader2 } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { MessageSquare, Save, Loader2, AlertTriangle } from 'lucide-react'
 import type { LineSettingsState } from '../types'
 
 interface ConnectionTabProps {
@@ -11,6 +11,20 @@ interface ConnectionTabProps {
 }
 
 export function ConnectionTab({ lineSettings, saving, webhookUrl, onSubmit, onChange }: ConnectionTabProps) {
+  const [copied, setCopied] = useState(false)
+  // 認証情報は入っているのに Bot User ID が無い状態では、LINEのメッセージを受信できない
+  const notConnected = Boolean(lineSettings.channel_token) && !lineSettings.line_user_id
+
+  const copyWebhookUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(webhookUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      window.prompt('Webhook URL をコピーしてください', webhookUrl)
+    }
+  }
+
   return (
     <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
       <div className="flex items-center gap-2 mb-6 pb-2 border-b">
@@ -18,6 +32,12 @@ export function ConnectionTab({ lineSettings, saving, webhookUrl, onSubmit, onCh
         <h2 className="text-xl font-bold text-gray-800">接続設定</h2>
       </div>
       <form className="space-y-4" onSubmit={onSubmit} autoComplete="off">
+        {notConnected && (
+          <div role="alert" className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 text-sm text-amber-800">
+            <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+            <p>LINE と接続できていません。Channel Access Token を確認して、もう一度「設定を保存」を押してください。接続できるまで、LINEのメッセージは受信されません。</p>
+          </div>
+        )}
         {(lineSettings.bot_id || lineSettings.line_user_id) && (
           <div className="space-y-2 mb-4">
             {lineSettings.bot_id && (
@@ -74,7 +94,7 @@ export function ConnectionTab({ lineSettings, saving, webhookUrl, onSubmit, onCh
             value={lineSettings.channel_token}
             onChange={(e) => onChange({ ...lineSettings, channel_token: e.target.value })}
             className="w-full p-2 border rounded-lg h-24 focus:ring-2 focus:ring-[#06C755]/20 outline-none"
-            placeholder="Long lived access token..."
+            placeholder="長期のチャネルアクセストークンを貼り付け"
             autoComplete="off"
             name="line_channel_token_field"
           />
@@ -103,10 +123,10 @@ export function ConnectionTab({ lineSettings, saving, webhookUrl, onSubmit, onCh
           />
           <button
             type="button"
-            onClick={() => navigator.clipboard.writeText(webhookUrl)}
+            onClick={copyWebhookUrl}
             className="px-3 py-1 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 text-xs whitespace-nowrap"
           >
-            コピー
+            {copied ? 'コピーしました' : 'コピー'}
           </button>
         </div>
       </div>

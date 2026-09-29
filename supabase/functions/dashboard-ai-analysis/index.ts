@@ -147,6 +147,26 @@ Deno.serve(async (req: Request) => {
       }
     })
 
+    // 分析するデータがない店舗（導入直後）では AI を呼ばない。
+    // 空のデータからもっともらしい分析文が生成され、24時間キャッシュされてしまうため。
+    if (logs.length === 0 && reservations.length === 0) {
+      return new Response(
+        JSON.stringify({
+          noData: true,
+          summary: 'まだ分析できるデータがありません。LINEのメッセージや予約が集まると、ここに分析が表示されます。',
+          insights: [],
+          improvements: [],
+          reservationAnalysis: '',
+          questionCategories: [],
+          topCustomersByMessages: [],
+          topCustomersByReservations: [],
+          popularMenus: [],
+          staffStats: [],
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const totalMessages = logs.length
     const autoReplyRate = totalMessages > 0 ? Math.round((statusCounts.auto_replied / totalMessages) * 100) : 0
     const aiReplyRate = totalMessages > 0 ? Math.round((statusCounts.ai_replied / totalMessages) * 100) : 0

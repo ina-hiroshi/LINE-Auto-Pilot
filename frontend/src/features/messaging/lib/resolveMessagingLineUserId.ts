@@ -2,6 +2,7 @@ import { supabase } from '../../../lib/supabase'
 
 type CustomerLike = {
   line_user_id: string
+  line_messaging_user_id?: string | null
   display_name: string | null
   real_name?: string | null
 }
@@ -14,7 +15,10 @@ export async function resolveMessagingLineUserIds(
   storeId: string,
   customer: CustomerLike,
 ): Promise<string[]> {
-  const ids = new Set<string>([customer.line_user_id])
+  // 紐付け済みの Bot 側の ID があれば最優先（予約時の確認コードで確定した ID）
+  const ids = new Set<string>(
+    [customer.line_messaging_user_id, customer.line_user_id].filter((id): id is string => Boolean(id)),
+  )
 
   const namesToMatch = [
     customer.real_name?.trim(),
@@ -55,6 +59,8 @@ export async function resolveMessagingLineUserId(
   storeId: string,
   customer: CustomerLike,
 ): Promise<string> {
+  if (customer.line_messaging_user_id) return customer.line_messaging_user_id
+
   const ids = await resolveMessagingLineUserIds(storeId, customer)
   if (ids.length === 1) return ids[0]
   // ログが複数 ID にまたがる場合は、customers 以外（Messaging 側）を優先

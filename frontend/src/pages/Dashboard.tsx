@@ -500,6 +500,9 @@ export default function Dashboard() {
 
       setAiAnalysis(analysisData)
       
+      // データがない状態の結果はキャッシュしない（データが貯まった後も24時間「なし」と表示されてしまう）
+      if (data.noData) return
+
       // localStorageに保存
       saveAIAnalysisToStorage({
         summary: analysisData.summary,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toErrorMessage, toErrorMessageAsync } from './errorUtils'
+import { toCustomerMessage, toErrorMessage, toErrorMessageAsync } from './errorUtils'
 
 describe('toErrorMessage', () => {
   it('returns message from Error instance', () => {
@@ -96,5 +96,17 @@ describe('toErrorMessageAsync', () => {
   it('response が Response 相当でなければ無視する', async () => {
     const message = await toErrorMessageAsync(new Error('元のメッセージ'), { error: '使われない' })
     expect(message).toBe('元のメッセージ')
+  })
+})
+
+describe('toCustomerMessage', () => {
+  it('keeps Japanese messages from the server', () => {
+    expect(toCustomerMessage('この時間帯は満席です')).toBe('この時間帯は満席です')
+  })
+
+  it('replaces English internal errors with a generic message', () => {
+    expect(toCustomerMessage('Invalid store_id format')).toBe(
+      '通信に失敗しました。しばらくしてからもう一度お試しください。',
+    )
   })
 })

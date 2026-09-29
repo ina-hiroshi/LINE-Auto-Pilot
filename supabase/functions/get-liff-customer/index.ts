@@ -31,7 +31,8 @@ Deno.serve(async (req: Request) => {
     // 2. Fetch Customer Data (Securely using Service Role)
     const { data: customer, error: customerError } = await supabaseClient
       .from('customers')
-      .select('*')
+      // 店舗の内部メモ（notes など）をお客様本人に返さない
+      .select('id, real_name, display_name')
       .eq('store_id', storeId)
       .eq('line_user_id', lineUserId)
       .maybeSingle()

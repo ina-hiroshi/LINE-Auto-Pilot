@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { FormEvent } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { supabase } from '../lib/supabase'
+import { toErrorMessageAsync } from '../lib/errorUtils'
 import { Loader2, Save, ExternalLink, Smartphone, MessageSquare } from 'lucide-react'
 import Toast from '../components/Toast'
 import { RichMenuTab } from '../features/line-settings/components/RichMenuTab'
@@ -356,7 +357,7 @@ export default function RichMenu() {
         liff_id: import.meta.env.VITE_LIFF_ID
       })
       
-      const { data: applyData, error: applyError } = await supabase.functions.invoke('apply-rich-menu', {
+      const { data: applyData, error: applyError, response: applyResponse } = await supabase.functions.invoke('apply-rich-menu', {
         body: { 
           store_id: storeId,
           generated_image_url: generatedImageUrl,
@@ -364,14 +365,14 @@ export default function RichMenu() {
         }
       })
 
-      console.log('apply-rich-menu response:', { data: applyData, error: applyError })
-
       if (applyError) {
         console.error('Failed to apply rich menu:', applyError)
-        setToast({ isVisible: true, message: `LINEへの反映に失敗: ${applyError.message || JSON.stringify(applyError)}`, type: 'error' })
+        // Edge Function が返した日本語の理由を出す（"non-2xx status code" のままにしない）
+        const reason = await toErrorMessageAsync(applyError, applyResponse)
+        setToast({ isVisible: true, message: `LINEへの反映に失敗しました。${reason}`, type: 'error' })
       } else if (applyData?.error) {
         console.error('Apply rich menu returned error:', applyData.error)
-        setToast({ isVisible: true, message: `LINEへの反映に失敗: ${applyData.error}`, type: 'error' })
+        setToast({ isVisible: true, message: `LINEへの反映に失敗しました。${applyData.error}`, type: 'error' })
       } else {
         setToast({ isVisible: true, message: 'リッチメニューを更新しました', type: 'success' })
       }

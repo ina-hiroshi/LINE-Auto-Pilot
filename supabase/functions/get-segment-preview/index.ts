@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { ClientVisibleError, clientVisibleErrorResponse, safeErrorResponse } from '../_shared/error-utils.ts'
 import { requireStoreAccess } from '../_shared/store-access.ts'
+import { loadFriendCount, loadRecipientContext, resolveRecipients } from '../_shared/campaign-recipients.ts'
 
 /**
  * 配信対象の人数プレビュー。
@@ -52,6 +53,21 @@ Deno.serve(async (req: Request) => {
     const access = await requireStoreAccess(req, storeId, admin, corsHeaders)
     if (!access.ok) return access.response
 
+    // 「友だち全員」は宛先の ID を使わず、LINE の broadcast で送る。人数は LINE の統計の目安。
+    if (segmentType === 'all') {
+      const friendCount = await loadFriendCount(admin, storeId)
+      return new Response(
+        JSON.stringify({
+          broadcast: true,
+          count: friendCount ?? 0,
+          friendCountKnown: friendCount !== null,
+          undeliverableCount: 0,
+          sampleNames: [],
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
     const { data, error } = await admin.rpc('get_segment_customers', {
       p_store_id: storeId,
       p_segment_type: segmentType,
@@ -63,12 +79,27 @@ Deno.serve(async (req: Request) => {
       throw new ClientVisibleError('配信対象の抽出に失敗しました', 500)
     }
 
-    const rows = (data ?? []) as { display_name: string | null }[]
+    const segmentRows = (data ?? []) as {
+      customer_id: string
+      line_user_id: string
+      display_name: string | null
+    }[]
+
+    // 実際に配信できる人数を出す（送信時と同じ解決ルール）。
+    // 紐付けが済んでいないお客様まで数えると、「40名」と出たのに届くのは 3 名、になる。
+    const context = await loadRecipientContext(admin, storeId)
+    const { deliverable, undeliverable } = resolveRecipients(
+      segmentRows,
+      context.messagingIds,
+      context.aligned,
+    )
 
     return new Response(
       JSON.stringify({
-        count: rows.length,
-        sampleNames: rows
+        broadcast: false,
+        count: deliverable.length,
+        undeliverableCount: undeliverable,
+        sampleNames: deliverable
           .slice(0, SAMPLE_SIZE)
           .map((row) => row.display_name)
           .filter((name): name is string => Boolean(name)),

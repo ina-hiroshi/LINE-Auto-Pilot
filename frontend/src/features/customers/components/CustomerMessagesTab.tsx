@@ -35,8 +35,10 @@ export function CustomerMessagesTab({
   const { sendMessage, resolveLog, sending } = useLineReply()
 
   const customerLineUserId = customer.line_user_id
+  const customerMessagingUserId = customer.line_messaging_user_id ?? null
   const customerForMessaging = {
     line_user_id: customerLineUserId,
+    line_messaging_user_id: customerMessagingUserId,
     display_name: customer.display_name,
     real_name: customer.real_name,
   }
@@ -46,7 +48,7 @@ export function CustomerMessagesTab({
     const primary = await resolveMessagingLineUserId(storeId, customerForMessaging)
     setMessagingUserId(primary)
     await fetchChatHistory(ids, 100, customer)
-  }, [storeId, customerLineUserId, customer.display_name, customer.real_name, fetchChatHistory])
+  }, [storeId, customerLineUserId, customerMessagingUserId, customer.display_name, customer.real_name, fetchChatHistory])
 
   useEffect(() => {
     reloadHistory()

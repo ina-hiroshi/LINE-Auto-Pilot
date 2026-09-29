@@ -157,7 +157,9 @@ export default function MessageCampaignDetail() {
             </div>
 
             <p className="text-xs text-gray-400 mt-3">
-              「送信」はLINEへの送信が成功した件数です。お客様が読んだかどうかはLINEの仕様上わかりません。
+              {campaign.segment_type === 'all'
+                ? '友だち全員への配信です。人数はLINEの統計に基づく目安で、宛先ごとの成否はLINEの仕様上わかりません。'
+                : '「送信」はLINEへの送信が成功した件数です。お客様が読んだかどうかはLINEの仕様上わかりません。'}
             </p>
 
             {canResume && (

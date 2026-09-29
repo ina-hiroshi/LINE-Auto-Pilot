@@ -106,6 +106,19 @@ Deno.serve(async (req) => {
       )
     }
 
+    // 申込者本人のログインを必須にする。anon キーだけで呼べると、他人の申込 ID を使って
+    // 運営宛て・申込者宛てのメールを発火させられてしまう。
+    const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '')
+    const { data: userData } = token
+      ? await supabase.auth.getUser(token)
+      : { data: { user: null } }
+    if (!userData.user || userData.user.id !== application.user_id) {
+      return new Response(
+        JSON.stringify({ error: '権限がありません' }),
+        { status: 403, headers: jsonHeaders },
+      )
+    }
+
     // 送信済みなら何もしない（重複クリック・リプレイ送信の防止）
     if (application.notified_at) {
       return new Response(
