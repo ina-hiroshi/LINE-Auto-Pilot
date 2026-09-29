@@ -12,8 +12,11 @@ import { CustomerPointsSection } from '../components/CustomerPointsSection'
 import { CustomerGeneralNotes } from '../components/CustomerGeneralNotes'
 import { CustomerTreatmentNotesTab } from '../components/CustomerTreatmentNotesTab'
 import { CustomerMessagesTab } from '../components/CustomerMessagesTab'
+import TutorialButton from '../../tutorial/TutorialButton'
+import { usePageTutorial } from '../../tutorial/usePageTutorial'
 
-type TabId = 'overview' | 'treatment' | 'messages'
+export type CustomerDetailTab = 'overview' | 'treatment' | 'messages'
+type TabId = CustomerDetailTab
 
 export default function CustomerDetailPage() {
   const { customerId } = useParams<{ customerId: string }>()
@@ -71,6 +74,12 @@ export default function CustomerDetailPage() {
     if (tab !== 'messages') next.delete('log_id')
     setSearchParams(next, { replace: true })
   }
+
+  const tutorial = usePageTutorial('customer-detail', {
+    ready: !loading && !!customer,
+    tab: activeTab,
+    setTab: handleTabChange,
+  })
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ isVisible: true, message, type })
@@ -148,9 +157,9 @@ export default function CustomerDetailPage() {
 
   const tabItems = [
     { id: 'overview' as const, label: '概要', icon: LayoutGrid },
-    { id: 'treatment' as const, label: '施術メモ', icon: ClipboardList },
+    { id: 'treatment' as const, label: '施術メモ', icon: ClipboardList, tourId: 'customer-detail.tab-treatment' },
     ...(showMessagesTab
-      ? [{ id: 'messages' as const, label: 'メッセージ', icon: MessageSquare }]
+      ? [{ id: 'messages' as const, label: 'メッセージ', icon: MessageSquare, tourId: 'customer-detail.tab-messages' }]
       : []),
   ]
 
@@ -165,14 +174,18 @@ export default function CustomerDetailPage() {
 
       <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
         <div className="px-4 sm:px-8 py-4">
-          <button
-            type="button"
-            onClick={() => navigate('/customers')}
-            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 mb-3"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            顧客一覧
-          </button>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/customers')}
+              data-tour="customer-detail.back"
+              className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              顧客一覧
+            </button>
+            <TutorialButton tutorial={tutorial} />
+          </div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">顧客詳細</h1>
           <p className="text-sm text-gray-500">ポイント・施術メモ・LINEメッセージを管理できます。</p>
         </div>
@@ -182,24 +195,30 @@ export default function CustomerDetailPage() {
         <div className="w-full">
           <UnderlineTabs activeId={activeTab} onChange={handleTabChange} items={tabItems} />
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
-            <CustomerProfileHeader customer={customer} />
+            <div data-tour="customer-detail.profile">
+              <CustomerProfileHeader customer={customer} />
+            </div>
 
             {activeTab === 'overview' && (
               <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <CustomerPointsSection
-                  balance={customer.points}
-                  storeSettings={storeSettings}
-                  saving={pointsSaving}
-                  onSubmit={handlePointsSubmit}
-                />
-                <CustomerGeneralNotes
-                  realName={editForm.real_name}
-                  furigana={editForm.furigana}
-                  notes={editForm.notes}
-                  onChange={(field, value) => setEditForm((prev) => ({ ...prev, [field]: value }))}
-                  onSave={handleSaveProfile}
-                  saving={savingProfile}
-                />
+                <div data-tour="customer-detail.points">
+                  <CustomerPointsSection
+                    balance={customer.points}
+                    storeSettings={storeSettings}
+                    saving={pointsSaving}
+                    onSubmit={handlePointsSubmit}
+                  />
+                </div>
+                <div data-tour="customer-detail.notes">
+                  <CustomerGeneralNotes
+                    realName={editForm.real_name}
+                    furigana={editForm.furigana}
+                    notes={editForm.notes}
+                    onChange={(field, value) => setEditForm((prev) => ({ ...prev, [field]: value }))}
+                    onSave={handleSaveProfile}
+                    saving={savingProfile}
+                  />
+                </div>
               </div>
             )}
 

@@ -84,10 +84,21 @@ function KpiTile({ label, value, unit, icon: Icon, share, tone = 'default', lock
   )
 }
 
-function Section({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+function Section({
+  title,
+  description,
+  tourId,
+  children,
+}: {
+  title: string
+  description: string
+  /** 画面ツアーで光らせる対象。セクション全体は縦に長いので、見出しに付ける */
+  tourId?: string
+  children: ReactNode
+}) {
   return (
     <section className="space-y-3">
-      <div>
+      <div data-tour={tourId}>
         <h2 className="text-base font-bold text-gray-900">{title}</h2>
         <p className="text-xs text-gray-500">{description}</p>
       </div>
@@ -165,7 +176,11 @@ export function DashboardGraphsTab({
         />
       </div>
 
-      <Section title="メッセージの動き" description="いつ・どれだけ届き、どう処理されたか">
+      <Section
+        title="メッセージの動き"
+        description="いつ・どれだけ届き、どう処理されたか"
+        tourId="dashboard.section-messages"
+      >
         <div className="space-y-4">
           <TrendCard
             title="メッセージ数の推移"
@@ -183,7 +198,11 @@ export function DashboardGraphsTab({
         </div>
       </Section>
 
-      <Section title="予約とお客様の動き" description="予約の入り方と、やり取りしたお客様の数">
+      <Section
+        title="予約とお客様の動き"
+        description="予約の入り方と、やり取りしたお客様の数"
+        tourId="dashboard.section-bookings"
+      >
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <TrendCard
             title="ユーザー数の推移"

@@ -13,6 +13,7 @@ const storeRow = (id: string, name: string) => ({
   liff_template_id: 'simple',
   liff_theme_color: '#000000',
   liff_logo_url: '',
+  liff_logo_layout: 'center',
   booking_system_type: 'generic',
   slot_interval_minutes: 60,
   capacity_per_slot: 1,

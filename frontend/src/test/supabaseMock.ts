@@ -29,6 +29,8 @@ export type QueryHandler = (op: QueryOp) => QueryResult | undefined
 
 export type FunctionInvocation = { name: string; body: unknown }
 
+export type RpcCall = { name: string; args: unknown }
+
 /** channel(...).on(...) で登録された購読 */
 export type ChannelSubscription = {
   topic: string
@@ -107,6 +109,8 @@ export type SupabaseMockOptions = {
   handler: QueryHandler
   /** functions.invoke の返り値 */
   invoke?: (name: string, body: unknown) => QueryResult
+  /** rpc の返り値 */
+  rpc?: (name: string, args: unknown) => QueryResult
   /** channel().send() を失敗させる */
   broadcastFails?: boolean
 }
@@ -116,11 +120,13 @@ export function createSupabaseMock(options: SupabaseMockOptions) {
     user = { id: 'owner-1', email: 'owner@example.com' },
     handler,
     invoke,
+    rpc,
     broadcastFails = false,
   } = options
 
   const ops: QueryOp[] = []
   const invocations: FunctionInvocation[] = []
+  const rpcCalls: RpcCall[] = []
 
   const broadcasts: Array<{ topic: string; payload: unknown }> = []
   const subscriptions: ChannelSubscription[] = []
@@ -159,6 +165,10 @@ export function createSupabaseMock(options: SupabaseMockOptions) {
       signOut: vi.fn(async () => ({ error: null })),
       onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
     },
+    rpc: vi.fn(async (name: string, args?: unknown) => {
+      rpcCalls.push({ name, args })
+      return rpc ? rpc(name, args) : { data: null, error: null }
+    }),
     channel: vi.fn((topic: string) => makeChannel(topic)),
     removeChannel: vi.fn(),
     functions: {
@@ -182,7 +192,7 @@ export function createSupabaseMock(options: SupabaseMockOptions) {
     }
   }
 
-  return { supabase, ops, invocations, broadcasts, subscriptions, emitRealtime, findOps, filterValue }
+  return { supabase, ops, invocations, rpcCalls, broadcasts, subscriptions, emitRealtime, findOps, filterValue }
 }
 
 export type SupabaseMock = ReturnType<typeof createSupabaseMock>

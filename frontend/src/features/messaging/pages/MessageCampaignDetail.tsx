@@ -6,6 +6,8 @@ import Toast from '../../../components/Toast'
 import { CAMPAIGN_STATUS_LABELS, type MessageCampaign } from '../types'
 import { describeSegment } from '../lib/segments'
 import { useCampaignSend } from '../hooks/useCampaign'
+import TutorialButton from '../../tutorial/TutorialButton'
+import { usePageTutorial } from '../../tutorial/usePageTutorial'
 
 export default function MessageCampaignDetail() {
   const { campaignId } = useParams<{ campaignId: string }>()
@@ -22,6 +24,7 @@ export default function MessageCampaignDetail() {
   })
 
   const { resume, sending } = useCampaignSend()
+  const tutorial = usePageTutorial('campaign-detail', { ready: !loading && !!campaign })
 
   const fetchCampaign = useCallback(async () => {
     if (!campaignId) return
@@ -106,17 +109,21 @@ export default function MessageCampaignDetail() {
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="w-full">
-          <button
-            type="button"
-            onClick={() => navigate('/message-campaigns')}
-            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            メッセージ配信に戻る
-          </button>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/message-campaigns')}
+              data-tour="campaign-detail.back"
+              className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              メッセージ配信に戻る
+            </button>
+            <TutorialButton tutorial={tutorial} />
+          </div>
 
           <div className="bg-white rounded-lg shadow p-6 mb-4">
-            <div className="flex items-center gap-3 mb-4">
+            <div data-tour="campaign-detail.status" className="flex items-center gap-3 mb-4">
               {campaign.status === 'completed' ? (
                 <CheckCircle2 className="w-6 h-6 text-emerald-600" />
               ) : campaign.status === 'sending' ? (
@@ -135,7 +142,7 @@ export default function MessageCampaignDetail() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 text-center">
+            <div data-tour="campaign-detail.stats" className="grid grid-cols-3 gap-3 text-center">
               <div className="bg-gray-50 rounded-lg p-3">
                 <div className="text-xs text-gray-500">配信対象</div>
                 <div className="text-lg font-bold text-gray-900">

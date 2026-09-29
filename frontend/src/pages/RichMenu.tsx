@@ -5,12 +5,15 @@ import { supabase } from '../lib/supabase'
 import { toErrorMessageAsync } from '../lib/errorUtils'
 import { Loader2, Save, ExternalLink, Smartphone, MessageSquare } from 'lucide-react'
 import Toast from '../components/Toast'
-import { RichMenuTab } from '../features/line-settings/components/RichMenuTab'
+import { RichMenuTab, type RichMenuTabId } from '../features/line-settings/components/RichMenuTab'
+import TutorialButton from '../features/tutorial/TutorialButton'
+import { usePageTutorial } from '../features/tutorial/usePageTutorial'
 import type { RichMenuSettings, RichMenuAction } from '../features/line-settings/types'
 import { AVAILABLE_ICONS, RICH_MENU_LAYOUTS } from '../features/line-settings/constants'
 import { drawImageCover, getRichMenuSize, getSlotRects } from '../features/line-settings/richMenuGeometry'
 import { usePlan } from '../hooks/usePlan'
 import { removeOrphanedStoreAssets } from '../lib/storageAssets'
+import { useDirtyBaseline, useUnsavedChanges } from '../hooks/useUnsavedChanges'
 
 const DEFAULT_RICH_MENU_SETTINGS: RichMenuSettings = {
   template_id: 'simple',
@@ -24,7 +27,10 @@ export default function RichMenu() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [storeId, setStoreId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<RichMenuTabId>('design')
+  const tutorial = usePageTutorial('rich-menu', { ready: !loading, tab: activeTab, setTab: setActiveTab })
   const [richMenuSettings, setRichMenuSettings] = useState<RichMenuSettings>(DEFAULT_RICH_MENU_SETTINGS)
+  const { isDirty, setBaseline } = useDirtyBaseline(richMenuSettings)
   const [toast, setToast] = useState<{ isVisible: boolean; message: string; type: 'success' | 'error' }>({
     isVisible: false,
     message: '',
@@ -67,13 +73,15 @@ export default function RichMenu() {
             return acc
           }, {} as Record<number, RichMenuAction>)
           
-          setRichMenuSettings({
+          const loadedSettings: RichMenuSettings = {
             template_id: store.rich_menu_template_id || DEFAULT_RICH_MENU_SETTINGS.template_id,
             layout_id: store.rich_menu_layout_id || DEFAULT_RICH_MENU_SETTINGS.layout_id,
             custom_image_url: store.rich_menu_custom_image_url || DEFAULT_RICH_MENU_SETTINGS.custom_image_url,
             actions,
             slot_background_images: slotBgImages,
-          })
+          }
+          setRichMenuSettings(loadedSettings)
+          setBaseline(loadedSettings)
         }
       } catch (error) {
         console.error('Error fetching data:', error)
@@ -82,17 +90,20 @@ export default function RichMenu() {
       }
     }
     fetchData()
-  }, [])
+  }, [setBaseline])
 
-  const handleSave = async (e?: FormEvent) => {
+  // 「反映済み」はLINEへの適用まで成功した状態を指す。DB保存だけ済んで適用に失敗した場合は未反映のまま
+  const handleSave = async (e?: FormEvent): Promise<boolean> => {
     if (e) e.preventDefault()
-    if (!storeId) return
+    if (!storeId) return false
 
     if (!import.meta.env.VITE_LIFF_ID) {
       setToast({ isVisible: true, message: '環境変数 VITE_LIFF_ID が設定されていません', type: 'error' })
-      return
+      return false
     }
 
+    // 保存中に入力が変わっても、LINEへ適用した値を基準にする
+    const savedSettings = richMenuSettings
     setSaving(true)
     try {
       // Generate Image using Canvas API (Restored from previous version)
@@ -312,7 +323,7 @@ export default function RichMenu() {
         console.error('Image generation failed:', genError)
         setToast({ isVisible: true, message: 'リッチメニュー画像の生成に失敗しました', type: 'error' })
         setSaving(false)
-        return
+        return false
       }
 
       console.log('Saving rich menu settings:', {
@@ -370,19 +381,26 @@ export default function RichMenu() {
         // Edge Function が返した日本語の理由を出す（"non-2xx status code" のままにしない）
         const reason = await toErrorMessageAsync(applyError, applyResponse)
         setToast({ isVisible: true, message: `LINEへの反映に失敗しました。${reason}`, type: 'error' })
+        return false
       } else if (applyData?.error) {
         console.error('Apply rich menu returned error:', applyData.error)
         setToast({ isVisible: true, message: `LINEへの反映に失敗しました。${applyData.error}`, type: 'error' })
+        return false
       } else {
         setToast({ isVisible: true, message: 'リッチメニューを更新しました', type: 'success' })
+        setBaseline(savedSettings)
+        return true
       }
     } catch (error) {
       console.error('Save Error:', error)
       setToast({ isVisible: true, message: '保存に失敗しました', type: 'error' })
+      return false
     } finally {
       setSaving(false)
     }
   }
+
+  useUnsavedChanges(isDirty, handleSave)
 
   if (loading) {
     return (
@@ -408,14 +426,18 @@ export default function RichMenu() {
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">リッチメニュー</h1>
               <p className="text-sm text-gray-500">LINEトーク画面下部のメニューデザインと動作を設定します。</p>
             </div>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm shrink-0"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
-              {saving ? '保存中...' : 'LINEに適用'}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <TutorialButton tutorial={tutorial} />
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                data-tour="rich-menu.apply"
+                className="flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm shrink-0"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
+                {saving ? '保存中...' : 'LINEに適用'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -423,6 +445,8 @@ export default function RichMenu() {
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="w-full">
         <RichMenuTab
+          activeTab={activeTab}
+          onActiveTabChange={setActiveTab}
           richMenuSettings={richMenuSettings}
           savedSlotImages={savedSlotImages}
           onChangeSettings={setRichMenuSettings}

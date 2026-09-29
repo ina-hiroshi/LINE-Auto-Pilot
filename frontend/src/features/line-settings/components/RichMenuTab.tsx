@@ -35,7 +35,12 @@ const DEFAULT_ACTIONS = {
   member_card: { label: '会員証', icon: 'credit-card', url: '' }
 }
 
+export type RichMenuTabId = 'design' | 'actions'
+
 interface RichMenuTabProps {
+  /** 指定すると親がタブを制御する（画面ツアーがタブを切り替えるため）。省略時は内部の state で動く */
+  activeTab?: RichMenuTabId
+  onActiveTabChange?: (tab: RichMenuTabId) => void
   richMenuSettings: RichMenuSettings
   /** DBに保存済みの背景画像。これ以外のファイルは未保存なので、差し替え時に消してよい */
   savedSlotImages: Record<number, string>
@@ -46,8 +51,20 @@ interface RichMenuTabProps {
   onToast?: (message: string, type: 'success' | 'error') => void
 }
 
-export function RichMenuTab({ richMenuSettings, savedSlotImages, onChangeSettings, previewRef, isPro, storeId, onToast }: RichMenuTabProps) {
-  const [activeTab, setActiveTab] = useState<'design' | 'actions'>('design')
+export function RichMenuTab({
+  activeTab: controlledTab,
+  onActiveTabChange,
+  richMenuSettings,
+  savedSlotImages,
+  onChangeSettings,
+  previewRef,
+  isPro,
+  storeId,
+  onToast,
+}: RichMenuTabProps) {
+  const [internalTab, setInternalTab] = useState<RichMenuTabId>('design')
+  const activeTab = controlledTab ?? internalTab
+  const setActiveTab = onActiveTabChange ?? setInternalTab
   const [openIconSelector, setOpenIconSelector] = useState<number | null>(null)
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null)
   const [draggingSlot, setDraggingSlot] = useState<number | null>(null)
@@ -192,15 +209,17 @@ export function RichMenuTab({ richMenuSettings, savedSlotImages, onChangeSetting
 
   return (
     <div>
-      <UnderlineTabs
-        activeId={activeTab}
-        onChange={setActiveTab}
-        justifyBetween
-        items={[
-          { id: 'design', label: 'デザイン設定', icon: Palette, hideLabelOnMobile: true },
-          { id: 'actions', label: 'アクション設定', icon: MousePointerClick, hideLabelOnMobile: true },
-        ]}
-      />
+      <div data-tour="rich-menu.tabs">
+        <UnderlineTabs
+          activeId={activeTab}
+          onChange={setActiveTab}
+          justifyBetween
+          items={[
+            { id: 'design', label: 'デザイン設定', icon: Palette, hideLabelOnMobile: true },
+            { id: 'actions', label: 'アクション設定', icon: MousePointerClick, hideLabelOnMobile: true },
+          ]}
+        />
+      </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
       <div className="space-y-8">
@@ -209,7 +228,7 @@ export function RichMenuTab({ richMenuSettings, savedSlotImages, onChangeSetting
             {activeTab === 'design' && (
               <>
                 {/* レイアウト選択 */}
-                <div>
+                <div data-tour="rich-menu.layout">
                   <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                     <Layout size={16} /> レイアウト
                   </h3>
@@ -255,7 +274,7 @@ export function RichMenuTab({ richMenuSettings, savedSlotImages, onChangeSetting
                 </div>
 
                 {/* テンプレート選択 */}
-                <div>
+                <div data-tour="rich-menu.template">
                   <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                     <Palette size={16} /> デザインテーマ
                   </h3>
@@ -425,7 +444,7 @@ export function RichMenuTab({ richMenuSettings, savedSlotImages, onChangeSetting
 
             {activeTab === 'actions' && (
               /* ボタン設定 */
-              <div>
+              <div data-tour="rich-menu.actions">
                 <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                   <MousePointerClick size={16} /> ボタン設定
                 </h3>

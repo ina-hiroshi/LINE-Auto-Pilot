@@ -10,6 +10,34 @@ import { UnderlineTabs } from '../../../components/UnderlineTabs'
 import ProUpgradeButton from '../../../components/ProUpgradeButton'
 import { supabase } from '../../../lib/supabase'
 import { removeOrphanedStoreAssets } from '../../../lib/storageAssets'
+import { LOGO_LAYOUTS, type LogoLayout } from '../../../lib/bookingLogoLayout'
+
+/** ロゴ配置の選択肢に添える、レイアウトの見取り図 */
+function LogoLayoutDiagram({ layout }: { layout: LogoLayout }) {
+  const box = 'bg-gray-400/80 rounded-[3px]'
+  const line = 'bg-gray-300 rounded-full h-1'
+  return (
+    <div aria-hidden className="h-12 rounded bg-gray-100 flex items-center justify-center px-2">
+      {layout === 'center' && (
+        <div className="flex flex-col items-center gap-1.5 w-full">
+          <div className={`${box} w-6 h-5`} />
+          <div className={`${line} w-8`} />
+        </div>
+      )}
+      {layout === 'inline' && (
+        <div className="flex items-center gap-2 w-full">
+          <div className={`${box} w-5 h-5 shrink-0`} />
+          <div className="flex-1 space-y-1">
+            <div className={`${line} w-full`} />
+            <div className={`${line} w-2/3`} />
+          </div>
+        </div>
+      )}
+      {layout === 'banner' && <div className={`${box} w-full h-7`} />}
+    </div>
+  )
+}
+
 // プリセットカラー
 const PRESET_COLORS = [
   { name: 'ブルー', color: '#3B82F6' },
@@ -21,7 +49,12 @@ const PRESET_COLORS = [
   { name: 'ピンク', color: '#EC4899' },
   { name: 'ブラック', color: '#1F2937' },
 ]
+export type BookingPageTabId = 'basic' | 'items' | 'design' | 'business-days' | 'staff-shift'
+
 interface BookingPageTabProps {
+  /** 指定すると親がタブを制御する（画面ツアーがタブを切り替えるため）。省略時は内部の state で動く */
+  activeTab?: BookingPageTabId
+  onActiveTabChange?: (tab: BookingPageTabId) => void
   storeId: string | null
   bookingSettings: BookingSettings
   /** DBに保存済みのロゴURL。これ以外のファイルは未保存なので、差し替え時に消してよい */
@@ -51,6 +84,8 @@ const BOOKING_SYSTEM_TYPES: { id: BookingSystemType; name: string; desc: string 
 const SLOT_OPTIONS = [15, 30, 60]
 
 export function BookingPageTab({
+  activeTab: controlledTab,
+  onActiveTabChange,
   storeId,
   bookingSettings,
   savedLogoUrl,
@@ -69,9 +104,9 @@ export function BookingPageTab({
   iframeRef,
   isPro,
 }: BookingPageTabProps) {
-  const [activeTab, setActiveTab] = useState<
-    'basic' | 'items' | 'design' | 'business-days' | 'staff-shift'
-  >('basic')
+  const [internalTab, setInternalTab] = useState<BookingPageTabId>('basic')
+  const activeTab = controlledTab ?? internalTab
+  const setActiveTab = onActiveTabChange ?? setInternalTab
   const bookingUrl = useMemo(() => `/booking${storeId ? `?store_id=${storeId}` : ''}`, [storeId])
   const [uploading, setUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -216,18 +251,32 @@ export function BookingPageTab({
 
   return (
     <div>
-      <UnderlineTabs
-        activeId={activeTab}
-        onChange={setActiveTab}
-        justifyBetween
-        items={[
-          { id: 'basic', label: '基本設定', icon: Settings, hideLabelOnMobile: true },
-          { id: 'items', label: 'メニュー・スタッフ登録', icon: List, hideLabelOnMobile: true },
-          { id: 'design', label: 'デザイン設定', icon: Palette, hideLabelOnMobile: true },
-          { id: 'business-days', label: '営業日', icon: CalendarDays, hideLabelOnMobile: true },
-          { id: 'staff-shift', label: 'スタッフシフト', icon: UserCheck, hideLabelOnMobile: true },
-        ]}
-      />
+      <div data-tour="booking-settings.tabs">
+        <UnderlineTabs
+          activeId={activeTab}
+          onChange={setActiveTab}
+          justifyBetween
+          items={[
+            { id: 'basic', label: '基本設定', icon: Settings, hideLabelOnMobile: true },
+            { id: 'items', label: 'メニュー・スタッフ登録', icon: List, hideLabelOnMobile: true },
+            { id: 'design', label: 'デザイン設定', icon: Palette, hideLabelOnMobile: true },
+            {
+              id: 'business-days',
+              label: '営業日',
+              icon: CalendarDays,
+              hideLabelOnMobile: true,
+              tourId: 'booking-settings.tab-business-days',
+            },
+            {
+              id: 'staff-shift',
+              label: 'スタッフシフト',
+              icon: UserCheck,
+              hideLabelOnMobile: true,
+              tourId: 'booking-settings.tab-staff-shift',
+            },
+          ]}
+        />
+      </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
       <div className="space-y-8">
@@ -239,7 +288,7 @@ export function BookingPageTab({
             {activeTab === 'basic' && (
               <>
                 {/* 予約システムタイプ (プリセット選択) */}
-                <div className="space-y-4">
+                <div data-tour="booking-settings.type" className="space-y-4">
                   <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
                     <Layout size={16} /> 予約システムタイプ
                   </h3>
@@ -429,7 +478,7 @@ export function BookingPageTab({
             {activeTab === 'items' && (
               <>
                 {/* スタッフ管理 */}
-                <div className="space-y-4">
+                <div data-tour="booking-settings.menus" className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
                       <User size={16} /> スタッフ管理
@@ -760,7 +809,38 @@ export function BookingPageTab({
                           onChange={handleFileChange}
                           className="hidden"
                         />
-                        <p className="text-xs text-gray-500 mt-2">ヘッダーに表示されるロゴ画像をアップロードしてください</p>
+                        <p className="text-xs text-gray-500 mt-2">ヘッダーに表示されるロゴ画像をアップロードしてください。正方形のアイコンでも横長のロゴでも、切り抜かずにそのまま表示します。</p>
+
+                        {/* ロゴの配置。選ぶとすぐ右のプレビューに反映される */}
+                        <div className={`mt-4 ${bookingSettings.liff_logo_url ? '' : 'opacity-50'}`}>
+                          <p className="text-xs font-semibold text-gray-600 mb-2">ロゴの配置</p>
+                          <div role="radiogroup" aria-label="ロゴの配置" className="grid grid-cols-3 gap-2">
+                            {LOGO_LAYOUTS.map((l) => {
+                              const selected = bookingSettings.liff_logo_layout === l.id
+                              return (
+                                <button
+                                  key={l.id}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={selected}
+                                  disabled={!bookingSettings.liff_logo_url}
+                                  onClick={() => onBookingSettingsChange({ ...bookingSettings, liff_logo_layout: l.id })}
+                                  className={`rounded-lg border-2 p-2 text-center transition-all disabled:cursor-not-allowed ${
+                                    selected ? 'border-primary-500 bg-primary-50' : 'border-gray-200 bg-white hover:border-gray-300'
+                                  }`}
+                                >
+                                  <LogoLayoutDiagram layout={l.id} />
+                                  <span className={`mt-1.5 block text-xs font-medium ${selected ? 'text-primary-700' : 'text-gray-600'}`}>{l.label}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">
+                            {bookingSettings.liff_logo_url
+                              ? LOGO_LAYOUTS.find((l) => l.id === bookingSettings.liff_logo_layout)?.hint
+                              : 'ロゴをアップロードすると配置を選べます'}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -781,7 +861,7 @@ export function BookingPageTab({
           </div>
 
           {/* 右カラム：プレビュー */}
-          <div className="lg:sticky lg:top-8 h-fit mt-8 lg:mt-0">
+          <div data-tour="booking-settings.preview" className="lg:sticky lg:top-8 h-fit mt-8 lg:mt-0">
             <div className="mb-4">
               <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
                 <Smartphone size={16} /> プレビュー

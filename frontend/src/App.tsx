@@ -18,6 +18,7 @@ import Reservations from './pages/Reservations'
 import TopPage from './pages/TopPage'
 import Onboarding from './pages/Onboarding'
 import Booking from './pages/Booking'
+import BookingThemePreview from './pages/BookingThemePreview'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
 import SpecifiedCommercialTransactions from './pages/SpecifiedCommercialTransactions'
@@ -45,6 +46,7 @@ import SettingsPage from './pages/marketing/SettingsPage'
 import MonitorApplication from './pages/MonitorApplication'
 import SocialUiCapture from './pages/SocialUiCapture'
 import { UserFeaturesProvider, useUserFeatures } from './hooks/useUserFeatures'
+import { TutorialProvider } from './features/tutorial/TutorialProvider'
 
 import type { Session } from '@supabase/supabase-js'
 
@@ -229,6 +231,7 @@ function App() {
       <UserFeaturesProvider>
       <Routes>
         <Route path="/booking" element={<Booking />} />
+        {import.meta.env.DEV && <Route path="/booking-theme-preview" element={<BookingThemePreview />} />}
         <Route path="/member-card" element={<MemberCardLIFF />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
@@ -270,7 +273,7 @@ function App() {
           <>
           {/* セットアップ済みでも管理者だけは登録フローを開ける（検証・改善用） */}
           <Route path="/onboarding" element={<AdminOnboardingRoute onComplete={handleSetupComplete} />} />
-          <Route element={<Layout />}>
+          <Route element={<TutorialProvider><Layout /></TutorialProvider>}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/reservations" element={<Reservations />} />
             <Route path="/line-settings" element={<LineSettings />} />

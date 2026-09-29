@@ -4,11 +4,14 @@ import Toast from '../components/Toast'
 import { UnderlineTabs } from '../components/UnderlineTabs'
 import { supabase } from '../lib/supabase'
 import { toErrorMessage, toErrorMessageAsync } from '../lib/errorUtils'
+import { useDirtyBaseline, useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { ConnectionTab } from '../features/line-settings/components/ConnectionTab'
 import { GuideTab } from '../features/line-settings/components/GuideTab'
 import { BasicInfoTab } from '../features/line-settings/components/BasicInfoTab'
 import { PasswordTab } from '../features/line-settings/components/PasswordTab'
 import { PlanTab } from '../features/line-settings/components/PlanTab'
+import TutorialButton from '../features/tutorial/TutorialButton'
+import { usePageTutorial } from '../features/tutorial/usePageTutorial'
 import type {
 	LineSettingsState,
 	ProfileData,
@@ -47,17 +50,30 @@ const DEFAULT_PASSWORD_DATA = {
 	confirmPassword: '',
 }
 
+export type LineSettingsTab = 'connection' | 'guide' | 'basic_info' | 'password' | 'plan'
+
 const WEBHOOK_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/line-webhook`
 
 /** PasswordTab の案内文（「6文字以上」）と揃える */
 const MIN_PASSWORD_LENGTH = 6
 
+/**
+ * 未保存判定の対象。保存時に前後の空白や改行を落とすので、空白だけの違いは変更に数えない。
+ * bot_id / line_user_id は保存後にサーバー側の値で書き換わるため、比較から外す。
+ */
+const pickLineCredentials = (settings: LineSettingsState) => ({
+	channel_id: settings.channel_id.trim(),
+	channel_secret: settings.channel_secret.trim(),
+	channel_token: settings.channel_token.replace(/\s+/g, ''),
+})
+
 
 export default function LineSettings() {
 // const location = useLocation()
 
-	const [activeTab, setActiveTab] = useState<'connection' | 'guide' | 'basic_info' | 'password' | 'plan'>('connection')
+	const [activeTab, setActiveTab] = useState<LineSettingsTab>('connection')
 	const [loading, setLoading] = useState(true)
+	const tutorial = usePageTutorial('line-settings', { ready: !loading, tab: activeTab, setTab: setActiveTab })
 	const [saving, setSaving] = useState(false)
 	const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -65,6 +81,10 @@ export default function LineSettings() {
 	const [lineSettings, setLineSettings] = useState<LineSettingsState>(DEFAULT_LINE_SETTINGS)
 	const [profileData, setProfileData] = useState<ProfileData>(DEFAULT_PROFILE_DATA)
 	const [passwordData, setPasswordData] = useState(DEFAULT_PASSWORD_DATA)
+
+	const { isDirty: isLineDirty, setBaseline: setLineBaseline } = useDirtyBaseline(lineSettings, pickLineCredentials)
+	const { isDirty: isProfileDirty, setBaseline: setProfileBaseline } = useDirtyBaseline(profileData)
+	const isPasswordDirty = passwordData.newPassword !== '' || passwordData.confirmPassword !== ''
 
 	const fetchData = useCallback(async () => {
 		setLoading(true)
@@ -114,18 +134,22 @@ export default function LineSettings() {
 				lineAccount = lineAccounts && lineAccounts.length > 0 ? lineAccounts[0] : null
 			}
 
-			if (lineAccount) {
-				setLineSettings({
+			const loadedLineSettings: LineSettingsState = lineAccount
+				? {
 					channel_id: lineAccount.channel_id || '',
 					channel_secret: lineAccount.channel_secret || '',
 					channel_token: lineAccount.channel_access_token || '',
 					bot_id: lineAccount.bot_id || '',
 					line_user_id: lineAccount.line_user_id || '',
-				})
+				}
+				: DEFAULT_LINE_SETTINGS
+			if (lineAccount) {
+				setLineSettings(loadedLineSettings)
 			}
+			setLineBaseline(loadedLineSettings)
 
-			if (profile || store) {
-				setProfileData({
+			const loadedProfileData: ProfileData = profile || store
+				? {
 					full_name: profile?.full_name || '',
 					full_name_kana: profile?.full_name_kana || '',
 					user_phone_number: profile?.phone_number || '',
@@ -134,8 +158,12 @@ export default function LineSettings() {
 					address: store?.address || '',
 					store_phone_number: store?.phone_number || '',
 					industry: store?.industry || '',
-				})
+				}
+				: DEFAULT_PROFILE_DATA
+			if (profile || store) {
+				setProfileData(loadedProfileData)
 			}
+			setProfileBaseline(loadedProfileData)
 		} catch (error) {
 			console.error('Error fetching data:', error)
 			const err = error as { message?: string; status?: number }
@@ -145,16 +173,16 @@ export default function LineSettings() {
 		} finally {
 			setLoading(false)
 		}
-	}, [])
+	}, [setLineBaseline, setProfileBaseline])
 
-	const handleSaveLineSettings = useCallback(async () => {
+	const handleSaveLineSettings = useCallback(async (): Promise<boolean> => {
 		// コピー元の前後の空白・改行が入ると署名検証が常に失敗し、LINEのメッセージが無言で捨てられる
 		const channelId = lineSettings.channel_id.trim()
 		const channelSecret = lineSettings.channel_secret.trim()
 		const channelToken = lineSettings.channel_token.replace(/\s+/g, '')
 		if (!channelId || !channelSecret || !channelToken) {
 			setMessage({ type: 'error', text: 'Channel ID・Channel Secret・Channel Access Token をすべて入力してください' })
-			return
+			return false
 		}
 
 		setSaving(true)
@@ -227,6 +255,9 @@ export default function LineSettings() {
 
 		if (lineError) throw lineError
 
+			// 認証情報はDBに書けた。Bot情報の取得に失敗しても、入力値は保存済みなので未保存扱いにしない
+			setLineBaseline({ ...lineSettings, channel_id: channelId, channel_secret: channelSecret, channel_token: channelToken })
+
 			// 3. Bot情報の取得とline_user_idの保存 (Edge Function)
 			// LINE設定を保存した後、少し待ってからBot情報を取得
 			await new Promise(resolve => setTimeout(resolve, 500))
@@ -260,21 +291,26 @@ export default function LineSettings() {
 
 			if (botUserId) {
 				setMessage({ type: 'success', text: 'LINE設定を保存しました' })
-			} else {
-				setMessage({
-					type: 'error',
-					text: `LINE設定は保存しましたが、Bot情報を取得できませんでした。このままではLINEのメッセージを受信できません。Channel Access Token を確認して、もう一度保存してください。${botInfoReason ? `（${botInfoReason}）` : ''}`,
-				})
+				return true
 			}
+			// 画面移動の途中で保存した場合も、このエラーを読ませるために画面に留める
+			setMessage({
+				type: 'error',
+				text: `LINE設定は保存しましたが、Bot情報を取得できませんでした。このままではLINEのメッセージを受信できません。Channel Access Token を確認して、もう一度保存してください。${botInfoReason ? `（${botInfoReason}）` : ''}`,
+			})
+			return false
 		} catch (error) {
 			console.error('Save Error:', error)
 			setMessage({ type: 'error', text: `保存に失敗しました: ${toErrorMessage(error)}` })
+			return false
 		} finally {
 			setSaving(false)
 		}
-	}, [storeId, lineSettings])
+	}, [storeId, lineSettings, setLineBaseline])
 
-	const handleSaveProfile = useCallback(async () => {
+	const handleSaveProfile = useCallback(async (): Promise<boolean> => {
+		// 保存中に入力が変わっても、DBに書いた値を基準にする
+		const savedProfileData = profileData
 		setSaving(true)
 		setMessage(null)
 		try {
@@ -324,23 +360,26 @@ export default function LineSettings() {
 
 			// Notify other components
 			window.dispatchEvent(new Event('profile-updated'))
+			setProfileBaseline(savedProfileData)
 			setMessage({ type: 'success', text: '基本情報を保存しました' })
+			return true
 		} catch (error) {
 			console.error('Save Error:', error)
 			setMessage({ type: 'error', text: `保存に失敗しました: ${toErrorMessage(error)}` })
+			return false
 		} finally {
 			setSaving(false)
 		}
-	}, [storeId, profileData])
+	}, [storeId, profileData, setProfileBaseline])
 
-	const handleUpdatePassword = useCallback(async () => {
+	const handleUpdatePassword = useCallback(async (): Promise<boolean> => {
 		if (passwordData.newPassword.length < MIN_PASSWORD_LENGTH) {
 			setMessage({ type: 'error', text: `パスワードは${MIN_PASSWORD_LENGTH}文字以上で入力してください` })
-			return
+			return false
 		}
 		if (passwordData.newPassword !== passwordData.confirmPassword) {
 			setMessage({ type: 'error', text: 'パスワードが一致しません' })
-			return
+			return false
 		}
 		setSaving(true)
 		setMessage(null)
@@ -351,9 +390,11 @@ export default function LineSettings() {
 			if (error) throw error
 			setMessage({ type: 'success', text: 'パスワードを変更しました' })
 			setPasswordData(DEFAULT_PASSWORD_DATA)
+			return true
 		} catch (error) {
 			console.error('Password Update Error:', error)
 			setMessage({ type: 'error', text: `パスワード変更に失敗しました: ${toErrorMessage(error)}` })
+			return false
 		} finally {
 			setSaving(false)
 		}
@@ -386,6 +427,16 @@ export default function LineSettings() {
 		fetchData()
 	}, [fetchData])
 
+	// 3つのタブは1つの画面。別画面へ移る前に、変更のあるものをまとめて反映する
+	const handleSaveAll = useCallback(async (): Promise<boolean> => {
+		if (isLineDirty && !(await handleSaveLineSettings())) return false
+		if (isProfileDirty && !(await handleSaveProfile())) return false
+		if (isPasswordDirty && !(await handleUpdatePassword())) return false
+		return true
+	}, [isLineDirty, isProfileDirty, isPasswordDirty, handleSaveLineSettings, handleSaveProfile, handleUpdatePassword])
+
+	useUnsavedChanges(isLineDirty || isProfileDirty || isPasswordDirty, handleSaveAll)
+
 	if (loading) {
 		return (
 			<div className="flex justify-center items-center h-64">
@@ -410,24 +461,27 @@ export default function LineSettings() {
 							<h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">LINE連携・設定</h1>
 							<p className="text-sm text-gray-500">LINE公式アカウントとの連携設定や、アカウント情報の管理を行います。</p>
 						</div>
+					<TutorialButton tutorial={tutorial} />
 					</div>
 				</div>
 			</div>
 
 			<div className="flex-1 overflow-y-auto p-4 sm:p-8">
 				<div className="w-full">
+					<div data-tour="line-settings.tabs">
 					<UnderlineTabs
 						activeId={activeTab}
 						onChange={setActiveTab}
 						className="no-scrollbar"
 						items={[
-							{ id: 'connection', label: 'LINE連携', icon: Link2 },
-							{ id: 'basic_info', label: '基本情報', icon: Building2 },
-							{ id: 'plan', label: 'プラン', icon: CreditCard },
+							{ id: 'connection', label: 'LINE連携', icon: Link2, tourId: 'line-settings.tab-connection' },
+							{ id: 'basic_info', label: '基本情報', icon: Building2, tourId: 'line-settings.tab-basic-info' },
+							{ id: 'plan', label: 'プラン', icon: CreditCard, tourId: 'line-settings.tab-plan' },
 							{ id: 'password', label: 'パスワード', icon: Lock },
-							{ id: 'guide', label: '設定ガイド', icon: BookOpen },
+							{ id: 'guide', label: '設定ガイド', icon: BookOpen, tourId: 'line-settings.tab-guide' },
 						]}
 					/>
+					</div>
 
 			<div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
 				{activeTab === 'connection' && (

@@ -7,7 +7,10 @@ import Toast from '../components/Toast'
 import { UnderlineTabs } from '../components/UnderlineTabs'
 import { usePlan } from '../hooks/usePlan'
 import { removeOrphanedStoreAssets } from '../lib/storageAssets'
+import { useDirtyBaseline, useUnsavedChanges } from '../hooks/useUnsavedChanges'
 import { DESIGN_THEMES } from '../constants/designThemes'
+import TutorialButton from '../features/tutorial/TutorialButton'
+import { usePageTutorial } from '../features/tutorial/usePageTutorial'
 
 // プリセットカラー
 const PRESET_COLORS = [
@@ -70,13 +73,17 @@ const DEFAULT_SETTINGS: MembershipCardSettings = {
   ]
 }
 
+export type MembershipCardTab = 'design' | 'settings' | 'rank'
+
 export default function MembershipCard() {
   const { isPro } = usePlan()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState<MembershipCardSettings>(DEFAULT_SETTINGS)
+  const { isDirty, setBaseline } = useDirtyBaseline(settings)
   const [storeId, setStoreId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'design' | 'settings' | 'rank'>('design')
+  const [activeTab, setActiveTab] = useState<MembershipCardTab>('design')
+  const tutorial = usePageTutorial('membership-card', { ready: !loading, tab: activeTab, setTab: setActiveTab })
   const [uploading, setUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -116,7 +123,7 @@ export default function MembershipCard() {
         }>
         const rankSettings = (store.membership_rank_settings ?? DEFAULT_SETTINGS.rank_settings) as typeof DEFAULT_SETTINGS.rank_settings
 
-        setSettings({
+        const loadedSettings: MembershipCardSettings = {
           title: store.membership_card_title || DEFAULT_SETTINGS.title,
           color: store.membership_card_color || DEFAULT_SETTINGS.color,
           logo_url: store.membership_card_logo_url || DEFAULT_SETTINGS.logo_url,
@@ -128,14 +135,16 @@ export default function MembershipCard() {
           show_rank: cardSettings.show_rank ?? DEFAULT_SETTINGS.show_rank,
           stamp_config: (cardSettings.stamp_config as StampConfig) || DEFAULT_SETTINGS.stamp_config,
           rank_settings: rankSettings
-        })
+        }
+        setSettings(loadedSettings)
+        setBaseline(loadedSettings)
       }
     } catch (error) {
       console.error('Error fetching settings:', error)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [setBaseline])
 
   useEffect(() => {
     fetchSettings()
@@ -150,8 +159,10 @@ export default function MembershipCard() {
     }
   }, [fetchSettings])
 
-  const handleSave = async () => {
-    if (!storeId) return
+  const handleSave = async (): Promise<boolean> => {
+    if (!storeId) return false
+    // 保存中に入力が変わっても、DBに書いた値を基準にする
+    const savedSettings = settings
     setSaving(true)
     try {
       const { error } = await supabase
@@ -177,15 +188,20 @@ export default function MembershipCard() {
 
       await removeOrphanedStoreAssets([savedLogoUrlRef.current], [settings.logo_url])
       savedLogoUrlRef.current = settings.logo_url
+      setBaseline(savedSettings)
 
       setToast({ isVisible: true, message: '設定を保存しました', type: 'success' })
+      return true
     } catch (error) {
       console.error('Error saving settings:', error)
       setToast({ isVisible: true, message: '保存に失敗しました', type: 'error' })
+      return false
     } finally {
       setSaving(false)
     }
   }
+
+  useUnsavedChanges(isDirty, handleSave)
 
   /**
    * 表示中のロゴが未保存のアップロードなら実ファイルを消す。
@@ -294,29 +310,35 @@ export default function MembershipCard() {
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">デジタル会員証</h1>
               <p className="text-sm text-gray-500">会員証のデザインと表示内容をカスタマイズできます。</p>
             </div>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm shrink-0"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
-              {saving ? '保存中...' : '設定を保存'}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <TutorialButton tutorial={tutorial} />
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                data-tour="membership-card.save"
+                className="flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm shrink-0"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
+                {saving ? '保存中...' : '設定を保存'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="w-full">
-          <UnderlineTabs
-            activeId={activeTab}
-            onChange={setActiveTab}
-            items={[
-              { id: 'design', label: 'デザイン設定', icon: Palette, hideLabelOnMobile: true },
-              { id: 'settings', label: '表示設定', icon: Settings, hideLabelOnMobile: true },
-              { id: 'rank', label: 'ランク設定', icon: Award, hideLabelOnMobile: true },
-            ]}
-          />
+          <div data-tour="membership-card.tabs">
+            <UnderlineTabs
+              activeId={activeTab}
+              onChange={setActiveTab}
+              items={[
+                { id: 'design', label: 'デザイン設定', icon: Palette, hideLabelOnMobile: true },
+                { id: 'settings', label: '表示設定', icon: Settings, hideLabelOnMobile: true },
+                { id: 'rank', label: 'ランク設定', icon: Award, hideLabelOnMobile: true },
+              ]}
+            />
+          </div>
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -341,7 +363,7 @@ export default function MembershipCard() {
                 )}
 
                 {/* Card Type */}
-                <div className="mb-8">
+                <div data-tour="membership-card.type" className="mb-8">
                   <label className="block text-sm font-medium text-gray-700 mb-2">カードタイプ</label>
                   <div className="grid grid-cols-2 gap-4">
                     <button
@@ -384,7 +406,7 @@ export default function MembershipCard() {
                 )}
 
                 {/* Template Selection */}
-                <div>
+                <div data-tour="membership-card.template">
                   <h3 className="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                     <Palette size={16} /> デザインテーマ
                   </h3>
@@ -680,7 +702,7 @@ export default function MembershipCard() {
                     <ProUpgradeButton variant="small-button" label="アップグレード" />
                   </div>
                 )}
-                <div className={`space-y-4 ${!isPro ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                <div data-tour="membership-card.rank" className={`space-y-4 ${!isPro ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                   <p className="text-sm text-gray-500">
                     累計獲得ポイントに応じた会員ランクを設定します。
                   </p>
@@ -741,7 +763,7 @@ export default function MembershipCard() {
           </div>
 
           {/* Preview */}
-          <div>
+          <div data-tour="membership-card.preview">
             <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2 mb-4">
               <Layout size={16} /> プレビュー
             </h3>

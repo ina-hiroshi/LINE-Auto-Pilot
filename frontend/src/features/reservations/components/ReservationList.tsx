@@ -54,7 +54,10 @@ export function ReservationList({
       <div className="p-4 sm:p-6 border-b border-gray-100 flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h2 className="font-bold text-gray-800">予約一覧</h2>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+          <div
+            data-tour="reservations.filters"
+            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto"
+          >
             {staffList.length > 0 && (
               <select
                 value={staffFilterId}
@@ -110,9 +113,9 @@ export function ReservationList({
         {loading ? (
           <div className="p-8 text-center text-gray-500">読み込み中...</div>
         ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">予約はありません</div>
+          <div data-tour="reservations.list" className="p-8 text-center text-gray-500">予約はありません</div>
         ) : (
-          filtered.map((reservation) => {
+          filtered.map((reservation, index) => {
             const startDate = new Date(reservation.start_time)
             const month = startDate.getMonth() + 1
             const day = startDate.getDate()
@@ -126,6 +129,8 @@ export function ReservationList({
             return (
               <div
                 key={reservation.id}
+                // 画面ツアーで光らせるのは先頭の1行だけ（一覧全体は縦に長い）
+                data-tour={index === 0 ? 'reservations.list' : undefined}
                 className="p-2 hover:bg-gray-50 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 cursor-pointer"
                 onClick={() => onReservationClick(reservation)}
               >

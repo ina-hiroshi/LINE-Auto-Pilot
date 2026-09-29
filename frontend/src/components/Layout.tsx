@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { LayoutDashboard, Settings, MessageSquare, Users, LogOut, Store, User, Code, Calendar, CreditCard, Grid, CalendarCheck, Send, Megaphone } from 'lucide-react'
 import Modal from './Modal'
 import Logo from './Logo'
+import UnsavedChangesProvider from './UnsavedChangesProvider'
 import { useUserFeatures } from '../hooks/useUserFeatures'
 
 type ProfileSummary = {
@@ -109,7 +110,7 @@ export default function Layout() {
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0 ml-2">
-          <Link to="/line-settings" className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
+          <Link to="/line-settings" data-tour="nav.settings" className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
             <Settings size={20} />
           </Link>
           <button onClick={() => setIsLogoutModalOpen(true)} className="p-2 text-gray-500 hover:bg-red-50 hover:text-red-500 rounded-lg">
@@ -125,7 +126,7 @@ export default function Layout() {
           <Logo className="h-10 w-auto" />
         </div>
 
-        <nav className="flex-1 px-3 space-y-1 mt-4">
+        <nav data-tour="nav" className="flex-1 px-3 space-y-1 mt-4">
           {navItems.map((item) => {
             const isItemActive = item.path?.includes('?') 
               ? (location.pathname + location.search) === item.path
@@ -179,6 +180,7 @@ export default function Layout() {
             <div className="flex flex-col gap-1 shrink-0 items-end">
               <Link
                 to="/line-settings"
+                data-tour="nav.settings"
                 className="group relative flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 text-primary-200 hover:bg-white/20 hover:text-white"
               >
                 <Settings size={22} />
@@ -218,11 +220,13 @@ export default function Layout() {
           ? 'overflow-hidden flex flex-col' 
           : 'overflow-y-auto'
       }`}>
-        <Outlet />
+        <UnsavedChangesProvider>
+          <Outlet />
+        </UnsavedChangesProvider>
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-primary-600 border-t border-primary-500 z-30 pb-safe">
+      <nav data-tour="nav" className="md:hidden fixed bottom-0 left-0 right-0 bg-primary-600 border-t border-primary-500 z-30 pb-safe">
         <div className="flex overflow-x-auto scrollbar-hide h-14">
           {navItems.map((item) => {
             const isItemActive = item.path?.includes('?') 

@@ -23,6 +23,8 @@ import { UnderlineTabs } from '../components/UnderlineTabs'
 import ProBadge from '../components/ProBadge'
 import ProLockOverlay from '../components/ProLockOverlay'
 import { usePlan } from '../hooks/usePlan'
+import TutorialButton from '../features/tutorial/TutorialButton'
+import { usePageTutorial } from '../features/tutorial/usePageTutorial'
 import { enrichLogsWithCustomerLabels } from '../features/customers/lib/customerDisplayName'
 import {
   augmentLineUserIdMapFromLogs,
@@ -35,6 +37,8 @@ import { LineReplyComposer } from '../features/messaging/components/LineReplyCom
 import { useLineChatHistory } from '../features/messaging/hooks/useLineChatHistory'
 import { useLineReply } from '../features/messaging/hooks/useLineReply'
 import { STATUS_LABELS, type LogEntry } from '../features/messaging/types'
+export type DashboardTab = 'graphs' | 'messages' | 'analysis'
+
 type ReservationData = {
   id: string
   start_time: string
@@ -87,7 +91,8 @@ export default function Dashboard() {
   const [customerIdByLineUserId, setCustomerIdByLineUserId] = useState<Record<string, string>>({})
   const [customerIdByDisplayName, setCustomerIdByDisplayName] = useState<Record<string, string>>({})
   const [customerIdByRealName, setCustomerIdByRealName] = useState<Record<string, string>>({})
-  const [activeTab, setActiveTab] = useState<'graphs' | 'messages' | 'analysis'>('graphs')
+  const [activeTab, setActiveTab] = useState<DashboardTab>('graphs')
+  const tutorial = usePageTutorial('dashboard', { ready: !loading, tab: activeTab, setTab: setActiveTab })
 
   // Graph Data
   // 推移グラフの横軸は点と一緒に持つ（期間切替の再取得中に、古い点と新しい期間名が混ざらないように）
@@ -621,20 +626,23 @@ export default function Dashboard() {
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">ダッシュボード</h1>
               <p className="text-sm text-gray-500">予約状況や顧客の動向を一目で確認できます。</p>
             </div>
-            <div className="flex bg-gray-100 p-1 rounded-lg shrink-0">
-              {(['all', 'month', 'week', 'today'] as const).map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setTimeRange(range)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
-                    timeRange === range 
-                      ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {range === 'today' ? '今日' : range === 'week' ? '今週' : range === 'month' ? '今月' : '全期間'}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 shrink-0">
+              <TutorialButton tutorial={tutorial} />
+              <div data-tour="dashboard.period" className="flex bg-gray-100 p-1 rounded-lg">
+                {(['all', 'month', 'week', 'today'] as const).map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => setTimeRange(range)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
+                      timeRange === range
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {range === 'today' ? '今日' : range === 'week' ? '今週' : range === 'month' ? '今月' : '全期間'}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -709,12 +717,13 @@ export default function Dashboard() {
             activeId={activeTab}
             onChange={setActiveTab}
             items={[
-              { id: 'graphs', label: 'グラフ', icon: BarChart3, hideLabelOnMobile: true },
+              { id: 'graphs', label: 'グラフ', icon: BarChart3, hideLabelOnMobile: true, tourId: 'dashboard.tab-graphs' },
               {
                 id: 'messages',
                 label: 'メッセージ',
                 icon: MessageSquare,
                 hideLabelOnMobile: true,
+                tourId: 'dashboard.tab-messages',
                 badge:
                   stats.manualReplyNeeded > 0 ? (
                     <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
@@ -727,6 +736,7 @@ export default function Dashboard() {
                 label: '詳細分析',
                 icon: Search,
                 hideLabelOnMobile: true,
+                tourId: 'dashboard.tab-analysis',
                 badge: !isPro ? <ProBadge /> : undefined,
               },
             ]}

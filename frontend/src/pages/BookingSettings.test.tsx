@@ -34,6 +34,7 @@ const storeRow = (over: Record<string, unknown> = {}) => ({
   liff_template_id: 'simple',
   liff_theme_color: '#00c3dc',
   liff_logo_url: '',
+  liff_logo_layout: 'center',
   booking_system_type: 'salon',
   slot_interval_minutes: 30,
   capacity_per_slot: 1,

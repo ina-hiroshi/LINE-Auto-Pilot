@@ -1,20 +1,25 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { Loader2, Save } from 'lucide-react'
 import Toast from '../components/Toast'
-import { BookingPageTab } from '../features/line-settings/components/BookingPageTab'
+import { BookingPageTab, type BookingPageTabId } from '../features/line-settings/components/BookingPageTab'
+import TutorialButton from '../features/tutorial/TutorialButton'
+import { usePageTutorial } from '../features/tutorial/usePageTutorial'
 import { StaffModal } from '../features/line-settings/components/StaffModal'
 import { MenuModal } from '../features/line-settings/components/MenuModal'
 import { DeleteConfirmModal } from '../features/line-settings/components/DeleteConfirmModal'
 import type { BookingSettings, BookingSystemType, Staff, Menu, DeletingItem } from '../features/line-settings/types'
 import { usePlan } from '../hooks/usePlan'
 import { removeOrphanedStoreAssets } from '../lib/storageAssets'
+import { DEFAULT_LOGO_LAYOUT, normalizeLogoLayout } from '../lib/bookingLogoLayout'
+import { useDirtyBaseline, useUnsavedChanges } from '../hooks/useUnsavedChanges'
 
 const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   liff_template_id: 'simple',
   liff_theme_color: '#00c3dc',
   liff_logo_url: '',
+  liff_logo_layout: DEFAULT_LOGO_LAYOUT,
   booking_system_type: 'generic',
   slot_interval_minutes: 60,
   capacity_per_slot: 1,
@@ -24,14 +29,20 @@ const DEFAULT_BOOKING_SETTINGS: BookingSettings = {
   booking_enable_menu: false,
 }
 
+const withoutBusinessHours = (settings: BookingSettings) => ({ ...settings, business_hours: undefined })
+
 export default function BookingSettingsPage() {
   const { isPro } = usePlan()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [storeId, setStoreId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<BookingPageTabId>('basic')
+  const tutorial = usePageTutorial('booking-settings', { ready: !loading, tab: activeTab, setTab: setActiveTab })
   const [bookingSettings, setBookingSettings] = useState<BookingSettings>(DEFAULT_BOOKING_SETTINGS)
   const [staffList, setStaffList] = useState<Staff[]>([])
   const [menuList, setMenuList] = useState<Menu[]>([])
+  // 営業時間は BusinessDaysTab がその場でDBに保存するため、この画面の「未保存」判定からは外す
+  const { isDirty, setBaseline } = useDirtyBaseline(bookingSettings, withoutBusinessHours)
   const [specialDates, setSpecialDates] = useState<Record<string, { is_closed: boolean; override_hours: { start: string; end: string }[] | null }>>({})
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0)
@@ -75,10 +86,11 @@ export default function BookingSettingsPage() {
         if (store) {
           setStoreId(store.id)
           setSavedLogoUrl(store.liff_logo_url || '')
-          setBookingSettings({
+          const loadedSettings: BookingSettings = {
             liff_template_id: store.liff_template_id || DEFAULT_BOOKING_SETTINGS.liff_template_id,
             liff_theme_color: store.liff_theme_color || DEFAULT_BOOKING_SETTINGS.liff_theme_color,
             liff_logo_url: store.liff_logo_url || DEFAULT_BOOKING_SETTINGS.liff_logo_url,
+            liff_logo_layout: normalizeLogoLayout(store.liff_logo_layout),
             booking_system_type: (store.booking_system_type as BookingSystemType) || DEFAULT_BOOKING_SETTINGS.booking_system_type,
             slot_interval_minutes: store.slot_interval_minutes || DEFAULT_BOOKING_SETTINGS.slot_interval_minutes,
             capacity_per_slot: store.capacity_per_slot || DEFAULT_BOOKING_SETTINGS.capacity_per_slot,
@@ -87,7 +99,9 @@ export default function BookingSettingsPage() {
             booking_enable_party_size: store.booking_enable_party_size ?? DEFAULT_BOOKING_SETTINGS.booking_enable_party_size,
             booking_enable_staff: store.booking_enable_staff ?? DEFAULT_BOOKING_SETTINGS.booking_enable_staff,
             booking_enable_menu: store.booking_enable_menu ?? DEFAULT_BOOKING_SETTINGS.booking_enable_menu,
-          })
+          }
+          setBookingSettings(loadedSettings)
+          setBaseline(loadedSettings)
 
           const { data: staff } = await supabase
             .from('staff_members')
@@ -123,7 +137,7 @@ export default function BookingSettingsPage() {
       }
     }
     fetchData()
-  }, [])
+  }, [setBaseline])
 
   // 特別日付の再取得（プレビュー更新時）
   useEffect(() => {
@@ -159,7 +173,7 @@ export default function BookingSettingsPage() {
   }, [previewRefreshKey, storeId])
 
   // Post message to preview iframe
-  useEffect(() => {
+  const postPreviewSettings = useCallback(() => {
     if (iframeRef.current?.contentWindow) {
       iframeRef.current.contentWindow.postMessage(
         {
@@ -174,9 +188,27 @@ export default function BookingSettingsPage() {
     }
   }, [bookingSettings, staffList, menuList, specialDates])
 
-  const handleSave = async (e?: FormEvent) => {
+  useEffect(() => {
+    postPreviewSettings()
+  }, [postPreviewSettings])
+
+  // プレビューが（再）読み込みを終えたら、未保存の設定を送り直す。
+  // 読み込み前に送った分や、ロゴのアップロード直後の再読み込みで、変更が失われないようにするため。
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow) return
+      if (event.data?.type !== 'BOOKING_PREVIEW_READY') return
+      postPreviewSettings()
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [postPreviewSettings])
+
+  const handleSave = async (e?: FormEvent): Promise<boolean> => {
     if (e) e.preventDefault()
-    if (!storeId) return
+    if (!storeId) return false
+    // 保存中に入力が変わっても、DBに書いた値を基準にする
+    const savedSettings = bookingSettings
     setSaving(true)
     try {
       const { error } = await supabase
@@ -185,6 +217,7 @@ export default function BookingSettingsPage() {
           liff_template_id: bookingSettings.liff_template_id,
           liff_theme_color: bookingSettings.liff_theme_color,
           liff_logo_url: bookingSettings.liff_logo_url,
+          liff_logo_layout: bookingSettings.liff_logo_layout,
           booking_system_type: bookingSettings.booking_system_type,
           slot_interval_minutes: bookingSettings.slot_interval_minutes,
           capacity_per_slot: bookingSettings.capacity_per_slot,
@@ -202,15 +235,20 @@ export default function BookingSettingsPage() {
       const newLogoUrl = bookingSettings.liff_logo_url || ''
       await removeOrphanedStoreAssets([savedLogoUrl], [newLogoUrl])
       setSavedLogoUrl(newLogoUrl)
+      setBaseline(savedSettings)
 
       setToast({ isVisible: true, message: '予約ページ設定を保存しました', type: 'success' })
+      return true
     } catch (error) {
       console.error('Save Error:', error)
       setToast({ isVisible: true, message: '保存に失敗しました', type: 'error' })
+      return false
     } finally {
       setSaving(false)
     }
   }
+
+  useUnsavedChanges(isDirty, handleSave)
 
   // --- Staff Handlers ---
   const handleAddStaff = () => {
@@ -375,14 +413,18 @@ export default function BookingSettingsPage() {
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">予約ページ</h1>
               <p className="text-sm text-gray-500">営業時間、メニュー、スタッフなどの予約受付設定を行います。</p>
             </div>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm shrink-0"
-            >
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
-              {saving ? '保存中...' : '設定を保存'}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <TutorialButton tutorial={tutorial} />
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                data-tour="booking-settings.save"
+                className="flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm shrink-0"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
+                {saving ? '保存中...' : '設定を保存'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -390,6 +432,8 @@ export default function BookingSettingsPage() {
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="w-full">
         <BookingPageTab
+          activeTab={activeTab}
+          onActiveTabChange={setActiveTab}
           storeId={storeId}
           bookingSettings={bookingSettings}
           savedLogoUrl={savedLogoUrl}

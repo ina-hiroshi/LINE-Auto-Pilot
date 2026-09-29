@@ -12,6 +12,8 @@ import { UnderlineTabs } from '../components/UnderlineTabs'
 import Modal from '../components/Modal'
 import ProLockOverlay from '../components/ProLockOverlay'
 import ProBadge from '../components/ProBadge'
+import TutorialButton from '../features/tutorial/TutorialButton'
+import { usePageTutorial } from '../features/tutorial/usePageTutorial'
 import {
   ReservationList,
   type ListFilter,
@@ -28,9 +30,11 @@ import { GoogleCalendarSyncConnect, GoogleCalendarSyncSelect } from '../features
 import type { Customer, Reservation, GoogleCalendar, GoogleEvent } from '../features/reservations/types'
 
 
+export type ReservationsTab = 'bookings' | 'sales'
+
 export default function Reservations() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [pageTab, setPageTab] = useState<'bookings' | 'sales'>('bookings')
+  const [pageTab, setPageTab] = useState<ReservationsTab>('bookings')
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
   const [listFilter, setListFilter] = useState<ListFilter>('all')
   const [staffFilterId, setStaffFilterId] = useState<StaffFilterId>('all')
@@ -39,6 +43,7 @@ export default function Reservations() {
   const [loading, setLoading] = useState(true)
   const [storeId, setStoreId] = useState<string | null>(null)
   const { staffList, menuList } = useStoreResources(storeId)
+  const tutorial = usePageTutorial('reservations', { ready: !loading, tab: pageTab, setTab: setPageTab })
   
   // Google Calendar State
   const [calendars, setCalendars] = useState<GoogleCalendar[]>([])
@@ -942,9 +947,10 @@ export default function Reservations() {
               <p className="hidden sm:block text-sm text-gray-500">予約の確認・決済・売上の管理を行います。</p>
             </div>
             <div className="flex gap-2 shrink-0">
+              <TutorialButton tutorial={tutorial} />
               {pageTab === 'bookings' && (
               <>
-              <div className="bg-gray-100 p-1 rounded-lg flex">
+              <div data-tour="reservations.view-toggle" className="bg-gray-100 p-1 rounded-lg flex">
                 <button 
                   onClick={() => setViewMode('list')}
                   className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition whitespace-nowrap ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
@@ -962,8 +968,9 @@ export default function Reservations() {
                   {!isPro && <ProBadge />}
                 </button>
               </div>
-              <button 
+              <button
                 onClick={openCreateModal}
+                data-tour="reservations.create"
                 className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 shadow-sm whitespace-nowrap flex items-center gap-2 font-medium"
               >
                 <Plus size={18} />
@@ -978,14 +985,16 @@ export default function Reservations() {
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="w-full">
-          <UnderlineTabs
-            activeId={pageTab}
-            onChange={setPageTab}
-            items={[
-              { id: 'bookings', label: '予約', icon: Calendar },
-              { id: 'sales', label: '売上', icon: TrendingUp },
-            ]}
-          />
+          <div data-tour="reservations.tabs">
+            <UnderlineTabs
+              activeId={pageTab}
+              onChange={setPageTab}
+              items={[
+                { id: 'bookings', label: '予約', icon: Calendar },
+                { id: 'sales', label: '売上', icon: TrendingUp },
+              ]}
+            />
+          </div>
       {pageTab === 'sales' ? (
         <SalesSummaryTab storeId={storeId} />
       ) : viewMode === 'list' ? (
