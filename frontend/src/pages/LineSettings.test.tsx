@@ -181,6 +181,21 @@ describe('LINE連携・設定', () => {
       })
     })
 
+    it('認証情報が変わっていなければ、稼働中のBot情報は消さない', async () => {
+      // 再保存のたびに line_user_id を消すと、LINE 側の取得が一時的に失敗しただけで
+      // 受信が止まってしまう
+      setup()
+      renderPage()
+      await waitFor(() => expect(channelIdInput().value).toBe('1234567890'))
+
+      saveConnection()
+
+      await waitFor(() => expect(lastLineAccountWrite()?.method).toBe('update'))
+      const payload = lastLineAccountWrite()!.payload as Record<string, unknown>
+      expect(payload).not.toHaveProperty('line_user_id')
+      expect(payload).not.toHaveProperty('bot_id')
+    })
+
     it('必須項目が空なら保存せずに知らせる', async () => {
       setup()
       renderPage()

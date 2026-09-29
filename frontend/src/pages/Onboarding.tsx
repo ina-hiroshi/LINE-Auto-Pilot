@@ -770,9 +770,20 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       // 既存のレコードを確認
       const { data: existingLineAccount } = await supabase
         .from('line_accounts')
-        .select('id')
+        .select('id, channel_id, channel_secret, channel_access_token')
         .eq('store_id', storeId)
         .maybeSingle()
+
+      const credentialsChanged =
+
+        !existingLineAccount ||
+
+        existingLineAccount.channel_id !== channelId ||
+
+        existingLineAccount.channel_secret !== channelSecret ||
+
+        existingLineAccount.channel_access_token !== channelToken
+
 
       let lineError
       if (existingLineAccount) {
@@ -783,9 +794,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             channel_id: channelId,
             channel_secret: channelSecret,
             channel_access_token: channelToken,
-            // 認証情報を差し替えたら、旧チャネルのBot情報が残らないよう取得し直す
-            line_user_id: null,
-            bot_id: null,
+            // 認証情報を差し替えたときだけ、旧チャネルのBot情報が残らないよう取得し直す
+            ...(credentialsChanged ? { line_user_id: null, bot_id: null } : {}),
             updated_at: new Date().toISOString(),
           })
           .eq('store_id', storeId)

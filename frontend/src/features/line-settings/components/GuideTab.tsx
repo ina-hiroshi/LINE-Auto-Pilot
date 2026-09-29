@@ -96,7 +96,7 @@ export function GuideTab({ webhookUrl, onCopyWebhook, onNavigateConnection }: Gu
             <li>LINE Developers Consoleの「Messaging API設定」タブを開きます。</li>
             <li>「Webhook設定」の「編集」をクリックし、コピーしたURLを貼り付けて「更新」します。</li>
             <li><strong>「Webhookの利用」をオン</strong>にします。</li>
-            <li>「検証」ボタンを押して、成功することを確認します。</li>
+            <li>先に、この画面の「保存」ボタンでChannel ID・Channel Secret・トークンを保存してから、「検証」ボタンを押して成功することを確認します。</li>
           </ol>
         </div>
 

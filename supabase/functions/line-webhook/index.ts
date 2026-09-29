@@ -276,7 +276,6 @@ Deno.serve(async (req: Request) => {
     // 店舗の特定と署名検証は、応答を返す前に行う。
     // 非同期に回すと、未登録・署名不一致でも 200 を返してしまい、
     // LINE 側のエラー統計にも出ず、メッセージが無言で捨てられる。
-    // （Webhook URL の「検証」ボタンは events が空なので、常に成功させる）
     const { data: account, error: accountError } = await supabase
       .from('line_accounts')
       .select('channel_secret, channel_access_token, store_id')
@@ -288,7 +287,10 @@ Deno.serve(async (req: Request) => {
       return new Response('Internal Server Error', { status: 500 })
     }
 
-    if (events.length === 0) return okResponse()
+    // 「検証」ボタン（events が空）は、店舗を特定できた場合に限って署名まで確認する。
+    // Channel Secret の貼り間違いを、ここで LINE 側に失敗として見せられる。
+    // 店舗を特定できない場合は 200 のままにする（未接続の段階でも URL の疎通だけは確認できるように）。
+    if (events.length === 0 && !account) return okResponse()
 
     if (!account?.channel_secret || !account.channel_access_token || !account.store_id) {
       console.error('Unknown destination or incomplete LINE settings:', destination)
@@ -299,6 +301,8 @@ Deno.serve(async (req: Request) => {
       console.error('Invalid Signature')
       return new Response('Unauthorized', { status: 401 })
     }
+
+    if (events.length === 0) return okResponse()
 
     const storeId: string = account.store_id
     const channelAccessToken: string = account.channel_access_token
