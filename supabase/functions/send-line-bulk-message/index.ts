@@ -4,6 +4,8 @@ import { ClientVisibleError, clientVisibleErrorResponse, safeErrorResponse } fro
 import { requireStoreAccess } from '../_shared/store-access.ts'
 import { MULTICAST_BATCH_SIZE } from '../_shared/line-multicast.ts'
 import { sendPendingBatches } from './send-pending-batches.ts'
+import { sendBroadcastCampaign } from './broadcast.ts'
+import { loadFriendCount, loadRecipientContext, resolveRecipients } from '../_shared/campaign-recipients.ts'
 
 /** LINE のテキストメッセージ上限 */
 const MAX_MESSAGE_LENGTH = 5000
@@ -219,6 +221,56 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    // 「友だち全員」は宛先の ID を使わない（LIFF と Bot でユーザー ID が食い違う店舗でも届く）
+    if (segmentType === 'all') {
+      const friendCount = await loadFriendCount(admin, storeId)
+
+      const quota = await fetchQuotaStatus(channelAccessToken)
+      if (quota.kind === 'unknown') {
+        throw new ClientVisibleError(
+          'LINEの配信可能数を確認できませんでした。時間をおいて再度お試しください。',
+          503,
+        )
+      }
+      // 友だち数が分かるときだけ事前に止める。分からないときは LINE 側が上限超過を断る。
+      if (quota.kind === 'limited' && friendCount !== null && quota.remaining < friendCount) {
+        throw new ClientVisibleError(
+          `今月の配信可能数が足りません（残り${quota.remaining}通・友だち${friendCount}名）。翌月まで待つか、LINE公式アカウントのプランをご確認ください。`,
+          400,
+        )
+      }
+
+      const result = await sendBroadcastCampaign(admin, {
+        storeId,
+        channelAccessToken,
+        messageText: text,
+        aiGenerated: aiGenerated === true,
+        createdBy: access.userId,
+        friendCount,
+      })
+
+      if (!result.ok) {
+        throw new ClientVisibleError(
+          result.status === 429
+            ? '今月の配信可能数を超えているため、送信できませんでした。翌月まで待つか、LINE公式アカウントのプランをご確認ください。'
+            : 'LINEへの送信に失敗しました。時間をおいて、もう一度お試しください。',
+          result.status === 429 ? 400 : 502,
+        )
+      }
+
+      return new Response(
+        JSON.stringify({
+          campaignId: result.campaignId,
+          totalRecipients: result.totalRecipients,
+          sentCount: result.totalRecipients,
+          failedCount: 0,
+          status: 'completed',
+          broadcast: true,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
     const { data: segmentRows, error: segmentError } = await admin.rpc('get_segment_customers', {
       p_store_id: storeId,
       p_segment_type: segmentType,
@@ -230,9 +282,24 @@ Deno.serve(async (req: Request) => {
       throw new ClientVisibleError('配信対象の抽出に失敗しました', 500)
     }
 
-    const recipients = (segmentRows ?? []) as SegmentCustomer[]
-    if (recipients.length === 0) {
+    const segmentCustomers = (segmentRows ?? []) as SegmentCustomer[]
+    if (segmentCustomers.length === 0) {
       throw new ClientVisibleError('この条件に当てはまるお客様がいません', 400)
+    }
+
+    // 宛先は Bot 側のユーザー ID にする。予約側（LIFF）の ID を宛先にすると、
+    // プロバイダーが違う店舗では LINE が受け付けるだけで届かない。
+    const recipientContext = await loadRecipientContext(admin, storeId)
+    const { deliverable: recipients, undeliverable } = resolveRecipients(
+      segmentCustomers,
+      recipientContext.messagingIds,
+      recipientContext.aligned,
+    )
+    if (recipients.length === 0) {
+      throw new ClientVisibleError(
+        `この条件のお客様${segmentCustomers.length}名は、まだ配信できません。予約時にLINEのトークへ送られる確認メッセージで紐付けが済むと、配信できるようになります。紐付けなしで送りたい場合は「友だち全員」を選んでください。`,
+        400,
+      )
     }
     if (recipients.length > MAX_RECIPIENTS) {
       throw new ClientVisibleError(
@@ -314,6 +381,8 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         campaignId: campaign.id,
         totalRecipients: recipients.length,
+        // 紐付けが済んでおらず、配信対象から外れたお客様の数
+        undeliverableCount: undeliverable,
         sentCount: result.sentCount,
         failedCount: result.failedCount,
         status: result.status,

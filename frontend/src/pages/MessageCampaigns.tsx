@@ -150,7 +150,10 @@ export default function MessageCampaigns() {
   }, [setPreview])
 
   const canProceedFromSegment = useMemo(() => {
-    if (previewLoading || !preview || preview.count === 0) return false
+    if (previewLoading || !preview) return false
+    // 友だち全員は宛先の ID を使わないので、人数が分からなくても進める
+    if (preview.broadcast) return true
+    if (preview.count === 0) return false
     const definition = findSegmentDefinition(segmentType)
     if (definition?.resource === 'menu' && !segmentParams.menu_id) return false
     if (definition?.resource === 'staff' && !segmentParams.staff_id) return false
@@ -278,6 +281,8 @@ export default function MessageCampaigns() {
                   segmentParams={segmentParams}
                   resourceName={resourceName}
                   recipientCount={preview?.count ?? 0}
+                  broadcast={preview?.broadcast === true}
+                  friendCountKnown={preview?.friendCountKnown === true}
                   messageText={messageText}
                   quotaInfo={quotaInfo}
                   sending={sending}

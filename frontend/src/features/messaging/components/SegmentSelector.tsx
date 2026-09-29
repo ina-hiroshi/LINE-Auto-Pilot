@@ -176,12 +176,34 @@ export default function SegmentSelector({
           </span>
         ) : previewError ? (
           <span className="text-sm text-red-600">{previewError}</span>
+        ) : preview?.broadcast ? (
+          <div className="min-w-0">
+            <span className="text-sm text-gray-900">
+              LINEの友だち全員に配信します
+              {preview.friendCountKnown && (
+                <>
+                  （約 <span className="font-bold">{preview.count.toLocaleString()}名</span>）
+                </>
+              )}
+            </span>
+            <p className="text-xs text-gray-500">
+              {preview.friendCountKnown
+                ? '人数はLINEの統計（1日1回更新）の目安です。実際の人数は配信時のLINEの集計で決まります。'
+                : '人数はLINE側で集計されるため、配信前には分かりません。'}
+            </p>
+          </div>
         ) : preview ? (
           <div className="min-w-0">
             <span className="text-sm text-gray-900">
-              この条件に当てはまるお客様は <span className="font-bold">{preview.count}名</span> です
+              この条件で配信できるお客様は <span className="font-bold">{preview.count}名</span> です
             </span>
-            {preview.count === 0 && (
+            {(preview.undeliverableCount ?? 0) > 0 && (
+              <p className="text-xs text-amber-700">
+                ほか {preview.undeliverableCount}名は、予約時のLINE連携がまだ済んでいないため配信できません。
+                予約が完了すると自動で連携され、次回から配信できるようになります。
+              </p>
+            )}
+            {preview.count === 0 && (preview.undeliverableCount ?? 0) === 0 && (
               <p className="text-xs text-gray-500">
                 LINEの予約ページから予約したお客様が配信の対象になります。
               </p>

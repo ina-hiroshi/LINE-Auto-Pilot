@@ -33,8 +33,8 @@ export const SEGMENT_DEFINITIONS: SegmentDefinition[] = [
   {
     type: 'all',
     group: 'visit',
-    label: '全顧客',
-    description: 'LINEで友だちになっているお客様全員に送ります。',
+    label: '友だち全員',
+    description: 'LINEの友だち全員に送ります。まだ予約したことがない方にも届きます。',
   },
   {
     type: 'visited',
@@ -131,7 +131,7 @@ export function describeSegment(
 ): string {
   switch (type) {
     case 'all':
-      return '全顧客'
+      return '友だち全員'
     case 'visited':
       return '来店したことがあるお客様'
     case 'prospective':

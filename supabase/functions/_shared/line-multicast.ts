@@ -113,3 +113,55 @@ export async function postMulticast(
     retriable: response.status === 429 || response.status >= 500,
   }
 }
+
+const BROADCAST_URL = 'https://api.line.me/v2/bot/message/broadcast'
+
+/**
+ * 友だち全員への一斉送信（broadcast）。
+ *
+ * 宛先のユーザー ID を指定しないので、LIFF と Messaging API のプロバイダーが違って
+ * ユーザー ID が食い違う店舗でも、確実に友だち全員へ届く。
+ * 配信数は友だち数ぶん数えられる。
+ */
+export async function postBroadcast(
+  token: string,
+  text: string,
+  options: { retryKey?: string; fetchImpl?: typeof fetch } = {},
+): Promise<MulticastOutcome> {
+  const doFetch = options.fetchImpl ?? fetch
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  }
+  if (options.retryKey) {
+    headers['X-Line-Retry-Key'] = options.retryKey
+  }
+
+  let response: Response
+  try {
+    response = await doFetch(BROADCAST_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ messages: [{ type: 'text', text }] }),
+    })
+  } catch (e) {
+    return {
+      ok: false,
+      status: 0,
+      error: e instanceof Error ? e.message : String(e),
+      retriable: true,
+    }
+  }
+
+  if (response.ok) return { ok: true, alreadyAccepted: false }
+  // multicast と同じく、409 は同じリトライキーで受け付け済み（送信は成立している）
+  if (response.status === 409) return { ok: true, alreadyAccepted: true }
+
+  const body = await response.text().catch(() => '')
+  return {
+    ok: false,
+    status: response.status,
+    error: body.slice(0, 300),
+    retriable: response.status === 429 || response.status >= 500,
+  }
+}
