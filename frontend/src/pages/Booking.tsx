@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { getJstDayOfWeek, getJstDateString, getJstDateStringWithOffset } from '../lib/jstDate'
 import { toCustomerMessage, toErrorMessageAsync } from '../lib/errorUtils'
 import { isPaidPlan } from '../lib/planUtils'
+import { sendLinkMessage } from '../lib/liffLinkMessage'
 import { usePublicBookingResources } from '../hooks/usePublicBookingResources'
 import { fetchPublicStoreInfo } from '../lib/publicStoreInfo'
 import type { StoreMenu, StoreStaff } from '../types/storeResources'
@@ -721,6 +722,7 @@ export default function Booking() {
           const updated = activeReservations.filter(r => r.id !== reservationId)
           setActiveReservations(updated)
           showToast('予約をキャンセルしました。', 'success')
+          void sendLinkMessage((data as { link_message?: unknown } | null)?.link_message)
           
           if (updated.length === 0) {
             setStep(getInitialStep())
@@ -874,6 +876,10 @@ export default function Booking() {
 
       setStep('complete')
       setModifyingReservationId(null) // Reset modification state
+
+      // 確認メッセージをトークへ送る。Bot 側の ID との紐付けと、予約内容のリッチメッセージ返信のため。
+      // 送れなくても予約は完了しているので、待たずに実行する。
+      void sendLinkMessage((data as { link_message?: unknown } | null)?.link_message)
     } catch (error: unknown) {
       console.error('Booking failed:', error)
       const errorMessage = await toErrorMessageAsync(error)

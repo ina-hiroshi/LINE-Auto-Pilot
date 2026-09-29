@@ -1,3 +1,4 @@
+import { issueLinkMessage } from './link.ts'
 import type { SupabaseClientType } from '../../_shared/types.ts'
 import { ClientVisibleError, toErrorMessage } from '../../_shared/error-utils.ts'
 import type { CorsHeaders } from './types.ts'
@@ -583,7 +584,15 @@ export async function handleCreateReservation(
     googleClient,
   )
 
-  return new Response(JSON.stringify({ success: true, reservation_id: reservationId }), {
+  const link_message = await issueLinkMessage(supabaseClient, {
+    store_id,
+    line_user_id,
+    reservation_id: reservationId,
+    kind: 'created',
+    isManualRegistration,
+  })
+
+  return new Response(JSON.stringify({ success: true, reservation_id: reservationId, link_message }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }
@@ -719,7 +728,15 @@ export async function handleCancelReservation(
     }
   }
 
-  return new Response(JSON.stringify({ success: true }), {
+  const link_message = await issueLinkMessage(supabaseClient, {
+    store_id: reservation.store_id,
+    line_user_id: reservation.line_user_id,
+    reservation_id,
+    kind: 'cancelled',
+    isManualRegistration,
+  })
+
+  return new Response(JSON.stringify({ success: true, link_message }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }
@@ -886,7 +903,15 @@ export async function handleUpdateReservation(
     googleClient,
   )
 
-  return new Response(JSON.stringify({ success: true }), {
+  const link_message = await issueLinkMessage(supabaseClient, {
+    store_id,
+    line_user_id,
+    reservation_id: newReservationId,
+    kind: 'updated',
+    isManualRegistration,
+  })
+
+  return new Response(JSON.stringify({ success: true, reservation_id: newReservationId, link_message }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }

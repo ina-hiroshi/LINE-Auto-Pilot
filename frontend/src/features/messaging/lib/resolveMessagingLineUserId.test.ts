@@ -156,3 +156,20 @@ describe('メッセージ送信先の LINE ユーザーID 解決', () => {
     })
   })
 })
+
+describe('紐付け済みの Bot 側 ID', () => {
+  beforeEach(() => setup({}))
+
+  it('紐付け済みなら、名前一致を待たずにその ID を使う', async () => {
+    const customer = { line_user_id: 'U-liff', line_messaging_user_id: 'U-bot', display_name: '山田', real_name: null }
+
+    await expect(resolveMessagingLineUserId(STORE, customer)).resolves.toBe('U-bot')
+    // 履歴は両方の ID を対象にする（紐付け前のやり取りも残るため）。Bot 側が先頭。
+    await expect(resolveMessagingLineUserIds(STORE, customer)).resolves.toEqual(['U-bot', 'U-liff'])
+  })
+
+  it('未紐付けなら従来どおり（予約側の ID から名前で推定）', async () => {
+    const customer = { line_user_id: 'U-liff', line_messaging_user_id: null, display_name: '山田', real_name: null }
+    await expect(resolveMessagingLineUserId(STORE, customer)).resolves.toBe('U-liff')
+  })
+})

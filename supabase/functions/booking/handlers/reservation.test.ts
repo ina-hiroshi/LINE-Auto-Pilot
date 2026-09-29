@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from 'jsr:@std/assert@^1.0.0'
+import { assertEquals, assertMatch, assertRejects } from 'jsr:@std/assert@^1.0.0'
 import { createFakeSupabase, type FakeHandler, type FakeQuery } from './testSupabase.ts'
 import { handleCancelReservation, handleCompletePayment } from './reservation.ts'
 import { ClientVisibleError } from '../../_shared/error-utils.ts'
@@ -75,9 +75,28 @@ Deno.test('キャンセル: 本人の予約なら取り消せる', async () => {
     CORS,
   )
 
-  assertEquals(await res.json(), { success: true })
+  const body = await res.json()
+  assertEquals(body.success, true)
+  // お客様のトークへ送る確認メッセージ（Webhook が Bot 側 ID の紐付けと返信に使う）
+  assertMatch(body.link_message, /^予約をキャンセルしました（確認コード [A-Z2-9]{8}）$/)
   const update = fake.find('reservations', 'update')[0]
   assertEquals(update.payload, { status: 'cancelled' })
+  const token = fake.find('line_messaging_link_tokens', 'insert')[0].payload as Record<string, unknown>
+  assertEquals(token.kind, 'cancelled')
+  assertEquals(token.login_line_user_id, GUEST)
+  assertEquals(token.reservation_id, RESERVATION)
+})
+
+Deno.test('キャンセル: 店舗管理者の操作では確認メッセージを作らない', async () => {
+  const fake = setup()
+  const res = await handleCancelReservation(
+    fake.client,
+    { reservation_id: RESERVATION, store_id: STORE_A, isManualRegistration: true },
+    CORS,
+  )
+  const body = await res.json()
+  assertEquals(body.link_message, null)
+  assertEquals(fake.find('line_messaging_link_tokens', 'insert').length, 0)
 })
 
 Deno.test('キャンセル: 他人の予約は取り消せない', async () => {

@@ -92,7 +92,7 @@ Deno.serve(async (req: Request) => {
     if (customerId) {
       const { data: customerRow } = await supabaseAdmin
         .from('customers')
-        .select('line_user_id, display_name, real_name')
+        .select('line_user_id, line_messaging_user_id, display_name, real_name')
         .eq('id', customerId)
         .eq('store_id', storeId)
         .maybeSingle()

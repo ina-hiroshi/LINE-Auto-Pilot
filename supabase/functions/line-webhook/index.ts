@@ -9,6 +9,9 @@ import { checkAiRateLimit, recordAiUsage, maybeCleanupRateLimits } from '../_sha
 import { selectAutoResponse, shouldDeferKeywordToAi } from '../_shared/auto-response.ts'
 import { judgeKeywordReplyFit } from '../_shared/keyword-judge.ts'
 import type { SupabaseClientType, AISettings } from '../_shared/types.ts'
+import { extractLinkCode } from '../_shared/link-code.ts'
+import type { FlexMessage } from '../_shared/reservation-flex.ts'
+import { handleLinkCode, recordFriendEvent } from './link.ts'
 import {
   MANUAL_REPLY_FALLBACK,
   MANUAL_REPLY_FALLBACK_COOLDOWN_HOURS,
@@ -36,7 +39,7 @@ const CONFIG = {
 } as const;
 
 type LineTextMessage = { type: 'text'; text: string }
-type LineMessage = LineTextMessage
+type LineMessage = LineTextMessage | FlexMessage
 type LineEvent = {
   type: string
   message?: { type: string; text?: string }
@@ -421,6 +424,17 @@ Deno.serve(async (req: Request) => {
 
         // Process Events
         for (const event of events) {
+          // 友だちの追加・ブロックを記録する（全友だち配信以外の絞り込み配信や、通数の見積もりに使う）
+          if ((event.type === 'follow' || event.type === 'unfollow') && event.source?.userId) {
+            await recordFriendEvent(
+              supabase,
+              storeId,
+              event.source.userId,
+              event.type === 'follow' ? 'following' : 'blocked',
+            )
+            continue
+          }
+
           if (event.type !== 'message') continue
 
           const replyToken = event.replyToken
@@ -441,6 +455,23 @@ Deno.serve(async (req: Request) => {
           const text = event.message?.text
           // リッチメニューの空き枠は空白だけのテキストを送るため、無視する
           if (!replyToken || !text || isBlankText(text)) continue
+
+          // 予約ページ（LIFF）がお客様のトークへ送る確認コード。Bot 側の ID との紐付けと、
+          // 予約内容の返信（応答メッセージ）を行う。自動応答・AI・受信箱には回さない。
+          const linkCode = extractLinkCode(text)
+          if (linkCode) {
+            await handleLinkCode({
+              supabase,
+              storeId,
+              messagingUserId: userId,
+              code: linkCode,
+              replyToken,
+              reply: (token, messages) => replyMessage(channelAccessToken, token, messages),
+              useStoreTheme: isPaidPlan(plan),
+              liffId: Deno.env.get('LIFF_ID')?.trim() || null,
+            })
+            continue
+          }
 
           console.log(`Received message from user ${userId?.slice(0, 8)}...`)
 
