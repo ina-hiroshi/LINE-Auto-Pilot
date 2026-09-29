@@ -1,15 +1,21 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, Calendar, AlertCircle, Bot, User, MessageSquare, Sparkles, BarChart3, TrendingUp, Search, Lightbulb, Target, FolderOpen, ExternalLink } from 'lucide-react'
+import { Calendar, AlertCircle, Bot, User, MessageSquare, BarChart3, TrendingUp, Search, Lightbulb, Target, FolderOpen, ExternalLink } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { loadAIAnalysisCache, saveAIAnalysisCache } from '../lib/aiAnalysisCache'
 import {
-  buildDailyCounts,
-  buildDailyUniqueUserCounts,
   buildStatusDistribution,
   buildTopNameCounts,
+  buildTrendCounts,
+  buildTrendUniqueUserCounts,
+  buildTrendWindow,
   buildWeekdayCounts,
+  type NameCountPoint,
+  type StatusPoint,
+  type TrendPoint,
+  type WeekdayPoint,
 } from '../lib/dashboardGraphs'
+import { DashboardGraphsTab, type DashboardStats } from '../features/dashboard/components/DashboardGraphsTab'
 import Modal from '../components/Modal'
 import { type LineQuotaInfo } from '../components/line/LineMessagingQuotaNotice'
 import Toast from '../components/Toast'
@@ -29,46 +35,6 @@ import { LineReplyComposer } from '../features/messaging/components/LineReplyCom
 import { useLineChatHistory } from '../features/messaging/hooks/useLineChatHistory'
 import { useLineReply } from '../features/messaging/hooks/useLineReply'
 import { STATUS_LABELS, type LogEntry } from '../features/messaging/types'
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar
-} from 'recharts'
-
-type DashboardStats = {
-  manualReplyNeeded: number
-  todayReservations: number
-  todayAutoResponses: number
-  todayAiResponses: number
-  totalFriends: number
-  totalLogs: number
-}
-
-type DailyData = {
-  date: string
-  count: number
-}
-
-type WeekdayData = {
-  day: string
-  count: number
-}
-
-type StatusData = {
-  name: string
-  value: number
-  color: string
-}
-
 type ReservationData = {
   id: string
   start_time: string
@@ -101,22 +67,6 @@ type AIAnalysis = {
   error: string | null
 }
 
-// グラフ用カラーパレット（サイドバーのprimary-600と統一 - index.cssの値を使用）
-const CHART_COLORS = {
-  primary: '#00a3b8', // primary-600 (サイドバーと同じ - index.cssの値)
-  primaryLight: '#22d3ee', // primary-400 (index.cssの値)
-  primaryDark: '#00a3b8', // primary-600
-  primaryDarker: '#008496', // primary-700 (index.cssの値)
-  gradient: {
-    start: '#22d3ee', // primary-400
-    end: '#00a3b8', // primary-600
-  },
-  area: {
-    fill: 'rgba(0, 163, 184, 0.15)', // primary-600 with opacity
-    stroke: '#00a3b8', // primary-600
-  }
-}
-
 export default function Dashboard() {
   const navigate = useNavigate()
   const { isPro } = usePlan()
@@ -140,13 +90,15 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'graphs' | 'messages' | 'analysis'>('graphs')
 
   // Graph Data
-  const [dailyData, setDailyData] = useState<DailyData[]>([])
-  const [weekdayData, setWeekdayData] = useState<WeekdayData[]>([])
-  const [statusData, setStatusData] = useState<StatusData[]>([])
-  const [dailyUserData, setDailyUserData] = useState<DailyData[]>([])
-  const [dailyReservationData, setDailyReservationData] = useState<DailyData[]>([])
-  const [menuData, setMenuData] = useState<{ name: string; count: number }[]>([])
-  const [staffData, setStaffData] = useState<{ name: string; count: number }[]>([])
+  // 推移グラフの横軸は点と一緒に持つ（期間切替の再取得中に、古い点と新しい期間名が混ざらないように）
+  const [trendWindow, setTrendWindow] = useState(() => buildTrendWindow('all', new Date()))
+  const [dailyData, setDailyData] = useState<TrendPoint[]>([])
+  const [weekdayData, setWeekdayData] = useState<WeekdayPoint[]>([])
+  const [statusData, setStatusData] = useState<StatusPoint[]>([])
+  const [dailyUserData, setDailyUserData] = useState<TrendPoint[]>([])
+  const [dailyReservationData, setDailyReservationData] = useState<TrendPoint[]>([])
+  const [menuData, setMenuData] = useState<NameCountPoint[]>([])
+  const [staffData, setStaffData] = useState<NameCountPoint[]>([])
 
   // AI Analysis
   const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis>({
@@ -182,23 +134,26 @@ export default function Dashboard() {
   // Process logs for graph data
   const processGraphData = useCallback((logs: LogEntry[]) => {
     const now = new Date()
-    setDailyData(buildDailyCounts(now, 14, logs.map((l) => l.created_at)))
+    const window = buildTrendWindow(timeRange, now)
+    setTrendWindow(window)
+    setDailyData(buildTrendCounts(window, now, logs.map((l) => l.created_at), true))
     setWeekdayData(buildWeekdayCounts(logs.map((l) => l.created_at)))
     setStatusData(buildStatusDistribution(logs.map((l) => l.status)))
-  }, [])
+  }, [timeRange])
 
   // Process user graph data (daily unique users)
   const processUserGraphData = useCallback((logs: LogEntry[]) => {
     const now = new Date()
-    setDailyUserData(buildDailyUniqueUserCounts(now, 14, logs))
-  }, [])
+    setDailyUserData(buildTrendUniqueUserCounts(buildTrendWindow(timeRange, now), now, logs))
+  }, [timeRange])
 
   // Process reservation graph data
   const processReservationGraphData = useCallback((reservations: ReservationData[]) => {
     const now = new Date()
     const timestamps = reservations.map((r) => r.start_time).filter((t): t is string => Boolean(t))
-    setDailyReservationData(buildDailyCounts(now, 14, timestamps))
-  }, [])
+    // 予約は未来の日付にも入るので、まだ来ていない日も 0 件として描く
+    setDailyReservationData(buildTrendCounts(buildTrendWindow(timeRange, now), now, timestamps, false))
+  }, [timeRange])
 
   // Process menu and staff data
   const processMenuAndStaffData = useCallback((
@@ -780,531 +735,21 @@ export default function Dashboard() {
 
             {/* Tab Content */}
             {activeTab === 'graphs' && (
-              <div className="space-y-6">
-        {/* Alert Banner */}
-        {stats.manualReplyNeeded > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3 text-red-800">
-              <AlertCircle className="w-5 h-5 shrink-0 text-red-600" />
-              <p className="font-medium">
-                現在、<span className="font-bold text-red-700 text-lg mx-1">{stats.manualReplyNeeded}件</span>のお客様への対応が必要です。
-              </p>
-                    <button 
-                      onClick={() => setActiveTab('messages')}
-                      className="ml-auto px-3 py-1 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
-                    >
-                      対応する
-                    </button>
-            </div>
-        )}
-      
-      {/* Top Section: Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-        {/* 1. Manual Reply Needed */}
-        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-red-100 hover:shadow-md transition relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-12 h-12 bg-red-50 rounded-bl-full -mr-4 -mt-4" />
-          <div className="flex items-center justify-between mb-2 relative">
-            <h2 className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">要対応 {getTimeRangeLabel()}</h2>
-            <div className="p-1.5 bg-red-50 rounded-lg text-red-600 shrink-0">
-              <AlertCircle size={16} />
-            </div>
-          </div>
-          <div className="flex items-end gap-1 sm:gap-2 relative flex-wrap">
-            <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.manualReplyNeeded}</p>
-            <p className="text-[10px] sm:text-xs text-red-600 font-medium mb-1">件</p>
-            {stats.totalLogs > 0 && (
-              <span className="text-sm sm:text-2xl font-bold text-gray-500 mb-0.5 ml-auto">
-                {Math.round((stats.manualReplyNeeded / stats.totalLogs) * 100)}<span className="text-[10px] sm:text-base">%</span>
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* 2. Today's Auto Responses */}
-        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">自動応答 {getTimeRangeLabel()}</h2>
-            <div className="p-1.5 bg-primary-50 rounded-lg text-primary-600 shrink-0">
-              <Bot size={16} />
-            </div>
-          </div>
-          <div className="flex items-end gap-1 sm:gap-2 flex-wrap">
-            <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.todayAutoResponses}</p>
-            <p className="text-[10px] sm:text-xs text-gray-400 mb-1">回</p>
-            {stats.totalLogs > 0 && (
-              <span className="text-sm sm:text-2xl font-bold text-gray-500 mb-0.5 ml-auto">
-                {Math.round((stats.todayAutoResponses / stats.totalLogs) * 100)}<span className="text-[10px] sm:text-base">%</span>
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* 3. AI Responses (New) */}
-        <div className={`bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition relative overflow-hidden ${!isPro ? 'bg-gray-50' : ''}`}>
-          {!isPro && (
-            <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
-               <ProBadge />
-            </div>
-          )}
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">AI応答 {getTimeRangeLabel()}</h2>
-            <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600 shrink-0">
-              <Sparkles size={16} />
-            </div>
-          </div>
-          <div className="flex items-end gap-1 sm:gap-2 flex-wrap">
-            <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.todayAiResponses}</p>
-            <p className="text-[10px] sm:text-xs text-gray-400 mb-1">回</p>
-            {stats.totalLogs > 0 && (
-              <span className="text-sm sm:text-2xl font-bold text-gray-500 mb-0.5 ml-auto">
-                {Math.round((stats.todayAiResponses / stats.totalLogs) * 100)}<span className="text-[10px] sm:text-base">%</span>
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* 4. Today's Reservations */}
-        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">予約 {getTimeRangeLabel()}</h2>
-            <div className="p-1.5 bg-purple-50 rounded-lg text-purple-600 shrink-0">
-              <Calendar size={16} />
-            </div>
-          </div>
-          <div className="flex items-end gap-1 sm:gap-2">
-            <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.todayReservations}</p>
-            <p className="text-[10px] sm:text-xs text-gray-400 mb-1">件</p>
-          </div>
-        </div>
-
-        {/* 5. Total Friends (Proxy) */}
-        <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">ユーザー {getTimeRangeLabel()}</h2>
-            <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600 shrink-0">
-              <Users size={16} />
-            </div>
-          </div>
-          <div className="flex items-end gap-1 sm:gap-2">
-            <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.totalFriends}</p>
-            <p className="text-[10px] sm:text-xs text-gray-400 mb-1">人</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Charts */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Message Trend Chart */}
-                  <div className="bg-gradient-to-br from-white to-primary-50/30 p-5 rounded-2xl border border-primary-100/50 shadow-sm hover:shadow-lg transition-all duration-300">
-                    <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center">
-                        <TrendingUp size={16} className="text-primary-600" />
-                      </div>
-                      メッセージ推移（過去14日間）
-                    </h3>
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={dailyData}>
-                          <defs>
-                            <linearGradient id="messageGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor={CHART_COLORS.primary} stopOpacity={0.25} />
-                              <stop offset="100%" stopColor={CHART_COLORS.primary} stopOpacity={0.02} />
-                            </linearGradient>
-                            <filter id="glow">
-                              <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-                              <feMerge>
-                                <feMergeNode in="coloredBlur"/>
-                                <feMergeNode in="SourceGraphic"/>
-                              </feMerge>
-                            </filter>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                          <XAxis 
-                            dataKey="date" 
-                            tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 500 }}
-                            tickLine={false}
-                            axisLine={false}
-                          />
-                          <YAxis 
-                            tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 500 }}
-                            tickLine={false}
-                            axisLine={false}
-                            allowDecimals={false}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: 'rgba(255, 255, 255, 0.98)', 
-                              border: 'none',
-                              borderRadius: '16px',
-                              boxShadow: '0 20px 40px -10px rgba(0, 184, 169, 0.2), 0 10px 20px -5px rgba(0, 0, 0, 0.08)',
-                              padding: '14px 18px',
-                              backdropFilter: 'blur(8px)'
-                            }}
-                            labelStyle={{ color: '#1F2937', fontWeight: 700, marginBottom: '6px', fontSize: '14px' }}
-                            formatter={(value) => [`${value}件`, 'メッセージ数']}
-                            cursor={{ stroke: CHART_COLORS.primary, strokeWidth: 1, strokeDasharray: '5 5' }}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="count" 
-                            stroke={CHART_COLORS.primary}
-                            strokeWidth={3}
-                            dot={{ fill: '#fff', strokeWidth: 3, r: 5, stroke: CHART_COLORS.primary }}
-                            activeDot={{ r: 8, fill: CHART_COLORS.primary, stroke: '#fff', strokeWidth: 3, filter: 'url(#glow)' }}
-                            fill="url(#messageGradient)"
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-        </div>
-      </div>
-
-                  {/* Status Distribution Pie Chart */}
-                  <div className="bg-gradient-to-br from-white to-primary-50/30 p-5 rounded-2xl border border-primary-100/50 shadow-sm hover:shadow-lg transition-all duration-300">
-                    <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center">
-                        <BarChart3 size={16} className="text-primary-600" />
-                      </div>
-                      ステータス分布
-                    </h3>
-                    <div className="h-64">
-                      {statusData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <defs>
-                              <filter id="pieGlow" x="-50%" y="-50%" width="200%" height="200%">
-                                <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                                <feMerge>
-                                  <feMergeNode in="coloredBlur"/>
-                                  <feMergeNode in="SourceGraphic"/>
-                                </feMerge>
-                              </filter>
-                            </defs>
-                            <Pie
-                              data={statusData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={55}
-                              outerRadius={85}
-                              paddingAngle={4}
-                              dataKey="value"
-                              label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                              labelLine={false}
-                            >
-                              {statusData.map((entry, index) => (
-                                <Cell 
-                                  key={`cell-${index}`} 
-                                  fill={entry.color}
-                                  stroke="#fff"
-                                  strokeWidth={3}
-                                  style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
-                                />
-                              ))}
-                            </Pie>
-                            <Tooltip 
-                              contentStyle={{ 
-                                backgroundColor: 'rgba(255, 255, 255, 0.98)', 
-                                border: 'none',
-                                borderRadius: '16px',
-                                boxShadow: '0 20px 40px -10px rgba(0, 184, 169, 0.2), 0 10px 20px -5px rgba(0, 0, 0, 0.08)',
-                                padding: '14px 18px',
-                                backdropFilter: 'blur(8px)'
-                              }}
-                              formatter={(value) => [`${value}件`, '']}
-                            />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="h-full flex items-center justify-center text-gray-400">
-                          データがありません
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Weekday Distribution Bar Chart */}
-                <div className="bg-gradient-to-br from-white to-primary-50/30 p-5 rounded-2xl border border-primary-100/50 shadow-sm hover:shadow-lg transition-all duration-300">
-                  <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center">
-                      <BarChart3 size={16} className="text-primary-600" />
-                    </div>
-                    曜日別メッセージ数
-                  </h3>
-                  <div className="h-48">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={weekdayData}>
-                        <defs>
-                          <linearGradient id="weekdayGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={CHART_COLORS.primaryLight} stopOpacity={1}/>
-                            <stop offset="100%" stopColor={CHART_COLORS.primaryDark} stopOpacity={1}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                        <XAxis 
-                          dataKey="day" 
-                          tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 600 }}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <YAxis 
-                          tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 500 }}
-                          tickLine={false}
-                          axisLine={false}
-                          allowDecimals={false}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'rgba(255, 255, 255, 0.98)', 
-                            border: 'none',
-                            borderRadius: '16px',
-                            boxShadow: '0 20px 40px -10px rgba(0, 184, 169, 0.2), 0 10px 20px -5px rgba(0, 0, 0, 0.08)',
-                            padding: '14px 18px',
-                            backdropFilter: 'blur(8px)'
-                          }}
-                          labelStyle={{ color: '#1F2937', fontWeight: 700, marginBottom: '6px' }}
-                          formatter={(value) => [`${value}件`, 'メッセージ数']}
-                          cursor={{ fill: 'rgba(0, 184, 169, 0.08)' }}
-                        />
-                        <Bar 
-                          dataKey="count" 
-                          fill="url(#weekdayGradient)" 
-                          radius={[10, 10, 0, 0]}
-                          style={{ filter: 'drop-shadow(0 4px 6px rgba(0, 184, 169, 0.2))' }}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* User Count Trend Chart */}
-                <div className="bg-gradient-to-br from-white to-primary-50/30 p-5 rounded-2xl border border-primary-100/50 shadow-sm hover:shadow-lg transition-all duration-300">
-                  <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center">
-                      <Users size={16} className="text-primary-600" />
-                    </div>
-                    ユーザー数推移（過去14日間）
-                  </h3>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={dailyUserData}>
-                        <defs>
-                          <linearGradient id="userGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={CHART_COLORS.primary} stopOpacity={0.25}/>
-                            <stop offset="100%" stopColor={CHART_COLORS.primary} stopOpacity={0.02}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                        <XAxis 
-                          dataKey="date" 
-                          tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 500 }}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <YAxis 
-                          tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 500 }}
-                          tickLine={false}
-                          axisLine={false}
-                          allowDecimals={false}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'rgba(255, 255, 255, 0.98)', 
-                            border: 'none',
-                            borderRadius: '16px',
-                            boxShadow: '0 20px 40px -10px rgba(0, 184, 169, 0.2), 0 10px 20px -5px rgba(0, 0, 0, 0.08)',
-                            padding: '14px 18px',
-                            backdropFilter: 'blur(8px)'
-                          }}
-                          labelStyle={{ color: '#1F2937', fontWeight: 700, marginBottom: '6px' }}
-                          formatter={(value) => [`${value}人`, 'ユーザー数']}
-                          cursor={{ stroke: CHART_COLORS.primary, strokeWidth: 1, strokeDasharray: '5 5' }}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="count" 
-                          stroke={CHART_COLORS.primary}
-                          strokeWidth={3}
-                          dot={{ fill: '#fff', strokeWidth: 3, r: 5, stroke: CHART_COLORS.primary }}
-                          activeDot={{ r: 8, fill: CHART_COLORS.primary, stroke: '#fff', strokeWidth: 3 }}
-                          fill="url(#userGradient)"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* Reservation Trend Chart */}
-                <div className="bg-gradient-to-br from-white to-primary-50/30 p-5 rounded-2xl border border-primary-100/50 shadow-sm hover:shadow-lg transition-all duration-300">
-                  <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center">
-                      <Calendar size={16} className="text-primary-600" />
-                    </div>
-                    予約数推移（過去14日間）
-                  </h3>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={dailyReservationData}>
-                        <defs>
-                          <linearGradient id="reservationGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={CHART_COLORS.primary} stopOpacity={0.25}/>
-                            <stop offset="100%" stopColor={CHART_COLORS.primary} stopOpacity={0.02}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                        <XAxis 
-                          dataKey="date" 
-                          tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 500 }}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <YAxis 
-                          tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 500 }}
-                          tickLine={false}
-                          axisLine={false}
-                          allowDecimals={false}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'rgba(255, 255, 255, 0.98)', 
-                            border: 'none',
-                            borderRadius: '16px',
-                            boxShadow: '0 20px 40px -10px rgba(0, 184, 169, 0.2), 0 10px 20px -5px rgba(0, 0, 0, 0.08)',
-                            padding: '14px 18px',
-                            backdropFilter: 'blur(8px)'
-                          }}
-                          labelStyle={{ color: '#1F2937', fontWeight: 700, marginBottom: '6px' }}
-                          formatter={(value) => [`${value}件`, '予約数']}
-                          cursor={{ stroke: CHART_COLORS.primary, strokeWidth: 1, strokeDasharray: '5 5' }}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="count" 
-                          stroke={CHART_COLORS.primary}
-                          strokeWidth={3}
-                          dot={{ fill: '#fff', strokeWidth: 3, r: 5, stroke: CHART_COLORS.primary }}
-                          activeDot={{ r: 8, fill: CHART_COLORS.primary, stroke: '#fff', strokeWidth: 3 }}
-                          fill="url(#reservationGradient)"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* Menu Analysis Bar Chart */}
-                {menuData.length > 0 && (
-                  <div className="bg-gradient-to-br from-white to-primary-50/30 p-5 rounded-2xl border border-primary-100/50 shadow-sm hover:shadow-lg transition-all duration-300">
-                    <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center">
-                        <BarChart3 size={16} className="text-primary-600" />
-                      </div>
-                      メニュー別予約数
-                    </h3>
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={menuData} layout="vertical">
-                          <defs>
-                            <linearGradient id="menuGradient" x1="0" y1="0" x2="1" y2="0">
-                              <stop offset="0%" stopColor={CHART_COLORS.primaryLight} stopOpacity={1}/>
-                              <stop offset="100%" stopColor={CHART_COLORS.primaryDark} stopOpacity={1}/>
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
-                          <XAxis 
-                            type="number"
-                            tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 500 }}
-                            tickLine={false}
-                            axisLine={false}
-                            allowDecimals={false}
-                          />
-                          <YAxis 
-                            type="category"
-                            dataKey="name" 
-                            tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 500 }}
-                            tickLine={false}
-                            axisLine={false}
-                            width={100}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: 'rgba(255, 255, 255, 0.98)', 
-                              border: 'none',
-                              borderRadius: '16px',
-                              boxShadow: '0 20px 40px -10px rgba(0, 184, 169, 0.2), 0 10px 20px -5px rgba(0, 0, 0, 0.08)',
-                              padding: '14px 18px',
-                              backdropFilter: 'blur(8px)'
-                            }}
-                            labelStyle={{ color: '#1F2937', fontWeight: 700, marginBottom: '6px' }}
-                            formatter={(value) => [`${value}件`, '予約数']}
-                          />
-                          <Bar 
-                            dataKey="count" 
-                            fill="url(#menuGradient)" 
-                            radius={[0, 8, 8, 0]}
-                            style={{ filter: 'drop-shadow(0 2px 4px rgba(0, 184, 169, 0.2))' }}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                )}
-
-                {/* Staff Analysis Bar Chart */}
-                {staffData.length > 0 && (
-                  <div className="bg-gradient-to-br from-white to-primary-50/30 p-5 rounded-2xl border border-primary-100/50 shadow-sm hover:shadow-lg transition-all duration-300">
-                    <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center">
-                        <User size={16} className="text-primary-600" />
-                      </div>
-                      担当者別予約数
-                    </h3>
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={staffData} layout="vertical">
-                          <defs>
-                            <linearGradient id="staffGradient" x1="0" y1="0" x2="1" y2="0">
-                              <stop offset="0%" stopColor={CHART_COLORS.primaryLight} stopOpacity={1}/>
-                              <stop offset="100%" stopColor={CHART_COLORS.primaryDark} stopOpacity={1}/>
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
-                          <XAxis 
-                            type="number"
-                            tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 500 }}
-                            tickLine={false}
-                            axisLine={false}
-                            allowDecimals={false}
-                          />
-                          <YAxis 
-                            type="category"
-                            dataKey="name" 
-                            tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 500 }}
-                            tickLine={false}
-                            axisLine={false}
-                            width={100}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: 'rgba(255, 255, 255, 0.98)', 
-                              border: 'none',
-                              borderRadius: '16px',
-                              boxShadow: '0 20px 40px -10px rgba(0, 184, 169, 0.2), 0 10px 20px -5px rgba(0, 0, 0, 0.08)',
-                              padding: '14px 18px',
-                              backdropFilter: 'blur(8px)'
-                            }}
-                            labelStyle={{ color: '#1F2937', fontWeight: 700, marginBottom: '6px' }}
-                            formatter={(value) => [`${value}件`, '予約数']}
-                          />
-                          <Bar 
-                            dataKey="count" 
-                            fill="url(#staffGradient)" 
-                            radius={[0, 8, 8, 0]}
-                            style={{ filter: 'drop-shadow(0 2px 4px rgba(0, 184, 169, 0.2))' }}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <DashboardGraphsTab
+                stats={stats}
+                rangeLabel={getTimeRangeLabel()}
+                showWeekday={timeRange !== 'today'}
+                trendWindow={trendWindow}
+                messageTrend={dailyData}
+                userTrend={dailyUserData}
+                reservationTrend={dailyReservationData}
+                weekdayData={weekdayData}
+                statusData={statusData}
+                menuData={menuData}
+                staffData={staffData}
+                isPro={isPro}
+                onOpenMessages={() => setActiveTab('messages')}
+              />
             )}
 
             {activeTab === 'messages' && (
