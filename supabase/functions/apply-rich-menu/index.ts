@@ -1,8 +1,9 @@
 // Using Deno.serve instead of @std/http/server
 import { createClient } from "@supabase/supabase-js"
 import { getCorsHeaders } from '../_shared/cors.ts'
-import { safeErrorResponse } from '../_shared/error-utils.ts'
+import { ClientVisibleError, clientVisibleErrorResponse, safeErrorResponse } from '../_shared/error-utils.ts'
 import { requireStoreAccess } from '../_shared/store-access.ts'
+import { isPaidPlan } from '../_shared/plan-utils.ts'
 import { purgeGeneratedRichMenuImages } from '../_shared/rich-menu-assets.ts'
 import { buildRichMenuAreas, getRichMenuSize } from '../_shared/rich-menu-areas.ts'
 import { safeFetch } from '../_shared/safe-fetch.ts'
@@ -22,7 +23,6 @@ Deno.serve(async (req) => {
     )
 
     const body = await req.json()
-    console.log('Request body:', JSON.stringify(body))
     const { store_id, generated_image_url, liff_id } = body
 
     if (!store_id) {
@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
         .select('plan')
         .eq('id', store.owner_id)
         .single()
-      isPro = profile?.plan === 'pro'
+      isPro = isPaidPlan(profile?.plan)
     }
 
     // 2. Fetch LINE Account Settings
@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
       .single()
 
     if (lineError || !lineAccount || !lineAccount.channel_access_token) {
-      throw new Error('LINE Account not found or access token missing')
+      throw new ClientVisibleError('LINE公式アカウントが接続されていません。LINE設定でチャネルアクセストークンを登録してください。')
     }
 
     const channelAccessToken = lineAccount.channel_access_token
@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
 
     // 1MBを超える場合はエラー
     if (imageBlob.size > 1024 * 1024) {
-      throw new Error(`Image size ${Math.round(imageBlob.size / 1024)}KB exceeds LINE API limit (1MB)`)
+      throw new ClientVisibleError(`リッチメニュー画像が大きすぎます（${Math.round(imageBlob.size / 1024)}KB）。LINEの上限は1MBです。画像を小さくして、もう一度お試しください。`)
     }
 
     console.log('Uploading image to LINE API...')
@@ -220,6 +220,9 @@ Deno.serve(async (req) => {
     )
 
   } catch (error: unknown) {
-    return safeErrorResponse(error, corsHeaders, 400, 'Internal server error')
+    if (error instanceof ClientVisibleError) {
+      return clientVisibleErrorResponse(error, corsHeaders)
+    }
+    return safeErrorResponse(error, corsHeaders, 400, 'リッチメニューをLINEへ反映できませんでした。時間をおいてもう一度お試しください。')
   }
 })

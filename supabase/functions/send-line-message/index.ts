@@ -76,10 +76,9 @@ Deno.serve(async (req: Request) => {
       console.error('line_accounts lookup:', accountError)
     }
 
-    let channelAccessToken = accountData?.channel_access_token
-    if (!channelAccessToken) {
-      channelAccessToken = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')
-    }
+    // 店舗に未連携のとき、運営の公式アカウントのトークンで代わりに送らない
+    // （店舗のお客様へ運営アカウントからメッセージが届いてしまう）
+    const channelAccessToken = accountData?.channel_access_token
     if (!channelAccessToken) {
       throw new ClientVisibleError(
         'LINE公式アカウントが連携されていません。LINE設定からチャネルアクセストークンを登録してください。',

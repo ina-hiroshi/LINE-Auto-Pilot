@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getJstDayOfWeek, getJstDateString, getJstDateStringWithOffset } from '../lib/jstDate'
-import { toErrorMessageAsync } from '../lib/errorUtils'
+import { toCustomerMessage, toErrorMessageAsync } from '../lib/errorUtils'
+import { isPaidPlan } from '../lib/planUtils'
 import { usePublicBookingResources } from '../hooks/usePublicBookingResources'
 import { fetchPublicStoreInfo } from '../lib/publicStoreInfo'
 import type { StoreMenu, StoreStaff } from '../types/storeResources'
@@ -338,10 +339,16 @@ export default function Booking() {
       if (!data) {
         console.error('store_id が指定されておらず、店舗を一意に決められません')
         setStep('error')
-        setErrorMsg('店舗情報が見つかりませんでした。予約ページのURLに store_id が必要です。')
+        setErrorMsg('店舗情報が見つかりませんでした。お手数ですが、店舗からご案内した予約ページのリンクから開き直してください。')
         return
       }
       targetStoreId = data.id
+    }
+
+    if (targetStoreId && !data) {
+      setStep('error')
+      setErrorMsg('店舗情報を読み込めませんでした。予約ページのURLをご確認のうえ、時間をおいてもう一度お試しください。')
+      return
     }
 
     if (data) {
@@ -354,7 +361,7 @@ export default function Booking() {
         if (planError) {
           console.error('Failed to check plan:', planError)
         } else {
-          isPro = plan === 'pro'
+          isPro = isPaidPlan(plan)
         }
       } catch (e) {
         console.error('Error checking plan:', e)
@@ -431,8 +438,8 @@ export default function Booking() {
         await fetchStore()
       } else {
         setStep('error')
-        const msg = error instanceof Error ? error.message : String(error)
-        setErrorMsg(`エラーが発生しました: ${msg}`)
+        console.error('LIFF init failed:', error)
+        setErrorMsg('LINEアプリの読み込みに失敗しました。LINEアプリからこのページを開き直してください。')
       }
     }
   }, [fetchStore])
@@ -551,7 +558,6 @@ export default function Booking() {
       const accessToken = getLiffAccessToken()
       const idToken = getLiffIdToken()
 
-      console.log('[Booking] checkCustomer - store_id:', storeId, 'line_user_id:', lineUserId)
 
       const { data, error, response } = await supabase.functions.invoke('booking', {
         body: {
@@ -571,18 +577,15 @@ export default function Booking() {
         throw error
       }
       
-      console.log('[Booking] checkCustomer - response:', data)
       
       if (data?.customer) {
         setExistingCustomer(data.customer as CustomerInfo)
         if (data.customer.real_name) setRealName(data.customer.real_name)
         if (data.customer.furigana) setFurigana(data.customer.furigana)
-        console.log('[Booking] Customer found:', data.customer.real_name, data.customer.furigana)
       } else {
         setExistingCustomer(null)
         setRealName('')
         setFurigana('')
-        console.log('[Booking] Customer not found')
       }
     } catch (e) {
       console.error('Failed to check customer:', e)
@@ -846,10 +849,11 @@ export default function Booking() {
         staff_id: selectedStaff?.id,
         menu_id: selectedMenu?.id,
         reservation_id: modifyingReservationId,
+        // 人数はサーバー側に専用の項目がないため、店舗が予約一覧で見られるようメモに残す
+        memo: storeSettings.booking_enable_party_size ? `人数: ${partySize}名` : undefined,
         accessToken,
         idToken,
       }
-      console.log('[Booking] Request body:', requestBody)
       
       const { data, error, response } = await supabase.functions.invoke('booking', {
         body: requestBody
@@ -857,13 +861,13 @@ export default function Booking() {
 
       if (error) {
         const errorMessage = await toErrorMessageAsync(error, response)
-        showToast(`予約に失敗しました。\n詳細: ${errorMessage}`, 'error')
+        showToast(`予約に失敗しました。\n${toCustomerMessage(errorMessage)}`, 'error')
         return
       }
       if (data && typeof data === 'object' && data !== null && 'error' in data) {
         const errMsg = (data as { error: unknown }).error
         if (typeof errMsg === 'string' && errMsg.length > 0) {
-          showToast(`予約に失敗しました。\n詳細: ${errMsg}`, 'error')
+          showToast(`予約に失敗しました。\n${toCustomerMessage(errMsg)}`, 'error')
           return
         }
       }
@@ -873,7 +877,7 @@ export default function Booking() {
     } catch (error: unknown) {
       console.error('Booking failed:', error)
       const errorMessage = await toErrorMessageAsync(error)
-      showToast(`予約に失敗しました。\n詳細: ${errorMessage}`, 'error')
+      showToast(`予約に失敗しました。\n${toCustomerMessage(errorMessage)}`, 'error')
     } finally {
       setLoading(false)
     }

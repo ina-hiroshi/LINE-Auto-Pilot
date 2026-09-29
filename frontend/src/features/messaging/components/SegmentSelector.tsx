@@ -181,6 +181,11 @@ export default function SegmentSelector({
             <span className="text-sm text-gray-900">
               この条件に当てはまるお客様は <span className="font-bold">{preview.count}名</span> です
             </span>
+            {preview.count === 0 && (
+              <p className="text-xs text-gray-500">
+                LINEの予約ページから予約したお客様が配信の対象になります。
+              </p>
+            )}
             {preview.sampleNames.length > 0 && (
               <p className="text-xs text-gray-500 truncate">
                 例: {preview.sampleNames.join('、')}

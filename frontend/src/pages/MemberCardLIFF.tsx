@@ -63,7 +63,7 @@ export default function MemberCardLIFF() {
         }
 
         if (!storeId) {
-          throw new Error('Store ID is required')
+          throw new Error('会員証のURLが正しくありません。店舗からご案内したリンクから開き直してください。')
         }
 
         // 2. Fetch Store Settings
@@ -79,9 +79,7 @@ export default function MemberCardLIFF() {
           document.title = `${store.name} - 会員証`
         }
 
-        const updateSettingsFromStore = (storeData: any, isProPlan: boolean) => {
-          console.log('Raw store data:', storeData)
-          
+        const updateSettingsFromStore = (storeData: any, isProPlan: boolean) => {          
           let cardSettings = storeData.membership_card_settings
           if (typeof cardSettings === 'string') {
             try {
@@ -93,7 +91,6 @@ export default function MemberCardLIFF() {
           }
           // Ensure cardSettings is an object
           cardSettings = cardSettings || {}
-          console.log('Parsed card settings:', cardSettings)
 
           rankSettingsRef.current = storeData.membership_rank_settings
 
@@ -153,20 +150,11 @@ export default function MemberCardLIFF() {
             if (error) throw error
 
             if (data) {
-              console.log('Fetched Data:', data)
               const newUserId = data.lineProfile?.userId || userId
               const newPoints = data.points?.balance ?? 0
               
               const rankName = resolveMembershipRank(newPoints, rankSettingsRef.current)
               const memberNo = formatMemberNo(newUserId)
-
-              console.log('Calculated Customer Data:', {
-                line_user_id: newUserId,
-                points: newPoints,
-                rank: rankName,
-                member_no: memberNo
-              })
-
               setCustomer({
                 id: data.customer?.id ?? newUserId,
                 line_user_id: newUserId,
@@ -207,10 +195,9 @@ export default function MemberCardLIFF() {
           const myUserId = profile?.userId
 
           if (myUserId) {
-            supabase.channel(`points:${storeId}`)
+            supabase.channel(`points:${storeId}:${myUserId}`)
               .on('broadcast', { event: 'update' }, (payload) => {
                 const body = payload?.payload ?? payload
-                if (body?.line_user_id !== myUserId) return
 
                 // 残高が載っていれば再取得を待たずに反映する（利用時の取りこぼし防止）
                 if (typeof body.balance === 'number') {
@@ -226,8 +213,6 @@ export default function MemberCardLIFF() {
                   )
                   return
                 }
-
-                console.log('Received point update signal, refetching...')
                 fetchData(accessToken)
               })
               .subscribe()
@@ -245,7 +230,6 @@ export default function MemberCardLIFF() {
               filter: `id=eq.${storeId}`
             },
             (payload) => {
-              console.log('Store settings updated:', payload)
               updateSettingsFromStore(payload.new, isPro)
             }
           )
@@ -253,7 +237,11 @@ export default function MemberCardLIFF() {
 
       } catch (err) {
         console.error(err)
-        setError(err instanceof Error ? err.message : 'An error occurred')
+        setError(
+          err instanceof Error && /[\u3040-\u30ff\u3400-\u9fff]/.test(err.message)
+            ? err.message
+            : '会員証を読み込めませんでした。LINEアプリからこのページを開き直してください。',
+        )
       } finally {
         setLoading(false)
       }

@@ -1331,7 +1331,7 @@ export default function AutoResponses() {
               </button>
             </div>
             <p className="text-xs text-gray-500 mb-2">
-              メインキーワードの言い換えや関連語を登録してください。これらが含まれていると、この回答が選ばれやすくなります。
+              メインキーワードの言い換えや関連語を登録してください。メインキーワードと組み合わせて判定します。サブキーワードだけで返信するには、3語以上が同時に含まれる必要があります。1語だけで返信したい言葉は、別の自動応答（メインキーワード）として登録してください。
             </p>
             <div className="flex flex-wrap gap-2">
               {currentRule?.subKeywords.map((keyword, index) => (

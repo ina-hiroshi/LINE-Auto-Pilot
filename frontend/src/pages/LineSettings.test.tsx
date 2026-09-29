@@ -97,7 +97,7 @@ const renderPage = () =>
 
 const channelIdInput = () => screen.getByPlaceholderText('1234567890') as HTMLInputElement
 const channelSecretInput = () => screen.getByPlaceholderText('••••••••') as HTMLInputElement
-const channelTokenInput = () => screen.getByPlaceholderText('Long lived access token...') as HTMLTextAreaElement
+const channelTokenInput = () => screen.getByPlaceholderText('長期のチャネルアクセストークンを貼り付け') as HTMLTextAreaElement
 
 const saveConnection = () => fireEvent.click(screen.getByRole('button', { name: /設定を保存/ }))
 
@@ -158,6 +158,39 @@ describe('LINE連携・設定', () => {
       const write = lastLineAccountWrite()!
       expect(write.filters).toContainEqual({ op: 'eq', column: 'store_id', value: STORE_ID })
       expect(write.payload).toMatchObject({ channel_access_token: 'token-new' })
+    })
+
+    it('貼り付け時の前後の空白・改行を除いて保存し、旧チャネルのBot情報をクリアする', async () => {
+      // 空白が混じると署名検証が常に失敗し、LINEのメッセージが無言で捨てられる
+      setup()
+      renderPage()
+      await waitFor(() => expect(channelIdInput().value).toBe('1234567890'))
+
+      fireEvent.change(channelIdInput(), { target: { value: ' 999 ' } })
+      fireEvent.change(channelSecretInput(), { target: { value: '\nsecret-new\n' } })
+      fireEvent.change(channelTokenInput(), { target: { value: 'token-\nnew ' } })
+      saveConnection()
+
+      await waitFor(() => expect(lastLineAccountWrite()?.method).toBe('update'))
+      expect(lastLineAccountWrite()!.payload).toMatchObject({
+        channel_id: '999',
+        channel_secret: 'secret-new',
+        channel_access_token: 'token-new',
+        bot_id: null,
+        line_user_id: null,
+      })
+    })
+
+    it('必須項目が空なら保存せずに知らせる', async () => {
+      setup()
+      renderPage()
+      await waitFor(() => expect(channelIdInput().value).toBe('1234567890'))
+
+      fireEvent.change(channelSecretInput(), { target: { value: '   ' } })
+      saveConnection()
+
+      expect(await screen.findByText(/すべて入力してください/)).toBeInTheDocument()
+      expect(lastLineAccountWrite()).toBeUndefined()
     })
 
     it('未登録なら user_id と store_id の両方を持つレコードを作成する', async () => {

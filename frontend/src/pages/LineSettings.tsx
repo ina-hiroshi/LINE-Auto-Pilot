@@ -3,7 +3,7 @@ import { Loader2, Link2, Building2, CreditCard, Lock, BookOpen } from 'lucide-re
 import Toast from '../components/Toast'
 import { UnderlineTabs } from '../components/UnderlineTabs'
 import { supabase } from '../lib/supabase'
-import { toErrorMessage } from '../lib/errorUtils'
+import { toErrorMessage, toErrorMessageAsync } from '../lib/errorUtils'
 import { ConnectionTab } from '../features/line-settings/components/ConnectionTab'
 import { GuideTab } from '../features/line-settings/components/GuideTab'
 import { BasicInfoTab } from '../features/line-settings/components/BasicInfoTab'
@@ -148,6 +148,15 @@ export default function LineSettings() {
 	}, [])
 
 	const handleSaveLineSettings = useCallback(async () => {
+		// コピー元の前後の空白・改行が入ると署名検証が常に失敗し、LINEのメッセージが無言で捨てられる
+		const channelId = lineSettings.channel_id.trim()
+		const channelSecret = lineSettings.channel_secret.trim()
+		const channelToken = lineSettings.channel_token.replace(/\s+/g, '')
+		if (!channelId || !channelSecret || !channelToken) {
+			setMessage({ type: 'error', text: 'Channel ID・Channel Secret・Channel Access Token をすべて入力してください' })
+			return
+		}
+
 		setSaving(true)
 		setMessage(null)
 		try {
@@ -181,10 +190,12 @@ export default function LineSettings() {
 			const { error } = await supabase
 				.from('line_accounts')
 				.update({
-					channel_id: lineSettings.channel_id,
-					channel_secret: lineSettings.channel_secret,
-					channel_access_token: lineSettings.channel_token,
-					bot_id: lineSettings.bot_id,
+					channel_id: channelId,
+					channel_secret: channelSecret,
+					channel_access_token: channelToken,
+					// 認証情報を差し替えたときに旧チャネルのBot情報が残らないよう、取得し直す
+					bot_id: null,
+					line_user_id: null,
 					updated_at: new Date().toISOString(),
 				})
 				.eq('store_id', currentStoreId)
@@ -196,10 +207,9 @@ export default function LineSettings() {
 				.insert({
 					user_id: user.id,
 					store_id: currentStoreId,
-					channel_id: lineSettings.channel_id,
-					channel_secret: lineSettings.channel_secret,
-					channel_access_token: lineSettings.channel_token,
-					bot_id: lineSettings.bot_id,
+					channel_id: channelId,
+					channel_secret: channelSecret,
+					channel_access_token: channelToken,
 					updated_at: new Date().toISOString(),
 				})
 			lineError = error
@@ -219,8 +229,10 @@ export default function LineSettings() {
 			// 署名検証に失敗して LINE からのメッセージが無言で捨てられる。
 			// 「保存できた」で終わらせず、必ず利用者に伝える。
 			let botUserId: string | null = null
+			let botInfoReason = ''
 			if (funcError) {
 				console.warn('Bot info fetch warning:', funcError)
+				botInfoReason = await toErrorMessageAsync(funcError)
 			} else if (botInfoData) {
 				// Edge Functionが既にデータベースを更新しているので、状態のみ更新
 				const updates: Partial<typeof lineSettings> = {}
@@ -241,7 +253,7 @@ export default function LineSettings() {
 			} else {
 				setMessage({
 					type: 'error',
-					text: 'LINE設定は保存しましたが、Bot情報を取得できませんでした。このままではLINEのメッセージを受信できません。Channel Access Token を確認して、もう一度保存してください。',
+					text: `LINE設定は保存しましたが、Bot情報を取得できませんでした。このままではLINEのメッセージを受信できません。Channel Access Token を確認して、もう一度保存してください。${botInfoReason ? `（${botInfoReason}）` : ''}`,
 				})
 			}
 		} catch (error) {

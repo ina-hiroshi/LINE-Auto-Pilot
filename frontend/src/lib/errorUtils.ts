@@ -71,3 +71,14 @@ export async function toErrorMessageAsync(
 
   return toErrorMessage(error)
 }
+
+/**
+ * お客様（LIFF）に見せるエラー文言にする。
+ * サーバーが日本語で返した案内（「満席です」など）はそのまま出し、
+ * `Invalid store_id format` のような英語の内部エラーは汎用文言に置き換える。
+ */
+export function toCustomerMessage(message: string): string {
+  return /[\u3040-\u30ff\u3400-\u9fff]/.test(message)
+    ? message
+    : '通信に失敗しました。しばらくしてからもう一度お試しください。'
+}

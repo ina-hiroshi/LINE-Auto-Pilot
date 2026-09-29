@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import { supabase } from '../lib/supabase'
+import { toErrorMessageAsync } from '../lib/errorUtils'
 import { PRO_PRICE_ID } from '../constants/stripe'
 import {
   User,
@@ -749,7 +750,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   // LINE設定の保存
   const handleSaveLineSettings = async () => {
-    if (!lineSettings.channel_id || !lineSettings.channel_secret || !lineSettings.channel_token) {
+    // コピー元の前後の空白・改行が入ると署名検証が常に失敗し、LINEのメッセージが無言で捨てられる
+    const channelId = lineSettings.channel_id.trim()
+    const channelSecret = lineSettings.channel_secret.trim()
+    const channelToken = lineSettings.channel_token.replace(/\s+/g, '')
+
+    if (!channelId || !channelSecret || !channelToken) {
       setToast({ isVisible: true, message: 'すべての項目を入力してください', type: 'error' })
       return
     }
@@ -774,9 +780,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         const { error } = await supabase
           .from('line_accounts')
           .update({
-            channel_id: lineSettings.channel_id,
-            channel_secret: lineSettings.channel_secret,
-            channel_access_token: lineSettings.channel_token,
+            channel_id: channelId,
+            channel_secret: channelSecret,
+            channel_access_token: channelToken,
+            // 認証情報を差し替えたら、旧チャネルのBot情報が残らないよう取得し直す
+            line_user_id: null,
+            bot_id: null,
             updated_at: new Date().toISOString(),
           })
           .eq('store_id', storeId)
@@ -788,9 +797,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           .insert({
             user_id: user.id,
             store_id: storeId,
-            channel_id: lineSettings.channel_id,
-            channel_secret: lineSettings.channel_secret,
-            channel_access_token: lineSettings.channel_token,
+            channel_id: channelId,
+            channel_secret: channelSecret,
+            channel_access_token: channelToken,
             updated_at: new Date().toISOString(),
           })
         lineError = error
@@ -798,13 +807,16 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       
       if (lineError) throw new Error(`LINE設定の保存に失敗しました: ${lineError.message}`)
 
-      // Bot情報の取得を試みる
-      try {
-        await supabase.functions.invoke('get-line-bot-info', {
-          body: { storeId }
-        })
-      } catch (e) {
-        console.warn('Bot info fetch warning:', e)
+      // Bot情報の取得。line_user_id が取れないと line-webhook が店舗を特定できず、
+      // LINEのメッセージが無言で捨てられるため、取れなければ次へ進ませない。
+      const { data: botInfoData, error: botInfoError } = await supabase.functions.invoke('get-line-bot-info', {
+        body: { storeId }
+      })
+      if (botInfoError || !botInfoData?.userId) {
+        const reason = botInfoError
+          ? await toErrorMessageAsync(botInfoError)
+          : 'Bot情報を取得できませんでした'
+        throw new Error(`LINE設定は保存しましたが、接続を確認できませんでした。Channel Access Token を確認して、もう一度保存してください。（${reason}）`)
       }
 
       setToast({ isVisible: true, message: 'LINE設定を保存しました', type: 'success' })

@@ -58,12 +58,12 @@ export function usePointOperation(storeId: string | null, storeSettings: Members
         // 「更新に失敗しました」と表示してしまうと、実態と食い違う。
         // 残高も載せる。会員証側が再取得に失敗しても表示をすぐ更新できる。
         try {
-          const channel = supabase.channel(`points:${storeId}`)
+          const channel = supabase.channel(`points:${storeId}:${lineUserId}`)
           channel.subscribe()
           await channel.send({
             type: 'broadcast',
             event: 'update',
-            payload: { line_user_id: lineUserId, balance: newBalance },
+            payload: { balance: newBalance },
           })
         } catch (broadcastError) {
           console.warn('Point broadcast failed (balance is already saved):', broadcastError)

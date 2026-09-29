@@ -203,9 +203,11 @@ const PrivacyPolicy: React.FC = () => {
                 {[
                   { name: 'Supabase', desc: 'データベース・認証基盤' },
                   { name: 'Stripe', desc: '決済処理' },
-                  { name: 'LINE Corporation', desc: 'メッセージング・ログイン' },
+                  { name: 'LINEヤフー株式会社', desc: 'メッセージング・ログイン' },
                   { name: 'Resend', desc: 'メール認証' },
-                  { name: 'Google LLC', desc: 'カレンダー API（ユーザーが連携を許可した場合のみ）' },
+                  { name: 'Google LLC', desc: 'カレンダー API（ユーザーが連携を許可した場合のみ）、Gemini API（AI自動応答・分析でメッセージ内容を処理）' },
+                  { name: 'Vercel Inc.', desc: 'Webアプリのホスティング' },
+                  { name: 'QR Server（api.qrserver.com）', desc: '会員証のQRコード表示' },
                 ].map((item, i) => (
                   <li key={i} className="bg-slate-50 px-4 py-3 rounded-lg text-sm border border-slate-100">
                     <span className="font-bold text-slate-800">{item.name}</span>

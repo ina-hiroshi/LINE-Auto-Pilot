@@ -116,7 +116,7 @@ const TermsOfService: React.FC = () => {
                 <h2 className="text-xl font-bold text-slate-900">第5条（外部サービス連携）</h2>
               </div>
               <ol className="list-decimal list-outside pl-5 space-y-2 text-slate-600">
-                <li>本サービスは、LINE株式会社が提供するLINE Messaging APIおよびGoogle LLCが提供するGoogle Calendar API等の外部サービス（以下「外部サービス」といいます）と連携して機能を提供します。</li>
+                <li>本サービスは、LINEヤフー株式会社が提供するLINE Messaging APIおよびGoogle LLCが提供するGoogle Calendar API等の外部サービス（以下「外部サービス」といいます）と連携して機能を提供します。</li>
                 <li>ユーザーは、外部サービスの利用規約および運用ルールを遵守するものとします。</li>
                 <li>外部サービスの仕様変更、障害、またはユーザーによる外部サービス設定の不備等により本サービスが正常に動作しない場合において、当サービスは一切の責任を負わないものとします。</li>
                 <li>Googleカレンダー連携において、本サービスはGoogleカレンダーを予約情報の「正（Source of Truth）」として扱います。同期の遅延や不整合により生じた損害（ダブルブッキング等を含む）について、当サービスは商業的に合理的な範囲で対策を行いますが、完全な整合性を保証するものではありません。</li>
