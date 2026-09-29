@@ -7,8 +7,9 @@ import { isPaidPlan } from '../lib/planUtils'
 import { sendLinkMessage } from '../lib/liffLinkMessage'
 import { usePublicBookingResources } from '../hooks/usePublicBookingResources'
 import { fetchPublicStoreInfo } from '../lib/publicStoreInfo'
+import { getBookingTheme } from '../lib/bookingTheme'
 import type { StoreMenu, StoreStaff } from '../types/storeResources'
-import { Calendar, User, CheckCircle, Loader2, AlertCircle, Grid, Clock, Edit2, XCircle } from 'lucide-react'
+import { Calendar, User, Check, CheckCircle, Loader2, AlertCircle, Grid, Clock, Edit2, XCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import liff from '@line/liff'
 import BookingHeader from '../components/booking/BookingHeader'
@@ -904,473 +905,8 @@ export default function Booking() {
     }
   }
 
-  // Dynamic Styles based on Template
-  const theme = (() => {
-    const t = storeSettings.liff_template_id
-    const c = storeSettings.liff_theme_color
-
-    const common = {
-      container: 'min-h-screen py-8 px-4 transition-colors duration-300 flex flex-col items-center justify-center',
-      card: 'w-full max-w-md mx-auto overflow-hidden transition-all duration-300 relative',
-      input: 'w-full p-3 outline-none transition-all duration-200',
-    }
-
-    switch (t) {
-      case 'elegant':
-        return {
-          container: `${common.container} bg-[#F5F5F4] font-serif`,
-          card: `${common.card} bg-white shadow-xl border border-[#E7E5E4] rounded-sm`,
-          header: 'p-8 text-center border-b border-[#E7E5E4]',
-          title: 'text-xl tracking-[0.2em] text-[#44403C] font-medium flex items-center justify-center gap-3',
-          label: 'block text-xs font-bold text-[#78716C] mb-2 tracking-widest uppercase',
-          input: `${common.input} bg-transparent border-b border-[#D6D3D1] focus:border-[#44403C] rounded-none px-0 text-[#44403C] placeholder-[#A8A29E]`,
-          buttonPrimary: 'w-full py-4 bg-[#44403C] text-[#F5F5F4] uppercase tracking-[0.2em] text-xs rounded-sm shadow-sm transition-colors active:bg-[#292524]',
-          buttonSecondary: 'w-full py-4 bg-transparent border border-[#D6D3D1] text-[#78716C] uppercase tracking-[0.2em] text-xs rounded-sm transition-colors active:bg-[#F5F5F4]',
-          slotGrid: 'grid grid-cols-3 gap-3',
-          slotButton: (selected: boolean, available: boolean) => `
-            py-4 text-sm font-serif tracking-wider border transition-all
-            ${selected 
-              ? 'bg-[#44403C] text-[#F5F5F4] border-[#44403C]' 
-              : available 
-                ? 'bg-white text-[#57534E] border-[#E7E5E4] active:border-[#78716C]' 
-                : 'bg-[#F5F5F4] text-[#D6D3D1] border-transparent cursor-not-allowed'}
-          `,
-          selectableItem: (selected: boolean) => `
-            p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
-            ${selected 
-              ? 'border-[#44403C] bg-[#44403C]/10' 
-              : 'border-[#E7E5E4] bg-white active:border-[#D6D3D1]'}
-          `,
-          selectableListItem: (selected: boolean) => `
-            w-full p-4 rounded-xl border-2 transition-all flex items-center justify-between gap-3 text-left
-            ${selected 
-              ? 'border-[#44403C] bg-[#44403C]/10' 
-              : 'border-[#E7E5E4] bg-white active:border-[#D6D3D1]'}
-          `,
-          selectableItemText: (selected: boolean) => (selected ? 'text-[#44403C]' : 'text-[#44403C]'),
-          selectableItemSubText: (selected: boolean) => (selected ? 'text-[#78716C]' : 'text-[#78716C]'),
-          infoBox: 'p-6 bg-[#FAFAF9] border border-[#E7E5E4] text-[#57534E]',
-          actionButtonPrimary: 'flex items-center justify-center gap-1 px-3 py-2 bg-[#44403C] text-[#F5F5F4] text-xs uppercase tracking-wider rounded-sm active:bg-[#292524] transition-colors',
-          actionButtonSecondary: 'flex items-center justify-center gap-1 px-3 py-2 bg-transparent border border-[#D6D3D1] text-[#78716C] text-xs uppercase tracking-wider rounded-sm active:bg-[#F5F5F4] transition-colors',
-          // 追加：選択サマリー・通知用スタイル
-          summaryBox: 'mb-6 p-4 bg-[#FAFAF9] rounded-sm border border-[#E7E5E4] text-sm space-y-1',
-          summaryLabel: 'text-[#78716C]',
-          summaryValue: 'font-medium text-[#44403C]',
-          summaryLink: 'text-xs text-[#57534E] underline w-full text-right mt-2',
-          noticeBox: 'mb-4 p-4 bg-[#F0F9FF] text-[#0369A1] text-sm rounded-sm border border-[#BAE6FD]',
-          noticeLink: 'block mt-1 underline font-medium',
-          emptySlotBox: 'text-center py-8 text-[#78716C] bg-[#FAFAF9] rounded-sm border border-dashed border-[#D6D3D1]',
-          selectedDateBox: 'mt-4 p-3 rounded-sm border-2 text-center',
-          selectedDateLabel: 'text-sm text-[#78716C]',
-          partySizeDisabled: 'bg-[#F5F5F4] text-[#D6D3D1] cursor-not-allowed',
-          partySizeEnabled: 'bg-[#E7E5E4] text-[#44403C]',
-          partySizeText: 'text-2xl font-medium min-w-[60px] text-center text-[#44403C]',
-          iconColor: '#57534E',
-          primaryStyle: {}, 
-          headerStyle: {},
-          titleStyle: {},
-          cardStyle: {},
-          // 表形式用スタイル
-          slotTable: {
-            headerBg: 'bg-[#FAFAF9]',
-            headerText: 'text-[#78716C]',
-            headerBorder: 'border-[#E7E5E4]',
-            timeCellBg: 'bg-[#FAFAF9]',
-            timeCellText: 'text-[#57534E]',
-            timeCellBorder: 'border-[#E7E5E4]',
-            rowBorder: 'border-[#E7E5E4]',
-            availableBtn: 'bg-white border border-[#D6D3D1] text-[#44403C]',
-            availableBtnActive: 'bg-[#F5F5F4] border-[#44403C]',
-            unavailableBtn: 'bg-[#F5F5F4] text-[#D6D3D1]',
-            emptyCell: 'text-[#D6D3D1]',
-            sundayText: 'text-[#B91C1C]',
-            saturdayText: 'text-[#1D4ED8]',
-            weekdayText: 'text-[#57534E]',
-            legendText: 'text-[#78716C]',
-            legendAvailable: 'border-[#D6D3D1] bg-white text-[#44403C]',
-            legendUnavailable: 'bg-[#F5F5F4] text-[#D6D3D1]',
-          },
-        }
-
-      case 'pop':
-        return {
-          container: `${common.container} bg-gray-50 font-sans`,
-          card: `${common.card} bg-white rounded-[40px] shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border-4 border-white`,
-          header: 'p-8 text-center bg-gray-50 rounded-b-[40px] mb-4 mx-2',
-          title: 'text-2xl font-black tracking-tight flex items-center justify-center gap-2',
-          label: 'block text-sm font-bold text-gray-400 mb-2 ml-3',
-          input: `${common.input} bg-gray-100 border-2 border-transparent rounded-3xl focus:bg-white focus:border-current transition-all font-bold text-gray-700 px-5`,
-          buttonPrimary: 'w-full py-4 text-white font-black rounded-full shadow-lg active:shadow-xl active:-translate-y-1 transition-all text-lg',
-          buttonSecondary: 'w-full py-4 bg-white text-gray-500 font-black rounded-full border-2 border-gray-100 active:bg-gray-50 transition-all',
-          slotGrid: 'grid grid-cols-3 gap-3',
-          slotButton: (selected: boolean, available: boolean) => `
-            py-3 rounded-2xl font-bold transition-all border-2
-            ${selected 
-              ? 'text-white shadow-md transform scale-105 border-transparent' 
-              : available 
-                ? 'bg-white text-gray-600 border-gray-100 active:border-current' 
-                : 'bg-gray-50 text-gray-300 border-transparent cursor-not-allowed'}
-          `,
-          selectableItem: (selected: boolean) => `
-            p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
-            ${selected 
-              ? 'border-current bg-opacity-10' 
-              : 'border-gray-100 bg-white active:border-gray-200'}
-          `,
-          selectableListItem: (selected: boolean) => `
-            p-4 rounded-xl border-2 transition-all flex flex-row items-center gap-3
-            ${selected 
-              ? 'border-current bg-opacity-10' 
-              : 'border-gray-100 bg-white active:border-gray-200'}
-          `,
-          selectableItemText: (selected: boolean) => (selected ? 'text-gray-800' : 'text-gray-800'),
-          selectableItemSubText: (selected: boolean) => (selected ? 'text-gray-500' : 'text-gray-500'),
-          infoBox: 'p-5 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200',
-          actionButtonPrimary: 'flex items-center justify-center gap-1 px-4 py-2 text-white font-bold rounded-full shadow-md active:shadow-lg active:-translate-y-0.5 transition-all text-xs',
-          actionButtonSecondary: 'flex items-center justify-center gap-1 px-4 py-2 bg-white text-gray-500 font-bold rounded-full border-2 border-gray-100 active:bg-gray-50 transition-all text-xs',
-          // 追加：選択サマリー・通知用スタイル
-          summaryBox: 'mb-6 p-4 bg-gray-50 rounded-3xl border-2 border-gray-100 text-sm space-y-1',
-          summaryLabel: 'text-gray-500',
-          summaryValue: 'font-bold text-gray-800',
-          summaryLink: 'text-xs text-blue-500 underline w-full text-right mt-2',
-          noticeBox: 'mb-4 p-4 bg-blue-50 text-blue-700 text-sm rounded-2xl border-2 border-blue-100',
-          noticeLink: 'block mt-1 underline font-bold',
-          emptySlotBox: 'text-center py-8 text-gray-500 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200',
-          selectedDateBox: 'mt-4 p-3 rounded-2xl border-2 text-center',
-          selectedDateLabel: 'text-sm text-gray-600',
-          partySizeDisabled: 'bg-gray-100 text-gray-300 cursor-not-allowed',
-          partySizeEnabled: 'bg-gray-200 text-gray-700',
-          partySizeText: 'text-2xl font-black min-w-[60px] text-center',
-          iconColor: c,
-          primaryStyle: { backgroundColor: c, borderColor: c },
-          headerStyle: { backgroundColor: `${c}15` }, // 10% opacity of theme color
-          titleStyle: { color: c },
-          cardStyle: {},
-          // 表形式用スタイル
-          slotTable: {
-            headerBg: 'bg-white',
-            headerText: 'text-gray-500',
-            headerBorder: 'border-gray-200',
-            timeCellBg: 'bg-white',
-            timeCellText: 'text-gray-600',
-            timeCellBorder: 'border-gray-100',
-            rowBorder: 'border-gray-100',
-            availableBtn: 'bg-white border-2 border-gray-200 text-emerald-500',
-            availableBtnActive: 'bg-emerald-50 border-emerald-400',
-            unavailableBtn: 'bg-gray-100 text-gray-300',
-            emptyCell: 'text-gray-200',
-            sundayText: 'text-red-500',
-            saturdayText: 'text-blue-500',
-            weekdayText: 'text-gray-700',
-            legendText: 'text-gray-500',
-            legendAvailable: 'border-2 border-gray-200 bg-white text-emerald-500',
-            legendUnavailable: 'bg-gray-100 text-gray-300',
-          },
-        }
-
-      case 'dark':
-        return {
-          container: `${common.container} bg-slate-950 font-sans`,
-          card: `${common.card} bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl text-slate-200`,
-          header: 'p-6 text-center border-b border-slate-800 bg-slate-900/50 backdrop-blur',
-          title: 'text-xl font-bold text-white flex items-center justify-center gap-2',
-          label: 'block text-sm font-medium text-slate-300 mb-2',
-          input: `${common.input} bg-slate-950 border border-slate-700 rounded-lg text-white focus:border-slate-500 focus:ring-1 focus:ring-slate-500 placeholder-slate-500`,
-          buttonPrimary: 'w-full py-3 bg-white text-slate-900 font-bold rounded-lg active:bg-slate-200 shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all',
-          buttonSecondary: 'w-full py-3 bg-slate-800 text-slate-200 border border-slate-700 font-bold rounded-lg active:bg-slate-700 transition-all',
-          slotGrid: 'grid grid-cols-3 gap-3',
-          slotButton: (selected: boolean, available: boolean) => `
-            py-3 rounded-lg font-medium transition-all
-            ${selected 
-              ? 'bg-white text-slate-900 shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
-              : available 
-                ? 'bg-slate-800 text-slate-200 border border-slate-700 active:border-slate-500' 
-                : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'}
-          `,
-          selectableItem: (selected: boolean) => `
-            p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
-            ${selected 
-              ? 'bg-white text-slate-900 border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
-              : 'bg-slate-800 text-slate-200 border-slate-700 active:border-slate-500'}
-          `,
-          selectableListItem: (selected: boolean) => `
-            p-4 rounded-xl border-2 transition-all flex flex-row items-center gap-3
-            ${selected 
-              ? 'bg-white text-slate-900 border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
-              : 'bg-slate-800 text-slate-200 border-slate-700 active:border-slate-500'}
-          `,
-          selectableItemText: (selected: boolean) => selected ? 'text-slate-900' : 'text-white',
-          selectableItemSubText: (selected: boolean) => selected ? 'text-slate-600' : 'text-slate-400',
-          infoBox: 'p-4 bg-slate-800 border border-slate-700 rounded-lg text-slate-200',
-          actionButtonPrimary: 'flex items-center justify-center gap-1 px-3 py-2 bg-white text-slate-900 font-bold rounded-lg active:bg-slate-200 shadow-[0_0_10px_rgba(255,255,255,0.2)] transition-all text-xs',
-          actionButtonSecondary: 'flex items-center justify-center gap-1 px-3 py-2 bg-slate-800 text-slate-200 border border-slate-700 font-bold rounded-lg active:bg-slate-700 transition-all text-xs',
-          // 追加：選択サマリー・通知用スタイル
-          summaryBox: 'mb-6 p-3 bg-slate-800 rounded-lg border border-slate-700 text-sm space-y-1',
-          summaryLabel: 'text-slate-400',
-          summaryValue: 'font-bold text-white',
-          summaryLink: 'text-xs text-cyan-400 underline w-full text-right mt-2',
-          noticeBox: 'mb-4 p-3 bg-cyan-900/30 text-cyan-300 text-sm rounded-lg border border-cyan-700/50',
-          noticeLink: 'block mt-1 underline font-bold text-cyan-200',
-          emptySlotBox: 'text-center py-8 text-slate-400 bg-slate-800/50 rounded-lg border border-dashed border-slate-700',
-          selectedDateBox: 'mt-4 p-3 rounded-lg border-2 text-center',
-          selectedDateLabel: 'text-sm text-slate-400',
-          partySizeDisabled: 'bg-slate-800 text-slate-600 cursor-not-allowed',
-          partySizeEnabled: 'bg-slate-700 text-white',
-          partySizeText: 'text-2xl font-bold min-w-[60px] text-center text-white',
-          iconColor: 'white',
-          primaryStyle: {},
-          headerStyle: {},
-          titleStyle: { textShadow: `0 0 20px ${c}` },
-          cardStyle: {},
-          // 表形式用スタイル
-          slotTable: {
-            headerBg: 'bg-slate-900',
-            headerText: 'text-slate-400',
-            headerBorder: 'border-slate-700',
-            timeCellBg: 'bg-slate-900',
-            timeCellText: 'text-slate-300',
-            timeCellBorder: 'border-slate-800',
-            rowBorder: 'border-slate-800',
-            availableBtn: 'bg-slate-800 border border-slate-600 text-emerald-400',
-            availableBtnActive: 'bg-slate-700 border-emerald-400',
-            unavailableBtn: 'bg-slate-900 text-slate-600',
-            emptyCell: 'text-slate-700',
-            sundayText: 'text-red-400',
-            saturdayText: 'text-blue-400',
-            weekdayText: 'text-slate-300',
-            legendText: 'text-slate-400',
-            legendAvailable: 'border border-slate-600 bg-slate-800 text-emerald-400',
-            legendUnavailable: 'bg-slate-900 text-slate-600',
-          },
-        }
-
-      case 'luxury':
-        return {
-          container: `${common.container} bg-gradient-to-br from-stone-950 via-stone-900 to-stone-950 font-serif`,
-          card: `${common.card} bg-gradient-to-br from-stone-900 to-stone-950 border border-amber-600/30 rounded-lg shadow-[0_0_60px_-15px_rgba(217,119,6,0.3)]`,
-          header: 'p-8 text-center border-b border-amber-600/20 bg-gradient-to-r from-amber-900/10 via-amber-600/10 to-amber-900/10',
-          title: 'text-xl font-light tracking-[0.15em] text-amber-100 flex items-center justify-center gap-3',
-          label: 'block text-xs font-medium text-amber-200/70 mb-2 tracking-wider uppercase',
-          input: `${common.input} bg-stone-900/50 border border-amber-600/30 rounded text-amber-100 focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50 placeholder-amber-200/30`,
-          buttonPrimary: 'w-full py-4 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-stone-900 font-semibold tracking-wider rounded shadow-lg shadow-amber-600/20 active:from-amber-500 active:to-amber-500 transition-all',
-          buttonSecondary: 'w-full py-4 bg-transparent border border-amber-600/50 text-amber-200 font-medium tracking-wider rounded active:bg-amber-600/10 transition-all',
-          slotGrid: 'grid grid-cols-3 gap-3',
-          slotButton: (selected: boolean, available: boolean) => `
-            py-4 rounded text-sm font-medium tracking-wide transition-all border
-            ${selected 
-              ? 'bg-gradient-to-r from-amber-600 to-amber-500 text-stone-900 border-amber-500 shadow-lg shadow-amber-600/30' 
-              : available 
-                ? 'bg-stone-900/50 text-amber-100 border-amber-600/30 active:border-amber-500 active:bg-amber-900/20' 
-                : 'bg-stone-950 text-amber-200/30 border-stone-800 cursor-not-allowed'}
-          `,
-          selectableItem: (selected: boolean) => `
-            p-5 rounded-lg border transition-all flex flex-col items-center gap-3
-            ${selected 
-              ? 'bg-gradient-to-br from-amber-600/20 to-amber-900/20 border-amber-500 shadow-lg shadow-amber-600/20' 
-              : 'bg-stone-900/50 border-amber-600/20 active:border-amber-500'}
-          `,
-          selectableListItem: (selected: boolean) => `
-            w-full p-5 rounded-lg border transition-all flex items-center justify-between gap-3 text-left
-            ${selected 
-              ? 'bg-gradient-to-br from-amber-600/20 to-amber-900/20 border-amber-500 shadow-lg shadow-amber-600/20' 
-              : 'bg-stone-900/50 border-amber-600/20 active:border-amber-500'}
-          `,
-          selectableItemText: (selected: boolean) => selected ? 'text-amber-100' : 'text-amber-100',
-          selectableItemSubText: (selected: boolean) => selected ? 'text-amber-200/70' : 'text-amber-200/50',
-          infoBox: 'p-6 bg-stone-900/50 border border-amber-600/20 rounded-lg text-amber-100',
-          actionButtonPrimary: 'flex items-center justify-center gap-1 px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-500 text-stone-900 font-semibold rounded shadow-lg shadow-amber-600/20 active:from-amber-500 transition-all text-xs tracking-wide',
-          actionButtonSecondary: 'flex items-center justify-center gap-1 px-4 py-2 bg-transparent border border-amber-600/50 text-amber-200 font-medium rounded active:bg-amber-600/10 transition-all text-xs tracking-wide',
-          summaryBox: 'mb-6 p-4 bg-stone-900/50 rounded-lg border border-amber-600/20 text-sm space-y-2',
-          summaryLabel: 'text-amber-200/60',
-          summaryValue: 'font-medium text-amber-100',
-          summaryLink: 'text-xs text-amber-400 underline w-full text-right mt-2',
-          noticeBox: 'mb-4 p-4 bg-amber-900/20 text-amber-200 text-sm rounded-lg border border-amber-600/30',
-          noticeLink: 'block mt-1 underline font-medium text-amber-300',
-          emptySlotBox: 'text-center py-8 text-amber-200/50 bg-stone-900/30 rounded-lg border border-dashed border-amber-600/30',
-          selectedDateBox: 'mt-4 p-3 rounded-lg border text-center',
-          selectedDateLabel: 'text-sm text-amber-200/60',
-          partySizeDisabled: 'bg-stone-900 text-amber-200/30 cursor-not-allowed',
-          partySizeEnabled: 'bg-amber-900/30 text-amber-200',
-          partySizeText: 'text-2xl font-light min-w-[60px] text-center text-amber-100 tracking-wider',
-          iconColor: '#fbbf24',
-          primaryStyle: {},
-          headerStyle: {},
-          titleStyle: {},
-          cardStyle: {},
-          slotTable: {
-            headerBg: 'bg-stone-900/50',
-            headerText: 'text-amber-200/60',
-            headerBorder: 'border-amber-600/20',
-            timeCellBg: 'bg-stone-900/50',
-            timeCellText: 'text-amber-100',
-            timeCellBorder: 'border-amber-600/10',
-            rowBorder: 'border-amber-600/10',
-            availableBtn: 'bg-stone-900/30 border border-amber-600/30 text-amber-400',
-            availableBtnActive: 'bg-amber-600/20 border-amber-500',
-            unavailableBtn: 'bg-stone-950 text-amber-200/20',
-            emptyCell: 'text-amber-200/10',
-            sundayText: 'text-red-400',
-            saturdayText: 'text-blue-400',
-            weekdayText: 'text-amber-100',
-            legendText: 'text-amber-200/60',
-            legendAvailable: 'border border-amber-600/30 bg-stone-900/30 text-amber-400',
-            legendUnavailable: 'bg-stone-950 text-amber-200/20',
-          },
-        }
-
-      case 'natural':
-        // 木目調・自然を感じさせるブラウン×グリーンのハーモニー
-        return {
-          container: `${common.container} bg-gradient-to-b from-amber-100/60 via-orange-50/40 to-lime-50/30 font-sans`,
-          card: `${common.card} bg-gradient-to-br from-orange-50/95 to-amber-50/90 backdrop-blur border border-amber-300/40 rounded-2xl shadow-xl shadow-amber-900/10`,
-          header: 'p-6 text-center border-b border-amber-200/60 bg-gradient-to-r from-amber-100/50 via-orange-50/30 to-lime-50/40',
-          title: 'text-lg font-semibold text-amber-950 flex items-center justify-center gap-2',
-          label: 'block text-sm font-medium text-amber-900 mb-2',
-          input: `${common.input} bg-white/70 border border-amber-300/60 rounded-xl text-amber-950 focus:border-lime-600 focus:ring-2 focus:ring-lime-200 placeholder-amber-500`,
-          buttonPrimary: 'w-full py-3.5 bg-gradient-to-r from-lime-700 via-lime-600 to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-lime-700/25 active:from-lime-800 active:to-emerald-700 transition-all',
-          buttonSecondary: 'w-full py-3.5 bg-gradient-to-r from-amber-100/80 to-orange-100/60 border border-amber-300/50 text-amber-900 font-medium rounded-xl active:from-amber-200/80 transition-all',
-          slotGrid: 'grid grid-cols-3 gap-3',
-          slotButton: (selected: boolean, available: boolean) => `
-            py-3 rounded-xl text-sm font-medium transition-all border
-            ${selected 
-              ? 'bg-gradient-to-r from-lime-600 to-emerald-600 text-white border-lime-500 shadow-lg shadow-lime-600/25' 
-              : available 
-                ? 'bg-gradient-to-br from-amber-50/80 to-orange-50/60 text-amber-900 border-amber-300/50 active:border-lime-500 active:bg-lime-50/50' 
-                : 'bg-stone-100/40 text-stone-400 border-stone-200/50 cursor-not-allowed'}
-          `,
-          selectableItem: (selected: boolean) => `
-            p-4 rounded-xl border transition-all flex flex-col items-center gap-3
-            ${selected 
-              ? 'bg-gradient-to-br from-lime-100/80 to-emerald-100/60 border-lime-500 shadow-lg shadow-lime-600/15' 
-              : 'bg-gradient-to-br from-amber-50/60 to-orange-50/40 border-amber-300/40 active:border-lime-400'}
-          `,
-          selectableListItem: (selected: boolean) => `
-            w-full p-4 rounded-xl border transition-all flex items-center justify-between gap-3 text-left
-            ${selected 
-              ? 'bg-gradient-to-br from-lime-100/80 to-emerald-100/60 border-lime-500 shadow-lg shadow-lime-600/15' 
-              : 'bg-gradient-to-br from-amber-50/60 to-orange-50/40 border-amber-300/40 active:border-lime-400'}
-          `,
-          selectableItemText: (selected: boolean) => selected ? 'text-lime-900' : 'text-amber-950',
-          selectableItemSubText: (selected: boolean) => selected ? 'text-lime-800' : 'text-amber-800',
-          infoBox: 'p-5 bg-gradient-to-br from-amber-100/60 to-orange-100/40 border border-amber-300/50 rounded-xl text-amber-950',
-          actionButtonPrimary: 'flex items-center justify-center gap-1 px-4 py-2 bg-gradient-to-r from-lime-700 to-emerald-600 text-white font-medium rounded-lg shadow-md shadow-lime-600/20 active:from-lime-800 transition-all text-xs',
-          actionButtonSecondary: 'flex items-center justify-center gap-1 px-4 py-2 bg-gradient-to-r from-amber-100/80 to-orange-100/60 border border-amber-300/50 text-amber-900 font-medium rounded-lg active:from-amber-200/80 transition-all text-xs',
-          summaryBox: 'mb-6 p-4 bg-gradient-to-br from-amber-100/50 via-orange-50/40 to-lime-100/30 rounded-xl border border-amber-300/40 text-sm space-y-1',
-          summaryLabel: 'text-amber-800',
-          summaryValue: 'font-semibold text-amber-950',
-          summaryLink: 'text-xs text-lime-700 underline w-full text-right mt-2',
-          noticeBox: 'mb-4 p-4 bg-gradient-to-r from-amber-100/60 to-orange-100/40 text-amber-900 text-sm rounded-xl border border-amber-300/50',
-          noticeLink: 'block mt-1 underline font-semibold text-lime-700',
-          emptySlotBox: 'text-center py-8 text-amber-600 bg-amber-100/30 rounded-xl border border-dashed border-amber-300/50',
-          selectedDateBox: 'mt-4 p-3 rounded-xl border text-center',
-          selectedDateLabel: 'text-sm text-amber-800',
-          partySizeDisabled: 'bg-stone-100/50 text-stone-400 cursor-not-allowed',
-          partySizeEnabled: 'bg-gradient-to-r from-amber-200/80 to-orange-200/60 text-amber-900',
-          partySizeText: 'text-2xl font-semibold min-w-[60px] text-center text-amber-950',
-          iconColor: '#92400e',
-          primaryStyle: {},
-          headerStyle: {},
-          titleStyle: {},
-          cardStyle: {},
-          slotTable: {
-            headerBg: 'bg-gradient-to-r from-amber-100/70 to-orange-100/50',
-            headerText: 'text-amber-800',
-            headerBorder: 'border-amber-300/40',
-            timeCellBg: 'bg-gradient-to-r from-amber-100/50 to-orange-50/40',
-            timeCellText: 'text-amber-900',
-            timeCellBorder: 'border-amber-200/50',
-            rowBorder: 'border-amber-200/40',
-            availableBtn: 'bg-gradient-to-br from-amber-50/70 to-orange-50/50 border border-amber-300/40 text-lime-800',
-            availableBtnActive: 'bg-gradient-to-br from-lime-100 to-emerald-100 border-lime-500',
-            unavailableBtn: 'bg-stone-100/40 text-stone-400',
-            emptyCell: 'text-amber-300',
-            sundayText: 'text-red-600',
-            saturdayText: 'text-blue-600',
-            weekdayText: 'text-amber-950',
-            legendText: 'text-amber-800',
-            legendAvailable: 'border border-amber-300/40 bg-gradient-to-br from-amber-50/70 to-orange-50/50 text-lime-800',
-            legendUnavailable: 'bg-stone-100/40 text-stone-400',
-          },
-        }
-
-      case 'simple':
-      default:
-        return {
-          container: `${common.container} bg-gray-50 font-sans`,
-          card: `${common.card} bg-white shadow-sm border border-gray-100 rounded-xl`,
-          header: 'p-5 text-center border-b border-gray-100',
-          title: 'text-lg font-bold text-gray-800 flex items-center justify-center gap-2',
-          label: 'block text-sm font-medium text-gray-700 mb-2',
-          input: `${common.input} bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-opacity-50 focus:border-transparent`,
-          buttonPrimary: 'w-full py-3 text-white font-bold rounded-lg shadow-sm active:opacity-90 transition-opacity',
-          buttonSecondary: 'w-full py-3 bg-white text-gray-600 border border-gray-200 font-bold rounded-lg active:bg-gray-50 transition-colors',
-          slotGrid: 'grid grid-cols-3 gap-3',
-          slotButton: (selected: boolean, available: boolean) => `
-            py-3 rounded-lg text-sm font-bold transition-all
-            ${selected 
-              ? 'text-white shadow-md transform scale-105' 
-              : available 
-                ? 'bg-white border border-gray-200 text-gray-700 active:border-gray-300 active:bg-gray-50' 
-                : 'bg-gray-50 text-gray-300 border border-gray-100 cursor-not-allowed'}
-          `,
-          selectableItem: (selected: boolean) => `
-            p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-3
-            ${selected 
-              ? 'border-current bg-opacity-10' 
-              : 'border-gray-100 bg-white active:border-gray-200'}
-          `,
-          selectableListItem: (selected: boolean) => `
-            p-4 rounded-xl border-2 transition-all flex flex-row items-center gap-3
-            ${selected 
-              ? 'border-current bg-opacity-10' 
-              : 'border-gray-100 bg-white active:border-gray-200'}
-          `,
-          selectableItemText: (selected: boolean) => (selected ? 'text-gray-800' : 'text-gray-800'),
-          selectableItemSubText: (selected: boolean) => (selected ? 'text-gray-500' : 'text-gray-500'),
-          infoBox: 'p-4 bg-gray-50 border border-gray-100 rounded-lg',
-          actionButtonPrimary: 'flex items-center justify-center gap-1 px-3 py-2 text-white font-bold rounded-lg shadow-sm active:opacity-90 transition-opacity text-xs',
-          actionButtonSecondary: 'flex items-center justify-center gap-1 px-3 py-2 bg-white text-gray-600 border border-gray-200 font-bold rounded-lg active:bg-gray-50 transition-colors text-xs',
-          // 追加：選択サマリー・通知用スタイル
-          summaryBox: 'mb-6 p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm space-y-1',
-          summaryLabel: 'text-gray-500',
-          summaryValue: 'font-bold text-gray-800',
-          summaryLink: 'text-xs text-blue-500 underline w-full text-right mt-2',
-          noticeBox: 'mb-4 p-3 bg-blue-50 text-blue-700 text-sm rounded-lg border border-blue-100',
-          noticeLink: 'block mt-1 underline font-bold',
-          emptySlotBox: 'text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300',
-          selectedDateBox: 'mt-4 p-3 rounded-lg border-2 text-center',
-          selectedDateLabel: 'text-sm text-gray-600',
-          partySizeDisabled: 'bg-gray-100 text-gray-300 cursor-not-allowed',
-          partySizeEnabled: 'bg-gray-200 text-gray-700',
-          partySizeText: 'text-2xl font-bold min-w-[60px] text-center',
-          iconColor: c,
-          primaryStyle: { backgroundColor: c },
-          headerStyle: {},
-          titleStyle: {},
-          cardStyle: {},
-          // 表形式用スタイル
-          slotTable: {
-            headerBg: 'bg-white',
-            headerText: 'text-gray-500',
-            headerBorder: 'border-gray-200',
-            timeCellBg: 'bg-white',
-            timeCellText: 'text-gray-600',
-            timeCellBorder: 'border-gray-100',
-            rowBorder: 'border-gray-100',
-            availableBtn: 'bg-white border border-gray-200 text-emerald-600',
-            availableBtnActive: 'bg-emerald-50 border-emerald-400',
-            unavailableBtn: 'bg-gray-100 text-gray-300',
-            emptyCell: 'text-gray-200',
-            sundayText: 'text-red-500',
-            saturdayText: 'text-blue-500',
-            weekdayText: 'text-gray-700',
-            legendText: 'text-gray-500',
-            legendAvailable: 'border border-gray-200 bg-white text-emerald-600',
-            legendUnavailable: 'bg-gray-100 text-gray-300',
-          },
-        }
-    }
-  })()
+  // 見た目は lib/bookingTheme.ts に集約（色・角丸・影は CSS 変数 --bk-*）。container の style に vars を渡す
+  const theme = getBookingTheme(storeSettings.liff_template_id, storeSettings.liff_theme_color)
 
   if (step === 'loading') {
     return (
@@ -1393,7 +929,7 @@ export default function Booking() {
   }
 
   return (
-    <div className={theme.container}>
+    <div className={theme.container} style={theme.vars}>
       <LiffToast 
         isVisible={toastConfig.isVisible}
         message={toastConfig.message}
@@ -1438,38 +974,39 @@ export default function Booking() {
               <div className="space-y-4 mb-6">
                 {activeReservations.map((res) => (
                   <div key={res.id} className={`${theme.infoBox} relative`}>
-                    <div className="flex justify-between border-b border-current pb-2 border-opacity-20 mb-2">
-                      <span className="opacity-70">日時</span>
-                      <span className="font-bold text-right">
-                        {new Date(res.start_time).toLocaleDateString('ja-JP')} {new Date(res.start_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    
-                    {/* 担当者表示 */}
-                    {res.staff?.name && (
-                      <div className="flex justify-between border-b border-current pb-2 border-opacity-20 mb-2">
-                        <span className="opacity-70">担当</span>
-                        <span className="font-bold text-right">{res.staff.name}</span>
+                    <dl className={theme.infoRows}>
+                      <div className="flex justify-between gap-4">
+                        <dt className={theme.infoLabel}>日時</dt>
+                        <dd className={theme.infoValue}>
+                          {new Date(res.start_time).toLocaleDateString('ja-JP')} {new Date(res.start_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                        </dd>
                       </div>
-                    )}
 
-                    {/* メニュー表示 */}
-                    {res.menu?.name && (
-                      <div className="flex justify-between border-b border-current pb-2 border-opacity-20 mb-2">
-                        <span className="opacity-70 whitespace-nowrap">メニュー</span>
-                        <span className="font-bold text-right">
-                          {res.menu.name}
-                          {res.menu.price ? ` (¥${res.menu.price.toLocaleString()})` : ''}
-                        </span>
-                      </div>
-                    )}
+                      {/* 担当者表示 */}
+                      {res.staff?.name && (
+                        <div className="flex justify-between gap-4">
+                          <dt className={theme.infoLabel}>担当</dt>
+                          <dd className={theme.infoValue}>{res.staff.name}</dd>
+                        </div>
+                      )}
 
-                    <div className="flex justify-end items-center mt-2">
+                      {/* メニュー表示 */}
+                      {res.menu?.name && (
+                        <div className="flex justify-between gap-4">
+                          <dt className={`${theme.infoLabel} whitespace-nowrap`}>メニュー</dt>
+                          <dd className={theme.infoValue}>
+                            {res.menu.name}
+                            {res.menu.price ? ` (¥${res.menu.price.toLocaleString()})` : ''}
+                          </dd>
+                        </div>
+                      )}
+                    </dl>
+
+                    <div className="flex justify-end items-center mt-4">
                       <div className="flex gap-2">
                         <button 
                           onClick={() => handleModifyStart(res.id)}
                           className={theme.actionButtonPrimary}
-                          style={storeSettings.liff_template_id === 'simple' ? { backgroundColor: storeSettings.liff_theme_color } : {}}
                         >
                           <Edit2 size={14} />
                           予約を変更
@@ -1517,7 +1054,7 @@ export default function Booking() {
               
               <div className="space-y-4 mt-6">
                 {staffList.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                  <div className={theme.emptySlotBox}>
                     {resourcesError
                       ? 'スタッフ情報を読み込めませんでした。時間をおいて開き直してください。'
                       : 'スタッフが登録されていません'}
@@ -1533,18 +1070,17 @@ export default function Booking() {
                           setStep(storeSettings.booking_enable_menu ? 'menu_select' : 'date')
                         }}
                         className={theme.selectableItem(selectedStaff?.id === staff.id)}
-                        style={selectedStaff?.id === staff.id && storeSettings.liff_template_id !== 'dark' ? { borderColor: storeSettings.liff_theme_color, backgroundColor: `${storeSettings.liff_theme_color}10` } : {}}
                       >
-                        <div className={`w-16 h-16 rounded-full overflow-hidden flex items-center justify-center ${storeSettings.liff_template_id === 'dark' ? 'bg-slate-700' : 'bg-gray-100'}`}>
+                        <div className={theme.avatar}>
                           {staff.image_url ? (
                             <img src={staff.image_url} alt={staff.name} className="w-full h-full object-cover" />
                           ) : (
-                            <User className={storeSettings.liff_template_id === 'dark' ? 'text-slate-400' : 'text-gray-400'} size={32} />
+                            <User className={theme.avatarIcon} size={32} />
                           )}
                         </div>
                         <div className="text-center">
-                          <div className={`font-bold text-sm ${theme.selectableItemText(selectedStaff?.id === staff.id)}`}>{staff.name}</div>
-                          {staff.role && <div className={`text-xs mt-1 ${theme.selectableItemSubText(selectedStaff?.id === staff.id)}`}>{staff.role}</div>}
+                          <div className={`font-bold text-sm ${theme.selectableItemText}`}>{staff.name}</div>
+                          {staff.role && <div className={`text-xs mt-1 ${theme.selectableItemSubText}`}>{staff.role}</div>}
                         </div>
                       </button>
                     ))}
@@ -1557,10 +1093,10 @@ export default function Booking() {
                       }}
                       className={theme.selectableItem(false)}
                     >
-                      <div className={`w-16 h-16 rounded-full flex items-center justify-center ${storeSettings.liff_template_id === 'dark' ? 'bg-slate-700' : 'bg-gray-100'}`}>
-                        <User className={storeSettings.liff_template_id === 'dark' ? 'text-slate-400' : 'text-gray-400'} size={32} />
+                      <div className={theme.avatar}>
+                        <User className={theme.avatarIcon} size={32} />
                       </div>
-                      <div className={`font-bold text-sm ${theme.selectableItemText(false)}`}>指名なし</div>
+                      <div className={`font-bold text-sm ${theme.selectableItemText}`}>指名なし</div>
                     </button>
                   </div>
                 )}
@@ -1576,7 +1112,7 @@ export default function Booking() {
               
               <div className="space-y-4 mt-6">
                 {menuList.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                  <div className={theme.emptySlotBox}>
                     {resourcesError
                       ? 'メニューを読み込めませんでした。時間をおいて開き直してください。'
                       : 'メニューが登録されていません'}
@@ -1590,23 +1126,18 @@ export default function Booking() {
                           setSelectedMenu(menu)
                           setStep('date')
                         }}
-                        className={`
-                          w-full text-left flex justify-between items-center
-                          ${theme.selectableListItem(selectedMenu?.id === menu.id)}
-                        `}
-                        style={selectedMenu?.id === menu.id && storeSettings.liff_template_id !== 'dark' ? { borderColor: storeSettings.liff_theme_color, backgroundColor: `${storeSettings.liff_theme_color}10` } : {}}
+                        className={theme.selectableListItem(selectedMenu?.id === menu.id)}
                       >
                         <div>
-                          <div className={`font-bold ${theme.selectableItemText(selectedMenu?.id === menu.id)}`}>{menu.name}</div>
-                          {menu.description && <div className={`text-xs mt-1 line-clamp-2 ${theme.selectableItemSubText(selectedMenu?.id === menu.id)}`}>{menu.description}</div>}
-                          <div className={`text-xs mt-2 flex gap-3 ${theme.selectableItemSubText(selectedMenu?.id === menu.id)}`}>
+                          <div className={`font-bold ${theme.selectableItemText}`}>{menu.name}</div>
+                          {menu.description && <div className={`text-xs mt-1 line-clamp-2 ${theme.selectableItemSubText}`}>{menu.description}</div>}
+                          <div className={`text-xs mt-2 flex gap-3 ${theme.selectableItemSubText}`}>
                             {menu.duration_minutes && <span className="flex items-center gap-1"><Clock size={12} /> {menu.duration_minutes}分</span>}
                             {menu.price && <span>¥{menu.price.toLocaleString()}</span>}
                           </div>
                         </div>
-                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedMenu?.id === menu.id ? 'border-current' : (storeSettings.liff_template_id === 'dark' ? 'border-slate-600' : 'border-gray-300')}`}
-                             style={selectedMenu?.id === menu.id ? { borderColor: storeSettings.liff_theme_color } : {}}>
-                          {selectedMenu?.id === menu.id && <div className="w-3 h-3 rounded-full bg-current" style={{ backgroundColor: storeSettings.liff_theme_color }} />}
+                        <div className={theme.radio(selectedMenu?.id === menu.id)}>
+                          {selectedMenu?.id === menu.id && <Check size={14} strokeWidth={3} />}
                         </div>
                       </button>
                     ))}
@@ -1634,7 +1165,7 @@ export default function Booking() {
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
               {pictureUrl && (
                 <div className="flex justify-center mb-4">
-                  <img src={pictureUrl} alt={displayName} className="w-16 h-16 rounded-full border-2 border-white shadow-md" />
+                  <img src={pictureUrl} alt={displayName} className="w-16 h-16 rounded-full object-cover" />
                 </div>
               )}
               <h2 className={theme.title} style={theme.titleStyle}>
@@ -1731,9 +1262,8 @@ export default function Booking() {
                         className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold transition-colors ${
                           partySize >= 20 
                             ? theme.partySizeDisabled 
-                            : theme.partySizeEnabled
+                            : theme.partySizePlus
                         }`}
-                        style={partySize < 20 ? { backgroundColor: `${storeSettings.liff_theme_color}20`, color: storeSettings.liff_theme_color } : {}}
                       >
                         +
                       </button>
@@ -1748,11 +1278,11 @@ export default function Booking() {
                     {/* 凡例（上部右側） */}
                     <div className={`flex items-center gap-3 text-xs ${theme.slotTable.legendText}`}>
                       <span className="flex items-center gap-1">
-                        <span className={`w-4 h-4 rounded text-xs flex items-center justify-center font-bold ${theme.slotTable.legendAvailable}`}>◯</span>
+                        <span className={`w-5 h-5 text-xs flex items-center justify-center font-bold [border-radius:var(--bk-r-chip)] ${theme.slotTable.legendAvailable}`}>◯</span>
                         可
                       </span>
                       <span className="flex items-center gap-1">
-                        <span className={`w-4 h-4 rounded text-xs flex items-center justify-center font-bold ${theme.slotTable.legendUnavailable}`}>×</span>
+                        <span className={`w-5 h-5 text-xs flex items-center justify-center font-bold ${theme.slotTable.legendUnavailable}`}>×</span>
                         不可
                       </span>
                     </div>
@@ -1772,7 +1302,7 @@ export default function Booking() {
                         {/* ヘッダー：日付（スティッキー） */}
                         <thead className="sticky top-0 z-20">
                           <tr>
-                            <th className={`sticky left-0 z-30 ${theme.slotTable.headerBg} p-2 text-xs font-bold ${theme.slotTable.headerText} border-b ${theme.slotTable.headerBorder} min-w-[50px]`}>
+                            <th className={`sticky left-0 z-30 p-2 text-xs font-semibold min-w-[50px] [background-color:var(--bk-card)] ${theme.slotTable.headerText}`}>
                               時間
                             </th>
                             {displayDates.map((dateStr) => {
@@ -1783,16 +1313,14 @@ export default function Booking() {
                               const isSunday = dayIndex === 0
                               const isSaturday = dayIndex === 6
                               return (
-                                <th 
-                                  key={dateStr} 
-                                  className={`${theme.slotTable.headerBg} p-2 text-center border-b ${theme.slotTable.headerBorder} min-w-[52px]`}
-                                  style={isSelected ? { backgroundColor: `${storeSettings.liff_theme_color}20` } : {}}
-                                >
-                                  <div className={`text-[10px] font-bold ${isSunday ? theme.slotTable.sundayText : isSaturday ? theme.slotTable.saturdayText : theme.slotTable.headerText}`}>
-                                    {month}/{day}
-                                  </div>
-                                  <div className={`text-xs font-bold ${isSunday ? theme.slotTable.sundayText : isSaturday ? theme.slotTable.saturdayText : theme.slotTable.weekdayText}`}>
-                                    {dayName}
+                                <th key={dateStr} className="p-0.5">
+                                  <div className={`${theme.slotTable.headerCell} ${isSelected ? theme.slotTable.headerCellSelected : ''}`}>
+                                    <div className={`text-[10px] font-semibold ${isSunday ? theme.slotTable.sundayText : isSaturday ? theme.slotTable.saturdayText : theme.slotTable.headerText}`}>
+                                      {month}/{day}
+                                    </div>
+                                    <div className={`text-xs font-bold ${isSunday ? theme.slotTable.sundayText : isSaturday ? theme.slotTable.saturdayText : theme.slotTable.weekdayText}`}>
+                                      {dayName}
+                                    </div>
                                   </div>
                                 </th>
                               )
@@ -1802,8 +1330,8 @@ export default function Booking() {
                         {/* ボディ：時間帯 × 日付 */}
                         <tbody>
                           {allTimeSlots.map((timeStr) => (
-                            <tr key={timeStr} className={`border-b ${theme.slotTable.rowBorder} last:border-b-0`}>
-                              <td className={`sticky left-0 z-10 ${theme.slotTable.timeCellBg} p-2 text-xs font-bold ${theme.slotTable.timeCellText} border-r ${theme.slotTable.timeCellBorder}`}>
+                            <tr key={timeStr}>
+                              <td className={theme.slotTable.timeCell}>
                                 {timeStr}
                               </td>
                               {displayDates.map((dateStr) => {
@@ -1813,7 +1341,7 @@ export default function Booking() {
                                 const hasSlot = slotAvailable !== undefined
                                 
                                 return (
-                                  <td key={`${dateStr}-${timeStr}`} className="p-1 text-center">
+                                  <td key={`${dateStr}-${timeStr}`} className="p-0.5 text-center">
                                     {hasSlot ? (
                                       <button
                                         onClick={async () => {
@@ -1883,15 +1411,13 @@ export default function Booking() {
                                           }
                                         }}
                                         disabled={!isAvailable}
-                                        className={`
-                                          w-10 h-10 rounded-lg text-lg font-bold transition-all
-                                          ${isSelected 
-                                            ? 'text-white shadow-md transform scale-105' 
-                                            : isAvailable 
-                                              ? `${theme.slotTable.availableBtn} active:${theme.slotTable.availableBtnActive} cursor-pointer` 
-                                              : `${theme.slotTable.unavailableBtn} cursor-not-allowed`}
-                                        `}
-                                        style={isSelected ? { backgroundColor: storeSettings.liff_theme_color } : {}}
+                                        className={`w-10 h-10 text-base font-bold transition [border-radius:var(--bk-r-chip)] ${
+                                          isSelected
+                                            ? theme.slotTable.selectedBtn
+                                            : isAvailable
+                                              ? theme.slotTable.availableBtn
+                                              : theme.slotTable.unavailableBtn
+                                        }`}
                                       >
                                         {isSelected ? '✓' : isAvailable ? '◯' : '×'}
                                       </button>
@@ -1912,15 +1438,9 @@ export default function Booking() {
                   
                   {/* 選択中の日時表示 */}
                   {date && time && (
-                    <div 
-                      className={theme.selectedDateBox}
-                      style={{ 
-                        borderColor: storeSettings.liff_theme_color, 
-                        backgroundColor: `${storeSettings.liff_theme_color}10` 
-                      }}
-                    >
+                    <div className={theme.selectedDateBox}>
                       <span className={theme.selectedDateLabel}>選択中：</span>
-                      <span className="font-bold ml-2" style={{ color: storeSettings.liff_theme_color }}>
+                      <span className={theme.selectedDateValue}>
                         {(() => {
                           const [, month, day] = date.split('-').map(Number)
                           const dayName = ['日', '月', '火', '水', '木', '金', '土'][getJstDayOfWeek(date)]
@@ -1976,13 +1496,13 @@ export default function Booking() {
                 <div className="space-y-4">
                   {existingCustomer?.real_name ? (
                     <div className={theme.infoBox}>
-                      <p className="text-sm mb-1 opacity-70">ようこそ、</p>
+                      <p className={`text-sm mb-1 ${theme.infoLabel}`}>ようこそ、</p>
                       <p className="font-bold text-lg">{existingCustomer.real_name} 様</p>
-                      <p className="text-xs mt-2 opacity-70">※ご登録済みのお名前を使用します</p>
+                      <p className={`text-xs mt-2 ${theme.infoLabel}`}>※ご登録済みのお名前を使用します</p>
                     </div>
                   ) : (
                     <>
-                      <div className={theme.infoBox}>
+                      <div className={`${theme.infoBox} text-sm`}>
                         初回予約のため、お名前を入力してください。
                       </div>
                       <div>
@@ -2039,40 +1559,42 @@ export default function Booking() {
                 <CheckCircle color={theme.iconColor} /> {modifyingReservationId ? '変更内容の確認' : '予約内容の確認'}
               </h2>
 
-              <div className={`${theme.infoBox} space-y-3 mb-6`}>
-                <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
-                  <span className="opacity-70">日時</span>
-                  <span className="font-bold text-right">{date} {time}</span>
-                </div>
-                {storeSettings.booking_enable_party_size && (
-                  <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
-                    <span className="opacity-70">人数</span>
-                    <span className="font-bold text-right">{partySize}名</span>
+              <div className={`${theme.infoBox} mb-6`}>
+                <dl className={theme.infoRows}>
+                  <div className="flex justify-between gap-4">
+                    <dt className={theme.infoLabel}>日時</dt>
+                    <dd className={theme.infoValue}>{date} {time}</dd>
                   </div>
-                )}
-                {selectedStaff && (
-                  <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
-                    <span className="opacity-70">指名スタッフ</span>
-                    <span className="font-bold text-right">{selectedStaff.name}</span>
+                  {storeSettings.booking_enable_party_size && (
+                    <div className="flex justify-between gap-4">
+                      <dt className={theme.infoLabel}>人数</dt>
+                      <dd className={theme.infoValue}>{partySize}名</dd>
+                    </div>
+                  )}
+                  {selectedStaff && (
+                    <div className="flex justify-between gap-4">
+                      <dt className={theme.infoLabel}>指名スタッフ</dt>
+                      <dd className={theme.infoValue}>{selectedStaff.name}</dd>
+                    </div>
+                  )}
+                  {selectedMenu && (
+                    <div className="flex justify-between gap-4">
+                      <dt className={theme.infoLabel}>メニュー</dt>
+                      <dd className={theme.infoValue}>
+                        {selectedMenu.name}
+                        {selectedMenu.price ? ` (¥${selectedMenu.price.toLocaleString()})` : ''}
+                      </dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4">
+                    <dt className={theme.infoLabel}>お名前</dt>
+                    <dd className={theme.infoValue}>{realName}</dd>
                   </div>
-                )}
-                {selectedMenu && (
-                  <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
-                    <span className="opacity-70">メニュー</span>
-                    <span className="font-bold text-right">
-                      {selectedMenu.name}
-                      {selectedMenu.price ? ` (¥${selectedMenu.price.toLocaleString()})` : ''}
-                    </span>
+                  <div className="flex justify-between gap-4">
+                    <dt className={theme.infoLabel}>フリガナ</dt>
+                    <dd className={theme.infoValue}>{furigana}</dd>
                   </div>
-                )}
-                <div className="flex justify-between border-b border-current pb-2 border-opacity-20">
-                  <span className="opacity-70">お名前</span>
-                  <span className="font-bold text-right">{realName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="opacity-70">フリガナ</span>
-                  <span className="font-bold text-right">{furigana}</span>
-                </div>
+                </dl>
               </div>
 
               <div className="flex gap-3 mt-8">
@@ -2096,30 +1618,30 @@ export default function Booking() {
 
           {step === 'complete' && (
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-8">
-              <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 bg-green-100 text-green-600">
-                <CheckCircle size={40} />
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5 [background-color:var(--bk-accent)] [color:var(--bk-on-accent)]">
+                <Check size={32} strokeWidth={3} />
               </div>
               <h2 className={theme.title} style={theme.titleStyle}>{modifyingReservationId ? '変更完了' : '予約完了'}</h2>
-              <p className="mb-6 opacity-70 whitespace-nowrap">{modifyingReservationId ? '予約の変更が完了しました。' : 'ご予約ありがとうございます。'}</p>
+              <p className={`mt-2 mb-6 text-sm whitespace-nowrap ${theme.selectableItemSubText}`}>{modifyingReservationId ? '予約の変更が完了しました。' : 'ご予約ありがとうございます。'}</p>
 
               {/* Reservation Details Card for Screenshot */}
               <div className={`${theme.infoBox} text-left mb-8`}>
                 {/* 予約日時 */}
                 <div className="mb-4">
-                  <div className="text-xs opacity-70 mb-1">予約日時</div>
+                  <div className={`text-xs mb-1 ${theme.infoLabel}`}>予約日時</div>
                   <div className="text-xl font-bold">{date} {time}</div>
                 </div>
 
                 {/* お名前 */}
                 <div className="mb-4">
-                  <div className="text-xs opacity-70 mb-1">お名前</div>
+                  <div className={`text-xs mb-1 ${theme.infoLabel}`}>お名前</div>
                   <div className="text-lg font-bold">{realName} 様</div>
                 </div>
 
                 {/* 担当者（選択されている場合のみ表示） */}
                 {selectedStaff && (
                   <div className="mb-4">
-                    <div className="text-xs opacity-70 mb-1">担当</div>
+                    <div className={`text-xs mb-1 ${theme.infoLabel}`}>担当</div>
                     <div className="text-base font-semibold">{selectedStaff.name}</div>
                   </div>
                 )}
@@ -2127,9 +1649,9 @@ export default function Booking() {
                 {/* メニュー（選択されている場合のみ表示） */}
                 {selectedMenu && (
                   <div className="mb-4">
-                    <div className="text-xs opacity-70 mb-1">メニュー</div>
+                    <div className={`text-xs mb-1 ${theme.infoLabel}`}>メニュー</div>
                     <div className="text-base font-semibold">{selectedMenu.name}</div>
-                    <div className="text-sm opacity-70 mt-1">
+                    <div className={`text-sm mt-1 ${theme.selectableItemSubText}`}>
                       {selectedMenu.duration_minutes && `${selectedMenu.duration_minutes}分`}
                       {selectedMenu.duration_minutes && selectedMenu.price && ' / '}
                       {selectedMenu.price && `¥${selectedMenu.price.toLocaleString()}`}
@@ -2140,7 +1662,7 @@ export default function Booking() {
                 {/* 人数（人数選択が有効で2名以上の場合のみ表示） */}
                 {storeSettings.booking_enable_party_size && partySize > 1 && (
                   <div className="mb-4">
-                    <div className="text-xs opacity-70 mb-1">人数</div>
+                    <div className={`text-xs mb-1 ${theme.infoLabel}`}>人数</div>
                     <div className="text-base font-semibold">{partySize}名</div>
                   </div>
                 )}
@@ -2148,7 +1670,7 @@ export default function Booking() {
                 {/* 人数選択が有効で1名の場合も表示 */}
                 {storeSettings.booking_enable_party_size && partySize === 1 && (
                   <div>
-                    <div className="text-xs opacity-70 mb-1">人数</div>
+                    <div className={`text-xs mb-1 ${theme.infoLabel}`}>人数</div>
                     <div className="text-base font-semibold">{partySize}名</div>
                   </div>
                 )}
@@ -2156,8 +1678,7 @@ export default function Booking() {
 
               <button 
                 onClick={() => liff.closeWindow()}
-                className="font-bold hover:underline"
-                style={{ color: theme.iconColor }}
+                className="font-bold hover:underline [color:var(--bk-accent-text)]"
               >
                 閉じる
               </button>
@@ -2167,7 +1688,7 @@ export default function Booking() {
       </div>
       
       {/* Debug Info / Store Name Footer */}
-      <div className="mt-4 text-center text-[10px] text-gray-400 pb-4">
+      <div className="mt-4 text-center text-[10px] pb-4 [color:var(--bk-muted)]">
         {storeSettings.name}
       </div>
     </div>
