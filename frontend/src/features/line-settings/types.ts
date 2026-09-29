@@ -1,3 +1,5 @@
+import type { LogoLayout } from '../../lib/bookingLogoLayout'
+
 export type BookingSystemType = 'generic' | 'salon' | 'restaurant'
 
 export type BusinessHourSlot = { start: string; end: string }
@@ -33,6 +35,7 @@ export interface BookingSettings {
   liff_template_id: string
   liff_theme_color: string
   liff_logo_url: string
+  liff_logo_layout: LogoLayout
   booking_system_type: BookingSystemType
   slot_interval_minutes: number
   capacity_per_slot: number

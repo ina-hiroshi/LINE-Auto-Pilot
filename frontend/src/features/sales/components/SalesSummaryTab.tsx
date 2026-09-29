@@ -222,7 +222,7 @@ export function SalesSummaryTab({ storeId }: SalesSummaryTabProps) {
         {hasCustomRange && ' 下の期間指定が、上の集計にも反映されています。'}
       </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div data-tour="reservations.sales" className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <p className="text-sm text-gray-500 mb-1">{hasCustomRange ? '選択期間の総売上' : '今月の総売上'}</p>
           <p className="text-2xl font-bold text-gray-900">{formatYen(stats.total)}</p>

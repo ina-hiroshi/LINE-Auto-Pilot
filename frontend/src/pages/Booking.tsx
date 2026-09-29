@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getJstDayOfWeek, getJstDateString, getJstDateStringWithOffset } from '../lib/jstDate'
@@ -11,6 +11,8 @@ import type { StoreMenu, StoreStaff } from '../types/storeResources'
 import { Calendar, User, CheckCircle, Loader2, AlertCircle, Grid, Clock, Edit2, XCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import liff from '@line/liff'
+import BookingHeader from '../components/booking/BookingHeader'
+import { DEFAULT_LOGO_LAYOUT, normalizeLogoLayout, type LogoLayout } from '../lib/bookingLogoLayout'
 import LiffModal from '../components/liff/LiffModal'
 import LiffToast from '../components/liff/LiffToast'
 
@@ -52,6 +54,7 @@ export default function Booking() {
     liff_template_id: 'simple',
     liff_theme_color: '#00c3dc',
     liff_logo_url: '',
+    liff_logo_layout: DEFAULT_LOGO_LAYOUT as LogoLayout,
     booking_system_type: 'generic',
     slot_interval_minutes: 60,
     capacity_per_slot: 1,
@@ -373,6 +376,7 @@ export default function Booking() {
         liff_template_id: isPro ? (data.liff_template_id || 'simple') : 'simple',
         liff_theme_color: isPro ? (data.liff_theme_color || '#00c3dc') : '#00c3dc',
         liff_logo_url: isPro ? (data.liff_logo_url || '') : '',
+        liff_logo_layout: normalizeLogoLayout(data.liff_logo_layout),
         booking_system_type: data.booking_system_type || 'generic',
         slot_interval_minutes: data.slot_interval_minutes || 60,
         capacity_per_slot: data.capacity_per_slot || 1,
@@ -532,6 +536,17 @@ export default function Booking() {
   const isPreviewMode = useCallback(() => {
     return window.self !== window.top || lineUserId === 'PREVIEW_USER'
   }, [lineUserId])
+
+  // 設定画面のプレビュー（iframe）で、店舗情報の読み込みが終わったら親に知らせる。
+  // 親は未保存の設定（ロゴ・配置・色など）をここで送り直す。
+  const previewReadySent = useRef(false)
+  useEffect(() => {
+    if (previewReadySent.current) return
+    if (window.self === window.top) return
+    if (step === 'loading' || step === 'error') return
+    previewReadySent.current = true
+    window.parent.postMessage({ type: 'BOOKING_PREVIEW_READY' }, window.location.origin)
+  }, [step])
 
   const getLiffAccessToken = useCallback((): string | null => {
     try {
@@ -1398,17 +1413,12 @@ export default function Booking() {
         isLoading={loading}
       />
       <div className={theme.card} style={theme.cardStyle}>
-        <div className={theme.header} style={theme.headerStyle}>
-          {storeSettings.liff_logo_url ? (
-            <img
-              src={storeSettings.liff_logo_url}
-              alt="Logo"
-              className="block w-full max-h-[min(50vh,24rem)] h-auto object-contain object-center mx-auto"
-            />
-          ) : (
-            <h1 className={theme.title} style={theme.titleStyle}>予約フォーム</h1>
-          )}
-        </div>
+        <BookingHeader
+          theme={theme}
+          logoUrl={storeSettings.liff_logo_url}
+          storeName={storeSettings.name}
+          layout={normalizeLogoLayout(storeSettings.liff_logo_layout)}
+        />
 
         <div className="p-6">
           {/* Debug Info (Only in Dev) */}

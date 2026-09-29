@@ -21,7 +21,7 @@ export type StoreInfoParams = {
  * 直接 anon で最大2件の他店舗データを取得しており、それ自体が小さな漏えいだった）。
  */
 const PUBLIC_STORE_COLUMNS =
-  'id, name, liff_template_id, liff_theme_color, liff_logo_url, booking_system_type, ' +
+  'id, name, liff_template_id, liff_theme_color, liff_logo_url, liff_logo_layout, booking_system_type, ' +
   'slot_interval_minutes, capacity_per_slot, max_booking_days, business_hours, ' +
   'booking_enable_party_size, booking_enable_staff, booking_enable_menu, ' +
   'membership_card_title, membership_card_color, membership_card_logo_url, ' +

@@ -13,6 +13,8 @@ export type UnderlineTabItem<T extends string> = {
   badge?: ReactNode
   title?: string
   disabled?: boolean
+  /** 画面ツアーで光らせる対象にするときの data-tour の値 */
+  tourId?: string
 }
 
 export type UnderlineTabsProps<T extends string> = {
@@ -105,6 +107,7 @@ export function UnderlineTabs<T extends string>({
               type="button"
               onClick={() => !item.disabled && onChange(item.id)}
               disabled={item.disabled}
+              data-tour={item.tourId}
               title={item.title ?? (typeof item.label === 'string' ? item.label : undefined)}
               className={tabButtonClass(isActive, buttonExtra)}
             >

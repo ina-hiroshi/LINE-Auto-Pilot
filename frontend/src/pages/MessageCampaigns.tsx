@@ -13,8 +13,11 @@ import CampaignHistoryList from '../features/messaging/components/CampaignHistor
 import { useCampaignSend, useSegmentPreview } from '../features/messaging/hooks/useCampaign'
 import { findSegmentDefinition } from '../features/messaging/lib/segments'
 import type { SegmentParams, SegmentType } from '../features/messaging/types'
+import TutorialButton from '../features/tutorial/TutorialButton'
+import { usePageTutorial } from '../features/tutorial/usePageTutorial'
 
-type TabId = 'compose' | 'history'
+export type MessageCampaignsTab = 'compose' | 'history'
+type TabId = MessageCampaignsTab
 
 /** 顧客一覧から「選択した方に配信」で渡ってくる state */
 type CampaignNavigationState = {
@@ -64,6 +67,7 @@ export default function MessageCampaigns() {
   const { staffList, menuList } = useStoreResources(storeId)
   const { preview, loading: previewLoading, error: previewError, fetchPreview, setPreview } = useSegmentPreview()
   const { send, sending } = useCampaignSend()
+  const tutorial = usePageTutorial('message-campaigns', { ready: !loading && !!storeId, tab, setTab })
 
   useEffect(() => {
     const loadStore = async () => {
@@ -203,32 +207,41 @@ export default function MessageCampaigns() {
 
       <div className="shrink-0 z-20 bg-white/95 backdrop-blur border-b border-gray-200 w-full">
         <div className="px-4 sm:px-8 py-4">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">メッセージ配信</h1>
-          <p className="text-sm text-gray-500">
-            来店状況や利用メニューでお客様を絞り込んで、LINEで一斉にお知らせできます。
-          </p>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">メッセージ配信</h1>
+              <p className="text-sm text-gray-500">
+                来店状況や利用メニューでお客様を絞り込んで、LINEで一斉にお知らせできます。
+              </p>
+            </div>
+            <TutorialButton tutorial={tutorial} />
+          </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="w-full">
-          <UnderlineTabs<TabId>
-            activeId={tab}
-            onChange={(id) => setTab(id)}
-            items={[
-              { id: 'compose', label: '新規配信' },
-              { id: 'history', label: '配信履歴' },
-            ]}
-          />
+          <div data-tour="campaigns.tabs">
+            <UnderlineTabs<TabId>
+              activeId={tab}
+              onChange={(id) => setTab(id)}
+              items={[
+                { id: 'compose', label: '新規配信' },
+                { id: 'history', label: '配信履歴' },
+              ]}
+            />
+          </div>
 
           {tab === 'history' ? (
-            <CampaignHistoryList
-              storeId={storeId}
-              onSelect={(campaignId) => navigate(`/message-campaigns/${campaignId}`)}
-            />
+            <div data-tour="campaigns.history">
+              <CampaignHistoryList
+                storeId={storeId}
+                onSelect={(campaignId) => navigate(`/message-campaigns/${campaignId}`)}
+              />
+            </div>
           ) : (
             <div>
-              <ol className="flex items-center gap-2 mb-6 text-xs">
+              <ol data-tour="campaigns.steps" className="flex items-center gap-2 mb-6 text-xs">
                 {STEP_LABELS.map((label, index) => (
                   <li key={label} className="flex items-center gap-2">
                     <span
@@ -249,17 +262,19 @@ export default function MessageCampaigns() {
               </ol>
 
               {step === 0 && (
-                <SegmentSelector
-                  segmentType={segmentType}
-                  segmentParams={segmentParams}
-                  onChange={handleSegmentChange}
-                  menuList={menuList}
-                  staffList={staffList}
-                  preview={preview}
-                  previewLoading={previewLoading}
-                  previewError={previewError}
-                  manualSelectionCount={manualCustomerIds.length}
-                />
+                <div data-tour="campaigns.segment">
+                  <SegmentSelector
+                    segmentType={segmentType}
+                    segmentParams={segmentParams}
+                    onChange={handleSegmentChange}
+                    menuList={menuList}
+                    staffList={staffList}
+                    preview={preview}
+                    previewLoading={previewLoading}
+                    previewError={previewError}
+                    manualSelectionCount={manualCustomerIds.length}
+                  />
+                </div>
               )}
 
               {step === 1 && (
@@ -305,6 +320,7 @@ export default function MessageCampaigns() {
                   <button
                     type="button"
                     onClick={() => setStep((current) => current + 1)}
+                    data-tour="campaigns.next"
                     disabled={step === 0 ? !canProceedFromSegment : messageText.trim().length === 0}
                     className="flex items-center gap-2 px-5 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm font-bold"
                   >

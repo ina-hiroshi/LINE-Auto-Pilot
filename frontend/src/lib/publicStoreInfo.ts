@@ -6,6 +6,7 @@ export type PublicStoreInfo = {
   liff_template_id: string | null
   liff_theme_color: string | null
   liff_logo_url: string | null
+  liff_logo_layout: string | null
   booking_system_type: string | null
   slot_interval_minutes: number | null
   capacity_per_slot: number | null

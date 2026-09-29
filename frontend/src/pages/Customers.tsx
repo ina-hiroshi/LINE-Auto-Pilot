@@ -6,6 +6,8 @@ import Toast from '../components/Toast'
 import QRScannerModal from '../components/QRScannerModal'
 import { formatCustomerLabel } from '../features/customers/lib/customerDisplayName'
 import type { CustomerData } from '../features/customers/types'
+import TutorialButton from '../features/tutorial/TutorialButton'
+import { usePageTutorial } from '../features/tutorial/usePageTutorial'
 
 export type { CustomerData }
 
@@ -20,6 +22,7 @@ export default function Customers() {
   const [storeId, setStoreId] = useState<string | null>(null)
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const tutorial = usePageTutorial('customers', { ready: !loading })
 
   const [toast, setToast] = useState<{ isVisible: boolean; message: string; type: 'success' | 'error' }>({
     isVisible: false,
@@ -256,7 +259,8 @@ export default function Customers() {
               </p>
             </div>
             <div className="flex gap-2 shrink-0">
-              <div className="relative w-36 sm:w-64">
+              <TutorialButton tutorial={tutorial} />
+              <div data-tour="customers.search" className="relative w-36 sm:w-64">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search className="h-5 w-5 text-gray-400" />
                 </div>
@@ -271,6 +275,7 @@ export default function Customers() {
               <button
                 type="button"
                 onClick={() => setIsQRScannerOpen(true)}
+                data-tour="customers.qr"
                 className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors shadow-sm whitespace-nowrap"
               >
                 <QrCode className="w-4 h-4" />
@@ -288,7 +293,7 @@ export default function Customers() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 w-10">
+                    <th data-tour="customers.select-all" className="px-4 py-3 w-10">
                       <input
                         type="checkbox"
                         aria-label="すべて選択"
@@ -320,13 +325,13 @@ export default function Customers() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {loadError ? (
-                    <tr>
+                    <tr data-tour="customers.table">
                       <td colSpan={7} className="px-6 py-4 text-center text-red-600">
                         {loadError}
                       </td>
                     </tr>
                   ) : filteredCustomers.length === 0 ? (
-                    <tr>
+                    <tr data-tour="customers.table">
                       <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                         {searchQuery ? '該当する顧客が見つかりません' : '顧客データがありません'}
                         {!searchQuery && (
@@ -337,9 +342,11 @@ export default function Customers() {
                       </td>
                     </tr>
                   ) : (
-                    filteredCustomers.map((customer) => (
+                    filteredCustomers.map((customer, index) => (
                       <tr
                         key={customer.id}
+                        // 画面ツアーで光らせるのは先頭の1行だけ
+                        data-tour={index === 0 ? 'customers.table' : undefined}
                         className="hover:bg-gray-50 cursor-pointer transition"
                         onClick={() => openCustomer(customer)}
                       >

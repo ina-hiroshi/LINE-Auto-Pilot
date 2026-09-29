@@ -9,6 +9,9 @@ import Modal from '../components/Modal';
 import Toast from '../components/Toast';
 import { UnderlineTabs } from '../components/UnderlineTabs';
 import ProLockOverlay from '../components/ProLockOverlay';
+import { useDirtyBaseline, useUnsavedChanges } from '../hooks/useUnsavedChanges';
+import TutorialButton from '../features/tutorial/TutorialButton';
+import { usePageTutorial } from '../features/tutorial/usePageTutorial';
 
 // --- Types ---
 
@@ -38,7 +41,7 @@ type KnowledgeDoc = {
   extracted_text?: string
 }
 
-type TabType = 'keyword' | 'ai_settings' | 'knowledge';
+export type TabType = 'keyword' | 'ai_settings' | 'knowledge';
 
 // --- Components ---
 
@@ -159,6 +162,7 @@ export default function AutoResponses() {
   const [storeId, setStoreId] = useState<string | null>(null);
   const [isPro, setIsPro] = useState(false);
   const [toast, setToast] = useState<{ isVisible: boolean; message: string; type: 'success' | 'error' }>({ isVisible: false, message: '', type: 'success' });
+  const tutorial = usePageTutorial('auto-responses', { ready: !loading, tab: activeTab, setTab: setActiveTab });
 
   // --- Keyword Response State ---
   const [rules, setRules] = useState<AutoResponseRule[]>([]);
@@ -176,6 +180,11 @@ export default function AutoResponses() {
     tone: 'polite',
     persona_prompt: ''
   });
+  // 未保存判定は編集できる3項目だけ（DB由来のid・更新日時などは比較しない）
+  const { isDirty: isAiDirty, setBaseline: setAiBaseline } = useDirtyBaseline(
+    aiSettings,
+    ({ is_enabled, tone, persona_prompt }) => ({ is_enabled, tone, persona_prompt: persona_prompt || '' }),
+  );
   const [documents, setDocuments] = useState<KnowledgeDoc[]>([]);
   const [savingAi, setSavingAi] = useState(false);
   const [deleteDocModal, setDeleteDocModal] = useState<{ isOpen: boolean; docId: string | null }>({ isOpen: false, docId: null });
@@ -260,6 +269,7 @@ export default function AutoResponses() {
 
       if (aiData) {
         setAiSettings(aiData);
+        setAiBaseline(aiData);
       } else {
         // Create default settings if not exists
         const { data: newSettings, error: createError } = await supabase
@@ -269,7 +279,10 @@ export default function AutoResponses() {
           .single();
         
         if (createError) throw createError;
-        if (newSettings) setAiSettings(newSettings);
+        if (newSettings) {
+          setAiSettings(newSettings);
+          setAiBaseline(newSettings);
+        }
       }
 
       // --- Fetch Knowledge Base ---
@@ -423,7 +436,9 @@ export default function AutoResponses() {
 
   // --- AI Response Handlers ---
 
-  const handleSaveAiSettings = async () => {
+  const handleSaveAiSettings = async (): Promise<boolean> => {
+    // 保存中に入力が変わっても、DBに書いた値を基準にする
+    const savedAiSettings = aiSettings;
     try {
       setSavingAi(true);
       const { error } = await supabase
@@ -437,14 +452,19 @@ export default function AutoResponses() {
         .eq('id', aiSettings.id);
 
       if (error) throw error;
+      setAiBaseline(savedAiSettings);
       setToast({ isVisible: true, message: 'AI設定を保存しました', type: 'success' });
+      return true;
     } catch (error) {
       console.error('Error saving AI settings:', error);
       setToast({ isVisible: true, message: '保存に失敗しました', type: 'error' });
+      return false;
     } finally {
       setSavingAi(false);
     }
   };
+
+  useUnsavedChanges(isAiDirty, handleSaveAiSettings);
 
   // --- Knowledge Base Handlers ---
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -780,12 +800,14 @@ export default function AutoResponses() {
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">自動応答設定</h1>
               <p className="text-sm text-gray-500">LINE公式アカウントの自動応答ルールとAIアシスタントの設定を行います。</p>
             </div>
+            <TutorialButton tutorial={tutorial} />
           </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="w-full">
+        <div data-tour="auto-responses.tabs">
         <UnderlineTabs
           activeId={activeTab}
           onChange={setActiveTab}
@@ -810,6 +832,7 @@ export default function AutoResponses() {
             },
           ]}
         />
+        </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
 
@@ -822,7 +845,7 @@ export default function AutoResponses() {
               {/* Toolbar */}
               <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white">
                 <div className="flex flex-col md:flex-row items-start md:items-center gap-4 flex-1 w-full">
-                  <div className="relative w-full md:w-64">
+                  <div data-tour="auto-responses.search" className="relative w-full md:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                     <input
                       type="text"
@@ -849,6 +872,7 @@ export default function AutoResponses() {
                 </div>
                 <button
                   onClick={handleCreateRule}
+                  data-tour="auto-responses.create"
                   disabled={!isPro && rules.length >= 10}
                   className={`w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors shadow-sm text-sm font-medium ${
                     !isPro && rules.length >= 10
@@ -864,15 +888,17 @@ export default function AutoResponses() {
               {/* List */}
               <div className="flex-1 overflow-y-auto">
                 {filteredRules.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                  <div data-tour="auto-responses.rules" className="flex flex-col items-center justify-center h-64 text-gray-400">
                     <MessageSquare className="w-12 h-12 mb-3 opacity-20" />
                     <p>ルールが見つかりません</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-100">
-                    {filteredRules.map((rule) => (
+                    {filteredRules.map((rule, index) => (
                       <div
                         key={rule.id}
+                        // 画面ツアーで光らせるのは先頭の1件だけ
+                        data-tour={index === 0 ? 'auto-responses.rules' : undefined}
                         className="group p-3 md:p-4 hover:bg-gray-50 transition-colors flex items-start gap-3 md:gap-4"
                       >
                         <div className="pt-1 flex flex-col items-center gap-1 min-w-[50px] md:min-w-[60px]">
@@ -944,7 +970,7 @@ export default function AutoResponses() {
               <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 ${!isPro ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 <div className="space-y-8">
                   {/* Enable Switch */}
-                  <div className="flex items-center justify-between p-5 bg-gray-50 rounded-xl border border-gray-100">
+                  <div data-tour="auto-responses.ai-settings" className="flex items-center justify-between p-5 bg-gray-50 rounded-xl border border-gray-100">
                     <div>
                       <h3 className="font-bold text-gray-900 text-lg">AI自動応答を有効にする</h3>
                       <p className="text-sm text-gray-500 mt-1">
@@ -1101,7 +1127,8 @@ export default function AutoResponses() {
                   </div>
 
                   {/* Upload Area */}
-                  <div 
+                  <div
+                    data-tour="auto-responses.knowledge"
                     onClick={() => !uploading && !isOverLimit && fileInputRef.current?.click()}
                     className={`border-2 border-dashed border-gray-300 rounded-xl p-10 text-center hover:bg-gray-50 transition-colors cursor-pointer group bg-gray-50/30 ${uploading || isOverLimit ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
