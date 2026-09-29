@@ -11,7 +11,7 @@ import { judgeKeywordReplyFit } from '../_shared/keyword-judge.ts'
 import type { SupabaseClientType, AISettings } from '../_shared/types.ts'
 import { extractLinkCode } from '../_shared/link-code.ts'
 import type { FlexMessage } from '../_shared/reservation-flex.ts'
-import { handleLinkCode, recordFriendEvent } from './link.ts'
+import { detectSameProviderCustomer, handleLinkCode, recordFriendEvent } from './link.ts'
 import {
   MANUAL_REPLY_FALLBACK,
   MANUAL_REPLY_FALLBACK_COOLDOWN_HOURS,
@@ -424,6 +424,11 @@ Deno.serve(async (req: Request) => {
 
         // Process Events
         for (const event of events) {
+          // 送信者 ID が予約側の顧客 ID と一致すれば、同じプロバイダー（確認コード無しで紐付け可能）
+          if ((event.type === 'message' || event.type === 'follow') && event.source?.type === 'user' && event.source?.userId) {
+            await detectSameProviderCustomer(supabase, storeId, event.source.userId)
+          }
+
           // 友だちの追加・ブロックを記録する（全友だち配信以外の絞り込み配信や、通数の見積もりに使う）
           if ((event.type === 'follow' || event.type === 'unfollow') && event.source?.userId) {
             await recordFriendEvent(

@@ -71,12 +71,10 @@ export async function handleLinkCode(params: HandleLinkCodeParams): Promise<Hand
     .eq('line_user_id', loginUserId)
   if (linkError) console.error('link customer failed:', linkError.message)
 
-  // 同じ体系の ID なら、紐付け前の顧客にも予約側の ID でそのまま配信できる
-  const { error: alignError } = await supabase
-    .from('stores')
-    .update({ line_ids_aligned: messagingUserId === loginUserId })
-    .eq('id', storeId)
-  if (alignError) console.error('update line_ids_aligned failed:', alignError.message)
+  // 同じ体系の ID なら、紐付け前の顧客にも予約側の ID でそのまま配信できる。
+  // 「同じ」は確定できる（別プロバイダーで ID が偶然一致することはない）ので常に true にできるが、
+  // 「違う」は他人のコードが 1 件届いただけで店舗全体を false に落とさないよう、未判定のときだけ書く。
+  await markIdsAligned(supabase, storeId, messagingUserId === loginUserId)
 
   // 友だちの記録（記録開始前から友だちだった人も、ここで残る）
   const { error: friendError } = await supabase.from('line_friends').upsert(
@@ -186,4 +184,44 @@ export async function recordFriendEvent(
     { onConflict: 'store_id,messaging_user_id' },
   )
   if (error) console.error('record friend event failed:', error.message)
+}
+
+/**
+ * 店舗の LIFF 側 ID と Bot 側 ID が同じ体系かを記録する。
+ * aligned=true は常に書く。aligned=false は未判定（null）のときだけ書く。
+ */
+async function markIdsAligned(supabase: SupabaseClientType, storeId: string, aligned: boolean): Promise<void> {
+  let query = supabase.from('stores').update({ line_ids_aligned: aligned }).eq('id', storeId)
+  if (!aligned) query = query.is('line_ids_aligned', null)
+  const { error } = await query
+  if (error) console.error('update line_ids_aligned failed:', error.message)
+}
+
+/**
+ * Webhook の送信者 ID（Bot 側）が、この店舗の顧客の予約側 ID と一致するかを確かめる。
+ * 一致するなら LIFF と Bot が同じプロバイダーなので、確認コードを待たずに
+ * 紐付けと line_ids_aligned=true を確定できる（同じプロバイダーの店舗は、この経路だけで足りる）。
+ */
+export async function detectSameProviderCustomer(
+  supabase: SupabaseClientType,
+  storeId: string,
+  messagingUserId: string,
+): Promise<boolean> {
+  const { data: customer, error } = await supabase
+    .from('customers')
+    .select('id, line_messaging_user_id')
+    .eq('store_id', storeId)
+    .eq('line_user_id', messagingUserId)
+    .maybeSingle()
+  if (error || !customer) return false
+
+  if (customer.line_messaging_user_id !== messagingUserId) {
+    const { error: updateError } = await supabase
+      .from('customers')
+      .update({ line_messaging_user_id: messagingUserId })
+      .eq('id', customer.id)
+    if (updateError) console.error('link same-provider customer failed:', updateError.message)
+  }
+  await markIdsAligned(supabase, storeId, true)
+  return true
 }

@@ -1,6 +1,6 @@
 import { assert, assertEquals } from 'jsr:@std/assert@^1.0.0'
 import { createFakeSupabase, type FakeHandler } from '../booking/handlers/testSupabase.ts'
-import { handleLinkCode, recordFriendEvent } from './link.ts'
+import { detectSameProviderCustomer, handleLinkCode, recordFriendEvent } from './link.ts'
 import type { FlexMessage } from '../_shared/reservation-flex.ts'
 
 const STORE = 'store-1'
@@ -118,6 +118,8 @@ Deno.test('確認コード: 予約側と Bot 側の ID が違えば、店舗を�
   await run(s)
   const stores = s.fake.find('stores', 'update')[0]
   assertEquals(stores.payload, { line_ids_aligned: false })
+  // 別体系の判定は、未判定（null）のときだけ書く。true を上書きして落とさない。
+  assert(stores.filters.some((f) => f.op === 'is' && f.column === 'line_ids_aligned'))
 })
 
 Deno.test('確認コード: 予約側と Bot 側の ID が同じなら、店舗を「同じ体系」と記録する', async () => {
@@ -125,6 +127,7 @@ Deno.test('確認コード: 予約側と Bot 側の ID が同じなら、店舗�
   await run(s, { messagingUserId: LOGIN_ID })
   const stores = s.fake.find('stores', 'update')[0]
   assertEquals(stores.payload, { line_ids_aligned: true })
+  assert(!stores.filters.some((f) => f.column === 'line_ids_aligned'))
 })
 
 Deno.test('確認コード: 友だちとして記録する', async () => {
@@ -178,4 +181,25 @@ Deno.test('recordFriendEvent: 追加とブロックで状態を更新する', as
   assert('followed_at' in followed)
   assertEquals(blocked.status, 'blocked')
   assert(!('followed_at' in blocked))
+})
+
+Deno.test('同一プロバイダー検出: 送信者 ID が顧客の予約側 ID と一致すれば、紐付けて aligned=true にする', async () => {
+  const fake = createFakeSupabase((q) =>
+    q.table === 'customers' && q.method === 'select'
+      ? { data: { id: 'c1', line_messaging_user_id: null }, error: null }
+      : undefined
+  )
+  assertEquals(await detectSameProviderCustomer(fake.client, STORE, 'U-same'), true)
+  const link = fake.find('customers', 'update')[0]
+  assertEquals(link.payload, { line_messaging_user_id: 'U-same' })
+  assertEquals(fake.find('stores', 'update')[0].payload, { line_ids_aligned: true })
+})
+
+Deno.test('同一プロバイダー検出: 一致する顧客がいなければ何も書かない', async () => {
+  const fake = createFakeSupabase((q) =>
+    q.table === 'customers' && q.method === 'select' ? { data: null, error: null } : undefined
+  )
+  assertEquals(await detectSameProviderCustomer(fake.client, STORE, 'U-bot'), false)
+  assertEquals(fake.find('customers', 'update').length, 0)
+  assertEquals(fake.find('stores', 'update').length, 0)
 })
