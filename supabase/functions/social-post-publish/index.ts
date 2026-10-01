@@ -28,19 +28,47 @@ async function pollIgStatus(id: string, token: string, maxAttempts = 10, delayMs
   throw new Error(`Container ${id} did not finish within timeout`);
 }
 
+// 子コンテナ作成の再試行。Metaが画像URLを取得しにいって失敗すると、実際には
+// 一時的な取得失敗でも 9004/2207052（is_transient: false）で返ってくる。
+// 2026-09-30 の post23 は、他で成功済みの同一ファイルがこれで落ちて、
+// 後続の投稿ごと止まった。認証エラーなど再試行しても直らないものは即座に諦める。
+const CHILD_RETRY_DELAYS_MS = [3000, 8000];
+
+function isRetryableChildError(json: { error?: { code?: number; is_transient?: boolean; message?: string } }): boolean {
+  return json.error?.code === 9004 || json.error?.is_transient === true;
+}
+
+async function createCarouselChild(imageUrl: string, token: string, igUserId: string): Promise<string> {
+  const params = new URLSearchParams({
+    image_url: imageUrl,
+    is_carousel_item: "true",
+    access_token: token,
+  });
+  for (let attempt = 0; ; attempt++) {
+    let json: { id?: string; error?: { code?: number; is_transient?: boolean; message?: string } };
+    try {
+      const res = await fetch(`${IG_BASE}/${igUserId}/media`, { method: "POST", body: params });
+      json = await res.json();
+    } catch (networkError) {
+      // fetch自体の失敗（接続断など）はMeta側の応答が無いので、そのまま再試行対象にする
+      json = { error: { is_transient: true, message: `network error: ${String(networkError)}` } };
+    }
+    if (json.id) return json.id;
+
+    const delay = CHILD_RETRY_DELAYS_MS[attempt];
+    if (delay === undefined || !isRetryableChildError(json)) {
+      throw new Error(`Failed to create child for ${imageUrl}: ${JSON.stringify(json)}`);
+    }
+    console.warn(`child create failed (${imageUrl}), retry ${attempt + 1}/${CHILD_RETRY_DELAYS_MS.length}:`, JSON.stringify(json));
+    await new Promise((r) => setTimeout(r, delay));
+  }
+}
+
 async function publishInstagramCarousel(post: SocialPost, token: string, igUserId: string) {
   // 1. create child containers
   const childIds: string[] = [];
   for (const imageUrl of post.image_urls) {
-    const params = new URLSearchParams({
-      image_url: imageUrl,
-      is_carousel_item: "true",
-      access_token: token,
-    });
-    const res = await fetch(`${IG_BASE}/${igUserId}/media`, { method: "POST", body: params });
-    const json = await res.json();
-    if (!json.id) throw new Error(`Failed to create child for ${imageUrl}: ${JSON.stringify(json)}`);
-    childIds.push(json.id);
+    childIds.push(await createCarouselChild(imageUrl, token, igUserId));
   }
 
   // 2. wait for children to finish processing. Polled together rather than one
