@@ -33,6 +33,11 @@ function xWeightedLength(text: string): number {
   return total
 }
 
+/** X のスレッドは本文の中で「---」だけの行で区切る。1本目が投稿、2本目以降はその返信。 */
+function splitThread(body: string): string[] {
+  return body.split(/\n-{3,}\n/).map((p) => p.trim()).filter(Boolean)
+}
+
 function formatJst(iso: string): string {
   return new Date(iso).toLocaleString('ja-JP', {
     timeZone: 'Asia/Tokyo',
@@ -215,8 +220,8 @@ export default function OutreachPage() {
             const isDone = !!it.done_at
             const draft = editing[it.id]
             const isEditing = draft !== undefined
-            const text = isEditing ? draft : it.body
-            const xLen = channel === 'x' ? xWeightedLength(text) : null
+            const isX = channel === 'x'
+            const parts = isX ? splitThread(isEditing ? draft : it.body) : []
             return (
               <div
                 key={it.id}
@@ -276,23 +281,25 @@ export default function OutreachPage() {
                         </a>
                       </>
                     )}
-                    {channel === 'x' && (
+                    {isX && (
                       <a
-                        href={`https://x.com/intent/post?text=${encodeURIComponent(it.body)}`}
+                        href={`https://x.com/intent/post?text=${encodeURIComponent(splitThread(it.body)[0] ?? '')}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50"
                       >
-                        <ExternalLink size={12} /> Xで投稿画面を開く
+                        <ExternalLink size={12} /> Xで投稿画面を開く{parts.length > 1 ? '（1本目）' : ''}
                       </a>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => void copy(it.body)}
-                      className="flex items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1 text-xs text-white hover:bg-primary-700"
-                    >
-                      <Copy size={12} /> 本文をコピー
-                    </button>
+                    {!isX && (
+                      <button
+                        type="button"
+                        onClick={() => void copy(it.body)}
+                        className="flex items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1 text-xs text-white hover:bg-primary-700"
+                      >
+                        <Copy size={12} /> 本文をコピー
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -310,6 +317,40 @@ export default function OutreachPage() {
                       rows={Math.max(6, draft.split('\n').length + 1)}
                       className="w-full rounded-lg border border-gray-300 p-3 text-sm leading-relaxed focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                     />
+                  ) : isX ? (
+                    <ol className="space-y-2">
+                      {parts.map((part, i) => {
+                        const len = xWeightedLength(part)
+                        return (
+                          <li key={i} className="rounded-lg bg-gray-50 p-3">
+                            <div className="mb-1.5 flex flex-wrap items-center gap-2 text-xs">
+                              {parts.length > 1 && (
+                                <span className="rounded bg-white px-2 py-0.5 font-medium text-gray-600 ring-1 ring-gray-200">
+                                  {i + 1}/{parts.length} {i === 0 ? '投稿' : '返信でつなげる'}
+                                </span>
+                              )}
+                              <span className={len > 280 ? 'font-medium text-red-600' : 'text-gray-400'}>
+                                {len} / 280
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => void copy(part)}
+                                className="ml-auto flex items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1 text-white hover:bg-primary-700"
+                              >
+                                <Copy size={12} /> {parts.length > 1 ? `${i + 1}本目をコピー` : '本文をコピー'}
+                              </button>
+                            </div>
+                            <div
+                              className={`whitespace-pre-wrap text-sm leading-relaxed ${
+                                isDone ? 'text-gray-400' : 'text-gray-800'
+                              }`}
+                            >
+                              {part}
+                            </div>
+                          </li>
+                        )
+                      })}
+                    </ol>
                   ) : (
                     <div
                       className={`whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm leading-relaxed ${
@@ -320,9 +361,19 @@ export default function OutreachPage() {
                     </div>
                   )}
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                    {xLen !== null && (
-                      <span className={xLen > 280 ? 'font-medium text-red-600' : 'text-gray-400'}>
-                        {xLen} / 280（Xの文字数換算）
+                    {isX && isEditing && (
+                      <span className="text-gray-500">
+                        「---」だけの行で区切るとスレッドになります（
+                        {parts.map((part, i) => {
+                          const len = xWeightedLength(part)
+                          return (
+                            <span key={i} className={len > 280 ? 'font-medium text-red-600' : undefined}>
+                              {i > 0 && '・'}
+                              {i + 1}本目 {len}/280
+                            </span>
+                          )
+                        })}
+                        ）
                       </span>
                     )}
                     <div className="ml-auto flex gap-2">
