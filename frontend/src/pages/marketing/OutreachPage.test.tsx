@@ -34,6 +34,7 @@ const rows: OutreachItem[] = [
   item({ id: 'xg', kind: 'guide', section: '方針・設定', title: '投稿の方針', body: 'URLは週2本まで' }),
   item({ id: 'x1', title: '#1', body: 'モニター店舗のご応募をいただきました。', note: '固定ポストにする' }),
   item({ id: 'x2', title: '#2', body: '個人店のLINE公式', done_at: '2026-10-01T03:00:00Z' }),
+  item({ id: 'x3', title: '#3', body: 'スレッドの1本目\n---\nスレッドの2本目' }),
   item({
     id: 'ig1', channel: 'instagram', section: '1日目', title: '1. @shop_a', target_handle: 'shop_a',
     target_name: 'Shop A', target_detail: '美容室・大村市', body: 'オープンおめでとうございます！',
@@ -66,7 +67,7 @@ describe('OutreachPage', () => {
     expect(screen.getByText('固定ポストにする')).toBeInTheDocument()
     expect(screen.getByText('投稿の方針')).toBeInTheDocument()
     expect(screen.getByText(/投稿済み 10\/1/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /X 手動投稿/ })).toHaveTextContent('1/2')
+    expect(screen.getByRole('button', { name: /X 手動投稿/ })).toHaveTextContent('1/3')
   })
 
   it('チェックを押すと done_at を付けて済みにする', async () => {
@@ -87,6 +88,21 @@ describe('OutreachPage', () => {
     expect(screen.getByText('【確認】開業していたら1行目を差し替える')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /プロフィール/ })).toHaveAttribute('href', 'https://www.instagram.com/shop_a/')
     expect(screen.getByRole('link', { name: /DMを開く/ })).toHaveAttribute('href', 'https://ig.me/m/shop_a')
+  })
+
+  it('「---」で区切った本文はスレッドとして1本ずつコピーできる', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+    render(<OutreachPage />)
+    expect(await screen.findByText('スレッドの1本目')).toBeInTheDocument()
+    expect(screen.getByText('1/2 投稿')).toBeInTheDocument()
+    expect(screen.getByText('2/2 返信でつなげる')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '2本目をコピー' }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('スレッドの2本目'))
+    expect(screen.getByRole('link', { name: /Xで投稿画面を開く（1本目）/ })).toHaveAttribute(
+      'href',
+      `https://x.com/intent/post?text=${encodeURIComponent('スレッドの1本目')}`,
+    )
   })
 
   it('未実施のみに絞ると済みの行を隠す', async () => {
