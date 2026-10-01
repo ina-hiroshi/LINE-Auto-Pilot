@@ -39,6 +39,7 @@ import FeatureRichMenu from './pages/FeatureRichMenu'
 import AdminDashboard from './pages/AdminDashboard'
 import MarketingLayout from './pages/marketing/MarketingLayout'
 import PostsPage from './pages/marketing/PostsPage'
+import OutreachPage from './pages/marketing/OutreachPage'
 import AdsPage from './pages/marketing/AdsPage'
 import InboxPage from './pages/marketing/InboxPage'
 import AutoRepliesPage from './pages/marketing/AutoRepliesPage'
@@ -291,6 +292,7 @@ function App() {
             <Route path="/marketing" element={<MarketingLayout />}>
               <Route index element={<Navigate to="/marketing/posts" replace />} />
               <Route path="posts" element={<PostsPage />} />
+              <Route path="outreach" element={<OutreachPage />} />
               <Route path="ads" element={<AdsPage />} />
               <Route path="inbox" element={<InboxPage />} />
               <Route path="replies" element={<AutoRepliesPage />} />
