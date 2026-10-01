@@ -5,6 +5,10 @@ import { getToken } from "../_shared/meta-tokens.ts";
 const IG_BASE = "https://graph.instagram.com/v21.0";
 const FB_BASE = "https://graph.facebook.com/v21.0";
 
+// claim_next_social_post_batch() の max_attempts、および marketing-posts/queue.ts の
+// MAX_ATTEMPTS と同じ値。この回数に達した failed 行はキューから拾われなくなる。
+const MAX_ATTEMPTS = 3;
+
 type SocialPost = {
   id: string;
   slug: string;
@@ -14,6 +18,8 @@ type SocialPost = {
   status: string;
   attempts: number;
 };
+
+type PublishFailure = { platform: string; error: string; slug: string; attempts: number };
 
 async function pollIgStatus(id: string, token: string, maxAttempts = 10, delayMs = 4000) {
   for (let i = 0; i < maxAttempts; i++) {
@@ -31,7 +37,7 @@ async function pollIgStatus(id: string, token: string, maxAttempts = 10, delayMs
 // 子コンテナ作成の再試行。Metaが画像URLを取得しにいって失敗すると、実際には
 // 一時的な取得失敗でも 9004/2207052（is_transient: false）で返ってくる。
 // 2026-09-30 の post23 は、他で成功済みの同一ファイルがこれで落ちて、
-// 後続の投稿ごと止まった。認証エラーなど再試行しても直らないものは即座に諦める。
+// 後続の投稿日も押し下げた。認証エラーなど再試行しても直らないものは即座に諦める。
 const CHILD_RETRY_DELAYS_MS = [3000, 8000];
 
 function isRetryableChildError(json: { error?: { code?: number; is_transient?: boolean; message?: string } }): boolean {
@@ -230,7 +236,8 @@ Deno.serve(async (req: Request) => {
           .from("social_posts")
           .update({ status: "failed", error: message })
           .eq("id", post.id);
-        return { platform: post.platform, error: message, slug: post.slug };
+        const failure: PublishFailure = { platform: post.platform, error: message, slug: post.slug, attempts: post.attempts };
+        return failure;
       }
     }));
 
@@ -239,17 +246,33 @@ Deno.serve(async (req: Request) => {
 
     if (failures.length > 0) {
       // 失敗は social_posts.error に残るが、それだけでは誰にも届かない。
-      // さらに claim_next_social_post_batch() は未完了の最古 slug を掴み続けるため、
-      // 直さない限り後続の投稿日が丸ごと後ろへずれていく。放置させない。
-      await sendAdminAlert(
-        `SNS自動投稿が失敗しました（${failures.length}件）`,
-        [
-          ...failures.map((f) => `・${f.slug} / ${f.platform}: ${f.error}`),
+      // attempts が上限未満の failed 行は、次回の実行で claim_next_social_post_batch() が
+      // 自動的に拾い直す（その間、後続の投稿日は後ろへずれる）。上限に達した行は
+      // 拾われなくなり、failed のまま後続へ進む。どちらの状態かを文面で伝える。
+      const willRetry = failures.filter((f) => f.attempts < MAX_ATTEMPTS);
+      const gaveUp = failures.filter((f) => f.attempts >= MAX_ATTEMPTS);
+      const line = (f: PublishFailure) =>
+        `・${f.slug} / ${f.platform}（${f.attempts}/${MAX_ATTEMPTS}回目）: ${f.error}`;
+
+      const body: string[] = [];
+      if (willRetry.length > 0) {
+        body.push("【次回の自動投稿で再試行します】", ...willRetry.map(line), "");
+      }
+      if (gaveUp.length > 0) {
+        body.push(
+          `【${MAX_ATTEMPTS}回失敗したため、自動再試行を止めました】`,
+          ...gaveUp.map(line),
           "",
-          "この投稿が片付くまで、後続の投稿は先に進みません。",
-          "管理画面の「広報 > 投稿」から再試行するか、キューから外してください。",
-        ],
+        );
+      }
+      body.push(
+        willRetry.length > 0
+          ? "再試行が済むまで、後続の投稿は先に進みません。"
+          : "この投稿は飛ばして、後続の投稿へ進みます。",
+        "管理画面の「広報 > 投稿」で、「キューに戻す」（再試行）か「見送る」（キューから外す）を選べます。",
       );
+
+      await sendAdminAlert(`SNS自動投稿が失敗しました（${failures.length}件）`, body);
     }
 
     return new Response(JSON.stringify({ results }), { status: failures.length > 0 ? 207 : 200 });
