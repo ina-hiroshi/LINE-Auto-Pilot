@@ -91,7 +91,7 @@ export default function OutreachPage() {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">
         <div className="mb-2 flex items-center gap-2 font-medium">
-          <AlertTriangle size={18} /> 手動施策を読み込めませんでした
+          <AlertTriangle size={18} /> XとDMマーケティングを読み込めませんでした
         </div>
         <p className="text-sm">{q.loadError}</p>
         <button
@@ -118,7 +118,7 @@ export default function OutreachPage() {
       />
 
       <div>
-        <h2 className="text-lg font-bold text-gray-900">手動施策</h2>
+        <h2 className="text-lg font-bold text-gray-900">XとDMマーケティング</h2>
         <p className="text-sm text-gray-500">
           X の手動投稿と Instagram の攻めDM の文面・送付先・注意点です。実施したらチェックを付けてください。
         </p>

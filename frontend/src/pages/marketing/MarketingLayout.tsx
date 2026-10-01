@@ -13,7 +13,7 @@ type TabId = 'posts' | 'outreach' | 'ads' | 'inbox' | 'replies' | 'settings'
  */
 const TABS: { id: TabId; path: string; label: string; icon: typeof Images; ready: boolean }[] = [
   { id: 'posts', path: '/marketing/posts', label: '投稿', icon: Images, ready: true },
-  { id: 'outreach', path: '/marketing/outreach', label: '手動施策', icon: ListChecks, ready: true },
+  { id: 'outreach', path: '/marketing/outreach', label: 'XとDMマーケティング', icon: ListChecks, ready: true },
   { id: 'ads', path: '/marketing/ads', label: '広告', icon: BarChart3, ready: true },
   { id: 'inbox', path: '/marketing/inbox', label: 'DM受信箱', icon: Inbox, ready: true },
   { id: 'replies', path: '/marketing/replies', label: '自動応答', icon: MessageSquareReply, ready: true },

@@ -8,13 +8,14 @@
 |---|---|
 | メールアドレス | itoguchi.app@gmail.com |
 | 名前（表示名） | IToguchi（イトグチ）｜個人店のLINE公式 |
-| ユーザー名 | 第1候補 `itoguchi_app`／第2候補 `itoguchiapp`／第3候補 `itoguchi_jp` |
+| ユーザー名 | `@IToguchi_app`（2026-10-01 開設） |
 | 自己紹介 | 下記（100字） |
 | 場所 | 空欄（または「日本」） |
 | ウェブサイト | https://itoguchi-app.jp/monitor |
 | アイコン | Instagramと同じ画像 |
 
-※ Instagramのユーザー名は `itoguchi.app`。Xのユーザー名にはドット（.）が使えないため、`_` に置き換えた `itoguchi_app` を第1候補にする。
+※ Instagramのユーザー名は `itoguchi.app`。Xのユーザー名にはドット（.）が使えないため `_` に置き換えた。
+※ プロフィールURL：https://x.com/IToguchi_app
 
 自己紹介:
 ```
