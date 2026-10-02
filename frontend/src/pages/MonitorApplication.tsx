@@ -1,33 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  Gift,
-  Sparkles,
-  MessageCircle,
-  Calendar,
-  CreditCard,
-  StickyNote,
-  Star,
-  Send,
-  BarChart3,
-  TrendingUp,
-  ShieldCheck,
-  Flame,
-} from 'lucide-react'
-import Logo from '../components/Logo'
-import smartAutoChatImage from '../assets/smartautochat.jpg'
-import yoyakuImage from '../assets/yoyaku.png'
-import membersImage from '../assets/members.png'
-import featureCustomersImage from '../assets/feature-customers.png'
-import featurePointsImage from '../assets/feature-points.png'
-import featureMessagingImage from '../assets/feature-messaging.png'
-import featureRichMenuImage from '../assets/feature-richmenu.png'
-import featureAiImage from '../assets/feature-ai.png'
+import { ArrowRight, Check } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import SiteShell from '../components/site/SiteShell'
+import HeroDemo from '../components/site/HeroDemo'
+import { LeaderRow, Slip, Stamp } from '../components/site/Receipt'
+import { FEATURES, LINE_DEMO_URL, SETUP_SERVICE_PRICE } from '../components/site/siteData'
+import { btnOutline, btnPrimary, textLink, wrap } from '../components/site/ui'
 
 /**
  * モニター特典の説明ページ。広告の着地点。
@@ -44,95 +24,34 @@ import featureAiImage from '../assets/feature-ai.png'
 // 予約枠・リッチメニューなどの運用設定は代行に含まない（SetupServiceModal と同じ範囲）。
 const BENEFITS = [
   'LINE Developersでのチャネル作成をサポートします',
-  '認証情報（チャネルID・シークレット等）の取得と登録を代行します',
+  '認証情報（チャネルID・シークレットなど）の取得と登録を代行します',
   'Webhook URLの設定と、LINE連携の完了確認まで行います',
-  'メールのやり取りだけで完結します（店舗へ伺う必要はありません）',
+  'やりとりはメールだけで済み、お店に伺う必要はありません',
 ]
 
 const STEPS = [
-  { n: 1, title: 'アカウントを登録', body: 'メールアドレスと店舗情報をご入力ください。数分で終わります。' },
-  { n: 2, title: 'Proプランを選択', body: '30日間は無料です。その画面で「インタビューに協力する」にチェックを入れてください。' },
-  { n: 3, title: '接続設定はこちらで代行', body: 'ご連絡のうえ、LINE公式アカウントとの接続設定を無償で行います。完了後にご案内します。' },
+  { title: 'アカウントを登録する', body: 'メールアドレスと店舗情報を入力してください。数分で終わります。' },
+  { title: 'Proプランを選ぶ', body: '30日間は無料です。その画面で「インタビューに協力する」にチェックを入れてください。' },
+  { title: '接続の設定はこちらで代行します', body: 'こちらからご連絡し、LINE公式アカウントとの接続設定を無料で行います。終わったらお知らせします。' },
 ]
 
-// 「まずはお試しください」セクション。既存のLINE公式アカウント(@431cghfd)は
+// 「まずは試す」節。既存のLINE公式アカウント(@431cghfd)は
 // line_accounts / auto_responses / stores.rich_menu_actions にデモとして機能する
-// 設定が既に入っており（自動応答8件稼働中、リッチメニューに予約する/会員証あり）、
+// 設定が既に入っており（自動応答稼働中、リッチメニューに予約する/会員証あり）、
 // 新規の実装なしでそのまま宣伝に使える。
 const TRY_ITEMS = [
-  {
-    icon: MessageCircle,
-    image: smartAutoChatImage,
-    title: '自動応答チャット',
-    body: '気になることをメッセージで送ると、その場で自動応答が返ってきます。',
-  },
-  {
-    icon: Calendar,
-    image: yoyakuImage,
-    title: '予約体験',
-    body: 'リッチメニューの「予約する」から、実際の予約の流れを体験できます。',
-  },
-  {
-    icon: CreditCard,
-    image: membersImage,
-    title: 'デジタル会員証',
-    body: 'リッチメニューの「会員証」から、会員証の見え方を確認できます。',
-  },
-]
-
-const LINE_ADD_FRIEND_URL = 'https://line.me/R/ti/p/@431cghfd'
-
-// 自動応答・予約・会員証は上の「まずはお試しください」で体験できるため、
-// ここではそれ以外の機能を主役にする。管理画面のナビゲーション（Layout.tsx）と
-// 名称を揃え、画像は各機能の詳細ページ（/feature/*）の実際のUIから切り出している。
-const MORE_FEATURES = [
-  {
-    icon: StickyNote,
-    image: featureCustomersImage,
-    title: '顧客一覧・来店メモ',
-    body: '来店履歴やメモをお客様ごとに記録。次の接客にすぐ活かせます。',
-    link: '/feature/customers',
-  },
-  {
-    icon: Star,
-    image: featurePointsImage,
-    title: 'ポイント管理',
-    body: '来店・購入に応じてポイントを付与。スタンプカードにも切り替えられます。',
-    link: '/feature/points',
-  },
-  {
-    icon: Send,
-    image: featureMessagingImage,
-    title: 'メッセージ配信',
-    body: '目的を書くだけでAIが文章を下書き。条件で絞って一斉配信できます。',
-    link: '/feature/messaging',
-  },
-  {
-    icon: TrendingUp,
-    image: featureRichMenuImage,
-    title: 'リッチメニュー',
-    body: 'お店の写真をボタンごとに設定できる、オリジナルの入り口です。',
-    link: '/feature/rich-menu',
-  },
-  {
-    icon: BarChart3,
-    image: featureAiImage,
-    title: 'AIチャット',
-    body: 'キーワードでは拾えない自由な質問にも、学習させた情報をもとにAIが会話します。',
-    link: '/feature/ai',
-  },
+  { title: '自動応答', body: '気になることをメッセージで送ると、その場で自動の返事が届きます。' },
+  { title: '予約', body: 'リッチメニューの「予約する」から、実際の予約の流れを試せます。' },
+  { title: '会員証', body: 'リッチメニューの「会員証」から、会員証の見え方を確かめられます。' },
 ]
 
 type MonitorCapacity = { remaining: number; isFull: boolean }
 
+const h2 = 'text-3xl font-black leading-snug tracking-[-0.02em] sm:text-4xl'
+
 export default function MonitorApplication() {
-  const location = useLocation()
   const navigate = useNavigate()
   const [capacity, setCapacity] = useState<MonitorCapacity | null>(null)
-
-  useEffect(() => {
-    window.scrollTo(0, 0)
-  }, [location.pathname])
 
   useEffect(() => {
     // API呼び出しが失敗した場合はバッジ自体を出さない（訴求のためにダミー値は出さない）。
@@ -162,260 +81,216 @@ export default function MonitorApplication() {
     ;(window as unknown as { fbq?: (...args: unknown[]) => void }).fbq?.('track', 'Lead')
   }
 
-  return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center">
-            <Logo className="h-8" />
-          </Link>
-          <Link to="/" className="flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900">
-            <ArrowLeft size={16} />
-            トップへ戻る
-          </Link>
-        </div>
-      </header>
+  const lineButton = (
+    <a href={LINE_DEMO_URL} target="_blank" rel="noopener noreferrer" onClick={trackDemoClick} className={btnOutline}>
+      <span className="size-2 rounded-full bg-[#06C755]" aria-hidden="true" />
+      LINEを友だち追加して試す
+    </a>
+  )
 
-      <section className="bg-gradient-to-br from-primary-600 to-primary-800 text-white">
-        <div className="max-w-4xl mx-auto px-4 py-16">
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="grid md:grid-cols-2 gap-10 items-center"
-          >
-            <div className="text-center md:text-left">
-              <span className="inline-flex items-center gap-2 bg-white/15 rounded-full px-4 py-1.5 text-sm font-medium mb-6">
-                <Sparkles size={16} />
-                モニター店舗募集中
-              </span>
-              <h1 className="text-3xl md:text-4xl font-bold mb-4 leading-tight">
-                お客様との「つながり」を、<br className="md:hidden" />
-                IToguchiでつくりませんか？
-              </h1>
-              <p className="text-primary-100 mb-8 leading-relaxed">
-                「同じ質問に、何度も答えていませんか。」「あのお客様、二度目は来ましたか。」
-                その答えのカギは、お客様とのつながりです。
-                LINE公式アカウントなら、予約・自動応答・会員証・来店履歴をまとめて自動で記録し、次の接客に活かせます。
-              </p>
-              {capacity && (
-                <div
-                  className={`w-full sm:w-auto inline-flex items-center gap-3 rounded-2xl px-5 py-4 mb-6 ${
-                    capacity.isFull
-                      ? 'bg-white/10 border border-white/30'
-                      : 'bg-amber-400 shadow-lg shadow-amber-900/30'
-                  }`}
-                >
-                  <Flame
-                    size={28}
-                    className={capacity.isFull ? 'text-primary-200 shrink-0' : 'text-primary-900 shrink-0'}
+  return (
+    <SiteShell>
+      {/* ファーストビュー */}
+      <section className="bg-paper">
+        <div className={`${wrap} grid min-w-0 grid-cols-1 items-center gap-12 pb-20 pt-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:pb-24 lg:pt-14`}>
+          <div className="min-w-0">
+            <h1 className="text-[2rem] font-black leading-[1.3] tracking-[-0.02em] sm:text-[2.6rem] sm:leading-[1.25]">
+              <span className="inline-block">LINEとの接続は、</span>
+              <span className="inline-block">こちらで設定します。</span>
+              <span className="block">モニター店舗は無料です</span>
+            </h1>
+            <p className="mt-6 max-w-xl text-[17px] leading-[1.9] text-ink-soft">
+              同じ質問に、何度も答えていませんか。あのお客様は、二度目も来てくれましたか。LINE公式アカウントにIToguchiをつなぐと、予約・自動応答・会員証・来店の記録をまとめて任せられます。残った記録は、次の接客に活かせます。
+            </p>
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <button type="button" onClick={goToSignup} className={btnPrimary}>
+                無料で登録して特典を受け取る
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </button>
+              {lineButton}
+            </div>
+            <p className="mt-5 text-[14px] leading-relaxed text-ink-soft">
+              登録は無料です。初期設定代行（通常{SETUP_SERVICE_PRICE}）も無料になり、Proプランは30日間無料で試せます。
+            </p>
+          </div>
+
+          {/* 引換券 */}
+          <div className="mx-auto w-full max-w-sm">
+            <Slip className="py-9">
+              <p className="text-center text-[15px] font-black">モニター店舗 引換券</p>
+              <p className="mt-1 text-center font-slip text-[12px] text-ink-soft">IToguchi</p>
+              <div className="slip-rule my-5" />
+              <LeaderRow label="LINE初期設定代行" value="1回" />
+              <div className="mt-4 flex items-end justify-between">
+                <span className="text-[14px] text-ink-soft">通常</span>
+                <span className="relative font-slip text-[22px] font-bold text-ink-soft">
+                  {SETUP_SERVICE_PRICE}
+                  <motion.span
+                    className="absolute left-[-4%] right-[-4%] top-1/2 h-[3px] origin-left -rotate-6 rounded bg-stamp"
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ delay: 0.6, duration: 0.5, ease: [0.65, 0, 0.35, 1] }}
+                    aria-hidden="true"
                   />
-                  <p className={`font-extrabold leading-snug ${capacity.isFull ? 'text-primary-100 text-base' : 'text-primary-900 text-lg'}`}>
-                    {capacity.isFull ? (
-                      'おかげさまでモニター店舗（先着10店舗）は受付を終了しました'
-                    ) : (
-                      <>
-                        好評につき、モニター店舗は<br />
-                        <span className="text-2xl">残り{capacity.remaining}店舗</span>
-                      </>
-                    )}
-                  </p>
-                </div>
-              )}
-              <div className="flex flex-col gap-3 items-center md:items-start mb-4">
-                <a
-                  href={LINE_ADD_FRIEND_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={trackDemoClick}
-                  className="w-full sm:w-auto justify-center inline-flex items-center gap-2 bg-[#06C755] text-white px-8 py-4 rounded-xl font-bold shadow-lg hover:brightness-95 transition"
-                >
-                  <MessageCircle size={20} />
-                  LINEを友だち追加してお試しする
-                </a>
-                <button
-                  onClick={goToSignup}
-                  className="w-full sm:w-auto justify-center inline-flex items-center gap-2 bg-white/15 border border-white/40 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/25 transition"
-                >
-                  無料で登録して特典を受け取る
-                  <ArrowRight size={20} />
-                </button>
+                </span>
               </div>
-              <p className="text-primary-200 text-xs">
-                登録は無料です。初期設定代行（通常¥9,980）も無料、Proプランは30日間無料でお試しいただけます。
-              </p>
-            </div>
-            <div className="hidden md:block">
-              <img
-                src={smartAutoChatImage}
-                alt="LINEでの自動応答の画面イメージ"
-                className="rounded-2xl shadow-2xl w-full"
-              />
-            </div>
-          </motion.div>
+              <div className="mt-3 flex items-end justify-between">
+                <span className="text-[16px] font-bold">モニター店舗</span>
+                <span className="font-slip text-[44px] font-bold leading-none">¥0</span>
+              </div>
+              <div className="slip-rule my-5" />
+              <LeaderRow label="Proプラン" value="30日間無料" />
+              {capacity && (
+                <>
+                  <div className="slip-rule my-5" />
+                  {capacity.isFull ? (
+                    <p className="text-center text-[15px] font-bold leading-relaxed">
+                      おかげさまで、モニター店舗（先着<span className="font-slip">10</span>店舗）の受付は終わりました
+                    </p>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[15px] font-bold">先着<span className="font-slip">10</span>店舗</span>
+                      <span className="flex items-baseline gap-1">
+                        <span className="text-[14px]">残り</span>
+                        <span className="font-slip text-[34px] font-bold leading-none text-primary-800">{capacity.remaining}</span>
+                        <span className="text-[14px]">店舗</span>
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+              <div className="mt-6 flex justify-end">
+                <Stamp className="px-2 py-1.5 text-[15px]">特典</Stamp>
+              </div>
+            </Slip>
+          </div>
         </div>
       </section>
 
-      <section className="max-w-4xl mx-auto px-4 py-14">
-        {/* まずはお試しください: 会員登録もフォーム記入も不要。既存のLINE公式アカウント
-            (@431cghfd) は自動応答・予約・会員証がすべて稼働中のデモを兼ねている。 */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 mb-10">
-          <h2 className="text-xl font-bold text-slate-900 mb-1">まずはお試しください</h2>
-          <p className="text-sm text-slate-500 mb-6">
-            「同じ質問」に自動で答える様子を、今すぐLINEで確認できます。予約・会員証の体験もこのままどうぞ。
-          </p>
-
-          <div className="grid sm:grid-cols-3 gap-4 mb-6">
-            {TRY_ITEMS.map((item) => (
-              <div key={item.title} className="rounded-xl border border-slate-100 overflow-hidden">
-                <img src={item.image} alt={item.title} className="w-full h-32 object-cover" />
-                <div className="p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <item.icon className="w-4 h-4 text-primary-600 shrink-0" />
-                    <p className="font-bold text-slate-900 text-sm">{item.title}</p>
+      {/* まずは試す */}
+      <section className="bg-counter py-24">
+        {/* スマホとレシートを横に並べるには、右の列に36rem以上の幅がいる。足りない幅では文章の下に全幅で置く */}
+        <div className={`${wrap} grid min-w-0 items-center gap-14 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]`}>
+          <div className="min-w-0">
+            <h2 className={h2}>登録の前に、LINEで動きを試せます</h2>
+            <p className="mt-5 text-[17px] leading-[1.9] text-ink-soft">
+              IToguchiのLINE公式アカウントを友だち追加すると、お客様の側から次の3つをそのまま試せます。会員登録もフォームの入力もいりません。
+            </p>
+            <ol className="mt-8 space-y-4">
+              {TRY_ITEMS.map((t, i) => (
+                <li key={t.title} className="grid grid-cols-[2.5rem_1fr] gap-3">
+                  <span className="font-slip text-[28px] font-bold leading-none text-primary-600">{i + 1}</span>
+                  <div>
+                    <p className="text-[18px] font-black">{t.title}</p>
+                    <p className="mt-1 text-[15px] leading-[1.8] text-ink-soft">{t.body}</p>
                   </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">{item.body}</p>
-                </div>
-              </div>
-            ))}
+                </li>
+              ))}
+            </ol>
+            <div className="mt-8">{lineButton}</div>
           </div>
+          <HeroDemo />
+        </div>
+      </section>
 
-          <div className="text-center">
-            <a
-              href={LINE_ADD_FRIEND_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={trackDemoClick}
-              className="inline-flex items-center gap-2 bg-[#06C755] text-white px-8 py-4 rounded-xl font-bold shadow-lg hover:brightness-95 transition"
-            >
-              <MessageCircle size={20} />
-              LINEを友だち追加してお試しする
-            </a>
-            <p className="text-xs text-slate-500 mt-3">
-              気になることはチャットで質問できます（自動応答）。実際の予約体験・会員証確認もできます。
+      {/* 特典の内容 */}
+      <section className="bg-paper py-24">
+        <div className={`${wrap} grid gap-12 lg:grid-cols-[0.9fr_1.1fr]`}>
+          <div>
+            <h2 className={h2}>特典の内容</h2>
+            <p className="mt-5 text-[17px] leading-[1.9] text-ink-soft">
+              LINE初期設定代行（通常{SETUP_SERVICE_PRICE}）を、モニター店舗は無料で行います。LINE公式アカウントとIToguchiをつなぐ設定を、こちらで引き受けます。
             </p>
           </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 mb-10">
-          <h2 className="text-xl font-bold text-slate-900 mb-1">自動応答・予約・会員証だけじゃありません</h2>
-          <p className="text-sm text-slate-500 mb-6">
-            顧客管理からメッセージ配信、リッチメニューまで。店舗運営に必要な機能がこれひとつで完結します。
-          </p>
-
-          <div className="grid sm:grid-cols-3 gap-4 mb-6">
-            {MORE_FEATURES.map((f) => (
-              <Link
-                key={f.title}
-                to={f.link}
-                className="rounded-xl border border-slate-100 overflow-hidden block hover:shadow-md transition"
-              >
-                <div className="w-full h-32 bg-slate-100">
-                  <img src={f.image} alt={f.title} className="w-full h-full object-contain p-2" />
-                </div>
-                <div className="p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <f.icon className="w-4 h-4 text-primary-600 shrink-0" />
-                    <p className="font-bold text-slate-900 text-sm">{f.title}</p>
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">{f.body}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-
-          <div className="text-center">
-            <Link
-              to="/"
-              state={{ scrollTo: 'features' }}
-              className="inline-flex items-center gap-2 bg-white border border-primary-200 text-primary-700 px-6 py-3 rounded-xl font-bold hover:bg-primary-50 transition"
-            >
-              機能一覧の詳細を見る
-              <ArrowRight size={18} />
-            </Link>
+          <div>
+            <ul className="divide-y divide-dashed divide-ink/20 border-y border-dashed border-ink/20">
+              {BENEFITS.map((b) => (
+                <li key={b} className="flex items-start gap-4 py-4 text-[16px] leading-relaxed">
+                  <Check className="mt-1 size-5 shrink-0 text-primary-700" strokeWidth={3} aria-hidden="true" />
+                  {b}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-6 rounded-xl bg-counter p-5 text-[14px] leading-[1.9] text-ink-soft">
+              <p>代行するのは、LINE公式アカウントとIToguchiの接続設定までです。</p>
+              <p className="mt-2">
+                LINE公式アカウントの開設は、お店が管理者の権限を持つため、ご自身でお願いしています。開設は無料で数分で済み、手順はこちらからご案内します。
+              </p>
+              <p className="mt-2">予約の枠やリッチメニューなどの運用の設定は、管理画面からご自身で行ってください。</p>
+            </div>
           </div>
         </div>
+      </section>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 mb-10">
-          <div className="flex items-center gap-3 mb-5">
-            <Gift className="w-6 h-6 text-primary-600" />
-            <h2 className="text-xl font-bold text-slate-900">特典の内容</h2>
-          </div>
-          <p className="text-3xl font-bold text-primary-700 mb-1">LINE初期設定代行が無料</p>
-          <p className="text-sm text-slate-500 mb-6">通常 ¥9,980 のところ、モニター店舗は無償です。</p>
-          <ul className="space-y-3">
-            {BENEFITS.map((b) => (
-              <li key={b} className="flex items-start gap-2 text-slate-700">
-                <Check className="w-5 h-5 text-primary-600 shrink-0 mt-0.5" />
-                <span>{b}</span>
+      {/* 受け取り方と条件 */}
+      <section className="bg-counter py-24">
+        <div className={wrap}>
+          <h2 className={h2}>受け取り方</h2>
+          <ol className="mt-12 grid gap-4 md:grid-cols-3">
+            {STEPS.map((s, i) => (
+              <li key={s.title} className="rounded-xl bg-paper p-7">
+                <span className="font-slip text-[44px] font-bold leading-none text-primary-600">{i + 1}</span>
+                <h3 className="mt-4 text-[19px] font-black leading-snug">{s.title}</h3>
+                <p className="mt-2.5 text-[15px] leading-[1.85] text-ink-soft">{s.body}</p>
               </li>
             ))}
-          </ul>
-          <p className="mt-5 text-xs text-slate-500 leading-relaxed">
-            ※ 代行の範囲はLINE公式アカウントとIToguchiの接続設定までです。
-            LINE公式アカウントの開設は、管理権限をお客様が保持していただくためご自身で行っていただきます（無料・数分で作成できます。手順はご案内します）。
-            予約枠やリッチメニューなどの運用設定は、管理画面からお客様ご自身で設定していただきます。
-          </p>
-        </div>
+          </ol>
 
-        <h2 className="text-xl font-bold text-slate-900 mb-5">受け取り方</h2>
-        <div className="space-y-4 mb-10">
-          {STEPS.map((s) => (
-            <div key={s.n} className="bg-white rounded-2xl border border-slate-200 p-5 flex gap-4">
-              <span className="shrink-0 w-8 h-8 rounded-full bg-primary-600 text-white font-bold flex items-center justify-center">
-                {s.n}
-              </span>
-              <div>
-                <p className="font-bold text-slate-900 mb-1">{s.title}</p>
-                <p className="text-sm text-slate-600 leading-relaxed">{s.body}</p>
-              </div>
+          <div className="mt-10 grid gap-8 rounded-xl border-2 border-ink/80 p-7 sm:p-9 md:grid-cols-[auto_1fr]">
+            <p className="text-[22px] font-black">条件はひとつです</p>
+            <div>
+              <p className="text-[17px] font-bold leading-relaxed">設定のしやすさなどについて、簡単なインタビューフォームに答えていただくこと。</p>
+              <p className="mt-3 text-[15px] leading-[1.9] text-ink-soft">
+                使いやすいサービスにしていくために、実際に使った方の声を大切にしています。「ここがわかりにくい」と言っていただけるのが、いちばん助かります。インタビューへの協力は任意です。協力しない場合もProプランはいつもどおり使えます（初期設定代行は通常の{SETUP_SERVICE_PRICE}になります）。
+              </p>
             </div>
-          ))}
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 mb-10">
-          <h2 className="text-lg font-bold text-slate-900 mb-4">条件</h2>
-          <p className="text-slate-700 leading-relaxed mb-3">
-            <span className="font-bold">設定のしやすさなどについて、簡単なインタビューフォームにご回答いただくこと。</span>
-            これだけです。
-          </p>
-          <p className="text-sm text-slate-500 leading-relaxed">
-            より使いやすいサービスにしていくために、実際に使った方の声を大切にしています。
-            「ここが分かりにくい」と言っていただけると、いちばん助かります。
-            インタビューへのご協力は任意で、ご協力いただかない場合も
-            Proプランは通常どおりご利用いただけます（初期設定代行は通常価格 ¥9,980 になります）。
-          </p>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 mb-10">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-5 h-5 text-primary-600" />
-            </div>
-            <h2 className="text-xl font-bold text-slate-900">お客様のデータ、しっかり守っています</h2>
           </div>
-          <p className="text-slate-600 leading-relaxed mb-6">
-            LINEに連携する大切な情報だから、安全性を最優先にしています。
-            店舗ごとのデータ分離、通信の暗号化、カード情報の非保持など、専門用語を使わずにご説明します。
-          </p>
-          <Link
-            to="/security-guide"
-            className="inline-flex items-center gap-2 bg-white border border-primary-200 text-primary-700 px-6 py-3 rounded-xl font-bold hover:bg-primary-50 transition"
-          >
-            セキュリティへの取り組みを見る
-            <ArrowRight size={18} />
-          </Link>
         </div>
+      </section>
 
-        <div className="text-center">
-          <button
-            onClick={goToSignup}
-            className="inline-flex items-center gap-2 bg-primary-600 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-primary-200 hover:bg-primary-700 transition"
-          >
+      {/* ほかの機能 */}
+      <section className="bg-paper py-24">
+        <div className={`${wrap} grid items-start gap-12 lg:grid-cols-[0.8fr_1.2fr]`}>
+          <div>
+            <h2 className={h2}>自動応答・予約・会員証のほかにも</h2>
+            <p className="mt-5 text-[17px] leading-[1.9] text-ink-soft">
+              顧客管理からメッセージ配信、リッチメニューまで、お店のLINEに必要な機能がそろっています。
+            </p>
+            <Link to="/security-guide" className={`mt-6 inline-flex items-center gap-1.5 ${textLink}`}>
+              お客様のデータを守る仕組みを見る
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </div>
+          <Slip className="py-7">
+            <ul>
+              {FEATURES.map((f) => (
+                <li key={f.slug}>
+                  <Link to={f.path} className="group block rounded-md px-1 py-1 hover:bg-counter/70">
+                    <LeaderRow
+                      label={<span className="text-[16px] font-bold group-hover:underline">{f.name}</span>}
+                      value={<span className="text-[13px] text-primary-800">{f.plan}</span>}
+                    />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Slip>
+        </div>
+      </section>
+
+      {/* 締め */}
+      <section className="bg-ink py-20 text-paper">
+        <div className={`${wrap} flex flex-col items-start gap-8 md:flex-row md:items-center md:justify-between`}>
+          <div>
+            <h2 className="text-3xl font-black leading-snug tracking-[-0.02em] sm:text-4xl">接続の設定は、任せてください</h2>
+            <p className="mt-4 text-[17px] leading-[1.9] text-paper/80">登録は無料です。Proプランは30日間無料で試せます。</p>
+          </div>
+          <button type="button" onClick={goToSignup} className={`${btnPrimary} shrink-0`}>
             無料で登録して特典を受け取る
-            <ArrowRight size={20} />
+            <ArrowRight className="size-4" aria-hidden="true" />
           </button>
         </div>
       </section>
-    </div>
+    </SiteShell>
   )
 }

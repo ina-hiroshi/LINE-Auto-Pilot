@@ -12,6 +12,16 @@
   --color-primary-800: #155e75;
   --color-primary-900: #164e63;
   --color-primary-950: #083344;
+
+  /* 公開ページ（.site）の素材。管理画面では使わない */
+  --color-ink: #1c2a30;
+  --color-ink-soft: #4a5a61;
+  --color-paper: #fbfbf7;
+  --color-counter: #e6eef0;
+  --color-rule: #c3d0d4;
+  --color-stamp: #c8402a;
+  --font-site: "Site Digits", "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  --font-slip: "Site Digits", "IBM Plex Mono", "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", ui-monospace, monospace;
 }
 
 /* Hide scrollbar for horizontal scroll containers */
@@ -58,3 +68,113 @@
   }
 }
 
+
+/* ---------- 公開ページ（トップ・機能紹介・規約類）---------- */
+/* 数字だけを IBM Plex Mono で組むための書体。公開ページの書体指定の先頭に置き、
+   本文・見出し・画面の再現など、どこに出る数字も同じ形にそろえる（数字と % + , - . / : ¥） */
+@font-face {
+  font-family: "Site Digits";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/plex-mono-400.woff2") format("woff2");
+  unicode-range: U+0025, U+002B-002F, U+0030-003A, U+00A5;
+}
+@font-face {
+  font-family: "Site Digits";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/plex-mono-500.woff2") format("woff2");
+  unicode-range: U+0025, U+002B-002F, U+0030-003A, U+00A5;
+}
+@font-face {
+  font-family: "Site Digits";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/plex-mono-600.woff2") format("woff2");
+  unicode-range: U+0025, U+002B-002F, U+0030-003A, U+00A5;
+}
+@font-face {
+  font-family: "Site Digits";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/plex-mono-700.woff2") format("woff2");
+  unicode-range: U+0025, U+002B-002F, U+0030-003A, U+00A5;
+}
+.site {
+  /* 画面の再現に使う部品が sans / mono を指定しても、数字はそろえる */
+  --font-sans: var(--font-site);
+  --font-mono: var(--font-slip);
+  --font-serif: "Site Digits", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  font-family: var(--font-site);
+  color: var(--color-ink);
+  background: var(--color-counter);
+  font-feature-settings: "palt" 0;
+  -webkit-font-smoothing: antialiased;
+}
+/* 管理画面・LINE・予約ページ・会員証を再現した部分。実際のアプリは書体を指定していない（Tailwind の既定）ので、
+   数字も含めて実物と同じ書体で表示する。伝票の書体（font-slip）を明示した注記だけはそのまま */
+.site .ui-real {
+  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  font-family: var(--font-sans);
+  font-feature-settings: normal;
+}
+.site ::selection { background: var(--color-primary-200); color: var(--color-ink); }
+.site :focus-visible { outline: 2px solid var(--color-primary-800); outline-offset: 3px; border-radius: 4px; }
+.site a { text-underline-offset: 0.22em; }
+.site h1, .site h2, .site h3 { text-wrap: balance; word-break: auto-phrase; }
+.site p { text-wrap: pretty; }
+.site .font-slip, .site time { font-variant-numeric: tabular-nums; }
+/* 規約に出てくる権限名などの code も、伝票の書体で組む */
+.site code, .site kbd, .site samp { font-family: var(--font-slip); }
+
+/* 伝票: 上下の縁をミシン目のギザギザに切る */
+.slip {
+  --z: 7px;
+  position: relative;
+  background: var(--color-paper);
+  -webkit-mask:
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / calc(2 * var(--z)) 51% repeat-x,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(2 * var(--z)) 51% repeat-x;
+  mask:
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / calc(2 * var(--z)) 51% repeat-x,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(2 * var(--z)) 51% repeat-x;
+  padding-block: calc(var(--z) + 14px);
+}
+.slip-open-top {
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(2 * var(--z)) 100% repeat-x;
+  mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(2 * var(--z)) 100% repeat-x;
+  padding-top: 18px;
+}
+.slip-shadow { filter: drop-shadow(0 10px 18px rgb(28 42 48 / 0.13)) drop-shadow(0 1px 2px rgb(28 42 48 / 0.08)); }
+.slip-rule { border-top: 1.5px dashed var(--color-rule); }
+.slip-leader { flex: 1; min-width: 1.5rem; border-bottom: 2px dotted var(--color-rule); transform: translateY(-0.3em); }
+
+/* 済のゴム印 */
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2.5px solid var(--color-stamp);
+  color: var(--color-stamp);
+  border-radius: 6px;
+  font-weight: 900;
+  line-height: 1;
+  transform: rotate(-9deg);
+  mix-blend-mode: multiply;
+  letter-spacing: 0.04em;
+}
+
+/* 管理画面向けのタップ領域の拡大は、公開ページの文中リンクには適用しない */
+@media (max-width: 640px) {
+  .site p a, .site li a, .site td a, .site .inline-link { min-height: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site *, .site *::before, .site *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
