@@ -1,2035 +1,638 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
-import { motion } from 'framer-motion'
-import { MessageCircle, Calendar, CreditCard, ArrowRight, Check, Eye, EyeOff, Loader2, AlertTriangle, Sparkles, Layout, Palette, Smartphone, MousePointerClick, Clock, Users, Crown, Code, Zap, HelpCircle, Star, MessageSquare, ChevronDown, Scissors, HeartPulse, Utensils, Dumbbell, Gem, Flower2, ShieldCheck } from 'lucide-react'
-import Toast from '../components/Toast'
-import topHeroImage from '../assets/top_hero.jpg'
-import smartAutoChatImage from '../assets/smartautochat.jpg'
-import yoyakuImage from '../assets/yoyaku.png'
-import membersImage from '../assets/members.png'
-import Logo from '../components/Logo'
-import itoguchiaiImage from '../assets/itoguchiai.png'
-import featureCustomersImage from '../assets/feature-customers.png'
-import featurePointsImage from '../assets/feature-points.png'
-import featureMessagingImage from '../assets/feature-messaging.png'
-import featureRichMenuImage from '../assets/feature-richmenu.png'
-import featureAiImage from '../assets/feature-ai.png'
+import { motion, useScroll, useSpring } from 'framer-motion'
+import { ArrowRight, Check, ChevronDown, Scissors } from 'lucide-react'
+import SiteShell from '../components/site/SiteShell'
+import HeroDemo from '../components/site/HeroDemo'
+import AuthPanel from '../components/site/AuthPanel'
+import BookingScreenPreview, { type BookingPreviewScreen } from '../components/booking/BookingScreenPreview'
+import { PhoneFrame } from '../components/site/LinePhone'
+import { LeaderRow, Slip, Stamp, SlipNumbers } from '../components/site/Receipt'
+import TryTag from '../components/site/TryTag'
+import { FEATURES, LINE_DEMO_URL, PLANS, SETUP_SERVICE_PRICE, CONTACT_MAIL } from '../components/site/siteData'
+import { btnInk, btnOutline, btnPrimary, textLink, wrap } from '../components/site/ui'
+import { DESIGN_THEMES } from '../constants/designThemes'
+import LogoSettingDemo from '../components/site/demos/LogoSettingDemo'
+import type { LogoLayout } from '../lib/bookingLogoLayout'
+import { CHORES, DAY, FAQ, INDUSTRIES, STEPS } from '../components/site/topContent'
 
-// FAQ Item Component
-function FAQItem({ question, answer }: { question: string; answer: string }) {
-  const [isOpen, setIsOpen] = useState(false)
+/* ------------------------------------------------------------------ */
+/* ファーストビュー                                                     */
+/* ------------------------------------------------------------------ */
 
+function Hero() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden hover:shadow-md transition-all"
-    >
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-slate-100 transition-colors"
-      >
-        <div className="flex items-center gap-3 flex-1">
-          <div className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center shrink-0">
-            <HelpCircle className="w-5 h-5 text-primary-600" />
+    <section id="top" className="relative overflow-hidden bg-paper">
+      <div className={`${wrap} grid min-w-0 grid-cols-1 items-center gap-12 pb-20 pt-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] lg:gap-10 xl:grid-cols-[minmax(0,1fr)_36rem] lg:pb-24 lg:pt-16`}>
+        <div className="min-w-0 max-w-xl">
+          <h1 className="text-[2rem] font-black leading-[1.3] tracking-[-0.02em] sm:text-[2.75rem] sm:leading-[1.25] xl:text-[3rem]">
+            <span className="block">
+              <span className="inline-block">予約も、</span>
+              <span className="inline-block">よくある質問も、</span>
+            </span>
+            <span className="block">会員証も。</span>
+            <span className="block">
+              <span className="relative inline-block">
+                <span className="relative z-10">お店のLINEが</span>
+                <span className="absolute inset-x-[-0.08em] bottom-[0.06em] z-0 h-[0.34em] bg-primary-300" aria-hidden="true" />
+              </span>
+              <span className="inline-block">引き受けます。</span>
+            </span>
+          </h1>
+          <p className="mt-7 text-[17px] leading-[1.9] text-ink-soft">
+            IToguchi（イトグチ）は、LINE公式アカウントとつないで、予約の受付、質問への自動返信、会員証とポイントの管理を、LINEでまとめて行えるサービスです。お客様はいつものLINEで用が済み、お店は施術や調理の手を止めずに済みます。
+          </p>
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+            <a href="#auth" className={btnPrimary}>
+              無料で始める
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </a>
+            <a href={LINE_DEMO_URL} target="_blank" rel="noopener noreferrer" className={btnOutline}>
+              <span className="size-2 rounded-full bg-[#06C755]" aria-hidden="true" />
+              LINEで動きを試す
+            </a>
           </div>
-          <span className="font-bold text-slate-900 text-sm sm:text-base">{question}</span>
+          <p className="mt-5 text-[14px] leading-relaxed text-ink-soft">
+            無料プランがあります。Proプランは30日間無料で試せます。
+            <br />
+            LINE公式アカウントをまだお持ちでない方は
+            <a href="#start" className={`inline-link ${textLink} font-medium`}>
+              始めるまでの流れ
+            </a>
+            をご覧ください。
+          </p>
         </div>
-        <div className={`ml-4 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}>
-          <ChevronDown className="w-5 h-5 text-slate-400" />
-        </div>
-      </button>
-      {isOpen && (
-        <motion.div
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: 'auto', opacity: 1 }}
-          exit={{ height: 0, opacity: 0 }}
-          transition={{ duration: 0.3 }}
-          className="overflow-hidden"
-        >
-          <div className="px-6 pb-4 pl-16 text-slate-600 text-sm sm:text-base leading-relaxed">
-            {answer}
-          </div>
-        </motion.div>
-      )}
-    </motion.div>
+
+        <HeroDemo />
+      </div>
+    </section>
   )
 }
 
-export default function TopPage() {
-  const location = useLocation()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  // /monitor 等からの遷移時は新規登録タブを既定表示にする（authMode: 'signup'）。
-  // それ以外は従来通りログインタブから始める。
-  const [isLoginMode, setIsLoginMode] = useState(
-    () => (location.state as { authMode?: string } | null)?.authMode !== 'signup'
-  )
-  const [loading, setLoading] = useState(false)
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
-  
-  // 認証コード関連
-  const [showVerificationStep, setShowVerificationStep] = useState(false)
-  const [verificationCode, setVerificationCode] = useState('')
-  const [resendCooldown, setResendCooldown] = useState(0)
-  
-  // 利用規約・プライバシーポリシーへの同意
-  const [agreedToTerms, setAgreedToTerms] = useState(false)
-  const [agreedToPrivacy, setAgreedToPrivacy] = useState(false)
+/* ------------------------------------------------------------------ */
+/* 手を離れる仕事（消し込み）                                            */
+/* ------------------------------------------------------------------ */
 
-  // トーストを自動的に消す
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 3000)
-      return () => clearTimeout(timer)
-    }
-  }, [toast])
 
-  // Scroll to a target section if navigated from feature pages / monitor LP
-  useEffect(() => {
-    const state = location.state as { scrollTo?: string } | null
-    if (state?.scrollTo) {
-      const targetElement = document.getElementById(state.scrollTo)
-      if (targetElement) {
-        targetElement.scrollIntoView({ behavior: 'smooth' })
-      }
-    }
-  }, [location])
-
-  // 再送信のクールダウンタイマー
-  useEffect(() => {
-    if (resendCooldown > 0) {
-      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000)
-      return () => clearTimeout(timer)
-    }
-  }, [resendCooldown])
-
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    
-    try {
-      if (isLoginMode) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-        if (error) throw error
-      } else {
-        if (password !== confirmPassword) {
-          setToast({ message: 'パスワードが一致しません。', type: 'error' })
-          setLoading(false)
-          return
-        }
-        
-        // まず認証コードを送信（アカウント作成はコード検証後に行う）
-        try {
-          await sendVerificationCode()
-          setShowVerificationStep(true)
-        } catch (error) {
-          // エラーはsendVerificationCode内で処理済み
-        }
-        setLoading(false)
-        return
-      }
-    } catch (error: unknown) {
-      console.error('Auth error:', error)
-      let message = 'エラーが発生しました。'
-      const err = error as { message?: string }
-      if (err.message === 'Invalid login credentials') {
-        message = 'メールアドレスまたはパスワードが正しくありません。'
-      } else if (err.message) {
-        message = err.message
-      }
-      setToast({ message, type: 'error' })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const sendVerificationCode = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('send-verification-code', {
-        body: { email }
-      })
-      
-      if (error) throw error
-      
-      // 既存ユーザーの場合
-      if (data?.existingUser) {
-        setToast({ message: data.error || 'このメールアドレスは既に登録されています。', type: 'error' })
-        setIsLoginMode(true)
-        throw new Error('existing_user')
-      }
-      
-      if (data?.error) {
-        throw new Error(data.error)
-      }
-      
-      setToast({ message: `${email} に認証コードを送信しました`, type: 'success' })
-      setResendCooldown(60) // 60秒のクールダウン
-    } catch (error) {
-      console.error('Send code error:', error)
-      if (error instanceof Error && error.message !== 'existing_user') {
-        setToast({ message: error.message || '認証コードの送信に失敗しました', type: 'error' })
-      }
-      throw error
-    }
-  }
-
-  const handleVerifyCode = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    
-    try {
-      // 認証コードを検証（アカウント作成もこの呼び出しの中でのみ行われる。
-      // 以前はここでフロントから直接 supabase.auth.signUp() を呼んでいたが、
-      // signUp は anon key だけで誰でも直接叩ける公開APIであり、この
-      // コード検証を一切経由せずアカウントを作成できてしまっていた。
-      // 今はサーバー側の admin.createUser がコード検証成功時にのみ
-      // 実行されるため、ここでは検証結果を受けてログインするだけでよい）
-      const { data, error } = await supabase.functions.invoke('verify-code', {
-        body: { email, code: verificationCode, password }
-      })
-
-      if (error || !data?.valid) {
-        throw new Error(data?.error || '認証コードが正しくありません')
-      }
-
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      if (signInError) throw signInError
-
-      setToast({ message: 'アカウントを作成しました', type: 'success' })
-
-      // App.tsxのonAuthStateChangeで自動的にオンボーディングへ遷移
-    } catch (error: unknown) {
-      console.error('Verification error:', error)
-      const message = error instanceof Error ? error.message : '認証に失敗しました'
-      setToast({ message, type: 'error' })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleResendCode = async () => {
-    if (resendCooldown > 0) return
-    setLoading(true)
-    try {
-      await sendVerificationCode()
-    } catch (error) {
-      // エラーはsendVerificationCode内で処理済み
-    } finally {
-      setLoading(false)
-    }
-  }
-
+function Chores() {
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-primary-100 selection:text-primary-900">
-      {/* Header */}
-      <header className="bg-white/90 backdrop-blur-md fixed w-full z-50 border-b border-slate-100 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <div className="flex items-center gap-3">
-              <Logo className="h-10 md:h-14 w-auto" />
-            </div>
-            <nav className="hidden md:flex space-x-8 items-center">
-              <a href="#features" className="text-sm font-medium text-slate-600 hover:text-primary-600 transition">機能</a>
-              <a href="#customization" className="text-sm font-medium text-slate-600 hover:text-primary-600 transition">カスタマイズ</a>
-              <a href="#pricing" className="text-sm font-medium text-slate-600 hover:text-primary-600 transition">料金</a>
-              <Link to="/monitor" className="text-sm font-medium text-primary-600 hover:text-primary-700 transition">モニター特典</Link>
-              <a href="#auth" className="px-5 py-2.5 bg-primary-600 text-white rounded-full text-sm font-medium hover:bg-primary-700 transition shadow-md hover:shadow-lg">
-                ログイン / 登録
-              </a>
-            </nav>
-            {/* Mobile Menu Button (Simplified) */}
-            <div className="md:hidden">
-              <a href="#auth" className="px-4 py-2 bg-primary-600 text-white rounded-full text-xs font-bold hover:bg-primary-700 transition shadow-md">
-                始める
-              </a>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Hero Section */}
-      <section className="pt-40 pb-24 lg:pt-48 lg:pb-32 overflow-hidden relative">
-        {/* Background Decorative Elements */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
-          <div className="absolute -top-[20%] -right-[10%] w-[70%] h-[70%] rounded-full bg-primary-50/50 blur-3xl"></div>
-          <div className="absolute top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-primary-50/50 blur-3xl"></div>
+    <section className="bg-counter py-24">
+      <div className={`${wrap} grid items-center gap-12 lg:grid-cols-[0.9fr_1.1fr]`}>
+        <div>
+          <h2 className="text-3xl font-black leading-snug tracking-[-0.02em] sm:text-4xl">
+            店主の手から、
+            <br />
+            この仕事が離れます
+          </h2>
+          <p className="mt-5 max-w-md text-[17px] leading-[1.9] text-ink-soft">
+            お客様とのやりとりのうち、毎日くり返している仕事をLINEに任せられます。空いた時間は、目の前のお客様に使えます。
+          </p>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col lg:flex-row items-center gap-16">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
-              className="lg:w-1/2 text-left"
-            >
-              <div className="inline-block px-4 py-1.5 mb-6 rounded-full bg-primary-50 border border-primary-100 text-primary-600 text-sm sm:text-base font-semibold tracking-wide whitespace-nowrap sm:whitespace-normal">
-                誰でも気軽に始められるLINEマーケティング
-              </div>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 mb-8 leading-[1.15] tracking-tight">
-                <span className="block lg:whitespace-nowrap">お店とお客様をつなぐ、</span>
-                <span className="relative inline-block lg:whitespace-nowrap z-0">
-                  <span className="relative z-10 text-white">たしかな糸ぐち。</span>
-                  <motion.span 
-                    initial={{ scaleX: 0, skewX: -12 }}
-                    animate={{ scaleX: 1, skewX: -12 }}
-                    transition={{ duration: 0.8, delay: 0.5, ease: "circOut" }}
-                    className="absolute top-[-5%] bottom-[-5%] left-[-0.3em] w-[calc(100%+0.6em)] bg-primary-500 origin-left -z-10"
+        <Slip className="py-8">
+          <p className="text-center text-[15px] font-bold">消し込み票</p>
+          <p className="mt-1 text-center font-slip text-[12px] text-ink-soft">これまでの仕事 → IToguchiでは</p>
+          <div className="slip-rule my-4" />
+          <ul>
+            {CHORES.map((c, i) => (
+              <li key={c.before} className="grid gap-1 border-b border-dashed border-rule py-4 last:border-b-0 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-6">
+                <span className="relative w-fit text-[16px] text-ink-soft">
+                  {c.before}
+                  <motion.span
+                    className="absolute left-0 right-0 top-1/2 h-[2.5px] origin-left -rotate-1 rounded bg-stamp"
+                    initial={{ scaleX: 0 }}
+                    whileInView={{ scaleX: 1 }}
+                    viewport={{ once: true, amount: 1 }}
+                    transition={{ delay: 0.25 + i * 0.18, duration: 0.45, ease: [0.65, 0, 0.35, 1] }}
+                    aria-hidden="true"
                   />
                 </span>
-              </h1>
-              <p className="text-base sm:text-lg text-slate-600 mb-10 max-w-2xl leading-relaxed">
-                LINE公式アカウントが、あなたの代わりにお客様対応。<br />
-                質問への自動返信、予約の受付、ポイントカードの管理まで。<br />
-                スマホひとつで、お店のファンづくりを後押しします。
-              </p>
-              <div className="flex flex-col sm:flex-row justify-start gap-4">
-                <a href="#auth" className="px-8 py-4 bg-primary-600 text-white rounded-full font-bold hover:bg-primary-700 transition shadow-lg hover:shadow-primary-200 flex items-center justify-center gap-2 group">
-                  無料で始める
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </a>
-                <a href="#features" className="px-8 py-4 bg-white text-slate-700 border border-slate-200 rounded-full font-bold hover:bg-slate-50 transition flex items-center justify-center">
-                  機能を見る
-                </a>
-              </div>
-            </motion.div>
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="lg:w-1/2 relative"
-            >
-              <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
-                <img 
-                  src={topHeroImage}
-                  alt="Shop Staff welcoming customers" 
-                  className="w-full h-auto object-cover"
-                />
-                <div className="absolute inset-0 bg-linear-to-t from-black/20 to-transparent"></div>
-              </div>
-              
-              {/* Badge 1: Auto Response (Bottom Left) */}
-              <motion.div 
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.6 }}
-                className="absolute -bottom-4 -left-2 md:-bottom-6 md:-left-6 bg-white p-3 md:p-4 lg:p-6 rounded-2xl shadow-xl border border-slate-100 scale-90 md:scale-100 origin-bottom-left"
-              >
-                <div className="flex items-center gap-3 md:gap-4">
-                  <div className="bg-green-100 p-2 md:p-3 rounded-full">
-                    <MessageCircle className="w-5 h-5 md:w-6 md:h-6 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs md:text-sm text-slate-500 font-medium">自動応答率</p>
-                    <p className="text-lg md:text-2xl font-bold text-slate-900">98%</p>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Badge 2: Reservation (Top Right) */}
-              <motion.div 
-                initial={{ y: -20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.7 }}
-                className="absolute -top-4 -right-2 md:-top-6 md:-right-6 bg-white p-3 md:p-4 lg:p-6 rounded-2xl shadow-xl border border-slate-100 scale-90 md:scale-100 origin-top-right"
-              >
-                <div className="flex items-center gap-3 md:gap-4">
-                  <div className="bg-primary-100 p-2 md:p-3 rounded-full">
-                    <Calendar className="w-5 h-5 md:w-6 md:h-6 text-primary-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs md:text-sm text-slate-500 font-medium">予約受付</p>
-                    <p className="text-lg md:text-2xl font-bold text-slate-900">24h</p>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Badge 3: Membership (Bottom Right - slightly offset) */}
-              <motion.div 
-                initial={{ x: 20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.8 }}
-                className="absolute -bottom-4 -right-2 md:-bottom-6 md:-right-6 bg-white p-3 md:p-4 lg:p-6 rounded-2xl shadow-xl border border-slate-100 scale-90 md:scale-100 origin-bottom-right"
-              >
-                <div className="flex items-center gap-3 md:gap-4">
-                  <div className="bg-orange-100 p-2 md:p-3 rounded-full">
-                    <CreditCard className="w-5 h-5 md:w-6 md:h-6 text-orange-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs md:text-sm text-slate-500 font-medium">会員証</p>
-                    <p className="text-lg md:text-xl font-bold text-slate-900">デジタル化</p>
-                  </div>
-                </div>
-              </motion.div>
-
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* Why IToguchi Section - 選ばれる理由 */}
-      <section className="py-24 bg-white relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
-          <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] rounded-full bg-primary-50/30 blur-3xl"></div>
-          <div className="absolute bottom-[20%] left-[10%] w-[40%] h-[40%] rounded-full bg-emerald-50/30 blur-3xl"></div>
-        </div>
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center mb-16">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="inline-block"
-            >
-              <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-50 border border-primary-200 text-primary-700 text-sm font-semibold">
-                IToguchiが選ばれる理由
-              </span>
-            </motion.div>
-            <motion.h2 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4"
-            >
-              他の予約システムとは、ここが違う
-            </motion.h2>
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
-            >
-              むずかしい設定は不要。LINEひとつで完結するから、<br className="hidden md:block" />
-              店主が本業に集中できます。
-            </motion.p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              {
-                icon: Code,
-                title: 'No-Code',
-                description: '画面の案内に沿って進むだけ。プログラミングの知識はいりません。'
-              },
-              {
-                icon: Zap,
-                title: 'オールインワン',
-                description: '予約・会員証・自動応答がこれひとつ。複数のツールを使い分けずに済みます。'
-              },
-              {
-                icon: Smartphone,
-                title: 'LINE完結',
-                description: 'お客様に新しいアプリを入れてもらう必要はありません。いつものLINEだけで完結します。'
-              },
-              {
-                icon: CreditCard,
-                title: '低コスト',
-                description: 'まずは無料プランから。月額¥4,980のProプランで全機能が使えます。'
-              }
-            ].map((reason, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-slate-50 rounded-2xl p-6 hover:bg-white hover:shadow-lg transition-all border border-slate-100"
-              >
-                <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center mb-4">
-                  <reason.icon className="w-6 h-6 text-primary-600" />
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 mb-2">{reason.title}</h3>
-                <p className="text-slate-600 text-sm leading-relaxed">{reason.description}</p>
-              </motion.div>
+                <span className="flex items-center gap-2 text-[16px] font-bold">
+                  <ArrowRight className="size-4 text-primary-700" aria-hidden="true" />
+                  {c.after}
+                </span>
+              </li>
             ))}
-          </div>
-        </div>
-      </section>
+          </ul>
+        </Slip>
+      </div>
+    </section>
+  )
+}
 
-      {/* AI Section - AI特設ページへの誘導 */}
-      <section className="py-24 bg-slate-50 relative overflow-hidden">
-        {/* 背景装飾 */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
-          <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] rounded-full bg-blue-50/50 blur-3xl"></div>
-          <div className="absolute bottom-[20%] left-[10%] w-[40%] h-[40%] rounded-full bg-primary-50/50 blur-3xl"></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1/2 h-1/2 rounded-full bg-purple-50/30 blur-3xl"></div>
+/* ------------------------------------------------------------------ */
+/* お店の一日（時刻の縦軸）                                              */
+/* ------------------------------------------------------------------ */
+
+
+function DayTimeline() {
+  const ref = useRef<HTMLDivElement>(null)
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start 60%', 'end 60%'] })
+  const progress = useSpring(scrollYProgress, { stiffness: 120, damping: 30, mass: 0.4 })
+
+  return (
+    <section className="bg-paper py-24" aria-labelledby="day-heading">
+      <div className={wrap}>
+        <div className="max-w-2xl">
+          <h2 id="day-heading" className="text-3xl font-black leading-snug tracking-[-0.02em] sm:text-4xl">
+            お店の一日のうち、
+            <br />
+            ここを任せられます
+          </h2>
+          <p className="mt-5 text-[17px] leading-[1.9] text-ink-soft">
+            開店前から閉店後まで、IToguchiが受け持つ仕事を時刻の順に並べました。画面は実際の管理画面と、それを元にした表示例です。
+          </p>
         </div>
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
-            {/* 左側: テキストコンテンツ */}
-            <motion.div 
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8 }}
-              className="lg:w-1/2 text-left w-full"
-            >
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                className="inline-block mb-6"
-              >
-              <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-50 border border-primary-200 text-primary-700 text-sm font-semibold">
-                AIで進化
-              </span>
-              </motion.div>
-              <motion.h2 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: 0.1 }}
-                className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4 sm:mb-6 leading-[1.15] tracking-tight"
-              >
-                AIがあなたの代わりに<br />
-                <span className="text-primary-600">24時間接客</span>
-              </motion.h2>
-              <motion.p 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: 0.2 }}
-                className="text-sm sm:text-base lg:text-lg text-slate-600 mb-6 sm:mb-8 max-w-2xl leading-relaxed"
-              >
-                閉店後でも深夜でも、お客様を待たせません。
-                キーワード応答では拾いきれない質問にも、AIがその場で答えます。
-                お店独自の情報を覚えさせれば、答えの精度はさらに上がります。
-              </motion.p>
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: 0.3 }}
-                className="flex flex-col sm:flex-row gap-3 sm:gap-4"
-              >
-                <Link 
-                  to="/feature/ai" 
-                  className="px-6 sm:px-8 py-3 sm:py-4 bg-primary-600 text-white rounded-full font-bold hover:bg-primary-700 transition shadow-lg hover:shadow-xl flex items-center justify-center gap-2 group text-sm sm:text-base"
+
+        <div ref={ref} className="relative mt-16">
+          {/* 時刻の軸 */}
+          <div className="absolute bottom-0 left-[0.4rem] top-0 w-[3px] rounded bg-rule sm:left-[5.6rem]" aria-hidden="true" />
+          <motion.div
+            className="absolute bottom-0 left-[0.4rem] top-0 w-[3px] origin-top rounded bg-primary-500 sm:left-[5.6rem]"
+            style={{ scaleY: progress }}
+            aria-hidden="true"
+          />
+
+          <ol className="space-y-20 sm:space-y-24">
+            {DAY.map((d) => (
+              <li key={d.time} className="relative grid gap-6 pl-8 sm:grid-cols-[5.6rem_1fr] sm:gap-0 sm:pl-0">
+                <div className="sm:pr-6 sm:text-right">
+                  <time className="block font-slip text-[22px] font-bold leading-none tracking-tight sm:text-[26px]">{d.time}</time>
+                  <span className="mt-1.5 block text-[13px] font-bold text-ink-soft">{d.when}</span>
+                </div>
+                <span
+                  className="absolute left-0 top-1.5 size-[15px] rounded-full border-[3px] border-paper bg-primary-600 shadow-[0_0_0_2px_var(--color-primary-500)] sm:left-[5.6rem] sm:-translate-x-[6px]"
+                  aria-hidden="true"
+                />
+                <div className="grid gap-8 sm:pl-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-12">
+                  <div>
+                    <h3 className="text-[22px] font-black leading-snug tracking-[-0.01em] sm:text-2xl">
+                      {d.title}
+                      {d.pro && <span className="ml-2 inline-block -translate-y-0.5 rounded bg-ink px-1.5 py-0.5 align-middle font-slip text-[11px] font-bold text-paper">Pro</span>}
+                    </h3>
+                    <p className="mt-4 text-[16px] leading-[1.9] text-ink-soft">{d.body}</p>
+                    <Link to={d.link.to} className={`mt-5 inline-flex items-center gap-1.5 ${textLink}`}>
+                      {d.link.label}を詳しく見る
+                      <ArrowRight className="size-4" aria-hidden="true" />
+                    </Link>
+                  </div>
+                  <div>{d.visual}</div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* 機能の明細                                                           */
+/* ------------------------------------------------------------------ */
+
+function FeatureMenu() {
+  return (
+    <section id="features" className="scroll-mt-20 bg-counter py-24">
+      <div className={`${wrap} grid items-start gap-12 lg:grid-cols-[0.8fr_1.2fr]`}>
+        <div className="lg:sticky lg:top-28">
+          <h2 className="text-3xl font-black leading-snug tracking-[-0.02em] sm:text-4xl">できることの明細</h2>
+          <p className="mt-5 text-[17px] leading-[1.9] text-ink-soft">
+            IToguchiの8つの機能です。どれもLINE公式アカウントひとつで動くので、お客様に別のアプリを入れてもらう必要はありません。
+          </p>
+          <p className="mt-5 text-[15px] leading-relaxed text-ink-soft">
+            右端に「無料から」とある機能は、無料プランでも使えます。Proプランにすると、使える設定が増え、件数の上限も上がります。
+          </p>
+        </div>
+
+        <Slip className="py-8">
+          <div className="text-center">
+            <p className="text-[17px] font-black tracking-wide">IToguchi</p>
+            <p className="mt-1 font-slip text-[12px] text-ink-soft">機能明細</p>
+          </div>
+          <div className="slip-rule my-4" />
+          <ul>
+            {FEATURES.map((f) => (
+              <li key={f.slug}>
+                <Link
+                  to={f.path}
+                  className="group -mx-3 grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 rounded-lg px-3 py-3.5 transition-colors hover:bg-counter/70"
                 >
-                  AI機能をもっと詳しく見る
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  <span className="flex items-end gap-2">
+                    <span className="shrink-0 text-[17px] font-bold">{f.name}</span>
+                    <span className="slip-leader" aria-hidden="true" />
+                  </span>
+                  <span className={`font-slip text-[14px] font-bold ${f.plan === 'Pro' ? 'text-ink' : 'text-primary-800'}`}>{f.plan}</span>
+                  <span className="col-span-2 flex items-center justify-between gap-3 text-[14px] text-ink-soft">
+                    {f.gain}
+                    <ArrowRight className="size-4 shrink-0 text-ink-soft transition-transform group-hover:translate-x-1 group-hover:text-ink" aria-hidden="true" />
+                  </span>
                 </Link>
-              </motion.div>
-            </motion.div>
-            
-            {/* 右側: 画像 */}
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="lg:w-1/2 relative"
-            >
-              <Link to="/feature/ai" className="block group">
-                <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white transition-transform group-hover:scale-105">
-                  <img 
-                    src={itoguchiaiImage}
-                    alt="AIがあなたの代わりに接客" 
-                    className="w-full h-auto object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent group-hover:from-black/30 transition-all"></div>
-                </div>
-              </Link>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section id="features" className="py-24 bg-white relative">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-20">
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4">
-              つながりを深める、8つの機能
-            </h2>
-            <p className="text-slate-600 max-w-2xl mx-auto px-4 text-sm sm:text-base leading-relaxed">
-              IToguchiは、店舗運営に必要な機能をひとつにまとめました。<br className="hidden md:block" />
-              お客様とのやりとりが、ぐっとラクになります。
-            </p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-10">
-            {[
-              {
-                image: smartAutoChatImage,
-                title: 'スマート自動応答',
-                desc: 'よくある質問にはAIがその場で対応。お客様を待たせず、取りこぼしも減らせます。',
-                link: '/feature/auto-response'
-              },
-              {
-                image: yoyakuImage,
-                title: 'かんたん予約管理',
-                desc: 'LINEのトーク画面からそのまま予約完了。電話対応の手間が減り、お客様も予約しやすくなります。',
-                link: '/feature/reservation'
-              },
-              {
-                image: membersImage,
-                title: 'デジタル会員証',
-                desc: 'かさばらないLINE上の会員証。ポイントもそのまま貯まるので、また来たくなります。',
-                link: '/feature/membership'
-              },
-              {
-                image: featureCustomersImage,
-                title: '顧客一覧・来店メモ',
-                desc: '来店履歴やメモをお客様ごとに記録。担当が変わっても、その場で確認できます。',
-                link: '/feature/customers',
-                screenshot: true
-              },
-              {
-                image: featurePointsImage,
-                title: 'ポイント管理',
-                desc: '来店・購入に応じてポイントを付与。スタンプカード運用にも切り替えられます。',
-                link: '/feature/points',
-                screenshot: true
-              },
-              {
-                image: featureMessagingImage,
-                title: 'メッセージ配信',
-                desc: '目的を書くだけでAIが文章を下書き。条件で絞ってLINEに一斉配信できます。',
-                link: '/feature/messaging',
-                screenshot: true
-              },
-              {
-                image: featureRichMenuImage,
-                title: 'リッチメニュー',
-                desc: 'お店の写真をボタンごとに設定できる、オリジナルの入り口。レイアウトも自由に選べます。',
-                link: '/feature/rich-menu',
-                screenshot: true
-              },
-              {
-                image: featureAiImage,
-                title: 'AIチャット',
-                desc: 'キーワードのルールでは拾えない自由な質問にも、学習させた情報をもとにAIが会話します。',
-                link: '/feature/ai',
-                screenshot: true
-              }
-            ].map((feature, index) => (
-              <Link to={feature.link} key={index}>
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.2 }}
-                  className="group bg-slate-50 rounded-3xl overflow-hidden hover:bg-white hover:shadow-xl transition-all duration-300 border border-slate-100 cursor-pointer h-full"
-                >
-                  <div className={`h-56 overflow-hidden relative ${feature.screenshot ? 'bg-slate-100' : ''}`}>
-                    {!feature.screenshot && (
-                      <div className="absolute inset-0 bg-slate-900/10 group-hover:bg-transparent transition-colors z-10"></div>
-                    )}
-                    <img
-                      src={feature.image}
-                      alt={feature.title}
-                      className={
-                        feature.screenshot
-                          ? 'w-full h-full object-contain p-4'
-                          : 'w-full h-full object-cover transform group-hover:scale-105 transition duration-700'
-                      }
-                    />
-                  </div>
-                  <div className="p-8">
-                    <h3 className="text-xl font-bold mb-3 text-slate-900 group-hover:text-primary-600 transition-colors">{feature.title}</h3>
-                    <p className="text-slate-600 leading-relaxed">{feature.desc}</p>
-                    <div className="mt-4 flex items-center text-primary-600 font-medium text-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                      詳しく見る
-                      <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
-                    </div>
-                  </div>
-                </motion.div>
-              </Link>
+              </li>
             ))}
-          </div>
-        </div>
-      </section>
+          </ul>
+          <div className="slip-rule my-4" />
+          <LeaderRow label="Proプラン（すべての機能）" value="¥4,980 / 月" strong />
+          <p className="mt-1 text-right font-slip text-[12px] text-ink-soft">初回は30日間無料</p>
+        </Slip>
+      </div>
+    </section>
+  )
+}
 
-      {/* Target Industries Section - 対象業種 */}
-      <section className="py-24 bg-slate-50 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-gradient-to-bl from-primary-50/50 to-transparent rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-gradient-to-tr from-emerald-50/50 to-transparent rounded-full blur-3xl" />
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center mb-16">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="inline-block"
-            >
-              <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-100 border border-primary-200 text-primary-700 text-sm font-semibold">
-                こんなお店にぴったり
-              </span>
-            </motion.div>
-            <motion.h2 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4"
-            >
-              個人経営のお店を応援します
-            </motion.h2>
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
-            >
-              予約を受けるお店、常連さんとの関係を大切にしたいお店に向いています。
-            </motion.p>
-          </div>
+/* ------------------------------------------------------------------ */
+/* 予約ページのテーマ（実際の予約ページの部品で切り替える）                    */
+/* ------------------------------------------------------------------ */
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { name: '美容室・ヘアサロン', icon: Scissors, color: 'text-pink-600', bgColor: 'bg-pink-100' },
-              { name: 'ネイルサロン・まつエクサロン', icon: Gem, color: 'text-purple-600', bgColor: 'bg-purple-100' },
-              { name: 'エステ・リラクゼーション', icon: Flower2, color: 'text-rose-600', bgColor: 'bg-rose-100' },
-              { name: '整体・整骨院', icon: HeartPulse, color: 'text-red-600', bgColor: 'bg-red-100' },
-              { name: '個人経営の飲食店', icon: Utensils, color: 'text-orange-600', bgColor: 'bg-orange-100' },
-              { name: 'パーソナルジム・ヨガスタジオ', icon: Dumbbell, color: 'text-blue-600', bgColor: 'bg-blue-100' }
-            ].map((industry, index) => {
-              const IconComponent = industry.icon
-              return (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.1 }}
-                  className="bg-white rounded-xl p-6 hover:shadow-lg transition-all border border-slate-100 flex items-center gap-4 group"
-                >
-                  <div className={`w-14 h-14 rounded-xl ${industry.bgColor} flex items-center justify-center group-hover:scale-110 transition-transform shrink-0`}>
-                    <IconComponent className={`w-7 h-7 ${industry.color}`} />
-                  </div>
-                  <h3 className="text-lg font-bold text-slate-900">{industry.name}</h3>
-                </motion.div>
-              )
-            })}
-          </div>
-        </div>
-      </section>
+const SCREENS: { id: BookingPreviewScreen; label: string }[] = [
+  { id: 'menu', label: 'メニュー選択' },
+  { id: 'date', label: '日時選択' },
+  { id: 'confirm', label: '確認' },
+]
 
-      {/* Customization Features Section - リッチメニュー・予約ページ編集 */}
-      <section id="customization" className="py-24 bg-slate-50 relative overflow-hidden">
-        {/* 背景装飾 */}
-        <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-gradient-to-bl from-primary-50/50 to-transparent rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-gradient-to-tr from-emerald-50/50 to-transparent rounded-full blur-3xl" />
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center mb-16">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="inline-block"
-            >
-              <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-100 border border-primary-200 text-primary-700 text-sm font-semibold">
-                直感的なカスタマイズ
-              </span>
-            </motion.div>
-            <motion.h2 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4"
-            >
-              あなたの店舗に合わせて、自由にデザイン
-            </motion.h2>
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
-            >
-              リッチメニューも予約ページも、<br className="hidden md:block" />
-              画面を見ながらの簡単な操作でつくれます。
-            </motion.p>
-          </div>
-          
-          {/* リッチメニュー登録機能 */}
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mb-20"
-          >
-            <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
-              <div className="grid lg:grid-cols-2 gap-0">
-                {/* 左側：機能説明 */}
-                <div className="p-8 lg:p-12 flex flex-col justify-center">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="bg-gradient-to-br from-primary-500 to-primary-600 p-3 rounded-2xl shadow-lg shadow-primary-200">
-                      <Layout className="w-7 h-7 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-2xl font-bold text-slate-900">リッチメニュー登録</h3>
-                      <p className="text-sm text-slate-500">LINE画面下部のメニューをカスタマイズ</p>
-                    </div>
-                  </div>
-                  
-                  <p className="text-slate-600 mb-8 leading-relaxed">
-                    お客様がLINEを開いて、最初に目にするのがリッチメニューです。<br />
-                    お店らしいデザインにして、予約や問い合わせの入口にしましょう。
-                  </p>
-                  
-                  {/* アピールポイント */}
-                  <div className="grid sm:grid-cols-2 gap-4 mb-8">
-                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
-                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
-                        <Palette className="w-5 h-5 text-primary-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900 text-sm flex items-center gap-2">
-                          6種類のテーマ
-                          <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-bold flex items-center gap-0.5">
-                            <Crown className="w-3 h-3" />Pro
-                          </span>
-                        </p>
-                        <p className="text-xs text-slate-500 mt-0.5">シンプルは無料、残り5種はPro</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
-                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
-                        <Layout className="w-5 h-5 text-primary-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900 text-sm flex items-center gap-2">
-                          柔軟なレイアウト
-                          <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-bold flex items-center gap-0.5">
-                            <Crown className="w-3 h-3" />Pro
-                          </span>
-                        </p>
-                        <p className="text-xs text-slate-500 mt-0.5">2×2、3×2、コンパクトなど</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
-                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
-                        <MousePointerClick className="w-5 h-5 text-primary-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900 text-sm">ワンクリック反映</p>
-                        <p className="text-xs text-slate-500 mt-0.5">設定後すぐにLINEに反映</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
-                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
-                        <Smartphone className="w-5 h-5 text-primary-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900 text-sm">リアルタイムプレビュー</p>
-                        <p className="text-xs text-slate-500 mt-0.5">編集しながら即確認</p>
-                      </div>
-                    </div>
-                  </div>
+function ThemeShowcase() {
+  const [themeId, setThemeId] = useState('simple')
+  const [screen, setScreen] = useState<BookingPreviewScreen>('date')
+  // お店のアイコンは、選んだらすぐ予約ページに反映する
+  const [saved, setSaved] = useState<{ logoUrl?: string; layout: LogoLayout; version: number }>({ layout: 'center', version: 0 })
+  const theme = DESIGN_THEMES.find((t) => t.id === themeId) ?? DESIGN_THEMES[0]
 
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { label: 'アイコン選択', pro: false },
-                      { label: 'ラベル編集', pro: false },
-                      { label: 'カスタム背景画像', pro: true },
-                      { label: 'スロット背景画像', pro: true },
-                    ].map((tag) => (
-                      <span key={tag.label} className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${tag.pro ? 'bg-amber-50 text-amber-700' : 'bg-primary-50 text-primary-700'}`}>
-                        {tag.label}
-                        {tag.pro && <Crown className="w-3 h-3" />}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                
-                {/* 右側：UIプレビュー */}
-                <div className="bg-gradient-to-br from-slate-100 to-slate-50 p-8 lg:p-12 flex items-center justify-center">
-                  <div className="relative">
-                    {/* スマホフレーム */}
-                    <div className="bg-slate-900 rounded-[3rem] p-3 shadow-2xl">
-                      <div className="bg-white rounded-[2.5rem] overflow-hidden w-[280px]">
-                        {/* ステータスバー */}
-                        <div className="bg-slate-100 px-6 py-3 flex items-center justify-between">
-                          <div className="text-xs font-semibold text-slate-600">9:41</div>
-                          <div className="flex gap-1">
-                            <div className="w-4 h-2 bg-slate-400 rounded-sm" />
-                            <div className="w-4 h-2 bg-slate-400 rounded-sm" />
-                            <div className="w-6 h-3 bg-slate-400 rounded-sm" />
-                          </div>
-                        </div>
-                        {/* LINEヘッダー */}
-                        <div className="bg-white px-4 py-3 border-b border-slate-100 flex items-center gap-3">
-                          <div className="w-2 h-2" />
-                          <div className="flex-1 text-center">
-                            <p className="font-bold text-slate-900 text-sm">サンプル店舗</p>
-                          </div>
-                          <div className="w-6 h-6 bg-slate-200 rounded-full" />
-                        </div>
-                        {/* トーク画面 */}
-                        <div className="bg-[#7494A5] p-4 min-h-[180px]">
-                          <div className="flex gap-2">
-                            <div className="w-8 h-8 rounded-full bg-white shrink-0 flex items-center justify-center">
-                              <div className="w-5 h-5 rounded-full bg-primary-200" />
-                            </div>
-                            <div className="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm max-w-[80%]">
-                              <p className="text-xs text-slate-700">いらっしゃいませ！🎉</p>
-                              <p className="text-xs text-slate-700 mt-1">下のメニューからご予約いただけます。</p>
-                            </div>
-                          </div>
-                        </div>
-                        {/* リッチメニュー */}
-                        <div className="bg-white border-t-2 border-slate-200">
-                          <div className="grid grid-cols-2 gap-[2px] p-[2px] bg-slate-200">
-                            <div className="bg-gradient-to-br from-primary-50 to-white p-4 flex flex-col items-center justify-center gap-2 min-h-[90px] hover:bg-primary-50 transition-colors cursor-pointer">
-                              <div className="bg-primary-100 p-2 rounded-full">
-                                <Smartphone className="w-5 h-5 text-primary-600" />
-                              </div>
-                              <span className="text-xs font-bold text-primary-700">予約する</span>
-                            </div>
-                            <div className="bg-gradient-to-br from-primary-50 to-white p-4 flex flex-col items-center justify-center gap-2 min-h-[90px] hover:bg-primary-50 transition-colors cursor-pointer">
-                              <div className="bg-primary-100 p-2 rounded-full">
-                                <MessageCircle className="w-5 h-5 text-primary-600" />
-                              </div>
-                              <span className="text-xs font-bold text-primary-700">メッセージ入力</span>
-                            </div>
-                            <div className="bg-gradient-to-br from-primary-50 to-white p-4 flex flex-col items-center justify-center gap-2 min-h-[90px] hover:bg-primary-50 transition-colors cursor-pointer">
-                              <div className="bg-primary-100 p-2 rounded-full">
-                                <CreditCard className="w-5 h-5 text-primary-600" />
-                              </div>
-                              <span className="text-xs font-bold text-primary-700">会員証</span>
-                            </div>
-                            <div className="bg-gradient-to-br from-primary-50 to-white p-4 flex flex-col items-center justify-center gap-2 min-h-[90px] hover:bg-primary-50 transition-colors cursor-pointer">
-                              <div className="bg-primary-100 p-2 rounded-full">
-                                <Calendar className="w-5 h-5 text-primary-600" />
-                              </div>
-                              <span className="text-xs font-bold text-primary-700">営業時間</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    {/* 装飾バッジ */}
-                    <motion.div 
-                      initial={{ scale: 0, rotate: -10 }}
-                      whileInView={{ scale: 1, rotate: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: 0.3, type: "spring" }}
-                      className="absolute -top-4 -right-4 bg-white px-4 py-2 rounded-full shadow-lg border border-slate-100"
-                    >
-                      <span className="text-sm font-bold text-primary-600">リアルタイム反映!</span>
-                    </motion.div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
+  return (
+    <section id="customization" className="scroll-mt-20 bg-paper py-24">
+      <div className={`${wrap} grid items-center gap-14 lg:grid-cols-[1fr_auto] lg:items-start`}>
+        <div className="max-w-xl">
+          <h2 className="text-3xl font-black leading-snug tracking-[-0.02em] sm:text-4xl">
+            予約ページの見た目も、
+            <br />
+            お店に合わせて選べます
+          </h2>
+          <p className="mt-5 text-[17px] leading-[1.9] text-ink-soft">
+            お客様が予約に使うページは、6種類のテーマから選べます。お店のアイコンを載せることもできます。下のボタンを押すと、右の予約ページが切り替わります。右の画面は、実際の予約ページと同じ部品で作っています。
+          </p>
 
-          {/* 予約ページ編集機能 */}
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
-              <div className="grid lg:grid-cols-2 gap-0">
-                {/* 左側：UIプレビュー（モバイルでは下に表示） */}
-                <div className="bg-gradient-to-br from-primary-50 to-slate-50 p-8 lg:p-12 flex items-center justify-center order-2 lg:order-1">
-                  <div className="relative w-full max-w-[340px]">
-                    {/* 予約ページプレビュー */}
-                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
-                      {/* ヘッダー */}
-                      <div className="bg-gradient-to-r from-primary-500 to-primary-600 p-4 text-center">
-                        <h4 className="text-white font-bold">予約フォーム</h4>
-                      </div>
-                      {/* コンテンツ */}
-                      <div className="p-4 space-y-4">
-                        {/* 日時選択テーブル */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-3">
-                            <Calendar className="w-4 h-4 text-primary-600" />
-                            <span className="text-sm font-bold text-slate-700">日時を選択</span>
-                          </div>
-                          {/* 実際の日時選択テーブルUI */}
-                          <div className="border border-slate-200 rounded-lg overflow-hidden">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="bg-slate-50">
-                                  <th className="p-2 text-slate-500 font-medium border-r border-slate-200">時間</th>
-                                  <th className="p-2 text-center border-r border-slate-200">
-                                    <div className="text-[10px] text-slate-400">1/7</div>
-                                    <div className="font-bold text-slate-700">火</div>
-                                  </th>
-                                  <th className="p-2 text-center border-r border-slate-200">
-                                    <div className="text-[10px] text-slate-400">1/8</div>
-                                    <div className="font-bold text-slate-700">水</div>
-                                  </th>
-                                  <th className="p-2 text-center border-r border-slate-200">
-                                    <div className="text-[10px] text-slate-400">1/9</div>
-                                    <div className="font-bold text-slate-700">木</div>
-                                  </th>
-                                  <th className="p-2 text-center">
-                                    <div className="text-[10px] text-slate-400">1/10</div>
-                                    <div className="font-bold text-slate-700">金</div>
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                <tr className="border-t border-slate-100">
-                                  <td className="p-2 text-slate-600 font-medium border-r border-slate-200 bg-slate-50">10:00</td>
-                                  <td className="p-1 text-center border-r border-slate-100">
-                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
-                                  </td>
-                                  <td className="p-1 text-center border-r border-slate-100">
-                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-primary-500 text-white font-bold shadow-md">✓</span>
-                                  </td>
-                                  <td className="p-1 text-center border-r border-slate-100">
-                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
-                                  </td>
-                                  <td className="p-1 text-center">
-                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-slate-100 text-slate-300 font-bold">×</span>
-                                  </td>
-                                </tr>
-                                <tr className="border-t border-slate-100">
-                                  <td className="p-2 text-slate-600 font-medium border-r border-slate-200 bg-slate-50">11:00</td>
-                                  <td className="p-1 text-center border-r border-slate-100">
-                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
-                                  </td>
-                                  <td className="p-1 text-center border-r border-slate-100">
-                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
-                                  </td>
-                                  <td className="p-1 text-center border-r border-slate-100">
-                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-slate-100 text-slate-300 font-bold">×</span>
-                                  </td>
-                                  <td className="p-1 text-center">
-                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
-                                  </td>
-                                </tr>
-                                <tr className="border-t border-slate-100">
-                                  <td className="p-2 text-slate-600 font-medium border-r border-slate-200 bg-slate-50">12:00</td>
-                                  <td className="p-1 text-center border-r border-slate-100">
-                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-slate-100 text-slate-300 font-bold">×</span>
-                                  </td>
-                                  <td className="p-1 text-center border-r border-slate-100">
-                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
-                                  </td>
-                                  <td className="p-1 text-center border-r border-slate-100">
-                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
-                                  </td>
-                                  <td className="p-1 text-center">
-                                    <span className="inline-block w-7 h-7 leading-7 rounded bg-white border border-slate-200 text-emerald-500 font-bold">◯</span>
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                          {/* 選択中の表示 */}
-                          <div className="mt-3 p-2 bg-primary-50 border-2 border-primary-200 rounded-lg text-center">
-                            <span className="text-xs text-slate-500">選択中：</span>
-                            <span className="text-sm font-bold text-primary-600 ml-1">1月8日(水) 10:00</span>
-                          </div>
-                        </div>
-                        {/* 確定ボタン */}
-                        <button className="w-full bg-gradient-to-r from-primary-500 to-primary-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-primary-200 hover:shadow-xl transition-shadow">
-                          次へ進む
-                        </button>
-                      </div>
-                    </div>
-                    {/* 装飾 */}
-                    <motion.div 
-                      initial={{ scale: 0, rotate: 10 }}
-                      whileInView={{ scale: 1, rotate: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: 0.3, type: "spring" }}
-                      className="absolute -bottom-4 -left-4 bg-white px-4 py-2 rounded-full shadow-lg border border-slate-100"
-                    >
-                      <span className="text-sm font-bold text-primary-600">テーマ選択可能!</span>
-                    </motion.div>
-                  </div>
-                </div>
-                
-                {/* 右側：機能説明 */}
-                <div className="p-8 lg:p-12 flex flex-col justify-center order-1 lg:order-2">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="bg-gradient-to-br from-primary-500 to-primary-600 p-3 rounded-2xl shadow-lg shadow-primary-200">
-                      <Palette className="w-7 h-7 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-2xl font-bold text-slate-900">予約ページ編集</h3>
-                      <p className="text-sm text-slate-500">予約フォームを自由にカスタマイズ</p>
-                    </div>
-                  </div>
-                  
-                  <p className="text-slate-600 mb-8 leading-relaxed">
-                    お客様が予約するページの見た目と機能を、お店に合わせて設定できます。<br />
-                    業種に合った予約の流れも用意しています。
-                  </p>
-                  
-                  {/* アピールポイント */}
-                  <div className="grid sm:grid-cols-2 gap-4 mb-8">
-                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
-                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
-                        <Palette className="w-5 h-5 text-primary-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900 text-sm flex items-center gap-2">
-                          6種類のテーマ
-                          <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-bold flex items-center gap-0.5">
-                            <Crown className="w-3 h-3" />Pro
-                          </span>
-                        </p>
-                        <p className="text-xs text-slate-500 mt-0.5">シンプルは無料、残り5種はPro</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
-                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
-                        <Clock className="w-5 h-5 text-primary-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900 text-sm">営業時間設定</p>
-                        <p className="text-xs text-slate-500 mt-0.5">曜日ごと・臨時休業も対応</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
-                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
-                        <Users className="w-5 h-5 text-primary-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900 text-sm">スタッフ・メニュー管理</p>
-                        <p className="text-xs text-slate-500 mt-0.5">サロン・飲食店向け機能</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
-                      <div className="bg-primary-100 p-2 rounded-lg shrink-0">
-                        <Smartphone className="w-5 h-5 text-primary-600" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900 text-sm">リアルタイムプレビュー</p>
-                        <p className="text-xs text-slate-500 mt-0.5">編集しながら即確認</p>
-                      </div>
-                    </div>
-                  </div>
+          <TryTag className="mt-8" />
 
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { label: '営業時間設定', pro: false },
-                      { label: 'スタッフ管理', pro: false },
-                      { label: 'テーマカラー変更', pro: true },
-                      { label: 'ロゴ設定', pro: true },
-                      { label: 'Googleカレンダー連携', pro: true },
-                    ].map((tag) => (
-                      <span key={tag.label} className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${tag.pro ? 'bg-amber-50 text-amber-700' : 'bg-primary-50 text-primary-700'}`}>
-                        {tag.label}
-                        {tag.pro && <Crown className="w-3 h-3" />}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* CTA */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mt-16"
-          >
-            <a 
-              href="#auth" 
-              className="inline-flex items-center gap-2 px-8 py-4 bg-primary-600 text-white rounded-full font-bold hover:bg-primary-700 transition shadow-lg hover:shadow-xl group"
-            >
-              無料で始める
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </a>
-            <p className="text-slate-500 text-sm mt-4">
-              設定はすべて画面上の操作だけで完結します
-            </p>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Onboarding Steps Section - 導入の流れ */}
-      <section className="py-24 bg-white relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
-          <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] rounded-full bg-primary-50/30 blur-3xl"></div>
-          <div className="absolute bottom-[20%] left-[10%] w-[40%] h-[40%] rounded-full bg-emerald-50/30 blur-3xl"></div>
-        </div>
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center mb-16">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="inline-block"
-            >
-              <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-50 border border-primary-200 text-primary-700 text-sm font-semibold">
-                簡単3ステップ
-              </span>
-            </motion.div>
-            <motion.h2 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4"
-            >
-              始めるまでたった3ステップ
-            </motion.h2>
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
-            >
-              アカウント作成からLINE連携まで、あわせて20分ほど。<br className="hidden md:block" />
-              その日のうちに運用を始められます。
-            </motion.p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {[
-              {
-                step: 1,
-                title: '無料アカウント作成',
-                description: 'メールアドレスとパスワードを入力するだけ。届いた認証コードを入れれば完了です。',
-                time: '約3分',
-                icon: Users
-              },
-              {
-                step: 2,
-                title: 'LINE公式アカウントと連携',
-                description: 'LINE公式アカウントの設定情報を入力。ワンクリックで連携完了です。',
-                time: '約5分',
-                icon: MessageCircle
-              },
-              {
-                step: 3,
-                title: '設定完了、運用開始！',
-                description: '予約枠や応答ルールを設定すれば、すぐに運用を開始できます。',
-                time: '約10分',
-                icon: Check
-              }
-            ].map((item, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.15 }}
-                className="relative"
-              >
-                <div className="bg-slate-50 rounded-2xl p-8 hover:bg-white hover:shadow-lg transition-all border border-slate-100 h-full">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="w-16 h-16 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold text-xl relative z-10">
-                      {item.step}
-                    </div>
-                    {index < 2 && (
-                      <div className="hidden md:block absolute left-full top-1/2 -translate-y-1/2 w-8 h-0.5 bg-primary-200 z-0" style={{ marginLeft: '-1rem' }}>
-                        <ArrowRight className="w-4 h-4 text-primary-400 absolute right-0 top-1/2 -translate-y-1/2" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center mb-4">
-                    <item.icon className="w-6 h-6 text-primary-600" />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900 mb-3">{item.title}</h3>
-                  <p className="text-slate-600 leading-relaxed mb-4">{item.description}</p>
-                  <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <Clock className="w-4 h-4" />
-                    <span>{item.time}</span>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mt-12"
-          >
-            <a 
-              href="#auth" 
-              className="inline-flex items-center gap-2 px-8 py-4 bg-primary-600 text-white rounded-full font-bold hover:bg-primary-700 transition shadow-lg hover:shadow-xl group"
-            >
-              今すぐ無料で始める
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </a>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Testimonials Section - お客様の声 */}
-      <section className="py-24 bg-slate-50 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-1/2 h-1/2 bg-gradient-to-bl from-primary-50/50 to-transparent rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-1/3 h-1/3 bg-gradient-to-tr from-emerald-50/50 to-transparent rounded-full blur-3xl" />
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center mb-16">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="inline-block"
-            >
-              <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-100 border border-primary-200 text-primary-700 text-sm font-semibold">
-                導入事例
-              </span>
-            </motion.div>
-            <motion.h2 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4"
-            >
-              お客様の声
-            </motion.h2>
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
-            >
-              IToguchiを使っているお店の声を、これから紹介していきます。
-            </motion.p>
-          </div>
-
-          {/* Coming Soon プレースホルダー */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="bg-white rounded-3xl p-12 border-2 border-dashed border-slate-200 text-center"
-          >
-            <div className="w-20 h-20 rounded-full bg-primary-50 flex items-center justify-center mx-auto mb-6">
-              <Star className="w-10 h-10 text-primary-400" />
-            </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">導入事例を募集中</h3>
-            <p className="text-slate-600 mb-6">
-              IToguchiをご利用中のお店の声を、<br className="hidden md:block" />
-              準備でき次第ご紹介します。
-            </p>
-            <a 
-              href="#campaign" 
-              className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-full font-bold hover:bg-primary-700 transition shadow-md hover:shadow-lg text-sm"
-            >
-              リリース記念キャンペーンを見る
-              <ArrowRight className="w-4 h-4" />
-            </a>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Pre-Release Monitor Section（非表示・参照用にコード保持） */}
-      {false && (
-      <section id="pre-release" className="py-20 bg-linear-to-br from-primary-600 to-primary-800 text-white relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-20">
-          <div className="absolute -top-[50%] -left-[20%] w-[100%] h-[100%] rounded-full bg-white blur-3xl"></div>
-          <div className="absolute bottom-[10%] right-[10%] w-[60%] h-[60%] rounded-full bg-primary-300 blur-3xl"></div>
-        </div>
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center mb-12">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full text-sm font-bold mb-4 border border-white/30"
-            >
-              <Sparkles className="w-4 h-4" />
-              先行体験モニター募集中
-              <Sparkles className="w-4 h-4" />
-            </motion.div>
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
-              プレリリースモニター募集
-            </h2>
-            <p className="text-primary-100 text-lg max-w-2xl mx-auto">
-              正式リリース前の今だけ！<br className="hidden md:block" />
-              <span className="font-bold text-yellow-300">Proプラン2ヶ月無料</span>で先行体験できます。
-            </p>
-          </div>
-
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="max-w-2xl mx-auto"
-          >
-            <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20">
-              <div className="text-center mb-8">
-                <div className="bg-white text-primary-700 text-sm font-bold px-4 py-2 rounded-full inline-block mb-4">
-                  🎁 プレリリース限定特典
-                </div>
-                <div className="text-5xl md:text-6xl font-bold mb-2 text-yellow-300">
-                  2ヶ月無料
-                </div>
-                <p className="text-primary-100">
-                  Proプラン（通常 ¥4,980/月）が無料で使えます
-                </p>
-              </div>
-              
-              <ul className="space-y-4 mb-8">
-                <li className="flex items-start gap-3">
-                  <Check className="w-6 h-6 text-yellow-300 shrink-0 mt-0.5" />
-                  <span className="text-lg">Proプランの全機能を<span className="font-bold text-yellow-300">2ヶ月間無料</span>で利用可能</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Check className="w-6 h-6 text-yellow-300 shrink-0 mt-0.5" />
-                  <span className="text-lg">ご登録いただいた<span className="font-bold text-yellow-300">データはそのまま継続</span>利用可能</span>
-                </li>
-              </ul>
-
-              {/* 注意事項 */}
-              <div className="bg-primary-900/30 border border-primary-300/30 rounded-xl p-4 mb-8">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-yellow-300 shrink-0 mt-0.5" />
-                  <div className="text-sm text-primary-100">
-                    <p className="font-bold text-yellow-300 mb-2">プレリリース版についてのご注意</p>
-                    <ul className="space-y-1 list-disc list-inside">
-                      <li>現在開発中のため、<span className="font-medium text-yellow-300">仕様が予告なく変更</span>される場合があります</li>
-                      <li>一部機能に<span className="font-medium text-yellow-300">不具合</span>が発生する可能性があります</li>
-                      <li>プレリリース期間中は<span className="font-medium text-yellow-300">サポート対応ができません</span></li>
-                      <li>LINE初期設定代行（¥9,980）は<span className="font-medium text-yellow-300">ご利用いただけません</span></li>
-                      <li>クレジットカード登録が必須です。<span className="font-medium text-yellow-300">2ヶ月後から自動更新</span>で課金されます</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              <a href="#auth" className="block w-full py-4 bg-white text-primary-700 rounded-xl font-bold text-center text-lg hover:bg-primary-50 transition shadow-lg hover:shadow-xl">
-                無料でモニター登録する
-              </a>
-              
-              <p className="text-center text-primary-200 text-sm mt-4">
-                ※ 簡単なフィードバックへのご協力をお願いする場合があります
-              </p>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-      )}
-
-      {/* Campaign Section - リリース記念（Pro 30日間無料） */}
-      <section id="campaign" className="py-20 bg-linear-to-br from-primary-600 to-primary-800 text-white relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-20">
-          <div className="absolute -top-[50%] -left-[20%] w-[100%] h-[100%] rounded-full bg-white blur-3xl"></div>
-          <div className="absolute bottom-[10%] right-[10%] w-[60%] h-[60%] rounded-full bg-primary-300 blur-3xl"></div>
-        </div>
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center mb-12">
-            <span className="inline-block px-4 py-1 bg-white/20 backdrop-blur-sm rounded-full text-sm font-bold mb-4 border border-white/30">
-              リリース記念キャンペーン
-            </span>
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
-              Proプラン 30日間無料
-            </h2>
-            <p className="text-primary-100 text-lg max-w-2xl mx-auto">
-              初回お申し込みの方は、Proプラン（通常 ¥4,980/月）を<span className="font-bold text-yellow-300">30日間</span>無料でお試しいただけます。
-            </p>
-          </div>
-
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="max-w-xl mx-auto"
-          >
-            <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 md:p-10 border border-white/20 text-center">
-              <div className="text-5xl md:text-6xl font-bold text-yellow-300 mb-4">30日間無料</div>
-              <ul className="space-y-4 mb-8 text-left max-w-md mx-auto">
-                <li className="flex items-start gap-3">
-                  <Check className="w-6 h-6 text-yellow-300 shrink-0 mt-0.5" />
-                  <span className="text-lg">Proプランの全機能を<span className="font-bold text-yellow-300">30日間</span>お試し</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Check className="w-6 h-6 text-yellow-300 shrink-0 mt-0.5" />
-                  <span className="text-lg">ご登録データはそのまま<span className="font-bold text-yellow-300">継続利用</span>可能</span>
-                </li>
-              </ul>
-              <Link to="/monitor" className="inline-block w-full max-w-sm py-4 bg-white text-primary-700 rounded-xl font-bold text-lg hover:bg-primary-50 transition shadow-lg">
-                モニター特典に申し込む
-              </Link>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section id="pricing" className="py-24 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-20">
-            <h2 className="text-3xl lg:text-4xl font-bold text-slate-900 mb-4">料金プラン</h2>
-            <p className="text-slate-600">
-              お店の状況に合わせて選べる、<br />わかりやすい料金です。
-            </p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {/* Free Plan */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 flex flex-col"
-            >
-              <div className="mb-4">
-                <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold uppercase tracking-wider">Starter</span>
-              </div>
-              <h3 className="text-2xl font-bold text-slate-900 mb-2">Free</h3>
-              <div className="flex items-baseline mb-8">
-                <span className="text-4xl font-bold text-slate-900">¥0</span>
-                <span className="text-slate-500 ml-2">/月</span>
-              </div>
-              <ul className="space-y-4 mb-8 flex-1">
-                {[
-                  '予約管理（無制限）',
-                  '固定応答 10件',
-                  'ポイントカード基本機能',
-                  '※一部機能制限あり'
-                ].map((item, i) => (
-                  <li key={i} className="flex items-center text-slate-600">
-                    <Check className="w-5 h-5 text-primary-500 mr-3 shrink-0" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <a href="#auth" className="block w-full py-3 px-6 text-center bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition">
-                無料で始める
-              </a>
-            </motion.div>
-
-            {/* Pro Plan */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              className="bg-white p-8 rounded-3xl shadow-xl border-2 border-primary-500 relative flex flex-col transform md:-translate-y-4"
-            >
-              <div className="absolute top-0 right-0 bg-primary-500 text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl rounded-tr-2xl">
-                おすすめ
-              </div>
-              <div className="mb-4">
-                <span className="px-3 py-1 bg-primary-50 text-primary-600 rounded-full text-xs font-bold uppercase tracking-wider">Standard</span>
-              </div>
-              <h3 className="text-2xl font-bold text-slate-900 mb-2">Pro</h3>
-              <div className="flex items-baseline mb-8">
-                <span className="text-4xl font-bold text-slate-900">¥4,980</span>
-                <span className="text-slate-500 ml-2">/月</span>
-              </div>
-              <ul className="space-y-4 mb-8 flex-1">
-                {[
-                  '全機能解放',
-                  'Googleカレンダー連携',
-                  'デジタル会員証（フル機能）',
-                  '無制限応答 & AI応答',
-                  '詳細分析レポート'
-                ].map((item, i) => (
-                  <li key={i} className="flex items-center text-slate-700 font-medium">
-                    <Check className="w-5 h-5 text-primary-600 mr-3 shrink-0" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <a href="#auth" className="block w-full py-3 px-6 text-center bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition shadow-lg shadow-primary-200">
-                Proプランを選択
-              </a>
-            </motion.div>
-
-            {/* Executive Plan */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 flex flex-col"
-            >
-              <div className="mb-4">
-                <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold uppercase tracking-wider">Coming Soon</span>
-              </div>
-              <h3 className="text-2xl font-bold text-slate-900 mb-2">Executive</h3>
-              <div className="flex items-baseline mb-8">
-                <span className="text-3xl font-bold text-slate-900">¥19,800〜</span>
-                <span className="text-slate-500 ml-2">/月</span>
-              </div>
-              <ul className="space-y-4 mb-8 flex-1">
-                {[
-                  '複数店舗管理',
-                  'ホワイトラベル',
-                  '個別相談・コンサル',
-                  '独自開発の依頼権'
-                ].map((item, i) => (
-                  <li key={i} className="flex items-center text-slate-600">
-                    <Check className="w-5 h-5 text-primary-500 mr-3 shrink-0" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <a href="mailto:itoguchi.app@gmail.com" className="block w-full py-3 px-6 text-center bg-white border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-50 transition">
-                お問い合わせ
-              </a>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ Section */}
-      <section className="py-24 bg-white relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10">
-          <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] rounded-full bg-primary-50/30 blur-3xl"></div>
-          <div className="absolute bottom-[20%] left-[10%] w-[40%] h-[40%] rounded-full bg-emerald-50/30 blur-3xl"></div>
-        </div>
-        
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center mb-16">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="inline-block"
-            >
-              <span className="inline-block px-4 py-1.5 mb-4 rounded-full bg-primary-50 border border-primary-200 text-primary-700 text-sm font-semibold">
-                FAQ
-              </span>
-            </motion.div>
-            <motion.h2 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-4"
-            >
-              よくある質問
-            </motion.h2>
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed"
-            >
-              ご検討中の方から、よくいただく質問をまとめました。
-            </motion.p>
-          </div>
-
-          <div className="space-y-4">
-            {[
-              {
-                question: '専門知識がなくても設定できますか？',
-                answer: 'はい。プログラミングの知識がなくても、画面上の操作だけで設定できます。管理画面の案内に沿って進めるだけなので、パソコンの操作が苦手な方でも大丈夫です。'
-              },
-              {
-                question: 'LINE公式アカウントを持っていなくても始められますか？',
-                answer: 'いいえ、LINE公式アカウントが必要です。IToguchiはLINE公式アカウントと連携して動くサービスです。まだお持ちでない場合は、まずLINE公式アカウントの開設からお願いします。開設は無料です。'
-              },
-              {
-                question: '無料プランでどこまで使えますか？',
-                answer: '無料プランでも、予約管理（無制限）、キーワード応答（10件まで）、ポイントカードの基本機能をお使いいただけます。Proプランにすると、Googleカレンダー連携、AI自動応答、デジタル会員証のカスタマイズを含む全機能が開放されます。'
-              },
-              {
-                question: 'データは安全ですか？',
-                answer: 'はい。通信はすべてSSL/TLSで暗号化しており、データはSupabase（PostgreSQL）で管理しています。Row Level Security（RLS）により、店舗ごとにデータを分離して保管しています。'
-              },
-              {
-                question: '解約はいつでもできますか？',
-                answer: 'はい。管理画面からいつでも解約できます。解約後も一定期間はデータを保持しているので、再開したときは続きからお使いいただけます。'
-              }
-            ].map((faq, index) => (
-              <FAQItem key={index} question={faq.question} answer={faq.answer} />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Security Guide Teaser Section */}
-      <section className="py-20 bg-slate-50">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="bg-white rounded-3xl p-8 md:p-12 shadow-xl border border-slate-100 text-center"
-          >
-            <div className="w-14 h-14 rounded-full bg-primary-100 flex items-center justify-center mx-auto mb-6">
-              <ShieldCheck className="w-7 h-7 text-primary-600" />
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
-              お客様のデータ、しっかり守っています
-            </h2>
-            <p className="text-slate-600 max-w-2xl mx-auto leading-relaxed mb-8">
-              LINEに連携する大切な情報だから、安全性を最優先にしています。
-              店舗ごとのデータ分離、通信の暗号化、カード情報の非保持など、わかりやすくご説明します。
-            </p>
-            <Link
-              to="/security-guide"
-              className="inline-flex items-center gap-2 bg-white border border-primary-200 text-primary-700 px-6 py-3 rounded-xl font-bold hover:bg-primary-50 transition"
-            >
-              セキュリティへの取り組みを見る
-              <ArrowRight size={18} />
-            </Link>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Contact CTA Section */}
-      <section className="py-20 bg-linear-to-br from-primary-50 to-emerald-50 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-30">
-          <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] rounded-full bg-primary-200 blur-3xl"></div>
-          <div className="absolute bottom-[20%] left-[10%] w-[40%] h-[40%] rounded-full bg-emerald-200 blur-3xl"></div>
-        </div>
-        
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="bg-white rounded-3xl p-8 md:p-12 shadow-xl border border-slate-100 text-center"
-          >
-            <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center mx-auto mb-6">
-              <MessageSquare className="w-8 h-8 text-primary-600" />
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
-              気になることは、お気軽に
-            </h2>
-            <p className="text-slate-600 mb-8 max-w-2xl mx-auto">
-              IToguchiのLINE公式アカウントから、いつでもご相談いただけます。<br className="hidden md:block" />
-              導入前の疑問にも、ひとつずつお答えします。
-            </p>
-            <a 
-              href="https://line.me/R/ti/p/@431cghfd" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-8 py-4 bg-[#06C755] text-white rounded-full font-bold hover:bg-[#05B048] transition shadow-lg hover:shadow-xl group"
-            >
-              <MessageSquare className="w-5 h-5" />
-              LINEでお問い合わせ
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </a>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Auth Section */}
-      <section id="auth" className="py-24 bg-white relative overflow-hidden">
-        <div className="absolute inset-0 bg-primary-50/50 -skew-y-3 transform origin-top-left scale-110"></div>
-        
-        <div className="max-w-md mx-auto px-4 relative z-10">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="bg-white p-10 rounded-3xl shadow-2xl border border-slate-100"
-          >
-            <div className="flex justify-center mb-8">
-              <div className="bg-slate-100 p-1 rounded-xl inline-flex">
+          <fieldset className="mt-6">
+            <legend className="text-[14px] font-bold">テーマ</legend>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {DESIGN_THEMES.map((t) => (
                 <button
-                  className={`py-2 px-6 rounded-lg text-sm font-bold transition-all ${isLoginMode ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                  onClick={() => setIsLoginMode(true)}
-                >
-                  ログイン
-                </button>
-                <button
-                  className={`py-2 px-6 rounded-lg text-sm font-bold transition-all ${!isLoginMode ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                  onClick={() => setIsLoginMode(false)}
-                >
-                  新規登録
-                </button>
-              </div>
-            </div>
-
-            <div className="flex flex-col items-center mb-8">
-              <Logo className="h-12 w-auto mb-4" />
-              <h2 className="text-2xl font-bold text-slate-900">
-                {showVerificationStep ? '認証コードを入力' : isLoginMode ? 'おかえりなさい' : 'IToguchiを始める'}
-              </h2>
-              <p className="text-slate-500 mt-2 text-center text-sm">
-                {showVerificationStep 
-                  ? <>{email}<br />に送信された6桁のコードを入力してください</>
-                  : isLoginMode ? 'ログインして管理画面に進みましょう' : 'まずは無料で、お客様とのつながりを作りましょう'}
-              </p>
-            </div>
-            
-            {showVerificationStep ? (
-              /* 認証コード入力フォーム */
-              <form onSubmit={handleVerifyCode} className="space-y-5">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">認証コード</label>
-                  <input
-                    type="text"
-                    value={verificationCode}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '').slice(0, 6)
-                      setVerificationCode(value)
-                    }}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition bg-slate-50 focus:bg-white text-center text-2xl tracking-widest font-bold"
-                    placeholder="000000"
-                    required
-                    maxLength={6}
-                    pattern="\d{6}"
-                    autoFocus
-                  />
-                  <p className="text-xs text-slate-500 mt-2">
-                    コードが届いていませんか？
-                    {resendCooldown > 0 ? (
-                      <span className="text-slate-400 ml-1">({resendCooldown}秒後に再送信可能)</span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={handleResendCode}
-                        disabled={loading}
-                        className="text-primary-600 hover:text-primary-700 font-medium ml-1 disabled:opacity-50"
-                      >
-                        再送信
-                      </button>
-                    )}
-                  </p>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading || verificationCode.length !== 6}
-                  className="w-full bg-primary-600 text-white py-3.5 rounded-xl font-bold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary-200 flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      確認中...
-                    </>
-                  ) : (
-                    '確認して次へ'
-                  )}
-                </button>
-
-                <button
+                  key={t.id}
                   type="button"
-                  onClick={() => {
-                    setShowVerificationStep(false)
-                    setVerificationCode('')
-                  }}
-                  className="w-full text-slate-600 hover:text-slate-800 text-sm"
+                  aria-pressed={themeId === t.id}
+                  onClick={() => setThemeId(t.id)}
+                  className={`rounded-lg border-2 px-3.5 py-2 text-[14px] font-bold transition-colors ${
+                    themeId === t.id ? 'border-ink bg-ink text-paper' : 'border-rule bg-white text-ink hover:border-ink/60'
+                  }`}
                 >
-                  ← 戻る
+                  {t.name}
+                  {t.isPro && <span className={`ml-1.5 font-slip text-[11px] ${themeId === t.id ? 'text-primary-300' : 'text-ink-soft'}`}>Pro</span>}
                 </button>
-              </form>
-            ) : (
-              /* 通常のログイン/サインアップフォーム */
-            <form onSubmit={handleAuth} className="space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">メールアドレス</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition bg-slate-50 focus:bg-white"
-                  placeholder="your@email.com"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">パスワード</label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition bg-slate-50 focus:bg-white pr-10"
-                    placeholder="••••••••"
-                    required
-                    minLength={6}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
-                </div>
-              </div>
+              ))}
+            </div>
+          </fieldset>
 
-              {!isLoginMode && (
+          <fieldset className="mt-6">
+            <legend className="text-[14px] font-bold">画面</legend>
+            <div className="mt-3 inline-flex rounded-lg border-2 border-rule bg-white p-1">
+              {SCREENS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  aria-pressed={screen === s.id}
+                  onClick={() => setScreen(s.id)}
+                  className={`rounded-md px-3.5 py-1.5 text-[14px] font-bold transition-colors ${
+                    screen === s.id ? 'bg-primary-100 text-ink' : 'text-ink-soft hover:text-ink'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <div className="mt-6">
+            <LogoSettingDemo onChange={(logoUrl, layout) => setSaved((v) => ({ logoUrl, layout, version: v.version + 1 }))} />
+          </div>
+
+          <p className="mt-6 text-[15px] leading-relaxed text-ink-soft">
+            {theme.description}。{theme.isPro ? 'Proプランで使えます。' : '無料プランで使えます。'}
+            リッチメニューも、お店の写真をボタンごとに置いて作れます。
+            <Link to="/feature/rich-menu" className={`inline-link ml-1 ${textLink}`}>
+              リッチメニューを見る
+            </Link>
+          </p>
+        </div>
+
+        <PhoneFrame className="mx-auto w-[18.5rem] shrink-0 lg:sticky lg:top-24">
+          <div className="h-[34rem] overflow-y-auto pt-7 [scrollbar-width:none]">
+            <motion.div key={`${themeId}-${screen}-${saved.version}`} initial={{ opacity: 0.4 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }}>
+              <div className="w-[133.4%] origin-top-left scale-75">
+                <BookingScreenPreview themeId={themeId} color="#00c3dc" screen={screen} logoUrl={saved.logoUrl} logoLayout={saved.layout} />
+              </div>
+            </motion.div>
+          </div>
+        </PhoneFrame>
+      </div>
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* 始めるまでの流れ                                                     */
+/* ------------------------------------------------------------------ */
+
+
+function Steps() {
+  return (
+    <section id="start" className="scroll-mt-20 bg-counter py-24">
+      <div className={wrap}>
+        <div className="max-w-2xl">
+          <h2 className="text-3xl font-black leading-snug tracking-[-0.02em] sm:text-4xl">始めるまでの流れ</h2>
+          <p className="mt-5 text-[17px] leading-[1.9] text-ink-soft">
+            アカウントの作成からLINEとの接続、最初の設定まで、合わせて20分ほどが目安です。
+          </p>
+        </div>
+
+        <div className="mt-14 grid gap-10 lg:grid-cols-[1.25fr_0.75fr] lg:gap-14">
+          <ol className="space-y-4">
+            {STEPS.map((s, i) => (
+              <li key={s.title} className="grid grid-cols-[3.5rem_1fr] gap-5 rounded-xl bg-paper p-6 sm:grid-cols-[4.5rem_1fr_auto] sm:items-center sm:p-7">
+                <span className="font-slip text-[40px] font-bold leading-none text-primary-600 sm:text-[48px]">{i + 1}</span>
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">パスワード（確認）</label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition bg-slate-50 focus:bg-white pr-10"
-                      placeholder="••••••••"
-                      required
-                      minLength={6}
-                    />
-                  </div>
+                  <h3 className="text-[20px] font-black">{s.title}</h3>
+                  <p className="mt-2 text-[15px] leading-[1.85] text-ink-soft">{s.body}</p>
                 </div>
-              )}
+                <span className="col-start-2 w-fit rounded border border-rule px-2.5 py-1 font-slip text-[13px] font-bold sm:col-start-auto">{s.minutes}</span>
+              </li>
+            ))}
+          </ol>
 
-              {!isLoginMode && (
-                <div className="space-y-3 mt-4">
-                  <label className="flex items-start gap-3 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={agreedToTerms}
-                      onChange={(e) => setAgreedToTerms(e.target.checked)}
-                      className="mt-1 w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500 cursor-pointer"
-                      required
-                    />
-                    <span className="text-sm text-slate-600 leading-relaxed">
-                      <Link 
-                        to="/terms" 
-                        target="_blank"
-                        className="text-primary-600 hover:text-primary-700 underline font-medium"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          window.scrollTo(0, 0)
-                        }}
-                      >
-                        利用規約
-                      </Link>
-                      に同意します
-                    </span>
-                  </label>
-                  <label className="flex items-start gap-3 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={agreedToPrivacy}
-                      onChange={(e) => setAgreedToPrivacy(e.target.checked)}
-                      className="mt-1 w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500 cursor-pointer"
-                      required
-                    />
-                    <span className="text-sm text-slate-600 leading-relaxed">
-                      <Link 
-                        to="/privacy" 
-                        target="_blank"
-                        className="text-primary-600 hover:text-primary-700 underline font-medium"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          window.scrollTo(0, 0)
-                        }}
-                      >
-                        プライバシーポリシー
-                      </Link>
-                      に同意します
-                    </span>
-                  </label>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading || (!isLoginMode && (!agreedToTerms || !agreedToPrivacy))}
-                className="w-full bg-primary-600 text-white py-3.5 rounded-xl font-bold hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary-200 mt-2 flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    処理中...
-                  </>
-                ) : (
-                  isLoginMode ? 'ログイン' : 'アカウント作成'
-                )}
-              </button>
-            </form>
-            )}
-          </motion.div>
+          <Slip className="h-fit py-8">
+            <p className="text-[18px] font-black leading-snug">LINE公式アカウントをまだお持ちでない方へ</p>
+            <div className="slip-rule my-4" />
+            <p className="text-[15px] leading-[1.9]">
+              LINE公式アカウントの開設は無料で、数分で済みます。お店が管理者として持つアカウントなので、開設はご自身でお願いしていますが、手順はこちらからご案内します。
+            </p>
+            <p className="mt-4 text-[15px] leading-[1.9]">
+              IToguchiとの接続に不安がある方には、接続の設定をこちらで行う初期設定代行（{SETUP_SERVICE_PRICE}）があります。モニター店舗は無料です。
+            </p>
+            <Link to="/monitor" className={`mt-5 inline-flex items-center gap-1.5 ${textLink}`}>
+              モニター特典を見る
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </Slip>
         </div>
-      </section>
+      </div>
+    </section>
+  )
+}
 
-      {/* Footer */}
-      <footer className="bg-slate-900 text-slate-300 py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-12">
-            <div className="col-span-1 md:col-span-2">
-              <div className="flex items-center gap-3 mb-6">
-                <span className="text-2xl font-bold text-white tracking-tight">IToguchi</span>
-              </div>
-              <p className="text-slate-400 max-w-sm leading-relaxed">
-                お店とお客様をつなぐ、たしかな糸ぐち。<br />
-                LINEの運用を自動化して、日々の手間を減らします。
+/* ------------------------------------------------------------------ */
+/* 業種                                                                 */
+/* ------------------------------------------------------------------ */
+
+
+function Industries() {
+  return (
+    <section className="bg-paper py-24">
+      <div className={wrap}>
+        <div className="max-w-2xl">
+          <h2 className="text-3xl font-black leading-snug tracking-[-0.02em] sm:text-4xl">個人経営のお店のために作りました</h2>
+          <p className="mt-5 text-[17px] leading-[1.9] text-ink-soft">
+            予約を受けるお店や、常連のお客様を大切にしたいお店に向いています。業種ごとに、任せやすい仕事の例を挙げました。
+          </p>
+        </div>
+        <ul className="mt-14 grid gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+          {INDUSTRIES.map((ind) => (
+            <li key={ind.name}>
+              <Slip className="py-6">
+                <p className="text-[17px] font-black">{ind.name}</p>
+                <div className="slip-rule my-3" />
+                {ind.rows.map(([task, feature]) => (
+                  <LeaderRow key={task} label={<span className="text-[14px]">{task}</span>} value={<span className="text-[13px] text-primary-800">{feature}</span>} />
+                ))}
+              </Slip>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* キャンペーン（クーポン券）                                            */
+/* ------------------------------------------------------------------ */
+
+function Campaign() {
+  return (
+    <section id="campaign" className="scroll-mt-20 bg-counter py-24">
+      <div className={`${wrap} max-w-4xl`}>
+        <div className="relative rounded-2xl border-[3px] border-dashed border-ink/40 p-2">
+          <Scissors className="absolute -top-[15px] left-10 size-6 rotate-[-90deg] bg-counter px-0.5 text-ink/60" aria-hidden="true" />
+          <div className="grid gap-8 rounded-xl bg-primary-500 p-8 text-ink sm:p-12 md:grid-cols-[1fr_auto] md:items-center">
+            <div>
+              <h2 className="text-3xl font-black leading-snug tracking-[-0.02em] sm:text-[2.6rem]">Proプランを30日間無料で</h2>
+              <p className="mt-4 max-w-lg text-[16px] font-medium leading-[1.85]">
+                リリース記念として、初めてお申し込みの方はProプラン<span className="whitespace-nowrap">（通常 月額¥4,980）</span>のすべての機能を30日間無料で試せます。登録したデータは、そのまま続けて使えます。
               </p>
+              <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                <a href="#auth" className={btnInk}>
+                  無料で始める
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </a>
+                <Link to="/monitor" className="inline-flex items-center justify-center gap-2 rounded-lg border-2 border-ink px-6 py-3 text-[15px] font-bold hover:bg-ink hover:text-paper">
+                  モニター特典を見る
+                </Link>
+              </div>
             </div>
-            <div>
-              <h4 className="font-bold text-white mb-6">サービス</h4>
-              <ul className="space-y-4">
-                <li><a href="#features" className="hover:text-white transition">機能一覧</a></li>
-                <li><a href="#pricing" className="hover:text-white transition">料金プラン</a></li>
-                <li><Link to="/monitor" className="hover:text-white transition">モニター特典</Link></li>
-                <li><a href="#" className="hover:text-white transition">導入事例</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-bold text-white mb-6">サポート</h4>
-              <ul className="space-y-4">
-                <li><a href="https://line.me/R/ti/p/@431cghfd" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">お問い合わせ</a></li>
-                <li>
-                  <Link 
-                    to="/terms" 
-                    className="hover:text-white transition"
-                    onClick={() => window.scrollTo(0, 0)}
-                  >
-                    利用規約
-                  </Link>
-                </li>
-                <li>
-                  <Link 
-                    to="/privacy" 
-                    className="hover:text-white transition"
-                    onClick={() => window.scrollTo(0, 0)}
-                  >
-                    プライバシーポリシー
-                  </Link>
-                </li>
-                <li>
-                  <Link 
-                    to="/specified-commercial-transactions" 
-                    className="hover:text-white transition"
-                    onClick={() => window.scrollTo(0, 0)}
-                  >
-                    特定商取引法に基づく表記
-                  </Link>
-                </li>
-                <li>
-                  <Link 
-                    to="/security" 
-                    className="hover:text-white transition"
-                    onClick={() => window.scrollTo(0, 0)}
-                  >
-                    セキュリティポリシー
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-slate-800 mt-16 pt-8 text-center text-slate-500 text-sm">
-            © 2026 IToguchi. All rights reserved.
+            <Stamp className="mx-auto h-28 w-28 rotate-[-12deg] border-[4px] border-ink bg-primary-400/40 text-center text-[22px] leading-tight text-ink mix-blend-normal">
+              <span className="font-slip">30</span>日間
+              <br />
+              無料
+            </Stamp>
           </div>
         </div>
-      </footer>
+      </div>
+    </section>
+  )
+}
 
-      {toast && (
-        <Toast
-          isVisible={true}
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
-    </div>
+/* ------------------------------------------------------------------ */
+/* 料金                                                                 */
+/* ------------------------------------------------------------------ */
+
+function Pricing() {
+  const plans = [
+    { ...PLANS.free, note: '登録してすぐ使えます', action: <a href="#auth" className={`${btnOutline} w-full`}>無料で始める</a> },
+    { ...PLANS.pro, note: '初回は30日間無料', action: <a href="#auth" className={`${btnPrimary} w-full`}>30日間無料で試す</a>, featured: true },
+    { ...PLANS.executive, note: '準備中です', action: <a href={`mailto:${CONTACT_MAIL}`} className={`${btnOutline} w-full`}>問い合わせる</a> },
+  ]
+  return (
+    <section id="pricing" className="scroll-mt-20 bg-paper py-24">
+      <div className={wrap}>
+        <div className="max-w-2xl">
+          <h2 className="text-3xl font-black leading-snug tracking-[-0.02em] sm:text-4xl">料金</h2>
+          <p className="mt-5 text-[17px] leading-[1.9] text-ink-soft">
+            無料プランで始めて、必要になったらProプランに切り替えられます。金額は税込、月ごとのお支払いです。
+          </p>
+        </div>
+        <div className="mt-14 grid items-start gap-8 md:grid-cols-3">
+          {plans.map((p) => (
+            <div key={p.name} className={'featured' in p && p.featured ? 'md:-mt-4' : ''}>
+              <Slip className={`py-8 ${'featured' in p && p.featured ? 'ring-0' : ''}`}>
+                <div className="flex items-baseline justify-between">
+                  <p className="text-[22px] font-black">{p.name}</p>
+                  {'featured' in p && p.featured && <span className="rounded-sm bg-ink px-2 py-0.5 text-[12px] font-bold text-paper">おすすめ</span>}
+                </div>
+                <p className="mt-4">
+                  <span className="font-slip text-[40px] font-bold leading-none tracking-tight">{p.price}</span>
+                  <span className="ml-1 text-[14px] text-ink-soft">/ 月</span>
+                </p>
+                <p className="mt-2 font-slip text-[13px] text-primary-800">{p.note}</p>
+                <div className="slip-rule my-5" />
+                <ul className="space-y-2.5">
+                  {p.items.map((item) => (
+                    <li key={item} className="flex gap-2.5 text-[15px] leading-snug">
+                      <span className="mt-[0.55em] size-1.5 shrink-0 rounded-full bg-ink" aria-hidden="true" />
+                      <span><SlipNumbers>{item}</SlipNumbers></span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-8">{p.action}</div>
+              </Slip>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* よくある質問                                                          */
+/* ------------------------------------------------------------------ */
+
+
+function Faq() {
+  return (
+    <section className="bg-counter py-24">
+      <div className={`${wrap} grid gap-12 lg:grid-cols-[0.7fr_1.3fr]`}>
+        <h2 className="text-3xl font-black leading-snug tracking-[-0.02em] sm:text-4xl">よくある質問</h2>
+        <div className="divide-y divide-dashed divide-ink/20 border-y border-dashed border-ink/20">
+          {FAQ.map((f) => (
+            <details key={f.q} className="group">
+              <summary className="flex cursor-pointer list-none items-start justify-between gap-6 py-5 text-[17px] font-bold leading-snug [&::-webkit-details-marker]:hidden">
+                {f.q}
+                <ChevronDown className="mt-0.5 size-5 shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
+              </summary>
+              <p className="pb-6 pr-10 text-[16px] leading-[1.9] text-ink-soft">{f.a}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* 安全性と相談                                                          */
+/* ------------------------------------------------------------------ */
+
+function TrustAndContact() {
+  return (
+    <section className="bg-paper py-20">
+      <div className={`${wrap} grid gap-6 md:grid-cols-2`}>
+        <div className="rounded-xl border-2 border-rule p-8">
+          <h2 className="text-[22px] font-black">お客様のデータを守る仕組み</h2>
+          <p className="mt-3 text-[16px] leading-[1.9] text-ink-soft">
+            店舗ごとのデータの分離、通信の暗号化、カード情報を持たない決済など、IToguchiの安全への取り組みを、専門用語を使わずに説明しています。
+          </p>
+          <Link to="/security-guide" className={`mt-5 inline-flex items-center gap-1.5 ${textLink}`}>
+            セキュリティへの取り組みを見る
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </Link>
+        </div>
+        <div className="rounded-xl bg-ink p-8 text-paper">
+          <h2 className="text-[22px] font-black">導入前の相談は、LINEで</h2>
+          <p className="mt-3 text-[16px] leading-[1.9] text-paper/80">
+            IToguchiのLINE公式アカウントで、いつでも相談を受け付けています。友だち追加すると、自動返信・予約・会員証の動きもそのまま試せます。
+          </p>
+          <a
+            href={LINE_DEMO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-paper px-6 py-3 text-[15px] font-bold text-ink hover:bg-primary-100"
+          >
+            <span className="size-2 rounded-full bg-[#06C755]" aria-hidden="true" />
+            LINEで相談する
+          </a>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* 登録                                                                 */
+/* ------------------------------------------------------------------ */
+
+function SignUp() {
+  return (
+    <section id="auth" className="scroll-mt-20 bg-counter py-24">
+      <div className={`${wrap} grid items-start gap-12 lg:grid-cols-[1fr_28rem]`}>
+        <div className="max-w-lg">
+          <h2 className="text-3xl font-black leading-snug tracking-[-0.02em] sm:text-4xl">まずは無料で始めてください</h2>
+          <p className="mt-5 text-[17px] leading-[1.9] text-ink-soft">
+            登録に必要なのはメールアドレスだけです。無料プランのまま使い続けることも、Proプランを30日間試すこともできます。
+          </p>
+          <ul className="mt-8 space-y-3 text-[16px]">
+            {['登録は無料、メールアドレスだけで済みます', 'Proプランは30日間無料で試せます', '設定は管理画面の案内に沿って進められます'].map((t) => (
+              <li key={t} className="flex items-center gap-3">
+                <Check className="size-5 shrink-0 text-primary-700" strokeWidth={3} aria-hidden="true" />
+                {t}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <AuthPanel />
+      </div>
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+
+export default function TopPage() {
+  const location = useLocation()
+
+  // 機能ページやモニターページから戻ってきたときは、指定の位置まで移動する
+  useEffect(() => {
+    const state = location.state as { scrollTo?: string } | null
+    if (!state?.scrollTo) return
+    if (state.scrollTo === 'top') {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    const target = document.getElementById(state.scrollTo)
+    if (target) target.scrollIntoView({ behavior: 'smooth' })
+  }, [location])
+
+  return (
+    <SiteShell scrollToTopOnNavigate={false}>
+      <Hero />
+      <Chores />
+      <DayTimeline />
+      <FeatureMenu />
+      <ThemeShowcase />
+      <Steps />
+      <Industries />
+      <Campaign />
+      <Pricing />
+      <Faq />
+      <TrustAndContact />
+      <SignUp />
+    </SiteShell>
   )
 }

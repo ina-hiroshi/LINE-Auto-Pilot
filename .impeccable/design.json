@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-01T00:00:00+09:00",
+  "title": "Design System: IToguchi 公開サイト",
+  "extensions": {
+    "colorMeta": {
+      "asagi": { "role": "primary", "displayName": "浅葱", "tonalRamp": ["#164e63", "#155e75", "#00a3b8", "#00c3dc", "#22d3ee", "#67e8f9", "#cffafe", "#f0fdff"] },
+      "asagi-deep": { "role": "primary", "displayName": "深い浅葱" },
+      "asagi-ink": { "role": "primary", "displayName": "浅葱の墨" },
+      "asagi-wash": { "role": "primary", "displayName": "浅葱の淡色" },
+      "stamp": { "role": "tertiary", "displayName": "朱のゴム印", "tonalRamp": ["#4a170f", "#7a2618", "#a33321", "#c8402a", "#d9654f", "#e78e7d", "#f2bdb2", "#fbe9e5"] },
+      "ink": { "role": "neutral", "displayName": "墨", "tonalRamp": ["#1c2a30", "#2b3d45", "#4a5a61", "#6b7a80", "#93a1a6", "#c3d0d4", "#e6eef0", "#fbfbf7"] },
+      "ink-soft": { "role": "neutral", "displayName": "薄墨" },
+      "thermal-paper": { "role": "neutral", "displayName": "感熱紙" },
+      "counter": { "role": "neutral", "displayName": "カウンター" },
+      "rule": { "role": "neutral", "displayName": "罫" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "各ページ最初の見出し。句ごとに改行する。" },
+      "headline": { "displayName": "Headline", "purpose": "セクション見出し。" },
+      "title": { "displayName": "Title", "purpose": "伝票の明細の行名、時刻軸の項目。" },
+      "body": { "displayName": "Body", "purpose": "説明文。" },
+      "slip": { "displayName": "Slip", "purpose": "時刻・金額・伝票の印字。" }
+    },
+    "shadows": [
+      { "name": "slip-drop", "value": "drop-shadow(0 10px 18px rgb(28 42 48 / 0.13)) drop-shadow(0 1px 2px rgb(28 42 48 / 0.08))", "purpose": "伝票だけに付ける落ち影（filter）。" }
+    ],
+    "motion": [
+      { "name": "print-line", "value": "clip-path inset(0 0 100% 0) → inset(0)", "purpose": "伝票の行が印字ヘッドから出てくる動き。" },
+      { "name": "strike", "value": "scaleX 0 → 1 (origin left)", "purpose": "消し込み票の取り消し線。" }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "浅葱の地に墨の文字。主な行動（無料で始める）。",
+      "html": "<button class=\"ds-btn-primary\">無料で始める →</button>",
+      "css": ".ds-btn-primary { background: #00c3dc; color: #1c2a30; font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 700; font-size: 15px; padding: 14px 24px; border: none; border-radius: 8px; transition: background .15s; cursor: pointer; } .ds-btn-primary:hover { background: #22d3ee; } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 3px solid #155e75; outline-offset: 3px; }"
+    },
+    {
+      "name": "Ink Button",
+      "kind": "button",
+      "refersTo": "button-ink",
+      "description": "墨の地。浅葱の帯の上で使う。",
+      "html": "<button class=\"ds-btn-ink\">無料で始める →</button>",
+      "css": ".ds-btn-ink { background: #1c2a30; color: #fbfbf7; font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 700; font-size: 15px; padding: 14px 24px; border: none; border-radius: 8px; transition: background .15s; cursor: pointer; } .ds-btn-ink:hover { background: #2b3d45; } .ds-btn-ink:focus-visible { outline: 3px solid #00a3b8; outline-offset: 3px; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "2pxの墨の枠。副次の行動（LINEで動きを試す）。",
+      "html": "<button class=\"ds-btn-outline\">LINEで動きを試す</button>",
+      "css": ".ds-btn-outline { background: transparent; color: #1c2a30; font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 700; font-size: 15px; padding: 12px 24px; border: 2px solid rgb(28 42 48 / .8); border-radius: 8px; transition: background .15s, color .15s; cursor: pointer; } .ds-btn-outline:hover { background: #1c2a30; color: #fbfbf7; } .ds-btn-outline:focus-visible { outline: 3px solid #00a3b8; outline-offset: 3px; }"
+    },
+    {
+      "name": "Slip",
+      "kind": "card",
+      "refersTo": "slip",
+      "description": "感熱紙の伝票。ギザ縁・点線の罫・リーダー線。",
+      "html": "<div class=\"ds-slip\"><p class=\"ds-slip-head\">ITOGUCHI<br><small>機能明細</small></p><div class=\"ds-slip-row\"><b>予約管理</b><span class=\"ds-leader\"></span><em>無料から</em></div><div class=\"ds-slip-row\"><b>AIチャット</b><span class=\"ds-leader\"></span><em>Pro</em></div></div>",
+      "css": ".ds-slip { background: #fbfbf7; color: #1c2a30; padding: 28px 24px; max-width: 320px; font-family: 'Zen Kaku Gothic New', sans-serif; --z: 7px; padding-block: calc(var(--z) + 14px); -webkit-mask: conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / calc(2 * var(--z)) 51% repeat-x, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(2 * var(--z)) 51% repeat-x; mask: conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / calc(2 * var(--z)) 51% repeat-x, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(2 * var(--z)) 51% repeat-x; filter: drop-shadow(0 10px 18px rgb(28 42 48 / .13)); } .ds-slip-head { text-align: center; font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 13px; padding-bottom: 12px; border-bottom: 1.5px dashed #c3d0d4; margin: 0 0 12px; } .ds-slip-row { display: flex; align-items: baseline; gap: 8px; padding: 8px 0; font-size: 14px; } .ds-slip-row em { font-style: normal; font-weight: 700; color: #155e75; } .ds-leader { flex: 1; border-bottom: 2px dotted #c3d0d4; transform: translateY(-.3em); }"
+    },
+    {
+      "name": "Stamp",
+      "kind": "chip",
+      "refersTo": "stamp",
+      "description": "朱のゴム印。引換券の「特典」にだけ使う。",
+      "html": "<span class=\"ds-stamp\">特典</span>",
+      "css": ".ds-stamp { display: inline-flex; align-items: center; justify-content: center; border: 2.5px solid #c8402a; color: #c8402a; border-radius: 6px; font-family: 'Zen Kaku Gothic New', sans-serif; font-weight: 900; font-size: 13px; padding: 2px 6px; transform: rotate(-9deg); mix-blend-mode: multiply; letter-spacing: .04em; line-height: 1; }"
+    },
+    {
+      "name": "Site Header",
+      "kind": "nav",
+      "description": "感熱紙の地の固定ヘッダー。",
+      "html": "<nav class=\"ds-nav\"><b>IToguchi</b><span><a href=\"#\">機能</a><a href=\"#\">料金</a><a href=\"#\">モニター特典</a><a href=\"#\">セキュリティ</a></span><a class=\"ds-nav-cta\" href=\"#\">無料で始める</a></nav>",
+      "css": ".ds-nav { display: flex; align-items: center; justify-content: space-between; gap: 24px; background: #fbfbf7; padding: 12px 24px; font-family: 'Zen Kaku Gothic New', sans-serif; color: #1c2a30; } .ds-nav span { display: flex; gap: 20px; font-size: 14px; font-weight: 700; } .ds-nav a { color: inherit; text-decoration: none; } .ds-nav span a:hover { color: #155e75; } .ds-nav-cta { background: #00c3dc; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 14px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "レジ横の伝票",
+    "overview": "店主が施術や調理をしている間に、IToguchiが片づけた仕事が、レジ横の伝票のように一行ずつ印字されていきます。ページは淡い青灰のカウンターの上に、感熱紙の白い伝票を置いた世界として作ります。見せるものは、実際の管理画面のスクリーンショットと、実画面と同じ部品で組み直した動くLINE画面です。写真やAI生成画像は使いません。\n\n情報は「お店の一日」の時刻順に並べます。何ができるかは、機能名の格子ではなく、伝票の明細や時刻つきの記録として見せます。動きは印字と消し込みの二つが中心で、どれも「仕事が片づいた」ことを表します。",
+    "keyCharacteristics": [
+      "感熱紙の伝票（ギザ縁・点線の罫・等幅の数字）が主な器",
+      "実画面のスクリーンショットと、コードで再現したLINE画面・管理画面",
+      "浅葱は印字ヘッドの帯・ボタン・強調だけに使う",
+      "朱は消し込み線と「特典」のゴム印だけに使う",
+      "時刻の縦軸で、一日の流れに沿って機能を見せる"
+    ],
+    "rules": [
+      { "name": "The 印は朱だけ Rule", "body": "朱は消し込み線と「特典」のゴム印、規約の中の特に重い注意の枠だけに使います。装飾には使いません。", "section": "colors" },
+      { "name": "The 浅葱に白文字なし Rule", "body": "浅葱（asagi・asagi-deep）の地には墨の文字を載せます。白文字はコントラストが足りません。", "section": "colors" },
+      { "name": "The 句で折る Rule", "body": "見出しには word-break: auto-phrase と text-wrap: balance をかけ、「よく／ある」のように語が割れる箇所には単語結合子（U+2060）を入れます。", "section": "typography" },
+      { "name": "The 見出しの上に札なし Rule", "body": "見出しの上に小さなラベル（eyebrow）を置きません。伝票の見出し（店名と「本日の記録」など）は伝票の一部なので例外です。", "section": "typography" },
+      { "name": "The 影は紙だけ Rule", "body": "影を付けるのは伝票と管理画面の窓だけです。カードやボタンには付けません。", "section": "elevation" }
+    ],
+    "dos": [
+      "Do 機能を見せるときは、実際の管理画面のスクリーンショットか、実画面と同じ部品で再現した画面を使う。",
+      "Do 再現した画面の下には「表示例」、スクリーンショットの下には「実際の管理画面」と書く。",
+      "Do 動きは印字や消し込みのように「仕事が片づく」ことを表すものにし、MotionConfig reducedMotion=\"user\" の中に置く。",
+      "Do 内容は動きを待たずに最初から見える状態にする。",
+      "Do 規約類のページは文言を変えず、見た目だけを LegalLayout に合わせる。"
+    ],
+    "donts": [
+      "Don't AI生成画像や雰囲気だけの写真を使う。",
+      "Don't 見出しの上に小さなラベル（eyebrow）を置く。",
+      "Don't アイコンと短文のカードを格子状に並べて機能一覧にする。機能一覧は伝票の明細にする。",
+      "Don't グラデーションの文字、ぼかした円の背景、片側だけ太い色付きの枠線（1pxより太いborder-left）を使う。",
+      "Don't 出典のない数字や架空のお客様の声を載せる。"
+    ]
+  }
+}
