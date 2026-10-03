@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useReducedMotion } from 'framer-motion'
 import BookingScreenPreview from '../booking/BookingScreenPreview'
 import { LineTalk, PhoneFrame, ReservationFlex, type ChatMessage, type RichMenuSlot } from './LinePhone'
@@ -118,6 +118,28 @@ export default function HeroDemo() {
   const [step, setStep] = useState(START_STEP)
   const [visible, setVisible] = useState(true)
   const rootRef = useRef<HTMLDivElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
+  // 縮小率と、縮小後の高さ（transform は場所を取ったままなので、外枠の高さを詰める）
+  const [fit, setFit] = useState<{ scale: number; height: number | null }>({ scale: 1, height: null })
+
+  // 枠の幅と、並べた中身の幅・高さを測って縮小率を決める。伝票は印字で背が変わるので中身も監視する
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    const stage = stageRef.current
+    if (!root || !stage) return
+    const measure = () => {
+      // offsetWidth/offsetHeight は transform の影響を受けない（組んだときの大きさ）
+      const scale = Math.min(1, root.clientWidth / stage.offsetWidth)
+      const height = scale < 1 ? Math.ceil(stage.offsetHeight * scale) : null
+      setFit((prev) => (prev.scale === scale && prev.height === height ? prev : { scale, height }))
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(measure)
+    ro.observe(root)
+    ro.observe(stage)
+    return () => ro.disconnect()
+  }, [])
 
   // 画面外にあるときは進めない
   useEffect(() => {
@@ -142,23 +164,34 @@ export default function HeroDemo() {
   const printing = !reduce && shown.log.length > 0 && step > 0 && step < SCRIPT.length - 1
 
   return (
-    // 置かれた枠の幅でレイアウトを変える。36rem以上あればスマホと伝票を横に並べ、狭ければ縦に積む（重ねない）
-    <div ref={rootRef} className="@container w-full">
-      <div className="mx-auto flex w-full max-w-[22rem] flex-col items-center gap-6 @[36rem]:max-w-[34rem] @[36rem]:flex-row @[36rem]:items-start @[36rem]:justify-center @[36rem]:gap-5">
-        <div className="shrink-0">
-        <PhoneFrame className="w-[15.5rem] shrink-0 @[36rem]:w-[18rem]" time={shown.clock}>
+    // スマホと伝票は、どの画面幅でも横に並べる。置かれた枠より広いときは、組んだ形のまま全体を縮小して収める
+    // （縦に積むと、LINEで起きたことが伝票に印字される対応が見えなくなるため）
+    // 縮小前の幅は枠より広いまま場所を取るので、中央寄せで左右へ均等にはみ出させ、横方向だけ切り落とす。
+    // items-start は必須。stretch のままだと、外枠の高さを詰めるたびに中身も縮み、測り直して更に詰める循環になる
+    // [contain:inline-size] で、縮小前の中身の幅が親（グリッドの列など）の幅の計算に入らないようにする。
+    // これがないと、列幅を決めていないグリッドに置いたとき（/monitor など）列が中身に合わせて広がり、画面からはみ出す
+    <div
+      ref={rootRef}
+      className="flex w-full items-start justify-center overflow-x-clip [contain:inline-size]"
+      style={{ height: fit.height ?? undefined }}
+    >
+      <div
+        ref={stageRef}
+        className="flex w-max shrink-0 flex-row items-start gap-5"
+        style={{ transform: fit.scale < 1 ? `scale(${fit.scale})` : undefined, transformOrigin: 'top center' }}
+      >
+        <PhoneFrame className="w-[18rem] shrink-0" time={shown.clock}>
           <LineTalk
             messages={shown.messages}
             typing={shown.typing}
             pressed={shown.pressed}
             sheet={shown.sheet ? <Sheet kind={shown.sheet} /> : null}
-            height="h-[21rem] @[36rem]:h-[25rem]"
+            height="h-[25rem]"
           />
         </PhoneFrame>
-        </div>
 
         <PrintedLog
-          className="w-[16.5rem] shrink-0 @[36rem]:mt-2 @[36rem]:w-[16rem]"
+          className="mt-2 w-[16rem] shrink-0"
           lines={shown.log}
           sheetKey={shown.day}
           // お店の営業の状態は、店側の機械であるレジの表示窓に出す（お客様のスマホには出ない情報のため）
