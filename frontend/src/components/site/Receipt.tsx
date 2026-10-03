@@ -54,8 +54,9 @@ export function SlipHead({ title, sub }: { title: ReactNode; sub?: ReactNode }) 
 /** 品目と値段のように、左右を点線でつなぐ行 */
 export function LeaderRow({ label, value, strong = false }: { label: ReactNode; value: ReactNode; strong?: boolean }) {
   return (
+    // 品目は狭い幅では折り返す（値段は折り返さない）。両方 shrink-0 だと、スマホ幅で伝票の外へはみ出す
     <div className={`flex items-end gap-2 py-1.5 ${strong ? 'font-bold' : ''}`}>
-      <span className="shrink-0">{label}</span>
+      <span className="min-w-0">{label}</span>
       <span className="slip-leader" aria-hidden="true" />
       <span className="shrink-0 font-slip">{value}</span>
     </div>

@@ -354,7 +354,7 @@ function Steps() {
           </p>
         </div>
 
-        <div className="mt-14 grid gap-10 lg:grid-cols-[1.25fr_0.75fr] lg:gap-14">
+        <div className="mt-14 grid grid-cols-1 gap-10 lg:grid-cols-[1.25fr_0.75fr] lg:gap-14">
           <ol className="space-y-4">
             {STEPS.map((s, i) => (
               <li key={s.title} className="grid grid-cols-[3.5rem_1fr] gap-5 rounded-xl bg-paper p-6 sm:grid-cols-[4.5rem_1fr_auto] sm:items-center sm:p-7">
