@@ -38,9 +38,11 @@ import FeatureMessaging from './pages/FeatureMessaging'
 import FeatureRichMenu from './pages/FeatureRichMenu'
 import AdminDashboard from './pages/AdminDashboard'
 import MarketingLayout from './pages/marketing/MarketingLayout'
+import SitePageViewTracker from './components/site/SitePageViewTracker'
 import PostsPage from './pages/marketing/PostsPage'
 import OutreachPage from './pages/marketing/OutreachPage'
 import AdsPage from './pages/marketing/AdsPage'
+import SiteTrafficPage from './pages/marketing/SiteTrafficPage'
 import InboxPage from './pages/marketing/InboxPage'
 import AutoRepliesPage from './pages/marketing/AutoRepliesPage'
 import SettingsPage from './pages/marketing/SettingsPage'
@@ -229,6 +231,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <SitePageViewTracker loggedIn={!!session} />
       <UserFeaturesProvider>
       <Routes>
         <Route path="/booking" element={<Booking />} />
@@ -294,6 +297,7 @@ function App() {
               <Route path="posts" element={<PostsPage />} />
               <Route path="outreach" element={<OutreachPage />} />
               <Route path="ads" element={<AdsPage />} />
+              <Route path="site" element={<SiteTrafficPage />} />
               <Route path="inbox" element={<InboxPage />} />
               <Route path="replies" element={<AutoRepliesPage />} />
               <Route path="settings" element={<SettingsPage />} />

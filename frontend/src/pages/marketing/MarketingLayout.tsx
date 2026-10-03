@@ -1,9 +1,9 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Images, BarChart3, Inbox, MessageSquareReply, KeyRound, Loader2, ListChecks } from 'lucide-react'
+import { Images, BarChart3, Globe, Inbox, MessageSquareReply, KeyRound, Loader2, ListChecks } from 'lucide-react'
 import { UnderlineTabs, type UnderlineTabItem } from '../../components/UnderlineTabs'
 import { useUserFeatures } from '../../hooks/useUserFeatures'
 
-type TabId = 'posts' | 'outreach' | 'ads' | 'inbox' | 'replies' | 'settings'
+type TabId = 'posts' | 'outreach' | 'ads' | 'site' | 'inbox' | 'replies' | 'settings'
 
 /**
  * 広報セクションのシェル。
@@ -15,6 +15,7 @@ const TABS: { id: TabId; path: string; label: string; icon: typeof Images; ready
   { id: 'posts', path: '/marketing/posts', label: '投稿', icon: Images, ready: true },
   { id: 'outreach', path: '/marketing/outreach', label: 'XとDMマーケティング', icon: ListChecks, ready: true },
   { id: 'ads', path: '/marketing/ads', label: '広告', icon: BarChart3, ready: true },
+  { id: 'site', path: '/marketing/site', label: 'サイト閲覧', icon: Globe, ready: true },
   { id: 'inbox', path: '/marketing/inbox', label: 'DM受信箱', icon: Inbox, ready: true },
   { id: 'replies', path: '/marketing/replies', label: '自動応答', icon: MessageSquareReply, ready: true },
   { id: 'settings', path: '/marketing/settings', label: '接続設定', icon: KeyRound, ready: true },
@@ -58,7 +59,7 @@ export default function MarketingLayout() {
         <div className="px-4 py-4 sm:px-8">
           <h1 className="mb-1 text-xl font-bold text-gray-900 sm:text-2xl">広報</h1>
           <p className="text-sm text-gray-500">
-            Instagram / Facebook / X の投稿・広告・DM をまとめて管理します。
+            Instagram / Facebook / X の投稿・広告・DM と、製品紹介サイトの閲覧状況をまとめて管理します。
           </p>
         </div>
       </div>
