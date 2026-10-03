@@ -46,9 +46,14 @@ function FeedList({ lines, maxListHeight, flushTop }: { lines: LogLine[]; maxLis
     const before = printed.current
     printed.current = new Set(rows.map((r) => r.dataset.feed!))
     if (!before || reduce) return
-    const delta = rows.filter((r) => !before.has(r.dataset.feed!)).reduce((sum, r) => sum + r.getBoundingClientRect().height, 0)
+    // getBoundingClientRect は見た目の大きさで、祖先の transform: scale（HeroDemo の縮小）が掛かっている。
+    // 書き込む height と translateY は縮小前の寸法なので、縮小率で割り戻してそろえる。
+    // そろえないと送り出しのあいだ枠が縮小率ぶん低くなり、印字済みの下の行が消えて、終わると現れる
+    const boxRect = box.getBoundingClientRect()
+    const scale = box.offsetWidth > 0 ? boxRect.width / box.offsetWidth : 1
+    const delta = rows.filter((r) => !before.has(r.dataset.feed!)).reduce((sum, r) => sum + r.getBoundingClientRect().height, 0) / scale
     if (delta <= 0) return
-    const prev = box.getBoundingClientRect().height - delta
+    const prev = boxRect.height / scale - delta
     // 開始の位置（中身は増えた高さぶん上＝排出口の中、紙の下端は元の位置）を描画の前に当て、
     // そこから毎フレーム自分で動かす。どのフレームでも、行と紙の下端は下にしか動かない
     const setFrame = (p: number) => {

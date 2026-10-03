@@ -119,19 +119,20 @@ export default function HeroDemo() {
   const [visible, setVisible] = useState(true)
   const rootRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
-  // 縮小率と、縮小後の高さ（transform は場所を取ったままなので、外枠の高さを詰める）
-  const [fit, setFit] = useState<{ scale: number; height: number | null }>({ scale: 1, height: null })
 
   // 枠の幅と、並べた中身の幅・高さを測って縮小率を決める。伝票は印字で背が変わるので中身も監視する
   useLayoutEffect(() => {
     const root = rootRef.current
     const stage = stageRef.current
     if (!root || !stage) return
+    // 縮小率と縮小後の高さは、React の状態にせず要素へ直接書き込む。
+    // 伝票の紙送りのあいだは中身の高さが毎フレーム変わるので、状態にするとスマホの画面ごと毎フレーム描き直しになる
     const measure = () => {
       // offsetWidth/offsetHeight は transform の影響を受けない（組んだときの大きさ）
       const scale = Math.min(1, root.clientWidth / stage.offsetWidth)
-      const height = scale < 1 ? Math.ceil(stage.offsetHeight * scale) : null
-      setFit((prev) => (prev.scale === scale && prev.height === height ? prev : { scale, height }))
+      // transform は場所を取ったままなので、縮小した分だけ外枠の高さを詰める
+      root.style.height = scale < 1 ? `${Math.ceil(stage.offsetHeight * scale)}px` : ''
+      stage.style.transform = scale < 1 ? `scale(${scale})` : ''
     }
     measure()
     if (typeof ResizeObserver === 'undefined') return
@@ -173,12 +174,10 @@ export default function HeroDemo() {
     <div
       ref={rootRef}
       className="flex w-full items-start justify-center overflow-x-clip [contain:inline-size]"
-      style={{ height: fit.height ?? undefined }}
     >
       <div
         ref={stageRef}
-        className="flex w-max shrink-0 flex-row items-start gap-5"
-        style={{ transform: fit.scale < 1 ? `scale(${fit.scale})` : undefined, transformOrigin: 'top center' }}
+        className="flex w-max shrink-0 origin-top flex-row items-start gap-5"
       >
         <PhoneFrame className="w-[18rem] shrink-0" time={shown.clock}>
           <LineTalk
