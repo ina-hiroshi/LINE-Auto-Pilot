@@ -16,6 +16,8 @@ export type SiteTraffic = {
   to: string
   totals: TrafficCounts
   previous: TrafficCounts
+  /** 集計から外した閲覧数（運営者のブラウザ・bot と判明したもの）。期間内の分。 */
+  excluded?: { owner_views: number; bot_views: number }
   daily: { date: string; views: number; visitors: number }[]
   pages: { path: string; views: number; visitors: number }[]
   landings: { path: string; sessions: number }[]

@@ -68,6 +68,13 @@ describe('SiteTrafficPage', () => {
     expect(screen.getByText('スマホからの閲覧 —')).toBeInTheDocument()
   })
 
+  it('集計から除いた閲覧数を注記に出す', async () => {
+    rpc.mockResolvedValueOnce({ data: { ...empty, excluded: { owner_views: 4, bot_views: 6 } }, error: null })
+    render(<SiteTrafficPage />)
+
+    expect(await screen.findByText(/この期間に除いた閲覧：運営者のブラウザ 4件、bot 6件。/)).toBeInTheDocument()
+  })
+
   it('権限がなければその旨を出す', async () => {
     rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'forbidden' } })
     render(<SiteTrafficPage />)
