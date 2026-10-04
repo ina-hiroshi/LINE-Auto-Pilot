@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+# 店舗のお客様が使う画面と、ページごとの HTML の置き場所は検索に出さない
+Disallow: /booking
+Disallow: /member-card
+Disallow: /social-ui-capture
+Disallow: /onboarding
+Disallow: /__pages/
+
+Sitemap: https://itoguchi-app.jp/sitemap.xml

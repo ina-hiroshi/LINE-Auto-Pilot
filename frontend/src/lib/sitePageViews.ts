@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { looksLikeLiffEntryAtRoot } from './liffEntry'
+import { SITE_PAGES } from './siteMeta'
 
 /**
  * 製品紹介ページの閲覧記録（広報画面の「サイト閲覧」タブで集計する）。
@@ -8,24 +9,8 @@ import { looksLikeLiffEntryAtRoot } from './liffEntry'
  * ここでの絞り込みは無駄な通信を減らすためのもの。
  */
 
-/** 記録する公開ページ。存在しない URL も TopPage を表示するため、既知のパスだけに限る。 */
-const TRACKED_PATHS = new Set([
-  '/',
-  '/monitor',
-  '/privacy',
-  '/terms',
-  '/specified-commercial-transactions',
-  '/security',
-  '/security-guide',
-  '/feature/auto-response',
-  '/feature/reservation',
-  '/feature/membership',
-  '/feature/ai',
-  '/feature/customers',
-  '/feature/points',
-  '/feature/messaging',
-  '/feature/rich-menu',
-])
+/** 記録する公開ページ（siteMeta.ts の一覧と同じ）。存在しない URL も TopPage を表示するため、既知のパスだけに限る。 */
+const TRACKED_PATHS = new Set(Object.keys(SITE_PAGES))
 
 const PRODUCTION_HOSTS = new Set(['itoguchi-app.jp', 'www.itoguchi-app.jp'])
 const BOT_UA = /bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|embedly|quora link/i

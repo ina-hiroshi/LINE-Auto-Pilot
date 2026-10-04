@@ -1,9 +1,10 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import { sitePagesPlugin } from './build/sitePages'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), sitePagesPlugin()],
   test: {
     globals: true,
     environment: 'jsdom',

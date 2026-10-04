@@ -4,6 +4,62 @@
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
+      "source": "/feature/reservation",
+      "destination": "/__pages/feature-reservation.html"
+    },
+    {
+      "source": "/feature/auto-response",
+      "destination": "/__pages/feature-auto-response.html"
+    },
+    {
+      "source": "/feature/membership",
+      "destination": "/__pages/feature-membership.html"
+    },
+    {
+      "source": "/feature/points",
+      "destination": "/__pages/feature-points.html"
+    },
+    {
+      "source": "/feature/customers",
+      "destination": "/__pages/feature-customers.html"
+    },
+    {
+      "source": "/feature/messaging",
+      "destination": "/__pages/feature-messaging.html"
+    },
+    {
+      "source": "/feature/rich-menu",
+      "destination": "/__pages/feature-rich-menu.html"
+    },
+    {
+      "source": "/feature/ai",
+      "destination": "/__pages/feature-ai.html"
+    },
+    {
+      "source": "/monitor",
+      "destination": "/__pages/monitor.html"
+    },
+    {
+      "source": "/security-guide",
+      "destination": "/__pages/security-guide.html"
+    },
+    {
+      "source": "/security",
+      "destination": "/__pages/security.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/__pages/privacy.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/__pages/terms.html"
+    },
+    {
+      "source": "/specified-commercial-transactions",
+      "destination": "/__pages/specified-commercial-transactions.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

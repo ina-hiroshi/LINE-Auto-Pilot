@@ -39,6 +39,7 @@ import FeatureRichMenu from './pages/FeatureRichMenu'
 import AdminDashboard from './pages/AdminDashboard'
 import MarketingLayout from './pages/marketing/MarketingLayout'
 import SitePageViewTracker from './components/site/SitePageViewTracker'
+import PageMeta from './components/site/PageMeta'
 import PostsPage from './pages/marketing/PostsPage'
 import OutreachPage from './pages/marketing/OutreachPage'
 import AdsPage from './pages/marketing/AdsPage'
@@ -232,6 +233,7 @@ function App() {
   return (
     <BrowserRouter>
       <SitePageViewTracker loggedIn={!!session} />
+      <PageMeta />
       <UserFeaturesProvider>
       <Routes>
         <Route path="/booking" element={<Booking />} />
