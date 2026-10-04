@@ -3,7 +3,7 @@ import { Info, Loader2, RefreshCw } from 'lucide-react'
 import {
   Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps,
 } from 'recharts'
-import { useSiteTraffic, type TrafficCounts } from '../../features/marketing/hooks/useSiteTraffic'
+import { useSiteTraffic, type SiteTraffic, type TrafficCounts } from '../../features/marketing/hooks/useSiteTraffic'
 
 const ACTIVE_COLOR = '#00acc4'
 
@@ -128,6 +128,15 @@ function dailyTooltip(props: TooltipContentProps<number, string>): React.ReactNo
   )
 }
 
+function excludedNote(excluded: SiteTraffic['excluded']): string {
+  if (!excluded) return ''
+  const parts = [
+    excluded.owner_views > 0 ? `運営者のブラウザ ${num(excluded.owner_views)}件` : null,
+    excluded.bot_views > 0 ? `bot ${num(excluded.bot_views)}件` : null,
+  ].filter(Boolean)
+  return parts.length === 0 ? '' : `この期間に除いた閲覧：${parts.join('、')}。`
+}
+
 function pagesPerSession(t: TrafficCounts): string {
   return t.sessions === 0 ? '—' : (t.views / t.sessions).toFixed(1)
 }
@@ -247,8 +256,12 @@ export default function SiteTrafficPage() {
 
       <p className="flex items-start gap-1.5 text-xs text-gray-500">
         <Info size={14} className="mt-px shrink-0" />
-        ログイン中の閲覧、検索エンジンなどのbot、本番以外の環境（ローカル・プレビュー）での閲覧は数えていません。
-        訪問者数はブラウザごとの数なので、同じ人がスマホとPCで見ると2人になります。
+        <span>
+          ログイン中の閲覧、検索エンジンなどのbot、本番以外の環境（ローカル・プレビュー）での閲覧は数えていません。
+          管理者でログインしたことのあるブラウザ（運営者の開発・確認用）の閲覧は、ログアウト中のものも除いています。
+          訪問者数はブラウザごとの数なので、同じ人がスマホとPCで見ると2人になります。
+          {excludedNote(data.excluded)}
+        </span>
       </p>
     </div>
   )

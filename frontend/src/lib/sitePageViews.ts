@@ -13,10 +13,13 @@ import { SITE_PAGES } from './siteMeta'
 const TRACKED_PATHS = new Set(Object.keys(SITE_PAGES))
 
 const PRODUCTION_HOSTS = new Set(['itoguchi-app.jp', 'www.itoguchi-app.jp'])
-const BOT_UA = /bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|embedly|quora link/i
+// Search Console の URL 検査（Google-InspectionTool）は UA に bot を含まないので個別に挙げる
+const BOT_UA = /bot|crawl|spider|slurp|headless|lighthouse|preview|inspectiontool|googleother|facebookexternalhit|embedly|quora link/i
 
 const VISITOR_KEY = 'itoguchi_visitor_id'
 const SESSION_KEY = 'itoguchi_session_id'
+/** 運営者のブラウザの印。管理者でログインしたときに立て、ログアウト後の閲覧も記録しない。 */
+const OWN_BROWSER_KEY = 'itoguchi_own_browser'
 
 export function isTrackedPath(pathname: string): boolean {
   return TRACKED_PATHS.has(pathname)
@@ -28,6 +31,7 @@ function shouldRecord(): boolean {
   if (!PRODUCTION_HOSTS.has(window.location.hostname)) return false
   if (navigator.webdriver) return false
   if (BOT_UA.test(navigator.userAgent)) return false
+  if (isOwnBrowser()) return false
   // LIFF（会員証など）の入口URLのまま / に落ちた場合は、店舗のお客さんなので数えない
   const { pathname, search, hash } = window.location
   if (looksLikeLiffEntryAtRoot(pathname, search, hash)) return false
@@ -45,6 +49,36 @@ function storedId(storage: () => Storage, key: string): string {
   } catch {
     // ストレージが使えない環境（プライベートモードの一部など）は毎回別人として数える
     return crypto.randomUUID()
+  }
+}
+
+function isOwnBrowser(): boolean {
+  try {
+    return localStorage.getItem(OWN_BROWSER_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 管理者でログインしたブラウザを集計の対象外にする。
+ * 以後は記録せず、このブラウザで過去に記録された閲覧も site_excluded_visitors への登録で集計から外れる。
+ * 登録は RPC 側で管理者に限っている。
+ */
+export function markOwnBrowser(): void {
+  try {
+    if (isOwnBrowser()) return
+    const visitorId = storedId(() => localStorage, VISITOR_KEY)
+    void supabase.rpc('register_own_site_visitor', { p_visitor_id: visitorId }).then(({ error }) => {
+      if (error) return
+      try {
+        localStorage.setItem(OWN_BROWSER_KEY, '1')
+      } catch {
+        /* 次回のログインで再登録する */
+      }
+    })
+  } catch {
+    /* 登録できなくても画面には影響させない */
   }
 }
 

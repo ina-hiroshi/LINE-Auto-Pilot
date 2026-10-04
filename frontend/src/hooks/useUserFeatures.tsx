@@ -8,6 +8,7 @@
 import { useState, useEffect, createContext, useContext } from 'react'
 import type { ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
+import { markOwnBrowser } from '../lib/sitePageViews'
 
 const ADMIN_EMAILS = ['sky.voltric424@gmail.com']
 
@@ -83,6 +84,8 @@ export function UserFeaturesProvider({ children }: UserFeaturesProviderProps) {
         const features: FeatureFlag[] = []
         
         if (isAdmin) {
+          // 運営者の開発・確認用の閲覧を、サイト閲覧の集計から外す
+          markOwnBrowser()
           features.push('admin_panel', 'setup_service_orders', 'plan_switcher')
         }
 
