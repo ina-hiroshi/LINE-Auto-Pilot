@@ -102,6 +102,10 @@ describe('OutreachPage', () => {
     for (const link of links) expect(link).toHaveAttribute('href', 'https://ig.me/m/shop_a')
     fireEvent.click(links[0])
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('オープンおめでとうございます！'))
+    // 押した時点で送信済みにする
+    await waitFor(() => expect(updates).toHaveLength(1))
+    expect(updates[0].filters.find((f) => f.column === 'id')?.value).toBe('ig1')
+    expect((updates[0].payload as { done_at: string | null }).done_at).not.toBeNull()
     // 送付先のあるDMは、コピーとDMを開くボタンが1つにまとまる
     expect(screen.queryByRole('button', { name: /本文をコピー/ })).not.toBeInTheDocument()
   })
