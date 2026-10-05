@@ -943,17 +943,18 @@ export default function Reservations() {
         <div className="px-4 sm:px-8 py-4">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
             <div className="min-w-0 flex-1 basis-40">
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">予約売上管理</h1>
-              <p className="hidden sm:block text-sm text-gray-500">予約の確認・決済・売上の管理を行います。</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 whitespace-nowrap">予約売上管理</h1>
+              <p className="text-sm text-gray-500">予約の確認・決済・売上の管理を行います。</p>
             </div>
-            <div className="flex gap-2 shrink-0">
+            {/* スマホでは操作ボタンを見出しの下の行に回す（ほかの画面とそろえる） */}
+            <div className="flex w-full gap-2 sm:w-auto sm:shrink-0">
               <TutorialButton tutorial={tutorial} />
               {pageTab === 'bookings' && (
               <>
-              <div data-tour="reservations.view-toggle" className="bg-gray-100 p-1 rounded-lg flex">
+              <div data-tour="reservations.view-toggle" className="bg-gray-100 p-1 rounded-lg flex min-w-0 flex-1 sm:flex-none">
                 <button 
                   onClick={() => setViewMode('list')}
-                  className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition whitespace-nowrap ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition whitespace-nowrap ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   リスト
                 </button>
@@ -962,7 +963,7 @@ export default function Reservations() {
                     setViewMode('calendar')
                     if (isGoogleConnected && !calendars.length) fetchCalendars()
                   }}
-                  className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition flex items-center justify-center gap-1 whitespace-nowrap ${viewMode === 'calendar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition flex items-center justify-center gap-1 whitespace-nowrap ${viewMode === 'calendar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   カレンダー
                   {!isPro && <ProBadge />}
@@ -971,10 +972,10 @@ export default function Reservations() {
               <button
                 onClick={openCreateModal}
                 data-tour="reservations.create"
-                className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 shadow-sm whitespace-nowrap flex items-center gap-2 font-medium"
+                className="shrink-0 bg-primary-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-primary-700 shadow-sm whitespace-nowrap flex items-center gap-1.5 sm:gap-2 font-medium"
               >
                 <Plus size={18} />
-                予約登録
+                <span className="hidden sm:inline">予約</span>登録
               </button>
               </>
               )}

@@ -255,7 +255,7 @@ export default function Customers() {
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
             <div className="min-w-0 flex-1 basis-40">
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 whitespace-nowrap">顧客一覧</h1>
-              <p className="hidden sm:block text-sm text-gray-500">
+              <p className="text-sm text-gray-500">
                 顧客を選択すると詳細ページで施術メモ・LINEメッセージを管理できます。
               </p>
             </div>
@@ -290,19 +290,25 @@ export default function Customers() {
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="w-full">
           {/* スマホ: 表は横に収まらないので、1人1枚のカードで並べる */}
+          {/* エラーと空の表示は、スマホ・PCで共通の1か所にする */}
+          {loadError || filteredCustomers.length === 0 ? (
+            <div data-tour="customers.table" className="bg-white rounded-lg shadow px-4 py-6 text-center text-sm">
+              {loadError ? (
+                <p className="text-red-600">{loadError}</p>
+              ) : (
+                <p className="text-gray-500">
+                  {searchQuery ? '該当する顧客が見つかりません' : '顧客データがありません'}
+                  {!searchQuery && (
+                    <span className="block mt-1 text-xs text-gray-400">
+                      LINEの予約ページから予約したお客様が、ここに表示されます。
+                    </span>
+                  )}
+                </p>
+              )}
+            </div>
+          ) : (
+          <>
           <div className="md:hidden bg-white rounded-lg shadow overflow-hidden">
-            {loadError ? (
-              <p data-tour="customers.table" className="px-4 py-6 text-center text-sm text-red-600">{loadError}</p>
-            ) : filteredCustomers.length === 0 ? (
-              <div data-tour="customers.table" className="px-4 py-6 text-center text-sm text-gray-500">
-                {searchQuery ? '該当する顧客が見つかりません' : '顧客データがありません'}
-                {!searchQuery && (
-                  <span className="block mt-1 text-xs text-gray-400">
-                    LINEの予約ページから予約したお客様が、ここに表示されます。
-                  </span>
-                )}
-              </div>
-            ) : (
               <>
                 <label
                   data-tour="customers.select-all"
@@ -367,7 +373,6 @@ export default function Customers() {
                   ))}
                 </ul>
               </>
-            )}
           </div>
 
           <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
@@ -406,25 +411,7 @@ export default function Customers() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {loadError ? (
-                    <tr data-tour="customers.table">
-                      <td colSpan={7} className="px-6 py-4 text-center text-red-600">
-                        {loadError}
-                      </td>
-                    </tr>
-                  ) : filteredCustomers.length === 0 ? (
-                    <tr data-tour="customers.table">
-                      <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
-                        {searchQuery ? '該当する顧客が見つかりません' : '顧客データがありません'}
-                        {!searchQuery && (
-                          <span className="block mt-1 text-xs text-gray-400">
-                            LINEの予約ページから予約したお客様が、ここに表示されます。
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredCustomers.map((customer, index) => (
+                  {filteredCustomers.map((customer, index) => (
                       <tr
                         key={customer.id}
                         // 画面ツアーで光らせるのは先頭の1行だけ
@@ -496,12 +483,13 @@ export default function Customers() {
                           <ChevronRight className="w-5 h-5 inline-block" />
                         </td>
                       </tr>
-                    ))
-                  )}
+                    ))}
                 </tbody>
               </table>
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
 
