@@ -85,17 +85,21 @@ export default function OutreachPage() {
     }
   }
 
-  // 本文をコピーしてから ig.me のDM画面へ進む。リンク自体の遷移は止めず、コピーは待たない
-  // （await を挟むと、スマホのブラウザがポップアップとして遷移を止めることがある）。
-  const copyForDm = (text: string) => {
+  // 本文をコピーして ig.me のDM画面へ進み、その時点で送信済みにする。リンク自体の遷移は止めず、
+  // コピーと保存は待たない（await を挟むと、スマホのブラウザがポップアップとして遷移を止めることがある）。
+  const openDm = (it: OutreachItem) => {
+    const done = it.done_at ? Promise.resolve({ success: true }) : q.setDone(it.id, true)
+    let copied: Promise<void>
     try {
-      void navigator.clipboard.writeText(text).then(
-        () => notify({ success: true, message: '本文をコピーしました。DMに貼り付けて送ってください' }),
-        () => notify({ success: false, message: '本文をコピーできませんでした' }),
-      )
-    } catch {
-      notify({ success: false, message: '本文をコピーできませんでした' })
+      copied = navigator.clipboard.writeText(it.body)
+    } catch (e) {
+      copied = Promise.reject(e)
     }
+    void Promise.allSettled([copied, done]).then(([c, d]) => {
+      if (c.status === 'rejected') notify({ success: false, message: '本文をコピーできませんでした' })
+      else if (d.status === 'rejected' || !d.value.success) notify({ success: false, message: '送信済みにできませんでした' })
+      else notify({ success: true, message: '本文をコピーして送信済みにしました。DMに貼り付けて送ってください' })
+    })
   }
 
   if (q.loading) {
@@ -140,7 +144,7 @@ export default function OutreachPage() {
         <h2 className="text-lg font-bold text-gray-900">XとDMマーケティング</h2>
         <p className="text-sm text-gray-500">
           X の手動投稿と Instagram の攻めDM の文面・送付先・注意点です。実施したらチェックを付けてください。
-          Instagram のDMは、送ると自動でチェックが付きます。
+          Instagram のDMは、「本文をコピーしてDMを開く」を押すとチェックが付きます。
         </p>
       </div>
 
@@ -190,13 +194,13 @@ export default function OutreachPage() {
               href={`https://ig.me/m/${next.target_handle}`}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={() => copyForDm(next.body)}
+              onClick={() => openDm(next)}
               className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700"
             >
               <Send size={16} /> 本文をコピーしてDMを開く
             </a>
             <p className="text-xs text-gray-500">
-              DMに貼り付けて送ると、1分ほどで自動で送信済みになり、次の相手に進みます。
+              押すと送信済みになり、次の相手に進みます。DMに貼り付けて送ってください。
             </p>
           </div>
         </div>
@@ -315,7 +319,7 @@ export default function OutreachPage() {
                           href={`https://ig.me/m/${it.target_handle}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          onClick={() => copyForDm(it.body)}
+                          onClick={() => openDm(it)}
                           className="flex items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1 text-xs text-white hover:bg-primary-700"
                         >
                           <Send size={12} /> 本文をコピーしてDMを開く

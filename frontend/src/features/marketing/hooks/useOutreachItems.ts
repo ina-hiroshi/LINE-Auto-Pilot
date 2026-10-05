@@ -7,7 +7,8 @@ import { supabase } from '../../../lib/supabase'
  * marketing_outreach_items は管理者だけが select / update できる RLS を持つので、
  * 他の広報画面と違い Edge Function を通さず直接読み書きする。
  * 行の追加・削除は画面からは行わない（SQL で投入する）。
- * Instagram のDMは、送信が取り込まれると DB のトリガーが done_at を付ける。
+ * Instagram のDMは、画面の「本文をコピーしてDMを開く」を押した時点で done_at を付ける。
+ * ボタンを使わずに送った分は、送信が取り込まれたときに DB のトリガーが付ける。
  */
 
 export type OutreachChannel = 'x' | 'instagram'
@@ -52,7 +53,7 @@ export function useOutreachItems() {
     void refresh()
   }, [refresh])
 
-  // Instagram でDMを送って戻ってきたときに、自動で付いた送信済み（DB のトリガー）を反映する
+  // Instagram でDMを送って戻ってきたときに、DB のトリガーが付けた送信済みを反映する
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === 'visible') void refresh()
