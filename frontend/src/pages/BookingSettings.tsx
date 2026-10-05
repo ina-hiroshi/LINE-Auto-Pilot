@@ -408,18 +408,19 @@ export default function BookingSettingsPage() {
       
       <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
         <div className="px-4 sm:px-8 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">予約ページ</h1>
+          {/* スマホでは操作ボタンを見出しの下の行に回す（全画面で同じ配置にする） */}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <div className="min-w-0 flex-1 basis-56">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 whitespace-nowrap">予約ページ</h1>
               <p className="text-sm text-gray-500">営業時間、メニュー、スタッフなどの予約受付設定を行います。</p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
               <TutorialButton tutorial={tutorial} />
               <button
                 onClick={handleSave}
                 disabled={saving}
                 data-tour="booking-settings.save"
-                className="flex items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm shrink-0"
+                className="flex flex-1 sm:flex-none items-center justify-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm font-bold shadow-sm"
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save size={16} />}
                 {saving ? '保存中...' : '設定を保存'}

@@ -795,12 +795,15 @@ export default function AutoResponses() {
     <div className="flex flex-col h-full">
       <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
         <div className="px-4 sm:px-8 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">自動応答設定</h1>
+          {/* スマホでは操作ボタンを見出しの下の行に回す（全画面で同じ配置にする） */}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <div className="min-w-0 flex-1 basis-56">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 whitespace-nowrap">自動応答設定</h1>
               <p className="text-sm text-gray-500">LINE公式アカウントの自動応答ルールとAIアシスタントの設定を行います。</p>
             </div>
-            <TutorialButton tutorial={tutorial} />
+            <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
+              <TutorialButton tutorial={tutorial} />
+            </div>
           </div>
         </div>
       </div>
