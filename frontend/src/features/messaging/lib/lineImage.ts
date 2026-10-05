@@ -83,6 +83,36 @@ export async function prepareImageForLine(file: File): Promise<Blob> {
   throw new LineImageError('画像を小さくできませんでした。別の画像を選んでください。')
 }
 
+/** 受信画像の署名 URL の有効期間。画面を開いている間に切れない長さにする */
+const SIGNED_URL_SECONDS = 60 * 60
+
+/**
+ * お客様が送った画像は非公開バケットにあるので、表示用の署名 URL をまとめて発行する。
+ * 発行できなかったパスは結果に含めない（呼び出し側は文言の表示に戻す）。
+ */
+export async function createReceivedImageUrls(paths: string[]): Promise<Map<string, string>> {
+  const urlByPath = new Map<string, string>()
+  const unique = [...new Set(paths.filter(Boolean))]
+  if (unique.length === 0) return urlByPath
+
+  const { data, error } = await supabase.storage
+    .from(RECEIVED_IMAGES_BUCKET)
+    .createSignedUrls(unique, SIGNED_URL_SECONDS)
+  if (error) throw error
+  for (const item of data ?? []) {
+    if (item.path && item.signedUrl) urlByPath.set(item.path, item.signedUrl)
+  }
+  return urlByPath
+}
+
+/** 表示できる受信画像のパス（保存期間を過ぎて削除済みのものは除く） */
+export function viewableReceivedImagePath(log: {
+  message_image_path?: string | null
+  message_image_deleted_at?: string | null
+}): string | null {
+  return log.message_image_path && !log.message_image_deleted_at ? log.message_image_path : null
+}
+
 /** 送信用の画像をアップロードし、LINE に渡す公開 URL を返す */
 export async function uploadImageForLine(storeId: string, image: Blob): Promise<string> {
   const path = `${storeId}/${crypto.randomUUID()}.jpg`
