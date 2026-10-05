@@ -33,6 +33,7 @@ const SOURCE_LABELS: Record<string, string> = {
   bing: 'Bing検索',
   x: 'X',
   line: 'LINE',
+  youtube: 'YouTube',
 }
 
 function num(n: number): string {
