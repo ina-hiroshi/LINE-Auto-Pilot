@@ -2,8 +2,24 @@ import { createClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { ClientVisibleError, clientVisibleErrorResponse, safeErrorResponse } from '../_shared/error-utils.ts'
 import { buildRecipientCandidates, resolveLogLabel } from '../_shared/line-recipient.ts'
+import { isOwnSentImageUrl } from '../_shared/line-image.ts'
 
-async function pushLineMessage(token: string, to: string, text: string): Promise<Response> {
+type OutgoingMessage =
+  | { type: 'text'; text: string }
+  | { type: 'image'; originalContentUrl: string; previewImageUrl: string }
+
+/**
+ * 文と画像は 1 回の push にまとめる。分けて送ると片方だけ届いた状態で失敗しうる。
+ * 画像はフロント側で 1MB 以下に縮めているので、プレビューにも同じ URL を使う。
+ */
+function buildMessages(text: string, imageUrl: string | null): OutgoingMessage[] {
+  const messages: OutgoingMessage[] = []
+  if (text) messages.push({ type: 'text', text })
+  if (imageUrl) messages.push({ type: 'image', originalContentUrl: imageUrl, previewImageUrl: imageUrl })
+  return messages
+}
+
+async function pushLineMessage(token: string, to: string, messages: OutgoingMessage[]): Promise<Response> {
   return fetch('https://api.line.me/v2/bot/message/push', {
     method: 'POST',
     headers: {
@@ -12,7 +28,7 @@ async function pushLineMessage(token: string, to: string, text: string): Promise
     },
     body: JSON.stringify({
       to,
-      messages: [{ type: 'text', text: text.trim() }],
+      messages,
     }),
   })
 }
@@ -43,11 +59,18 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const { storeId, userId, text, replyToLogId, customerId, displayName, profilePictureUrl } =
+    const { storeId, userId, text, imageUrl, replyToLogId, customerId, displayName, profilePictureUrl } =
       await req.json()
 
-    if (!storeId || !userId || !text?.trim()) {
+    const trimmedText = typeof text === 'string' ? text.trim() : ''
+    const sendImageUrl = typeof imageUrl === 'string' && imageUrl ? imageUrl : null
+
+    if (!storeId || !userId || (!trimmedText && !sendImageUrl)) {
       throw new ClientVisibleError('必須項目が不足しています', 400)
+    }
+
+    if (sendImageUrl && !isOwnSentImageUrl(sendImageUrl, Deno.env.get('SUPABASE_URL') ?? '', storeId)) {
+      throw new ClientVisibleError('送信できない画像です。画像を選び直してください。', 400)
     }
 
     const supabaseAdmin = createClient(
@@ -143,7 +166,11 @@ Deno.serve(async (req: Request) => {
     let pushedUserId: string | null = null
 
     for (const candidate of candidateIds) {
-      const lineResponse = await pushLineMessage(channelAccessToken, candidate, text)
+      const lineResponse = await pushLineMessage(
+        channelAccessToken,
+        candidate,
+        buildMessages(trimmedText, sendImageUrl),
+      )
       if (lineResponse.ok) {
         pushedUserId = candidate
         break
@@ -162,7 +189,11 @@ Deno.serve(async (req: Request) => {
     if (replyToLogId) {
       const { error: updateError } = await supabaseAdmin
         .from('customer_logs')
-        .update({ status: 'manual_replied', reply_content: text.trim() })
+        .update({
+          status: 'manual_replied',
+          reply_content: trimmedText || null,
+          reply_image_url: sendImageUrl,
+        })
         .eq('id', replyToLogId)
         .eq('store_id', storeId)
 
@@ -177,7 +208,8 @@ Deno.serve(async (req: Request) => {
         display_name: logLabel ?? displayName ?? null,
         profile_picture_url: profilePictureUrl ?? null,
         message_content: '(店舗から送信)',
-        reply_content: text.trim(),
+        reply_content: trimmedText || null,
+        reply_image_url: sendImageUrl,
         status: 'manual_replied',
       })
 

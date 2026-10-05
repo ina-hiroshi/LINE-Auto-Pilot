@@ -11,7 +11,14 @@ vi.mock('../../../lib/supabase', () => ({
   },
 }))
 
+const prepareImageForLine = vi.fn()
+vi.mock('../lib/lineImage', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/lineImage')>()
+  return { ...actual, prepareImageForLine: (file: File) => prepareImageForLine(file) }
+})
+
 import { useLineReply } from './useLineReply'
+import { LineImageError } from '../lib/lineImage'
 
 const PARAMS = { storeId: 'store-1', userId: 'U-1', text: 'ありがとうございます' }
 
@@ -19,12 +26,14 @@ function setup(options: {
   invoke?: (name: string, body: unknown) => QueryResult
   user?: { id: string } | null
   updateError?: unknown
+  uploadError?: unknown
 } = {}) {
-  const { invoke, user, updateError = null } = options
+  const { invoke, user, updateError = null, uploadError = null } = options
   mock = createSupabaseMock({
     user: user === undefined ? { id: 'owner-1' } : user,
     handler: (op) => (op.table === 'customer_logs' ? { data: null, error: updateError } : { data: null, error: null }),
     invoke,
+    uploadError,
   })
   return renderHook(() => useLineReply())
 }
@@ -139,6 +148,70 @@ describe('LINE 返信の送信', () => {
       await result.current.sendMessage(PARAMS)
     })
     await waitFor(() => expect(result.current.sending).toBe(false))
+  })
+})
+
+describe('画像の送信', () => {
+  const photo = new File(['x'], 'photo.png', { type: 'image/png' })
+  const ok = () => ({ data: { success: true, lineUserId: 'U-1' }, error: null })
+
+  beforeEach(() => {
+    prepareImageForLine.mockReset()
+    prepareImageForLine.mockResolvedValue(new Blob(['jpeg'], { type: 'image/jpeg' }))
+  })
+
+  it('画像を店舗のフォルダにアップロードし、公開 URL を Edge Function に渡す', async () => {
+    const { result } = setup({ invoke: ok })
+
+    await act(async () => {
+      await result.current.sendMessage({ ...PARAMS, text: '', imageFile: photo })
+    })
+
+    expect(mock.uploads).toHaveLength(1)
+    expect(mock.uploads[0].bucket).toBe('line-sent-images')
+    expect(mock.uploads[0].path).toMatch(/^store-1\/[0-9a-f-]+\.jpg$/)
+    const body = mock.invocations[0].body as Record<string, unknown>
+    expect(body.imageUrl).toBe(
+      `https://example.supabase.co/storage/v1/object/public/line-sent-images/${mock.uploads[0].path}`,
+    )
+    expect(body).not.toHaveProperty('imageFile')
+  })
+
+  it('文も画像もなければ送らない', async () => {
+    const { result } = setup({ invoke: ok })
+
+    let outcome: Awaited<ReturnType<typeof result.current.sendMessage>> | undefined
+    await act(async () => {
+      outcome = await result.current.sendMessage({ ...PARAMS, text: '  ' })
+    })
+
+    expect(outcome?.success).toBe(false)
+    expect(mock.invocations).toHaveLength(0)
+  })
+
+  it('読み込めない画像は理由を返し、送信しない', async () => {
+    prepareImageForLine.mockRejectedValue(new LineImageError('この画像は読み込めませんでした'))
+    const { result } = setup({ invoke: ok })
+
+    let outcome: Awaited<ReturnType<typeof result.current.sendMessage>> | undefined
+    await act(async () => {
+      outcome = await result.current.sendMessage({ ...PARAMS, imageFile: photo })
+    })
+
+    expect(outcome).toEqual({ success: false, message: 'この画像は読み込めませんでした' })
+    expect(mock.invocations).toHaveLength(0)
+  })
+
+  it('アップロードに失敗したら送信しない', async () => {
+    const { result } = setup({ invoke: ok, uploadError: { message: 'denied' } })
+
+    let outcome: Awaited<ReturnType<typeof result.current.sendMessage>> | undefined
+    await act(async () => {
+      outcome = await result.current.sendMessage({ ...PARAMS, imageFile: photo })
+    })
+
+    expect(outcome).toEqual({ success: false, message: '画像のアップロードに失敗しました' })
+    expect(mock.invocations).toHaveLength(0)
   })
 })
 

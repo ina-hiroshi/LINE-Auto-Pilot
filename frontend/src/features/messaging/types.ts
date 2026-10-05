@@ -11,6 +11,12 @@ export type LogEntry = {
   line_user_id: string
   message_content: string
   reply_content: string | null
+  /** お客様が送った画像の保存先（非公開バケット内のパス） */
+  message_image_path?: string | null
+  /** 画面表示用に発行した署名 URL（DB の列ではない） */
+  message_image_url?: string | null
+  /** 店舗が送った画像の公開 URL */
+  reply_image_url?: string | null
   status: MessageLogStatus
   display_name?: string
   profile_picture_url?: string

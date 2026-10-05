@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -15,6 +15,14 @@ interface ModalProps {
   confirmDisabled?: boolean;
   footerContent?: React.ReactNode;
   showDefaultButtons?: boolean;
+  /**
+   * md: 確認ダイアログ向け（既定）。
+   * chat: トーク画面向け。PCでは大きく、スマホでは全画面にし、本文はスクロールさせない
+   * （中身の側で履歴だけをスクロールさせる）。
+   */
+  size?: 'md' | 'chat';
+  /** タイトルの下に固定で表示する欄（相手の名前など） */
+  subHeader?: React.ReactNode;
 }
 
 export default function Modal({
@@ -31,7 +39,21 @@ export default function Modal({
   confirmDisabled = false,
   footerContent,
   showDefaultButtons,
+  size = 'md',
+  subHeader,
 }: ModalProps) {
+  const isChat = size === 'chat';
+
+  // トーク画面は作業の途中で閉じたくなることが多いので Esc で閉じられるようにする
+  useEffect(() => {
+    if (!isOpen || !isChat) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isLoading) onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, isChat, isLoading, onClose]);
+
   if (!isOpen) return null;
 
   const confirmButtonClass = variant === 'danger' 
@@ -44,16 +66,27 @@ export default function Modal({
   // - footerContent がある場合はデフォルトボタンを非表示
   // - footerContent がない場合はデフォルトボタンを表示
   const shouldShowButtons = showDefaultButtons === true || (showDefaultButtons !== false && !footerContent);
+  // 既存の画面の見た目を変えないよう、空のフッターを省くのは chat のときだけ
+  const showFooter = !isChat || Boolean(footerContent) || shouldShowButtons;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm ${isChat ? 'p-0 sm:p-6' : 'p-4'}`}
       onClick={(e) => {
         if (e.target === e.currentTarget && !isLoading) onClose();
       }}
     >
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200">
-        <div className="flex items-center justify-between p-4 border-b shrink-0">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={
+          isChat
+            ? 'bg-white shadow-xl w-full flex flex-col h-[100dvh] sm:h-[min(880px,92vh)] sm:max-w-4xl sm:rounded-xl overflow-hidden'
+            : 'bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200'
+        }
+      >
+        <div className={`flex items-center justify-between border-b shrink-0 ${isChat ? 'border-gray-200 px-4 py-3 sm:px-5' : 'p-4'}`}>
           <h3 className="text-lg font-bold text-gray-900">{title}</h3>
           <button
             type="button"
@@ -65,9 +98,11 @@ export default function Modal({
             <X size={20} />
           </button>
         </div>
-        <div className="p-6 overflow-y-auto">
+        {subHeader && <div className="shrink-0 border-b border-gray-200">{subHeader}</div>}
+        <div className={isChat ? 'flex-1 min-h-0 flex flex-col' : 'p-6 overflow-y-auto'}>
           {children ? children : <p className="text-gray-600">{message}</p>}
         </div>
+        {showFooter && (
         <div className={`flex flex-col sm:flex-row items-stretch sm:items-center ${footerContent ? 'justify-between' : 'justify-end'} gap-4 p-4 bg-gray-50 shrink-0 border-t`}>
           {footerContent && (
             <div className={shouldShowButtons ? "w-full sm:w-auto mr-auto" : "w-full"}>
@@ -97,6 +132,7 @@ export default function Modal({
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );

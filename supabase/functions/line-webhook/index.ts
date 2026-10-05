@@ -20,6 +20,7 @@ import {
   isBlankText,
   redactSecrets,
 } from '../_shared/webhook-reply.ts'
+import { saveReceivedImage } from '../_shared/line-image.ts'
 
 const log = createLogger('line-webhook')
 
@@ -373,6 +374,7 @@ Deno.serve(async (req: Request) => {
           status: string,
           replyText: string | null,
           replySent: boolean,
+          messageImagePath: string | null = null,
         ) => {
           const entry = buildLogEntry({ status, replyText, replySent })
 
@@ -413,6 +415,7 @@ Deno.serve(async (req: Request) => {
             display_name: logDisplayName,
             profile_picture_url: pictureUrl,
             message_content: messageContent,
+            message_image_path: messageImagePath,
             reply_content: entry.reply_content,
             status: entry.status,
           })
@@ -453,7 +456,12 @@ Deno.serve(async (req: Request) => {
           if (event.message?.type !== 'text') {
             const messageType = event.message?.type
             if (messageType === 'sticker') continue
-            await saveLog(userId, describeNonTextMessage(messageType), 'manual_reply_needed', null, false)
+            // 画像は LINE 側の保存期間が限られるので、この時点で取得して保存する。
+            // 取得に失敗しても受信の記録は残す（店舗が気づけることを優先する）
+            const imagePath = messageType === 'image'
+              ? await saveReceivedImage(supabase, channelAccessToken, storeId, event.message)
+              : null
+            await saveLog(userId, describeNonTextMessage(messageType), 'manual_reply_needed', null, false, imagePath)
             continue
           }
 
