@@ -95,8 +95,8 @@ const SpecifiedCommercialTransactions: React.FC = () => {
                     <Mail className="w-4 h-4 text-ink-soft" />
                     メールアドレス
                   </h3>
-                  <a href="mailto:itoguchi.app@gmail.com" className="text-ink font-medium hover:text-primary-800 transition-colors">
-                    itoguchi.app@gmail.com
+                  <a href="mailto:info@itoguchi-app.jp" className="text-ink font-medium hover:text-primary-800 transition-colors">
+                    info@itoguchi-app.jp
                   </a>
                 </div>
               </div>
@@ -260,8 +260,8 @@ const SpecifiedCommercialTransactions: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-ink-soft mb-1">メールアドレス</p>
-                  <a href="mailto:itoguchi.app@gmail.com" className="text-ink hover:text-primary-800 transition-colors">
-                    itoguchi.app@gmail.com
+                  <a href="mailto:info@itoguchi-app.jp" className="text-ink hover:text-primary-800 transition-colors">
+                    info@itoguchi-app.jp
                   </a>
                 </div>
               </div>

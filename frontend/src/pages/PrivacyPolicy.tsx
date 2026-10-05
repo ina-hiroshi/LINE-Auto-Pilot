@@ -241,7 +241,7 @@ const PrivacyPolicy: React.FC = () => {
                   </p>
                   <p className="text-sm text-ink-soft mt-2">
                     操作でお困りの場合は
-                    <a href="mailto:itoguchi.app@gmail.com" className="text-primary-800 hover:underline font-medium mx-1">itoguchi.app@gmail.com</a>
+                    <a href="mailto:info@itoguchi-app.jp" className="text-primary-800 hover:underline font-medium mx-1">info@itoguchi-app.jp</a>
                     または
                     <a href="https://line.me/R/ti/p/@431cghfd" target="_blank" rel="noopener noreferrer" className="text-primary-800 hover:underline font-medium mx-1">公式 LINE（@431cghfd）</a>
                     までご連絡ください。ご連絡による退会申請の場合は、30日以内にデータを削除いたします。
@@ -283,8 +283,8 @@ const PrivacyPolicy: React.FC = () => {
               <div className="bg-counter/60 rounded-xl p-6 max-w-md mx-auto border border-rule">
                 <p className="font-bold text-lg text-ink mb-2">IToguchi 運営事務局</p>
                 <p className="text-ink-soft mb-2">
-                  <a href="mailto:itoguchi.app@gmail.com" className="text-primary-800 hover:text-primary-800 transition-colors font-medium">
-                    itoguchi.app@gmail.com
+                  <a href="mailto:info@itoguchi-app.jp" className="text-primary-800 hover:text-primary-800 transition-colors font-medium">
+                    info@itoguchi-app.jp
                   </a>
                 </p>
                 <p className="text-ink-soft text-sm">

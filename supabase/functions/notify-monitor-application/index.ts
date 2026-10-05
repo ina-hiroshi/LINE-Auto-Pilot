@@ -8,7 +8,7 @@ import { getCorsHeaders } from '../_shared/cors.ts'
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const ADMIN_EMAIL = Deno.env.get('MONITOR_APPLICATION_NOTIFY_EMAIL') || 'itoguchi.app@gmail.com'
+const ADMIN_EMAIL = Deno.env.get('MONITOR_APPLICATION_NOTIFY_EMAIL') || 'info@itoguchi-app.jp'
 
 interface RequestBody {
   application_id: string

@@ -7,6 +7,9 @@ const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const FRONTEND_URL = 'https://itoguchi-app.jp/#auth'
+// 送信元の noreply@ には受信箱がない。本文で「このメールに返信」と頼んでいるので、
+// 返信は問い合わせ用のアドレスに届くようにする。
+const REPLY_TO_EMAIL = 'info@itoguchi-app.jp'
 // LINE公式アカウントの開設ページ。
 // 案内先を2度間違えているので、変更するときは必ず実際に開いて確認すること。
 //   https://account.line.biz/     → 404
@@ -316,6 +319,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         from: fromEmail,
         to: [email],
+        reply_to: REPLY_TO_EMAIL,
         subject: subject,
         html: html,
       }),

@@ -2,7 +2,7 @@
 // 料金・制限・範囲は管理画面のプラン選択（PlanSelectStep）と一致させること。
 
 export const LINE_DEMO_URL = 'https://line.me/R/ti/p/@431cghfd'
-export const CONTACT_MAIL = 'itoguchi.app@gmail.com'
+export const CONTACT_MAIL = 'info@itoguchi-app.jp'
 
 export type FeatureSlug =
   | 'auto-response'
