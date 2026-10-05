@@ -251,16 +251,17 @@ export default function Customers() {
 
       <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
         <div className="px-4 sm:px-8 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">顧客一覧</h1>
-              <p className="hidden sm:block text-sm text-gray-500">
+          {/* スマホでは検索と読取ボタンを見出しの下の行に回す（横に並べると見出しが1文字ずつ折り返す） */}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <div className="min-w-0 flex-1 basis-40">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 whitespace-nowrap">顧客一覧</h1>
+              <p className="text-sm text-gray-500">
                 顧客を選択すると詳細ページで施術メモ・LINEメッセージを管理できます。
               </p>
             </div>
-            <div className="flex gap-2 shrink-0">
+            <div className="flex w-full gap-2 sm:w-auto sm:shrink-0">
               <TutorialButton tutorial={tutorial} />
-              <div data-tour="customers.search" className="relative w-36 sm:w-64">
+              <div data-tour="customers.search" className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search className="h-5 w-5 text-gray-400" />
                 </div>
@@ -279,7 +280,7 @@ export default function Customers() {
                 className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors shadow-sm whitespace-nowrap"
               >
                 <QrCode className="w-4 h-4" />
-                <span className="text-sm font-bold">会員証読取</span>
+                <span className="text-sm font-bold"><span className="hidden sm:inline">会員証</span>読取</span>
               </button>
             </div>
           </div>
@@ -288,7 +289,93 @@ export default function Customers() {
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8">
         <div className="w-full">
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          {/* スマホ: 表は横に収まらないので、1人1枚のカードで並べる */}
+          {/* エラーと空の表示は、スマホ・PCで共通の1か所にする */}
+          {loadError || filteredCustomers.length === 0 ? (
+            <div data-tour="customers.table" className="bg-white rounded-lg shadow px-4 py-6 text-center text-sm">
+              {loadError ? (
+                <p className="text-red-600">{loadError}</p>
+              ) : (
+                <p className="text-gray-500">
+                  {searchQuery ? '該当する顧客が見つかりません' : '顧客データがありません'}
+                  {!searchQuery && (
+                    <span className="block mt-1 text-xs text-gray-400">
+                      LINEの予約ページから予約したお客様が、ここに表示されます。
+                    </span>
+                  )}
+                </p>
+              )}
+            </div>
+          ) : (
+          <>
+          <div className="md:hidden bg-white rounded-lg shadow overflow-hidden">
+              <>
+                <label
+                  data-tour="customers.select-all"
+                  className="flex items-center gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500"
+                >
+                  <input
+                    type="checkbox"
+                    checked={filteredCustomers.length > 0 && selectedIds.size === filteredCustomers.length}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  すべて選択（{filteredCustomers.length}名）
+                </label>
+                <ul className="divide-y divide-gray-100">
+                  {filteredCustomers.map((customer, index) => (
+                    <li
+                      key={customer.id}
+                      data-tour={index === 0 ? 'customers.table' : undefined}
+                      className="flex items-center gap-3 px-4 py-3 active:bg-gray-50"
+                      onClick={() => openCustomer(customer)}
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={`${formatCustomerLabel(customer)}を選択`}
+                        checked={selectedIds.has(customer.id)}
+                        onChange={() => toggleSelection(customer.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-4 w-4 shrink-0 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      {customer.profile_picture_url ? (
+                        <img src={customer.profile_picture_url} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />
+                      ) : (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200">
+                          <User className="h-5 w-5 text-gray-500" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-sm font-bold text-gray-900">{formatCustomerLabel(customer)}</span>
+                          <span
+                            className={`shrink-0 rounded-full px-2 text-[11px] font-semibold leading-5 ${
+                              customer.status === 'VIP' ? 'bg-yellow-100 text-yellow-800' : 'bg-primary-100 text-primary-800'
+                            }`}
+                          >
+                            {customer.status === 'VIP' ? 'VIP' : '会員'}
+                          </span>
+                        </div>
+                        {customer.real_name?.trim() && (customer.furigana || customer.display_name) && (
+                          <div className="truncate text-xs text-gray-400">
+                            {[customer.furigana, customer.display_name && `LINE: ${customer.display_name}`].filter(Boolean).join('　')}
+                          </div>
+                        )}
+                        <div className="mt-0.5 flex gap-3 text-xs text-gray-500">
+                          <span>{customer.points.toLocaleString()} pt</span>
+                          <span>
+                            最終来店 {customer.lastVisit ? new Date(customer.lastVisit).toLocaleDateString('ja-JP') : '-'}
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" />
+                    </li>
+                  ))}
+                </ul>
+              </>
+          </div>
+
+          <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -324,25 +411,7 @@ export default function Customers() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {loadError ? (
-                    <tr data-tour="customers.table">
-                      <td colSpan={7} className="px-6 py-4 text-center text-red-600">
-                        {loadError}
-                      </td>
-                    </tr>
-                  ) : filteredCustomers.length === 0 ? (
-                    <tr data-tour="customers.table">
-                      <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
-                        {searchQuery ? '該当する顧客が見つかりません' : '顧客データがありません'}
-                        {!searchQuery && (
-                          <span className="block mt-1 text-xs text-gray-400">
-                            LINEの予約ページから予約したお客様が、ここに表示されます。
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredCustomers.map((customer, index) => (
+                  {filteredCustomers.map((customer, index) => (
                       <tr
                         key={customer.id}
                         // 画面ツアーで光らせるのは先頭の1行だけ
@@ -414,21 +483,22 @@ export default function Customers() {
                           <ChevronRight className="w-5 h-5 inline-block" />
                         </td>
                       </tr>
-                    ))
-                  )}
+                    ))}
                 </tbody>
               </table>
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
 
       {selectedIds.size > 0 && (
-        <div className="shrink-0 border-t border-gray-200 bg-white px-4 sm:px-8 py-3 flex items-center justify-between gap-4">
+        <div className="shrink-0 border-t border-gray-200 bg-white px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <span className="text-sm text-gray-700">
             <span className="font-bold">{selectedIds.size}名</span>を選択中
           </span>
-          <div className="flex gap-2">
+          <div className="flex gap-2 ml-auto">
             <button
               type="button"
               onClick={() => setSelectedIds(new Set())}
