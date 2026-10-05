@@ -180,13 +180,12 @@ export default function AutoRepliesPage() {
           activeId={tab}
           onChange={setTab}
           items={[
-            { id: 'keyword', label: 'キーワード応答', icon: MessageSquare, hideLabelBelowMd: true, title: 'キーワード応答' },
-            { id: 'ai', label: 'AI応答', icon: Sparkles, hideLabelBelowMd: true, title: 'AI応答' },
+            { id: 'keyword', label: 'キーワード応答', icon: MessageSquare, title: 'キーワード応答' },
+            { id: 'ai', label: 'AI応答', icon: Sparkles, title: 'AI応答' },
             {
               id: 'history',
               label: '応答履歴',
               icon: History,
-              hideLabelBelowMd: true,
               title: '応答履歴',
               badge: aiNeedsHumanCount > 0 ? (
                 <span className="rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">{aiNeedsHumanCount}</span>

@@ -6,10 +6,6 @@ export type UnderlineTabItem<T extends string> = {
   label: ReactNode
   icon?: LucideIcon
   iconSize?: number
-  /** sm未満でラベルを非表示（アイコンのみ） */
-  hideLabelOnMobile?: boolean
-  /** md未満でラベルを非表示（embedded + stretchOnMobile 向け） */
-  hideLabelBelowMd?: boolean
   badge?: ReactNode
   title?: string
   disabled?: boolean
@@ -26,7 +22,7 @@ export type UnderlineTabsProps<T extends string> = {
   marginBottom?: boolean | string
   justifyBetween?: boolean
   trailing?: ReactNode
-  /** モバイルでタブを均等幅に（自動応答など） */
+  /** モバイルでタブを均等幅に（自動応答など）。収まらなければ横にスクロールする */
   stretchOnMobile?: boolean
   /** カード内ヘッダー用（パディング付き・mb なし） */
   embedded?: boolean
@@ -34,7 +30,8 @@ export type UnderlineTabsProps<T extends string> = {
 
 function tabButtonClass(isActive: boolean, extra?: string): string {
   return [
-    'text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap',
+    // スマホでもアイコンと名称を必ず並べて出す（画面ごとに表示を変えない）
+    'shrink-0 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 sm:gap-2 whitespace-nowrap',
     extra,
     isActive
       ? 'border-primary-500 text-primary-600'
@@ -73,10 +70,13 @@ export function UnderlineTabs<T extends string>({
         .filter(Boolean)
         .join(' ')
 
-  const innerClass = embedded && stretchOnMobile ? 'flex gap-1 w-full' : 'flex gap-2 overflow-x-auto'
+  // タブが多くて幅に収まらないときは、名称を隠さず横にスクロールさせる
+  const innerClass = stretchOnMobile
+    ? 'flex gap-1 w-full overflow-x-auto scrollbar-hide'
+    : 'flex gap-1 sm:gap-2 overflow-x-auto scrollbar-hide'
 
   const defaultPy = embedded ? 'py-3' : 'py-2'
-  const defaultPx = stretchOnMobile ? 'px-2 md:px-4' : 'px-4'
+  const defaultPx = stretchOnMobile ? 'px-2 md:px-4' : 'px-3 sm:px-4'
 
   return (
     <div className={outerClass}>
@@ -90,16 +90,10 @@ export function UnderlineTabs<T extends string>({
             defaultPx,
             defaultPy,
             stretchOnMobile ? 'flex-1 md:flex-none justify-center md:justify-start' : '',
+            stretchOnMobile ? 'text-[13px] md:text-sm' : '',
           ]
             .filter(Boolean)
             .join(' ')
-
-          let labelContent: ReactNode = item.label
-          if (item.hideLabelOnMobile) {
-            labelContent = <span className="hidden sm:inline">{item.label}</span>
-          } else if (item.hideLabelBelowMd) {
-            labelContent = <span className="hidden md:inline">{item.label}</span>
-          }
 
           return (
             <button
@@ -112,7 +106,7 @@ export function UnderlineTabs<T extends string>({
               className={tabButtonClass(isActive, buttonExtra)}
             >
               {Icon && <Icon size={iconSize} aria-hidden />}
-              {labelContent}
+              {item.label}
               {item.badge}
             </button>
           )

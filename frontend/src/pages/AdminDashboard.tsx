@@ -646,7 +646,6 @@ export default function AdminDashboard() {
               id: tab.id,
               label: tab.label,
               icon: tab.icon,
-              hideLabelOnMobile: true,
             }))}
           />
 

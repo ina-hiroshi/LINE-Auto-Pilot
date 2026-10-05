@@ -759,12 +759,11 @@ export default function Dashboard() {
             activeId={activeTab}
             onChange={setActiveTab}
             items={[
-              { id: 'graphs', label: 'グラフ', icon: BarChart3, hideLabelOnMobile: true, tourId: 'dashboard.tab-graphs' },
+              { id: 'graphs', label: 'グラフ', icon: BarChart3, tourId: 'dashboard.tab-graphs' },
               {
                 id: 'messages',
                 label: 'メッセージ',
                 icon: MessageSquare,
-                hideLabelOnMobile: true,
                 tourId: 'dashboard.tab-messages',
                 badge:
                   stats.manualReplyNeeded > 0 ? (
@@ -777,7 +776,6 @@ export default function Dashboard() {
                 id: 'analysis',
                 label: '詳細分析',
                 icon: Search,
-                hideLabelOnMobile: true,
                 tourId: 'dashboard.tab-analysis',
                 badge: !isPro ? <ProBadge /> : undefined,
               },

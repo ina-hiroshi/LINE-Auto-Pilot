@@ -333,9 +333,9 @@ export default function MembershipCard() {
               activeId={activeTab}
               onChange={setActiveTab}
               items={[
-                { id: 'design', label: 'デザイン設定', icon: Palette, hideLabelOnMobile: true },
-                { id: 'settings', label: '表示設定', icon: Settings, hideLabelOnMobile: true },
-                { id: 'rank', label: 'ランク設定', icon: Award, hideLabelOnMobile: true },
+                { id: 'design', label: 'デザイン設定', icon: Palette },
+                { id: 'settings', label: '表示設定', icon: Settings },
+                { id: 'rank', label: 'ランク設定', icon: Award },
               ]}
             />
           </div>

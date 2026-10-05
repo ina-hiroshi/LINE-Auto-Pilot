@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Loader2, Send } from 'lucide-react'
+import { ArrowLeft, History, Loader2, PenLine, Send } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import Toast from '../components/Toast'
 import { UnderlineTabs } from '../components/UnderlineTabs'
@@ -226,8 +226,8 @@ export default function MessageCampaigns() {
               activeId={tab}
               onChange={(id) => setTab(id)}
               items={[
-                { id: 'compose', label: '新規配信' },
-                { id: 'history', label: '配信履歴' },
+                { id: 'compose', label: '新規配信', icon: PenLine },
+                { id: 'history', label: '配信履歴', icon: History },
               ]}
             />
           </div>
