@@ -6,14 +6,19 @@ import Modal from './Modal'
 import Logo from './Logo'
 import UnsavedChangesProvider from './UnsavedChangesProvider'
 import { useUserFeatures } from '../hooks/useUserFeatures'
+import { useManualReplyCount } from '../features/messaging/hooks/useManualReplyCount'
 
 type ProfileSummary = {
 	full_name: string | null
 }
 
 type StoreSummary = {
+	id: string
 	name: string | null
 }
+
+/** 99件を超えたら「99+」にする（バッジの幅を一定に保つ） */
+const formatBadge = (n: number) => (n > 99 ? '99+' : String(n))
 
 export default function Layout() {
   const location = useLocation()
@@ -35,7 +40,7 @@ export default function Layout() {
       
       const { data: storeData } = await supabase
         .from('stores')
-        .select('name')
+        .select('id, name')
         .eq('owner_id', user.id)
         .single()
 
@@ -48,6 +53,9 @@ export default function Layout() {
     window.addEventListener('profile-updated', fetchData)
     return () => window.removeEventListener('profile-updated', fetchData)
   }, [])
+
+  // ダッシュボードの項目に出す「要対応」の件数
+  const manualReplyCount = useManualReplyCount(store?.id ?? null)
   
   // 基本ナビゲーション項目
   const baseNavItems = [
@@ -148,6 +156,14 @@ export default function Layout() {
               >
                 {item.icon}
                 <span>{item.label}</span>
+                {item.path === '/' && manualReplyCount > 0 && (
+                  <span
+                    className="ml-auto min-w-[1.5rem] rounded-full bg-red-500 px-1.5 py-0.5 text-center text-xs font-bold leading-tight text-white"
+                    aria-label={`要対応 ${manualReplyCount}件`}
+                  >
+                    {formatBadge(manualReplyCount)}
+                  </span>
+                )}
               </Link>
             )
           })}
@@ -246,8 +262,16 @@ export default function Layout() {
                     : 'text-primary-100 hover:text-white hover:bg-white/5'
                 }`}
               >
-                <div className="flex items-center justify-center">
+                <div className="relative flex items-center justify-center">
                   {item.icon && <item.icon.type size={18} {...item.icon.props} />}
+                  {item.path === '/' && manualReplyCount > 0 && (
+                    <span
+                      className="absolute -right-3 -top-2 min-w-[1.125rem] rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-[1.125rem] text-white ring-2 ring-primary-600"
+                      aria-label={`要対応 ${manualReplyCount}件`}
+                    >
+                      {formatBadge(manualReplyCount)}
+                    </span>
+                  )}
                 </div>
                 <span className="text-[9px] font-bold leading-tight whitespace-nowrap">{item.label}</span>
               </Link>

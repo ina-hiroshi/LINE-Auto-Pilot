@@ -651,19 +651,20 @@ export default function Dashboard() {
 
       <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
         <div className="px-4 sm:px-8 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">ダッシュボード</h1>
+          {/* スマホでは期間の切り替えを見出しの下の行に回す（横に並べると見出しが1文字ずつ折り返す） */}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <div className="min-w-0 flex-1 basis-56">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 whitespace-nowrap">ダッシュボード</h1>
               <p className="text-sm text-gray-500">予約状況や顧客の動向を一目で確認できます。</p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
               <TutorialButton tutorial={tutorial} />
-              <div data-tour="dashboard.period" className="flex bg-gray-100 p-1 rounded-lg">
+              <div data-tour="dashboard.period" className="flex flex-1 bg-gray-100 p-1 rounded-lg sm:flex-none">
                 {(['all', 'month', 'week', 'today'] as const).map((range) => (
                   <button
                     key={range}
                     onClick={() => setTimeRange(range)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
+                    className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
                       timeRange === range
                         ? 'bg-white text-gray-900 shadow-sm'
                         : 'text-gray-500 hover:text-gray-700'
