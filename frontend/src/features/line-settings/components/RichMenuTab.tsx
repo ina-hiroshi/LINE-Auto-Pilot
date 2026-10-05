@@ -215,8 +215,8 @@ export function RichMenuTab({
           onChange={setActiveTab}
           justifyBetween
           items={[
-            { id: 'design', label: 'デザイン設定', icon: Palette, hideLabelOnMobile: true },
-            { id: 'actions', label: 'アクション設定', icon: MousePointerClick, hideLabelOnMobile: true },
+            { id: 'design', label: 'デザイン設定', icon: Palette },
+            { id: 'actions', label: 'アクション設定', icon: MousePointerClick },
           ]}
         />
       </div>

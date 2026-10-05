@@ -257,21 +257,19 @@ export function BookingPageTab({
           onChange={setActiveTab}
           justifyBetween
           items={[
-            { id: 'basic', label: '基本設定', icon: Settings, hideLabelOnMobile: true },
-            { id: 'items', label: 'メニュー・スタッフ登録', icon: List, hideLabelOnMobile: true },
-            { id: 'design', label: 'デザイン設定', icon: Palette, hideLabelOnMobile: true },
+            { id: 'basic', label: '基本設定', icon: Settings },
+            { id: 'items', label: 'メニュー・スタッフ登録', icon: List },
+            { id: 'design', label: 'デザイン設定', icon: Palette },
             {
               id: 'business-days',
               label: '営業日',
               icon: CalendarDays,
-              hideLabelOnMobile: true,
               tourId: 'booking-settings.tab-business-days',
             },
             {
               id: 'staff-shift',
               label: 'スタッフシフト',
               icon: UserCheck,
-              hideLabelOnMobile: true,
               tourId: 'booking-settings.tab-staff-shift',
             },
           ]}

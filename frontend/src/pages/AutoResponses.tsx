@@ -813,12 +813,11 @@ export default function AutoResponses() {
           onChange={setActiveTab}
           stretchOnMobile
           items={[
-            { id: 'keyword', label: 'キーワード応答', icon: MessageSquare, hideLabelBelowMd: true, title: 'キーワード応答' },
+            { id: 'keyword', label: 'キーワード応答', icon: MessageSquare, title: 'キーワード応答' },
             {
               id: 'ai_settings',
               label: 'AI基本設定',
               icon: Settings,
-              hideLabelBelowMd: true,
               title: 'AI基本設定',
               badge: !isPro ? <ProBadge className="hidden md:inline-flex" /> : undefined,
             },
@@ -826,7 +825,6 @@ export default function AutoResponses() {
               id: 'knowledge',
               label: 'AI学習データ',
               icon: BookOpen,
-              hideLabelBelowMd: true,
               title: 'AI学習データ',
               badge: !isPro ? <ProBadge className="hidden md:inline-flex" /> : undefined,
             },
