@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, AlertCircle, Bot, User, MessageSquare, BarChart3, TrendingUp, Search, Lightbulb, Target, FolderOpen, ExternalLink, Image as ImageIcon } from 'lucide-react'
+import { Calendar, AlertCircle, Bot, User, MessageSquare, BarChart3, TrendingUp, Search, Lightbulb, Target, FolderOpen, ExternalLink } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { loadAIAnalysisCache, saveAIAnalysisCache } from '../lib/aiAnalysisCache'
 import {
@@ -36,6 +36,8 @@ import { LineChatHistory } from '../features/messaging/components/LineChatHistor
 import { LineReplyComposer } from '../features/messaging/components/LineReplyComposer'
 import { useLineChatHistory } from '../features/messaging/hooks/useLineChatHistory'
 import { useLineReply } from '../features/messaging/hooks/useLineReply'
+import { LineImageViewer } from '../features/messaging/components/LineImageViewer'
+import { createReceivedImageUrls, viewableReceivedImagePath } from '../features/messaging/lib/lineImage'
 import { STATUS_LABELS, type LogEntry } from '../features/messaging/types'
 export type DashboardTab = 'graphs' | 'messages' | 'analysis'
 
@@ -124,6 +126,9 @@ export default function Dashboard() {
   const [replyModalOpen, setReplyModalOpen] = useState(false)
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null)
   const [replyImage, setReplyImage] = useState<File | null>(null)
+  // 一覧に出す受信画像の署名 URL（パス → URL）と、拡大表示中の画像
+  const [listImageUrls, setListImageUrls] = useState<Record<string, string>>({})
+  const [viewerSrc, setViewerSrc] = useState<string | null>(null)
   const [replyText, setReplyText] = useState('')
   const [quotaInfo, setQuotaInfo] = useState<LineQuotaInfo | null>(null)
   const { chatHistory, historyLoading, fetchChatHistory } = useLineChatHistory(storeId)
@@ -402,6 +407,24 @@ export default function Dashboard() {
     }
   }, [filterStatus, allLogs])
 
+  // 一覧に見えている受信画像だけ署名 URL を発行する（非公開バケットのため）
+  useEffect(() => {
+    const missing = filteredLogs
+      .map(viewableReceivedImagePath)
+      .filter((p): p is string => Boolean(p) && !listImageUrls[p as string])
+    if (missing.length === 0) return
+    let cancelled = false
+    createReceivedImageUrls(missing)
+      .then((urlByPath) => {
+        if (cancelled || urlByPath.size === 0) return
+        setListImageUrls((prev) => ({ ...prev, ...Object.fromEntries(urlByPath) }))
+      })
+      .catch((error) => console.error('Error signing LINE image URLs:', error))
+    return () => {
+      cancelled = true
+    }
+  }, [filteredLogs, listImageUrls])
+
   const getTimeRangeLabel = () => {
       switch(timeRange) {
           case 'today': return '(今日)'
@@ -628,19 +651,20 @@ export default function Dashboard() {
 
       <div className="shrink-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200 w-full">
         <div className="px-4 sm:px-8 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">ダッシュボード</h1>
+          {/* スマホでは期間の切り替えを見出しの下の行に回す（横に並べると見出しが1文字ずつ折り返す） */}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <div className="min-w-0 flex-1 basis-56">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 whitespace-nowrap">ダッシュボード</h1>
               <p className="text-sm text-gray-500">予約状況や顧客の動向を一目で確認できます。</p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
               <TutorialButton tutorial={tutorial} />
-              <div data-tour="dashboard.period" className="flex bg-gray-100 p-1 rounded-lg">
+              <div data-tour="dashboard.period" className="flex flex-1 bg-gray-100 p-1 rounded-lg sm:flex-none">
                 {(['all', 'month', 'week', 'today'] as const).map((range) => (
                   <button
                     key={range}
                     onClick={() => setTimeRange(range)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
+                    className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${
                       timeRange === range
                         ? 'bg-white text-gray-900 shadow-sm'
                         : 'text-gray-500 hover:text-gray-700'
@@ -654,6 +678,8 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      <LineImageViewer src={viewerSrc} onClose={() => setViewerSrc(null)} />
 
       <Modal
         isOpen={replyModalOpen}
@@ -723,8 +749,12 @@ export default function Dashboard() {
         </div>
       </Modal>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-8">
-        <div className="w-full">
+      {/* メッセージタブは PC では一覧の中だけをスクロールさせ、画面の高さいっぱいに使う。
+          スマホは見出しが場所を取るので、ページ全体をスクロールさせる */}
+      <div className={activeTab === 'messages'
+        ? 'flex-1 min-h-0 overflow-y-auto p-4 sm:p-8 md:overflow-hidden md:flex md:flex-col'
+        : 'flex-1 overflow-y-auto p-4 sm:p-8'}>
+        <div className={activeTab === 'messages' ? 'w-full md:flex-1 md:min-h-0 md:flex md:flex-col' : 'w-full'}>
           <UnderlineTabs
             activeId={activeTab}
             onChange={setActiveTab}
@@ -753,7 +783,9 @@ export default function Dashboard() {
               },
             ]}
           />
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
+          <div className={activeTab === 'messages'
+            ? 'bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden md:flex-1 md:min-h-0 md:flex md:flex-col'
+            : 'bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6'}>
 
             {/* Tab Content */}
             {activeTab === 'graphs' && (
@@ -775,8 +807,8 @@ export default function Dashboard() {
             )}
 
             {activeTab === 'messages' && (
-              <div className="bg-white rounded-xl border border-gray-100 flex flex-col min-h-0 overflow-hidden h-[600px]">
-                <div className="p-4 border-b border-gray-100 shrink-0 bg-white z-10">
+              <div className="flex flex-col md:flex-1 md:min-h-0">
+                <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-100 shrink-0 bg-white z-10">
                   <div className="flex items-center justify-between gap-4 flex-wrap">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-base sm:text-lg font-bold text-gray-900">メッセージ・対応状況</h2>
@@ -806,7 +838,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-        <div className="divide-y divide-gray-100 overflow-y-auto">
+        <div className="divide-y divide-gray-100 md:flex-1 md:min-h-0 md:overflow-y-auto">
           {filteredLogs.length > 0 ? (
             filteredLogs.map((log) => (
               <div 
@@ -865,9 +897,33 @@ export default function Dashboard() {
                              <path d="M12,0 L0,0 L12,20 Z" fill="#f3f4f6" />
                            </svg>
                         </div>
-                        <div className="bg-gray-100 rounded-2xl rounded-tl-none p-3 text-sm text-gray-800 max-h-32 overflow-y-auto shadow-sm">
-                            {log.message_content}
-                        </div>
+                        {(() => {
+                          const imagePath = viewableReceivedImagePath(log)
+                          const imageUrl = imagePath ? listImageUrls[imagePath] : undefined
+                          // 店舗から先に送ったメッセージには、お客様の発言が無い
+                          if (log.message_content === '(店舗から送信)') {
+                            return <p className="px-1 py-2 text-xs text-gray-400">店舗から送信したメッセージ</p>
+                          }
+                          if (imageUrl) {
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => setViewerSrc(imageUrl)}
+                                className="block overflow-hidden rounded-2xl rounded-tl-none border border-gray-200 bg-gray-100 shadow-sm hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                                aria-label="お客様が送った画像を拡大して見る"
+                              >
+                                <img src={imageUrl} alt="" loading="lazy" className="block max-h-48 w-auto max-w-full object-cover" />
+                              </button>
+                            )
+                          }
+                          return (
+                            <div className="bg-gray-100 rounded-2xl rounded-tl-none p-3 text-sm text-gray-800 shadow-sm whitespace-pre-wrap break-words">
+                              {log.message_image_deleted_at
+                                ? '[画像は保存期間（90日）を過ぎたため削除しました]'
+                                : log.message_content}
+                            </div>
+                          )
+                        })()}
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <button
                             type="button"
@@ -903,12 +959,12 @@ export default function Dashboard() {
                                </svg>
                             </div>
                             
-                            <div className={`rounded-2xl rounded-tr-none p-3 text-sm text-gray-800 border max-h-32 overflow-y-auto shadow-sm ${
+                            <div className={`rounded-2xl rounded-tr-none p-3 text-sm text-gray-800 border shadow-sm whitespace-pre-wrap break-words ${
                                 log.status === 'manual_replied' 
                                 ? 'bg-emerald-50 border-emerald-100' 
                                 : 'bg-primary-50 border-primary-100'
                             }`}>
-                                <div className={`flex items-center gap-1 mb-1 sticky top-0 pb-1 border-b w-full z-10 ${
+                                <div className={`flex items-center gap-1 mb-1 pb-1 border-b w-full ${
                                     log.status === 'manual_replied'
                                     ? 'bg-emerald-50 border-emerald-100/50'
                                     : 'bg-primary-50 border-primary-100/50'
@@ -927,10 +983,14 @@ export default function Dashboard() {
                                 </div>
                                 {log.reply_content}
                                 {log.reply_image_url && (
-                                  <span className={`flex items-center gap-1 text-xs text-emerald-700 ${log.reply_content ? 'mt-1' : ''}`}>
-                                    <ImageIcon size={14} />
-                                    画像を送信しました
-                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewerSrc(log.reply_image_url ?? null)}
+                                    className={`block overflow-hidden rounded-lg border border-emerald-100 bg-white hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${log.reply_content ? 'mt-2' : ''}`}
+                                    aria-label="送った画像を拡大して見る"
+                                  >
+                                    <img src={log.reply_image_url} alt="" loading="lazy" className="block max-h-40 w-auto max-w-full object-cover" />
+                                  </button>
                                 )}
                             </div>
                         </div>
