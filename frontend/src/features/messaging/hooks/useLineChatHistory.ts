@@ -12,7 +12,15 @@ const SIGNED_URL_SECONDS = 60 * 60
  * 発行に失敗しても履歴は表示する（画像の欄が文言だけになる）。
  */
 async function attachReceivedImageUrls(rows: LogEntry[]): Promise<LogEntry[]> {
-  const paths = [...new Set(rows.map((r) => r.message_image_path).filter((p): p is string => Boolean(p)))]
+  // 保存期間を過ぎて削除済みの画像は、署名 URL を発行しても開けない
+  const paths = [
+    ...new Set(
+      rows
+        .filter((r) => !r.message_image_deleted_at)
+        .map((r) => r.message_image_path)
+        .filter((p): p is string => Boolean(p)),
+    ),
+  ]
   if (paths.length === 0) return rows
 
   try {
@@ -25,7 +33,7 @@ async function attachReceivedImageUrls(rows: LogEntry[]): Promise<LogEntry[]> {
       if (item.path && item.signedUrl) urlByPath.set(item.path, item.signedUrl)
     }
     return rows.map((r) =>
-      r.message_image_path ? { ...r, message_image_url: urlByPath.get(r.message_image_path) ?? null } : r,
+      r.message_image_path && !r.message_image_deleted_at ? { ...r, message_image_url: urlByPath.get(r.message_image_path) ?? null } : r,
     )
   } catch (error) {
     console.error('Error signing LINE image URLs:', error)

@@ -105,7 +105,12 @@ export function LineChatHistory({
                               : 'bg-white border-gray-200 text-gray-800'
                           }`}
                         >
-                          {msg.message_image_path ? (
+                          {msg.message_image_deleted_at ? (
+                            <span className="inline-flex items-center gap-1.5 text-gray-500">
+                              <ImageOff size={14} />
+                              画像は保存期間（90日）を過ぎたため削除しました
+                            </span>
+                          ) : msg.message_image_path ? (
                             <span className="inline-flex items-center gap-1.5 text-gray-500">
                               <ImageOff size={14} />
                               画像を表示できませんでした

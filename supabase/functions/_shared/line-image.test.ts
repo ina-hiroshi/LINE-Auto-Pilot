@@ -1,5 +1,10 @@
 import { assertEquals } from 'jsr:@std/assert@1'
-import { imageExtensionFor, isOwnSentImageUrl, receivedImagePath } from './line-image.ts'
+import {
+  imageExtensionFor,
+  isOwnSentImageUrl,
+  receivedImageRetentionCutoff,
+  receivedImagePath,
+} from './line-image.ts'
 
 const SUPABASE_URL = 'https://example.supabase.co'
 const STORE = '11111111-2222-3333-4444-555555555555'
@@ -32,4 +37,10 @@ Deno.test('isOwnSentImageUrl: 自店舗の送信用フォルダの画像だけ�
   assertEquals(isOwnSentImageUrl(`${base}../x/a.jpg`, SUPABASE_URL, STORE), false)
   assertEquals(isOwnSentImageUrl(`${base}a.gif`, SUPABASE_URL, STORE), false)
   assertEquals(isOwnSentImageUrl(undefined, SUPABASE_URL, STORE), false)
+})
+
+Deno.test('receivedImageRetentionCutoff: 既定は 90 日前', () => {
+  const now = new Date('2026-10-05T00:00:00Z')
+  assertEquals(receivedImageRetentionCutoff(now).toISOString(), '2026-07-07T00:00:00.000Z')
+  assertEquals(receivedImageRetentionCutoff(now, 1).toISOString(), '2026-10-04T00:00:00.000Z')
 })

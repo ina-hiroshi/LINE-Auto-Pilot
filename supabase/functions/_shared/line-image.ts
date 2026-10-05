@@ -9,6 +9,14 @@ import type { SupabaseClientType } from './types.ts'
 export const RECEIVED_IMAGES_BUCKET = 'line-received-images'
 export const SENT_IMAGES_BUCKET = 'line-sent-images'
 
+/** お客様が送った画像を残す日数。過ぎたものは cleanup-line-images が削除する */
+export const RECEIVED_IMAGE_RETENTION_DAYS = 90
+
+/** この日時より前に受信した画像が削除対象 */
+export function receivedImageRetentionCutoff(now: Date, days = RECEIVED_IMAGE_RETENTION_DAYS): Date {
+  return new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+}
+
 /** バケットの file_size_limit と同じ。LINE の originalContentUrl の上限も 10MB */
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 

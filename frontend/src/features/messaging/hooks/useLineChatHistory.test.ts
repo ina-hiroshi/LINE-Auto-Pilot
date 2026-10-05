@@ -153,4 +153,15 @@ describe('LINE トーク履歴の取得', () => {
     })
     expect(mock.signedUrlRequests).toHaveLength(0)
   })
+
+  it('保存期間を過ぎて削除済みの画像には署名 URL を発行しない', async () => {
+    const { result } = setup({
+      rows: [log('1', { message_image_path: 'store-1/m1.jpg', message_image_deleted_at: '2026-10-01T00:00:00Z' })],
+    })
+    await act(async () => {
+      await result.current.fetchChatHistory('U-1')
+    })
+    expect(mock.signedUrlRequests).toHaveLength(0)
+    expect(result.current.chatHistory[0].message_image_url).toBeUndefined()
+  })
 })

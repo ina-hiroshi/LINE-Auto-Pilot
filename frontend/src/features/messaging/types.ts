@@ -13,6 +13,8 @@ export type LogEntry = {
   reply_content: string | null
   /** お客様が送った画像の保存先（非公開バケット内のパス） */
   message_image_path?: string | null
+  /** 保存期間（90日）を過ぎて画像を削除した日時 */
+  message_image_deleted_at?: string | null
   /** 画面表示用に発行した署名 URL（DB の列ではない） */
   message_image_url?: string | null
   /** 店舗が送った画像の公開 URL */
