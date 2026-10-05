@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   AlertTriangle, AtSign, Check, ChevronDown, Copy, ExternalLink, Instagram, Loader2,
-  MessageCircle, Pencil, RefreshCw, Store,
+  Pencil, RefreshCw, Send, Store,
 } from 'lucide-react'
 import Toast from '../../components/Toast'
 import {
@@ -59,7 +59,7 @@ export default function OutreachPage() {
   const notify = (r: { success: boolean; message?: string }) =>
     setToast({ isVisible: true, message: r.message ?? '', type: r.success ? 'success' : 'error' })
 
-  const { guides, sections, done, total } = useMemo(() => {
+  const { guides, sections, done, total, next } = useMemo(() => {
     const mine = q.items.filter((it) => it.channel === channel)
     const actions = mine.filter((it) => it.kind === 'action')
     const bySection = new Map<string, OutreachItem[]>()
@@ -72,6 +72,7 @@ export default function OutreachPage() {
       sections: [...bySection.entries()],
       done: actions.filter((it) => it.done_at).length,
       total: actions.length,
+      next: channel === 'instagram' ? actions.find((it) => !it.done_at && it.target_handle) : undefined,
     }
   }, [q.items, channel, filter])
 
@@ -81,6 +82,19 @@ export default function OutreachPage() {
       notify({ success: true, message: 'コピーしました' })
     } catch {
       notify({ success: false, message: 'コピーできませんでした' })
+    }
+  }
+
+  // 本文をコピーしてから ig.me のDM画面へ進む。リンク自体の遷移は止めず、コピーは待たない
+  // （await を挟むと、スマホのブラウザがポップアップとして遷移を止めることがある）。
+  const copyForDm = (text: string) => {
+    try {
+      void navigator.clipboard.writeText(text).then(
+        () => notify({ success: true, message: '本文をコピーしました。DMに貼り付けて送ってください' }),
+        () => notify({ success: false, message: '本文をコピーできませんでした' }),
+      )
+    } catch {
+      notify({ success: false, message: '本文をコピーできませんでした' })
     }
   }
 
@@ -126,6 +140,7 @@ export default function OutreachPage() {
         <h2 className="text-lg font-bold text-gray-900">XとDMマーケティング</h2>
         <p className="text-sm text-gray-500">
           X の手動投稿と Instagram の攻めDM の文面・送付先・注意点です。実施したらチェックを付けてください。
+          Instagram のDMは、送ると自動でチェックが付きます。
         </p>
       </div>
 
@@ -161,6 +176,31 @@ export default function OutreachPage() {
           <RefreshCw size={14} /> 更新
         </button>
       </div>
+
+      {next && (
+        <div className="rounded-xl border-2 border-primary-200 bg-primary-50/60 p-4 shadow-sm">
+          <p className="text-xs font-medium text-primary-700">次に送る相手</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-bold text-gray-900">{next.target_name ?? next.title}</span>
+            <span className="text-sm text-gray-500">@{next.target_handle}</span>
+          </div>
+          <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm text-gray-600">{next.body}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <a
+              href={`https://ig.me/m/${next.target_handle}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => copyForDm(next.body)}
+              className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700"
+            >
+              <Send size={16} /> 本文をコピーしてDMを開く
+            </a>
+            <p className="text-xs text-gray-500">
+              DMに貼り付けて送ると、1分ほどで自動で送信済みになり、次の相手に進みます。
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
         <div className="flex items-center justify-between text-sm">
@@ -275,9 +315,10 @@ export default function OutreachPage() {
                           href={`https://ig.me/m/${it.target_handle}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                          onClick={() => copyForDm(it.body)}
+                          className="flex items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1 text-xs text-white hover:bg-primary-700"
                         >
-                          <MessageCircle size={12} /> DMを開く
+                          <Send size={12} /> 本文をコピーしてDMを開く
                         </a>
                       </>
                     )}
@@ -291,7 +332,7 @@ export default function OutreachPage() {
                         <ExternalLink size={12} /> Xで投稿画面を開く{parts.length > 1 ? '（1本目）' : ''}
                       </a>
                     )}
-                    {!isX && (
+                    {!isX && !it.target_handle && (
                       <button
                         type="button"
                         onClick={() => void copy(it.body)}

@@ -83,11 +83,35 @@ describe('OutreachPage', () => {
   it('Instagram に切り替えると店舗情報・注意点・プロフィールへのリンクを出す', async () => {
     render(<OutreachPage />)
     fireEvent.click(await screen.findByRole('button', { name: /Instagram 攻めDM/ }))
-    expect(screen.getByText('Shop A')).toBeInTheDocument()
+    // 次に送る相手のパネルと、一覧の行の2か所に出る
+    expect(screen.getAllByText('Shop A')).toHaveLength(2)
     expect(screen.getByText('美容室・大村市')).toBeInTheDocument()
     expect(screen.getByText('【確認】開業していたら1行目を差し替える')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /プロフィール/ })).toHaveAttribute('href', 'https://www.instagram.com/shop_a/')
-    expect(screen.getByRole('link', { name: /DMを開く/ })).toHaveAttribute('href', 'https://ig.me/m/shop_a')
+  })
+
+  it('次に送る相手を先頭に出し、1タップで本文をコピーしてDMを開く', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+    render(<OutreachPage />)
+    fireEvent.click(await screen.findByRole('button', { name: /Instagram 攻めDM/ }))
+    expect(screen.getByText('次に送る相手')).toBeInTheDocument()
+    const links = screen.getAllByRole('link', { name: /本文をコピーしてDMを開く/ })
+    // 先頭のパネルと、行の中の2か所
+    expect(links).toHaveLength(2)
+    for (const link of links) expect(link).toHaveAttribute('href', 'https://ig.me/m/shop_a')
+    fireEvent.click(links[0])
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('オープンおめでとうございます！'))
+    // 送付先のあるDMは、コピーとDMを開くボタンが1つにまとまる
+    expect(screen.queryByRole('button', { name: /本文をコピー/ })).not.toBeInTheDocument()
+  })
+
+  it('タブに戻ると一覧を読み直す（送信済みの自動チェックを反映する）', async () => {
+    render(<OutreachPage />)
+    await screen.findByText('モニター店舗のご応募をいただきました。')
+    const before = mock.findOps('marketing_outreach_items', 'select').length
+    fireEvent(window, new Event('focus'))
+    await waitFor(() => expect(mock.findOps('marketing_outreach_items', 'select').length).toBeGreaterThan(before))
   })
 
   it('「---」で区切った本文はスレッドとして1本ずつコピーできる', async () => {
