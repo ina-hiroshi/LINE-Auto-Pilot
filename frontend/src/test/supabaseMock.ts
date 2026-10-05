@@ -113,7 +113,11 @@ export type SupabaseMockOptions = {
   rpc?: (name: string, args: unknown) => QueryResult
   /** channel().send() を失敗させる */
   broadcastFails?: boolean
+  /** storage の upload を失敗させる */
+  uploadError?: unknown
 }
+
+export type StorageUpload = { bucket: string; path: string; body: unknown; options?: unknown }
 
 export function createSupabaseMock(options: SupabaseMockOptions) {
   const {
@@ -122,11 +126,14 @@ export function createSupabaseMock(options: SupabaseMockOptions) {
     invoke,
     rpc,
     broadcastFails = false,
+    uploadError = null,
   } = options
 
   const ops: QueryOp[] = []
   const invocations: FunctionInvocation[] = []
   const rpcCalls: RpcCall[] = []
+  const uploads: StorageUpload[] = []
+  const signedUrlRequests: Array<{ bucket: string; paths: string[] }> = []
 
   const broadcasts: Array<{ topic: string; payload: unknown }> = []
   const subscriptions: ChannelSubscription[] = []
@@ -171,6 +178,25 @@ export function createSupabaseMock(options: SupabaseMockOptions) {
     }),
     channel: vi.fn((topic: string) => makeChannel(topic)),
     removeChannel: vi.fn(),
+    storage: {
+      from: (bucket: string) => ({
+        upload: vi.fn(async (path: string, body: unknown, uploadOptions?: unknown) => {
+          uploads.push({ bucket, path, body, options: uploadOptions })
+          return uploadError ? { data: null, error: uploadError } : { data: { path }, error: null }
+        }),
+        getPublicUrl: (path: string) => ({
+          data: { publicUrl: `https://example.supabase.co/storage/v1/object/public/${bucket}/${path}` },
+        }),
+        createSignedUrls: vi.fn(async (paths: string[]) => {
+          signedUrlRequests.push({ bucket, paths })
+          return {
+            data: paths.map((path) => ({ path, signedUrl: `https://signed.example/${bucket}/${path}`, error: null })),
+            error: null,
+          }
+        }),
+        remove: vi.fn(async () => ({ data: [], error: null })),
+      }),
+    },
     functions: {
       invoke: vi.fn(async (name: string, args?: { body?: unknown }) => {
         invocations.push({ name, body: args?.body })
@@ -192,7 +218,7 @@ export function createSupabaseMock(options: SupabaseMockOptions) {
     }
   }
 
-  return { supabase, ops, invocations, rpcCalls, broadcasts, subscriptions, emitRealtime, findOps, filterValue }
+  return { supabase, ops, invocations, rpcCalls, uploads, signedUrlRequests, broadcasts, subscriptions, emitRealtime, findOps, filterValue }
 }
 
 export type SupabaseMock = ReturnType<typeof createSupabaseMock>

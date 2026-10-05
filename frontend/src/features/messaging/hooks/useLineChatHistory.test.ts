@@ -133,4 +133,35 @@ describe('LINE トーク履歴の取得', () => {
     })
     expect(result.current.historyLoading).toBe(false)
   })
+
+  it('お客様の画像は非公開バケットの署名 URL を付けて返す', async () => {
+    const { result } = setup({
+      rows: [log('2', { message_image_path: 'store-1/m2.jpg' }), log('1')],
+    })
+    await act(async () => {
+      await result.current.fetchChatHistory('U-1')
+    })
+    expect(mock.signedUrlRequests).toEqual([{ bucket: 'line-received-images', paths: ['store-1/m2.jpg'] }])
+    const withImage = result.current.chatHistory.find((m) => m.id === '2')
+    expect(withImage?.message_image_url).toBe('https://signed.example/line-received-images/store-1/m2.jpg')
+  })
+
+  it('画像が無ければ署名 URL を発行しない', async () => {
+    const { result } = setup({ rows: [log('1')] })
+    await act(async () => {
+      await result.current.fetchChatHistory('U-1')
+    })
+    expect(mock.signedUrlRequests).toHaveLength(0)
+  })
+
+  it('保存期間を過ぎて削除済みの画像には署名 URL を発行しない', async () => {
+    const { result } = setup({
+      rows: [log('1', { message_image_path: 'store-1/m1.jpg', message_image_deleted_at: '2026-10-01T00:00:00Z' })],
+    })
+    await act(async () => {
+      await result.current.fetchChatHistory('U-1')
+    })
+    expect(mock.signedUrlRequests).toHaveLength(0)
+    expect(result.current.chatHistory[0].message_image_url).toBeUndefined()
+  })
 })

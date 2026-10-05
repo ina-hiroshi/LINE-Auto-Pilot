@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, AlertCircle, Bot, User, MessageSquare, BarChart3, TrendingUp, Search, Lightbulb, Target, FolderOpen, ExternalLink } from 'lucide-react'
+import { Calendar, AlertCircle, Bot, User, MessageSquare, BarChart3, TrendingUp, Search, Lightbulb, Target, FolderOpen, ExternalLink, Image as ImageIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { loadAIAnalysisCache, saveAIAnalysisCache } from '../lib/aiAnalysisCache'
 import {
@@ -123,6 +123,7 @@ export default function Dashboard() {
   // Reply Modal State
   const [replyModalOpen, setReplyModalOpen] = useState(false)
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null)
+  const [replyImage, setReplyImage] = useState<File | null>(null)
   const [replyText, setReplyText] = useState('')
   const [quotaInfo, setQuotaInfo] = useState<LineQuotaInfo | null>(null)
   const { chatHistory, historyLoading, fetchChatHistory } = useLineChatHistory(storeId)
@@ -542,9 +543,14 @@ export default function Dashboard() {
   const getCustomerIdForLog = (log: LogEntry) =>
     resolveCustomerIdFromLog(log, customerIdByLineUserId, customerIdByDisplayName, customerIdByRealName)
 
+  const closeReplyModal = useCallback(() => {
+    if (!sendingReply) setReplyModalOpen(false)
+  }, [sendingReply])
+
   const handleReplyClick = (log: LogEntry) => {
     setSelectedLog(log)
     setReplyText('')
+    setReplyImage(null)
     setReplyModalOpen(true)
     fetchChatHistory(log.line_user_id, 50, {
       real_name: log.display_name ?? null,
@@ -553,12 +559,13 @@ export default function Dashboard() {
   }
 
   const handleSendReply = async () => {
-    if (!selectedLog || !replyText.trim() || !storeId) return
+    if (!selectedLog || (!replyText.trim() && !replyImage) || !storeId) return
 
     const result = await sendMessage({
       storeId,
       userId: selectedLog.line_user_id,
       text: replyText,
+      imageFile: replyImage,
       replyToLogId: selectedLog.id,
       displayName: selectedLog.display_name,
       profilePictureUrl: selectedLog.profile_picture_url,
@@ -650,64 +657,69 @@ export default function Dashboard() {
 
       <Modal
         isOpen={replyModalOpen}
-        onClose={() => setReplyModalOpen(false)}
+        onClose={closeReplyModal}
         title="メッセージ対応"
-        footerContent={
-          <div className="flex justify-end w-full">
-            <button
-              type="button"
-              onClick={() => setReplyModalOpen(false)}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium"
-            >
-              閉じる
-            </button>
+        size="chat"
+        showDefaultButtons={false}
+        subHeader={
+          <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-11 h-11 rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+                {selectedLog?.profile_picture_url ? (
+                  <img src={selectedLog.profile_picture_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <User size={22} className="text-gray-400" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-base font-bold text-gray-900 truncate">{selectedLog?.display_name || 'ゲスト'}</p>
+                {selectedLog && (
+                  <p className="text-xs text-gray-500">
+                    {new Date(selectedLog.created_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {' の受信 · '}
+                    <span className={selectedLog.status === 'manual_reply_needed' ? 'font-bold text-red-700' : ''}>
+                      {STATUS_LABELS[selectedLog.status]}
+                    </span>
+                  </p>
+                )}
+              </div>
+            </div>
+            {selectedLog && getCustomerIdForLog(selectedLog) && (
+              <button
+                type="button"
+                onClick={() => navigateToCustomerPage(selectedLog)}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100"
+              >
+                <ExternalLink size={16} />
+                <span className="hidden sm:inline">顧客ページ</span>
+              </button>
+            )}
           </div>
         }
       >
-        <div className="space-y-4">
-            <div className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-full bg-white border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
-                      {selectedLog?.profile_picture_url ? (
-                          <img src={selectedLog.profile_picture_url} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                          <User size={20} className="text-gray-400" />
-                      )}
-                  </div>
-                  <div className="min-w-0">
-                      <p className="text-sm font-bold text-gray-900 truncate">{selectedLog?.display_name || 'ゲスト'}</p>
-                      <p className="text-xs text-gray-500">への返信</p>
-                  </div>
-                </div>
-                {selectedLog && getCustomerIdForLog(selectedLog) && (
-                  <button
-                    type="button"
-                    onClick={() => navigateToCustomerPage(selectedLog)}
-                    className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100"
-                  >
-                    <ExternalLink size={14} />
-                    顧客ページ
-                  </button>
-                )}
-            </div>
+        <LineChatHistory
+          messages={chatHistory}
+          loading={historyLoading}
+          highlightLogId={selectedLog?.id}
+          scrollRef={scrollRef}
+          scrollMode={selectedLog ? 'highlight' : 'latest'}
+          className="flex-1 min-h-0 bg-slate-50 px-4 py-4 sm:px-6"
+        />
 
-            <LineChatHistory
-              messages={chatHistory}
-              loading={historyLoading}
-              highlightLogId={selectedLog?.id}
-              scrollRef={scrollRef}
-              scrollMode={selectedLog ? 'highlight' : 'latest'}
-            />
-
-            <LineReplyComposer
-              replyText={replyText}
-              onReplyTextChange={setReplyText}
-              onSend={handleSendReply}
-              onResolve={selectedLog?.status === 'manual_reply_needed' ? handleResolve : undefined}
-              showResolve={selectedLog?.status === 'manual_reply_needed'}
-              sending={sendingReply}
-              quotaInfo={quotaInfo}
-            />
+        <div className="shrink-0 border-t border-gray-200 bg-white px-3 py-3 sm:px-5 sm:py-4">
+          <LineReplyComposer
+            variant="chat"
+            replyText={replyText}
+            onReplyTextChange={setReplyText}
+            imageFile={replyImage}
+            onImageFileChange={setReplyImage}
+            onSend={handleSendReply}
+            onResolve={selectedLog?.status === 'manual_reply_needed' ? handleResolve : undefined}
+            showResolve={selectedLog?.status === 'manual_reply_needed'}
+            sending={sendingReply}
+            quotaInfo={quotaInfo}
+            placeholder={`${selectedLog?.display_name || 'お客様'}への返信を入力...`}
+          />
         </div>
       </Modal>
 
@@ -882,7 +894,7 @@ export default function Dashboard() {
                       </div>
 
                       {/* Bot Reply */}
-                      {log.reply_content ? (
+                      {log.reply_content || log.reply_image_url ? (
                         <div className="relative mr-4">
                             <div className="absolute top-0 -right-[11px]">
                                <svg width="12" height="20" viewBox="0 0 12 20" className="overflow-visible">
@@ -914,6 +926,12 @@ export default function Dashboard() {
                                     )}
                                 </div>
                                 {log.reply_content}
+                                {log.reply_image_url && (
+                                  <span className={`flex items-center gap-1 text-xs text-emerald-700 ${log.reply_content ? 'mt-1' : ''}`}>
+                                    <ImageIcon size={14} />
+                                    画像を送信しました
+                                  </span>
+                                )}
                             </div>
                         </div>
                       ) : (

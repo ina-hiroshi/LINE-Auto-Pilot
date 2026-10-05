@@ -27,6 +27,7 @@ export function CustomerMessagesTab({
   onToast,
 }: CustomerMessagesTabProps) {
   const [replyText, setReplyText] = useState('')
+  const [replyImage, setReplyImage] = useState<File | null>(null)
   const [quotaInfo, setQuotaInfo] = useState<LineQuotaInfo | null>(null)
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null)
   const [messagingUserId, setMessagingUserId] = useState(customer.line_user_id)
@@ -100,7 +101,7 @@ export function CustomerMessagesTab({
   }, [storeId, customer.id, reloadHistory])
 
   const handleSend = async () => {
-    if (!replyText.trim()) return
+    if (!replyText.trim() && !replyImage) return
     const pushUserId = selectedLog?.line_user_id ?? messagingUserId
 
     const result = await sendMessage({
@@ -108,6 +109,7 @@ export function CustomerMessagesTab({
       userId: pushUserId,
       customerId: customer.id,
       text: replyText,
+      imageFile: replyImage,
       replyToLogId: selectedLog?.status === 'manual_reply_needed' ? selectedLog.id : undefined,
       displayName: formatCustomerLabel(customer),
       profilePictureUrl: customer.profile_picture_url,
@@ -116,6 +118,7 @@ export function CustomerMessagesTab({
     if (result.success) {
       onToast('メッセージを送信しました', 'success')
       setReplyText('')
+      setReplyImage(null)
       setSelectedLog(null)
       if (result.lineUserId) setMessagingUserId(result.lineUserId)
       await reloadHistory()
@@ -162,6 +165,8 @@ export function CustomerMessagesTab({
       <LineReplyComposer
         replyText={replyText}
         onReplyTextChange={setReplyText}
+        imageFile={replyImage}
+        onImageFileChange={setReplyImage}
         onSend={handleSend}
         onResolve={selectedLog?.status === 'manual_reply_needed' ? handleResolve : undefined}
         showResolve={selectedLog?.status === 'manual_reply_needed'}

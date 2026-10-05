@@ -494,6 +494,11 @@ verify_jwt = false
 [functions.sync-line-friend-count]
 verify_jwt = false
 
+# 受信画像の保存期間切れの削除。pg_cron（日次、x-cron-secretのみ）と
+# 管理画面からの手動実行（JWTあり、管理者のみ）の両方を受け付ける。
+[functions.cleanup-line-images]
+verify_jwt = false
+
 # 未登録の匿名訪問者もLPで残り枠数を見られる必要がある公開エンドポイント。
 # 集計値（件数）のみを返し行の中身は返さない。send-verification-code と同じ形。
 [functions.get-monitor-capacity]
