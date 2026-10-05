@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, AlertCircle, Bot, User, MessageSquare, BarChart3, TrendingUp, Search, Lightbulb, Target, FolderOpen, ExternalLink } from 'lucide-react'
+import { Calendar, AlertCircle, Bot, User, MessageSquare, BarChart3, TrendingUp, Search, Lightbulb, Target, FolderOpen, ExternalLink, Image as ImageIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { loadAIAnalysisCache, saveAIAnalysisCache } from '../lib/aiAnalysisCache'
 import {
@@ -894,7 +894,7 @@ export default function Dashboard() {
                       </div>
 
                       {/* Bot Reply */}
-                      {log.reply_content ? (
+                      {log.reply_content || log.reply_image_url ? (
                         <div className="relative mr-4">
                             <div className="absolute top-0 -right-[11px]">
                                <svg width="12" height="20" viewBox="0 0 12 20" className="overflow-visible">
@@ -926,6 +926,12 @@ export default function Dashboard() {
                                     )}
                                 </div>
                                 {log.reply_content}
+                                {log.reply_image_url && (
+                                  <span className={`flex items-center gap-1 text-xs text-emerald-700 ${log.reply_content ? 'mt-1' : ''}`}>
+                                    <ImageIcon size={14} />
+                                    画像を送信しました
+                                  </span>
+                                )}
                             </div>
                         </div>
                       ) : (
