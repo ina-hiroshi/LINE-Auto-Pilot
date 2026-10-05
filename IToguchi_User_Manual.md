@@ -31,7 +31,7 @@
 
 | 項目 | 旧（2025-12-30） | 現行 |
 | :--- | :--- | :--- |
-| サポートメール | support@itoguchi.example.com（仮） | itoguchi.app@gmail.com |
+| サポートメール | support@itoguchi.example.com（仮） | info@itoguchi-app.jp |
 | ヘルプセンター | プレースホルダリンクあり | なし（公式LINEとメール） |
 | モニター | おまかせ導入／じっくりお得の2コース | インタビュー協力で初期設定代行が無料。Proは30日間無料 |
 | プレリリース2ヶ月無料 | 記載なし／混在しうる | 終了。言わない |

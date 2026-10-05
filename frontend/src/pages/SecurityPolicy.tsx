@@ -242,7 +242,7 @@ const SecurityPolicy: React.FC = () => {
                   </a>
                 </p>
                 <p className="text-ink-soft text-sm">
-                  メール: itoguchi.app@gmail.com
+                  メール: info@itoguchi-app.jp
                 </p>
               </div>
             </section>
