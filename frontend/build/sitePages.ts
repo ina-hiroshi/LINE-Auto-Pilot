@@ -2,6 +2,8 @@ import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Plugin } from 'vite'
 import { SITE_PAGES, canonicalUrl, type SiteMeta } from '../src/lib/siteMeta'
+import { CONTACT_MAIL, FEATURES, LINE_DEMO_URL, PLANS, SETUP_SERVICE_PRICE } from '../src/components/site/siteData'
+import { FAQ } from '../src/components/site/faq'
 
 /**
  * 製品紹介ページごとの HTML とサイトマップを、ビルド後に書き出す。
@@ -58,6 +60,66 @@ export function renderSitemap(): string {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`
 }
 
+/**
+ * AI 向けのサイト案内（https://llmstxt.org/ の形）。ChatGPT などは JavaScript を実行せずに読むことが多く、
+ * SPA の本文が届かないため、ページの説明文・機能・料金・よくある質問を文字だけでまとめる。
+ * 文面は siteMeta・siteData・faq にあるものだけを使う（ここで数字や効果を足さない）。
+ */
+export function renderLlmsTxt(): string {
+  const top = SITE_PAGES['/']
+  const lines: string[] = [
+    '# IToguchi（イトグチ）',
+    '',
+    `> ${top.description}`,
+    '',
+    '## 機能',
+    '',
+    ...FEATURES.map((f) => `- [${f.name}](${canonicalUrl(f.path)})（${f.plan}）：${SITE_PAGES[f.path]?.description ?? f.gain}`),
+    '',
+    '## 料金（税込・月ごとのお支払い）',
+    '',
+    `- ${PLANS.free.name}（${PLANS.free.price}）：${PLANS.free.items.join('、')}`,
+    `- ${PLANS.pro.name}（月額${PLANS.pro.price}）：${PLANS.pro.items.join('、')}。初めてお申し込みの方は30日間無料で試せます。`,
+    `- ${PLANS.executive.name}（${PLANS.executive.price}、準備中）：${PLANS.executive.items.join('、')}`,
+    `- 初期設定代行：${SETUP_SERVICE_PRICE}（LINE公式アカウントとの接続の設定をこちらで行います）`,
+    '',
+    '## モニター店舗の募集',
+    '',
+    `- [モニター店舗募集](${canonicalUrl('/monitor')})：${SITE_PAGES['/monitor'].description}`,
+    '',
+    '## よくある質問',
+    '',
+    ...FAQ.flatMap((f) => [`### ${f.q}`, '', f.a, '']),
+    '## そのほかのページ',
+    '',
+    ...['/security-guide', '/security', '/privacy', '/terms', '/specified-commercial-transactions'].map(
+      (path) => `- [${SITE_PAGES[path].title}](${canonicalUrl(path)})`,
+    ),
+    '',
+    '## 問い合わせ',
+    '',
+    `- メール：${CONTACT_MAIL}`,
+    `- お客様側の画面を試せるデモのLINE：${LINE_DEMO_URL}`,
+    '',
+  ]
+  return lines.join('\n')
+}
+
+/** トップの「よくある質問」を構造化データ（FAQPage）にする。表示している文と同じものだけを載せる */
+export function renderFaqJsonLd(): string {
+  const data = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: FAQ.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+  }
+  return `<script type="application/ld+json">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`
+}
+
+/** トップ（index.html）だけに FAQ の構造化データを足す。機能ページの HTML には入れない（FAQ を表示していないため） */
+export function withFaqJsonLd(indexHtml: string): string {
+  return replaceOnce(indexHtml, /<\/head>/, `    ${renderFaqJsonLd()}\n  </head>`, '</head>')
+}
+
 export function sitePagesPlugin(): Plugin {
   let outDir = 'dist'
   return {
@@ -75,6 +137,9 @@ export function sitePagesPlugin(): Plugin {
         writeFileSync(join(outDir, pageFileName(path)), renderPageHtml(indexHtml, path, meta))
       }
       writeFileSync(join(outDir, 'sitemap.xml'), renderSitemap())
+      writeFileSync(join(outDir, 'llms.txt'), renderLlmsTxt())
+      // __pages/ を書き出したあとで、トップにだけ FAQ を足す
+      writeFileSync(join(outDir, 'index.html'), withFaqJsonLd(indexHtml))
     },
   }
 }
