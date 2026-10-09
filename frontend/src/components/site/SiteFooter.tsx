@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { FEATURES, LINE_DEMO_URL } from './siteData'
+import { recordSiteClick } from '../../lib/sitePageViews'
 
 const linkClass = 'text-[14px] text-paper/75 transition-colors hover:text-paper'
 
@@ -19,6 +20,7 @@ export default function SiteFooter() {
               href={LINE_DEMO_URL}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => recordSiteClick('line_demo')}
               className="mt-6 inline-flex items-center gap-2 rounded-lg border border-paper/30 px-4 py-2.5 text-[14px] font-bold hover:bg-paper hover:text-ink"
             >
               <span className="size-2 rounded-full bg-[#06C755]" aria-hidden="true" />
@@ -43,7 +45,7 @@ export default function SiteFooter() {
             <p className="font-slip text-[12px] tracking-widest text-primary-300">サービス</p>
             <ul className="mt-4 space-y-2.5">
               <li><Link to="/" state={{ scrollTo: 'pricing' }} className={linkClass}>料金プラン</Link></li>
-              <li><Link to="/monitor" className={linkClass}>モニター特典</Link></li>
+              <li><Link to="/monitor" onClick={() => recordSiteClick('monitor')} className={linkClass}>モニター特典</Link></li>
               <li><Link to="/security-guide" className={linkClass}>セキュリティへの取り組み</Link></li>
               <li><Link to="/" state={{ scrollTo: 'auth', authMode: 'login' }} className={linkClass}>ログイン</Link></li>
             </ul>

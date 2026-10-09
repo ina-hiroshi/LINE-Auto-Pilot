@@ -24,14 +24,27 @@ export type SiteTraffic = {
   sources: { source: string; sessions: number }[]
   campaigns: { campaign: string; source: string | null; medium: string | null; sessions: number }[]
   devices: { device: 'mobile' | 'desktop'; views: number }[]
+  /** 製品紹介ページで押されたボタン（RPC site_click_stats）。読めなかったときは undefined */
+  clicks?: SiteClicks
+}
+
+export type SiteClickTarget = 'line_demo' | 'signup' | 'monitor'
+
+export type SiteClicks = {
+  targets: { target: SiteClickTarget; clicks: number; visitors: number }[]
+  by_page: { target: SiteClickTarget; path: string; clicks: number }[]
 }
 
 async function fetchStats(days: number): Promise<{ data: SiteTraffic | null; error: string | null }> {
-  const { data, error } = await supabase.rpc('site_page_view_stats', { p_days: days })
-  if (error) {
-    return { data: null, error: error.code === '42501' ? 'この画面を見る権限がありません' : '閲覧データを読み込めませんでした' }
+  const [views, clicks] = await Promise.all([
+    supabase.rpc('site_page_view_stats', { p_days: days }),
+    supabase.rpc('site_click_stats', { p_days: days }),
+  ])
+  if (views.error) {
+    return { data: null, error: views.error.code === '42501' ? 'この画面を見る権限がありません' : '閲覧データを読み込めませんでした' }
   }
-  return { data: data as SiteTraffic, error: null }
+  // ボタンの集計は付け足しなので、読めなくても閲覧の集計は出す
+  return { data: { ...(views.data as SiteTraffic), clicks: clicks.error ? undefined : (clicks.data as SiteClicks) }, error: null }
 }
 
 export function useSiteTraffic(days: number) {

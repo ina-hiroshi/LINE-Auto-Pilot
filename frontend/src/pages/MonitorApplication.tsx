@@ -7,6 +7,7 @@ import SiteShell from '../components/site/SiteShell'
 import HeroDemo from '../components/site/HeroDemo'
 import { LeaderRow, Slip, Stamp } from '../components/site/Receipt'
 import { FEATURES, LINE_DEMO_URL, SETUP_SERVICE_PRICE } from '../components/site/siteData'
+import { recordSiteClick } from '../lib/sitePageViews'
 import { btnOutline, btnPrimary, textLink, wrap } from '../components/site/ui'
 
 /**
@@ -78,6 +79,7 @@ export default function MonitorApplication() {
   // LINE友だち追加は外部サイト(line.me)への遷移。新規タブで開くため
   // goToSignup と違いページ遷移とfbq発火が競合する心配はない。
   const trackDemoClick = () => {
+    recordSiteClick('line_demo')
     ;(window as unknown as { fbq?: (...args: unknown[]) => void }).fbq?.('track', 'Lead')
   }
 

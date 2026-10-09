@@ -91,6 +91,39 @@ function referrerHost(): string | null {
   }
 }
 
+function deviceType(): 'mobile' | 'desktop' {
+  const isMobile = window.matchMedia?.('(max-width: 767px)').matches || /Mobi|Android/i.test(navigator.userAgent)
+  return isMobile ? 'mobile' : 'desktop'
+}
+
+/** 製品紹介ページで押されたボタン。line_demo：デモ用LINEの友だち追加 / signup：無料で始める / monitor：モニター特典 */
+export type SiteClickTarget = 'line_demo' | 'signup' | 'monitor'
+
+/**
+ * 製品紹介ページのボタンが押されたことを記録する（site_clicks）。
+ * 閲覧と同じ visitor_id・session_id を使うので、どのページを見た人が押したかを突き合わせられる。
+ * 押した先へはそのまま進ませる。記録の成否は待たない。
+ */
+export function recordSiteClick(target: SiteClickTarget): void {
+  try {
+    const { pathname } = window.location
+    if (!isTrackedPath(pathname) || !shouldRecord()) return
+    void supabase
+      .rpc('record_site_click', {
+        p_target: target,
+        p_path: pathname,
+        p_visitor_id: storedId(() => localStorage, VISITOR_KEY),
+        p_session_id: storedId(() => sessionStorage, SESSION_KEY),
+        p_device: deviceType(),
+      })
+      .then(({ error }) => {
+        if (error && import.meta.env.DEV) console.warn('record_site_click failed', error)
+      })
+  } catch {
+    /* 記録できなくても何もしない */
+  }
+}
+
 export function recordSitePageView(pathname: string): void {
   // 記録は付随機能なので、どの段階の失敗も画面（公開トップページ）に波及させない。
   // useEffect から呼ばれるため、ここで例外が漏れると画面全体が外れる。
@@ -98,7 +131,6 @@ export function recordSitePageView(pathname: string): void {
     if (!isTrackedPath(pathname) || !shouldRecord()) return
 
     const params = new URLSearchParams(window.location.search)
-    const isMobile = window.matchMedia?.('(max-width: 767px)').matches || /Mobi|Android/i.test(navigator.userAgent)
 
     // 投げっぱなし。記録に失敗しても画面には何も影響させない。
     void supabase
@@ -111,7 +143,7 @@ export function recordSitePageView(pathname: string): void {
         p_utm_medium: params.get('utm_medium'),
         p_utm_campaign: params.get('utm_campaign'),
         p_has_fbclid: params.has('fbclid'),
-        p_device: isMobile ? 'mobile' : 'desktop',
+        p_device: deviceType(),
       })
       .then(({ error }) => {
         if (error && import.meta.env.DEV) console.warn('record_site_page_view failed', error)
