@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { SITE_PAGES } from '../src/lib/siteMeta'
-import { pageFileName, renderPageHtml, renderSitemap } from './sitePages'
+import { FEATURES } from '../src/components/site/siteData'
+import { FAQ } from '../src/components/site/faq'
+import { pageFileName, renderFaqJsonLd, renderLlmsTxt, renderPageHtml, renderSitemap, withFaqJsonLd } from './sitePages'
 
 const root = join(__dirname, '..')
 const indexHtml = readFileSync(join(root, 'index.html'), 'utf8')
@@ -43,5 +45,38 @@ describe('vercel.json', () => {
     const pages = Object.keys(SITE_PAGES).filter((p) => p !== '/')
     expect(rewrites.slice(0, -1)).toEqual(pages.map((p) => ({ source: p, destination: `/${pageFileName(p)}` })))
     expect(rewrites.at(-1)).toEqual({ source: '/(.*)', destination: '/index.html' })
+  })
+})
+
+describe('renderLlmsTxt', () => {
+  const txt = renderLlmsTxt()
+  it('機能ページ・料金・モニター・よくある質問を載せる', () => {
+    for (const f of FEATURES) expect(txt).toContain(`(https://itoguchi-app.jp${f.path})`)
+    for (const f of FAQ) expect(txt).toContain(f.q)
+    expect(txt).toContain('¥4,980')
+    expect(txt).toContain('https://itoguchi-app.jp/monitor')
+  })
+  it('モニターの残り枠のように実行時に変わる数は載せない', () => {
+    expect(txt).not.toMatch(/残り\s*\d+/)
+  })
+})
+
+describe('FAQ の構造化データ', () => {
+  it('トップに表示している質問と答えをそのまま載せる', () => {
+    const json = JSON.parse(renderFaqJsonLd().replace(/^<script[^>]*>|<\/script>$/g, ''))
+    expect(json['@type']).toBe('FAQPage')
+    expect(json.mainEntity.map((q: { name: string }) => q.name)).toEqual(FAQ.map((f) => f.q))
+    expect(json.mainEntity[0].acceptedAnswer.text).toBe(FAQ[0].a)
+  })
+  it('トップにだけ足す（機能ページの HTML には入れない）', () => {
+    expect(withFaqJsonLd(indexHtml)).toContain('"FAQPage"')
+    expect(renderPageHtml(indexHtml, '/feature/ai', SITE_PAGES['/feature/ai'])).not.toContain('FAQPage')
+  })
+})
+
+describe('index.html の構造化データ', () => {
+  it('featureList が機能の一覧とそろっている', () => {
+    const ld = JSON.parse(indexHtml.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)![1])
+    expect(ld.featureList).toEqual(FEATURES.map((f) => f.name))
   })
 })
