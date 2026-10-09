@@ -3,7 +3,7 @@ import { Info, Loader2, RefreshCw } from 'lucide-react'
 import {
   Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps,
 } from 'recharts'
-import { useSiteTraffic, type SiteTraffic, type TrafficCounts } from '../../features/marketing/hooks/useSiteTraffic'
+import { useSiteTraffic, type SiteClickTarget, type SiteTraffic, type TrafficCounts } from '../../features/marketing/hooks/useSiteTraffic'
 
 const ACTIVE_COLOR = '#00acc4'
 
@@ -34,6 +34,12 @@ const SOURCE_LABELS: Record<string, string> = {
   x: 'X',
   line: 'LINE',
   youtube: 'YouTube',
+}
+
+const CLICK_LABELS: Record<SiteClickTarget, string> = {
+  line_demo: 'LINEで試す・相談する（デモ用LINE）',
+  signup: '無料で始める',
+  monitor: 'モニター特典',
 }
 
 function num(n: number): string {
@@ -241,6 +247,28 @@ export default function SiteTrafficPage() {
           note="訪問者が最初に開いたページ。広告やSNSからどこに着地しているかが分かります。"
           unit="訪問数"
           rows={data.landings.map((l) => ({ key: l.path, label: PAGE_LABELS[l.path] ?? l.path, sub: l.path, value: l.sessions }))}
+        />
+        <RankTable
+          title="押されたボタン"
+          note="閲覧のあと、どのボタンに進んだか。右の人数は押したブラウザの数。"
+          unit="回数"
+          rows={(data.clicks?.targets ?? []).map((c) => ({
+            key: c.target,
+            label: CLICK_LABELS[c.target] ?? c.target,
+            value: c.clicks,
+            extra: `${num(c.visitors)}人`,
+          }))}
+        />
+        <RankTable
+          title="ボタンを押したページ"
+          note="どのページから押されたか。"
+          unit="回数"
+          rows={(data.clicks?.by_page ?? []).map((c) => ({
+            key: `${c.target}|${c.path}`,
+            label: CLICK_LABELS[c.target] ?? c.target,
+            sub: `${PAGE_LABELS[c.path] ?? c.path}（${c.path}）`,
+            value: c.clicks,
+          }))}
         />
         <RankTable
           title="キャンペーン（utm_campaign）"

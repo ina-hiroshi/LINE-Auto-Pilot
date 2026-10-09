@@ -10,6 +10,7 @@ import { PhoneFrame } from '../components/site/LinePhone'
 import { LeaderRow, Slip, Stamp, SlipNumbers } from '../components/site/Receipt'
 import TryTag from '../components/site/TryTag'
 import { FEATURES, LINE_DEMO_URL, PLANS, SETUP_SERVICE_PRICE, CONTACT_MAIL } from '../components/site/siteData'
+import { recordSiteClick } from '../lib/sitePageViews'
 import { btnInk, btnOutline, btnPrimary, textLink, wrap } from '../components/site/ui'
 import { DESIGN_THEMES } from '../constants/designThemes'
 import LogoSettingDemo from '../components/site/demos/LogoSettingDemo'
@@ -43,11 +44,11 @@ function Hero() {
             IToguchi（イトグチ）は、LINE公式アカウントとつないで、予約の受付、質問への自動返信、会員証とポイントの管理を、LINEでまとめて行えるサービスです。お客様はいつものLINEで用が済み、お店は施術や調理の手を止めずに済みます。
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <a href="#auth" className={btnPrimary}>
+            <a href="#auth" onClick={() => recordSiteClick('signup')} className={btnPrimary}>
               無料で始める
               <ArrowRight className="size-4" aria-hidden="true" />
             </a>
-            <a href={LINE_DEMO_URL} target="_blank" rel="noopener noreferrer" className={btnOutline}>
+            <a href={LINE_DEMO_URL} target="_blank" rel="noopener noreferrer" onClick={() => recordSiteClick('line_demo')} className={btnOutline}>
               <span className="size-2 rounded-full bg-[#06C755]" aria-hidden="true" />
               LINEで動きを試す
             </a>
@@ -377,7 +378,7 @@ function Steps() {
             <p className="mt-4 text-[15px] leading-[1.9]">
               IToguchiとの接続に不安がある方には、接続の設定をこちらで行う初期設定代行（{SETUP_SERVICE_PRICE}）があります。モニター店舗は無料です。
             </p>
-            <Link to="/monitor" className={`mt-5 inline-flex items-center gap-1.5 ${textLink}`}>
+            <Link to="/monitor" onClick={() => recordSiteClick('monitor')} className={`mt-5 inline-flex items-center gap-1.5 ${textLink}`}>
               モニター特典を見る
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
@@ -438,11 +439,11 @@ function Campaign() {
                 リリース記念として、初めてお申し込みの方はProプラン<span className="whitespace-nowrap">（通常 月額¥4,980）</span>のすべての機能を30日間無料で試せます。登録したデータは、そのまま続けて使えます。
               </p>
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-                <a href="#auth" className={btnInk}>
+                <a href="#auth" onClick={() => recordSiteClick('signup')} className={btnInk}>
                   無料で始める
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </a>
-                <Link to="/monitor" className="inline-flex items-center justify-center gap-2 rounded-lg border-2 border-ink px-6 py-3 text-[15px] font-bold hover:bg-ink hover:text-paper">
+                <Link to="/monitor" onClick={() => recordSiteClick('monitor')} className="inline-flex items-center justify-center gap-2 rounded-lg border-2 border-ink px-6 py-3 text-[15px] font-bold hover:bg-ink hover:text-paper">
                   モニター特典を見る
                 </Link>
               </div>
@@ -465,8 +466,8 @@ function Campaign() {
 
 function Pricing() {
   const plans = [
-    { ...PLANS.free, note: '登録してすぐ使えます', action: <a href="#auth" className={`${btnOutline} w-full`}>無料で始める</a> },
-    { ...PLANS.pro, note: '初回は30日間無料', action: <a href="#auth" className={`${btnPrimary} w-full`}>30日間無料で試す</a>, featured: true },
+    { ...PLANS.free, note: '登録してすぐ使えます', action: <a href="#auth" onClick={() => recordSiteClick('signup')} className={`${btnOutline} w-full`}>無料で始める</a> },
+    { ...PLANS.pro, note: '初回は30日間無料', action: <a href="#auth" onClick={() => recordSiteClick('signup')} className={`${btnPrimary} w-full`}>30日間無料で試す</a>, featured: true },
     { ...PLANS.executive, note: '準備中です', action: <a href={`mailto:${CONTACT_MAIL}`} className={`${btnOutline} w-full`}>問い合わせる</a> },
   ]
   return (
@@ -563,6 +564,7 @@ function TrustAndContact() {
             href={LINE_DEMO_URL}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => recordSiteClick('line_demo')}
             className="mt-6 inline-flex items-center gap-2 rounded-lg bg-paper px-6 py-3 text-[15px] font-bold text-ink hover:bg-primary-100"
           >
             <span className="size-2 rounded-full bg-[#06C755]" aria-hidden="true" />

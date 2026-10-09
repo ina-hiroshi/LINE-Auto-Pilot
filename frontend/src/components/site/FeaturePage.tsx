@@ -5,6 +5,7 @@ import SiteShell from './SiteShell'
 import { LeaderRow, Slip, SlipNumbers } from './Receipt'
 import TryTag from './TryTag'
 import { FEATURES, LINE_DEMO_URL, PLANS, type FeatureSlug } from './siteData'
+import { recordSiteClick } from '../../lib/sitePageViews'
 import { btnInk, btnOutline, btnPrimary, wrap } from './ui'
 
 export type Gain = { title: string; body: string; pro?: boolean }
@@ -57,14 +58,14 @@ export default function FeaturePage({ slug, title, lead, hero, heroTry, wideHero
             <h1 className="mt-6 text-[2rem] font-black leading-[1.3] tracking-[-0.02em] sm:text-[2.6rem] sm:leading-[1.25]">{title}</h1>
             <p className="mt-6 max-w-xl text-[17px] leading-[1.9] text-ink-soft">{lead}</p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <Link to="/" state={{ scrollTo: 'auth', authMode: 'signup' }} className={btnPrimary}>
+              <Link to="/" state={{ scrollTo: 'auth', authMode: 'signup' }} onClick={() => recordSiteClick('signup')} className={btnPrimary}>
                 無料で始める
                 <ArrowRight className="size-4" aria-hidden="true" />
               </Link>
-              <Link to="/monitor" className={btnOutline}>
+              <Link to="/monitor" onClick={() => recordSiteClick('monitor')} className={btnOutline}>
                 モニター特典を見る
               </Link>
-              <a href={LINE_DEMO_URL} target="_blank" rel="noopener noreferrer" className={btnOutline}>
+              <a href={LINE_DEMO_URL} target="_blank" rel="noopener noreferrer" onClick={() => recordSiteClick('line_demo')} className={btnOutline}>
                 <span className="size-2 rounded-full bg-[#06C755]" aria-hidden="true" />
                 LINEで動きを試す
               </a>
@@ -193,11 +194,15 @@ export default function FeaturePage({ slug, title, lead, hero, heroTry, wideHero
             <h2 className="text-3xl font-black leading-snug tracking-[-0.02em] sm:text-4xl">{closing.title}</h2>
             <p className="mt-5 max-w-xl text-[17px] leading-[1.9] text-paper/80">{closing.body}</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <Link to="/" state={{ scrollTo: 'auth', authMode: 'signup' }} className={btnPrimary}>
+              <Link to="/" state={{ scrollTo: 'auth', authMode: 'signup' }} onClick={() => recordSiteClick('signup')} className={btnPrimary}>
                 無料で始める
                 <ArrowRight className="size-4" aria-hidden="true" />
               </Link>
-              <Link to="/monitor" className={`${btnInk} border-2 border-paper/30`}>
+              <a href={LINE_DEMO_URL} target="_blank" rel="noopener noreferrer" onClick={() => recordSiteClick('line_demo')} className={`${btnInk} border-2 border-paper/30`}>
+                <span className="size-2 rounded-full bg-[#06C755]" aria-hidden="true" />
+                LINEで動きを試す
+              </a>
+              <Link to="/monitor" onClick={() => recordSiteClick('monitor')} className={`${btnInk} border-2 border-paper/30`}>
                 モニター特典を見る
               </Link>
               <Link to="/" state={{ scrollTo: 'pricing' }} className={`${btnInk} border-2 border-paper/30`}>

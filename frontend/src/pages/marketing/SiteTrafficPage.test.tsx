@@ -1,6 +1,6 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import type { SiteTraffic } from '../../features/marketing/hooks/useSiteTraffic'
+import type { SiteClicks, SiteTraffic } from '../../features/marketing/hooks/useSiteTraffic'
 
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }))
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc } }))
@@ -14,6 +14,17 @@ beforeAll(() => {
     unobserve() {}
     disconnect() {}
   } as unknown as typeof ResizeObserver
+})
+
+const noClicks: SiteClicks = { targets: [], by_page: [] }
+
+/** 閲覧の集計とボタンの集計を、RPC 名で返し分ける */
+function mockStats(views: { data: unknown; error: unknown }, clicks: { data: unknown; error: unknown } = { data: noClicks, error: null }) {
+  rpc.mockImplementation((name: string) => Promise.resolve(name === 'site_click_stats' ? clicks : views))
+}
+
+beforeEach(() => {
+  rpc.mockReset()
 })
 
 const empty: SiteTraffic = {
@@ -32,7 +43,7 @@ const empty: SiteTraffic = {
 
 describe('SiteTrafficPage', () => {
   it('集計結果を表示する', async () => {
-    rpc.mockResolvedValueOnce({
+    mockStats({
       data: {
         ...empty,
         totals: { views: 120, visitors: 40, sessions: 50 },
@@ -60,23 +71,49 @@ describe('SiteTrafficPage', () => {
     expect(screen.getByText('スマホからの閲覧 75%')).toBeInTheDocument()
   })
 
-  it('データが無くても描画できる', async () => {
-    rpc.mockResolvedValueOnce({ data: empty, error: null })
+  it('押されたボタンの回数を出す', async () => {
+    mockStats(
+      { data: empty, error: null },
+      {
+        data: {
+          targets: [{ target: 'line_demo', clicks: 5, visitors: 3 }],
+          by_page: [{ target: 'line_demo', path: '/feature/ai', clicks: 5 }],
+        } satisfies SiteClicks,
+        error: null,
+      },
+    )
     render(<SiteTrafficPage />)
 
-    expect((await screen.findAllByText('この期間のデータはありません')).length).toBe(4)
+    expect(await screen.findByText('3人')).toBeInTheDocument()
+    expect(rpc).toHaveBeenCalledWith('site_click_stats', { p_days: 30 })
+    expect(screen.getAllByText('LINEで試す・相談する（デモ用LINE）').length).toBe(2)
+    expect(screen.getByText('機能：AI（/feature/ai）')).toBeInTheDocument()
+  })
+
+  it('ボタンの集計が読めなくても閲覧の集計は出す', async () => {
+    mockStats({ data: { ...empty, totals: { views: 12, visitors: 9, sessions: 10 } }, error: null }, { data: null, error: { code: 'PGRST202', message: 'not found' } })
+    render(<SiteTrafficPage />)
+
+    expect(await screen.findByText('12')).toBeInTheDocument()
+  })
+
+  it('データが無くても描画できる', async () => {
+    mockStats({ data: empty, error: null })
+    render(<SiteTrafficPage />)
+
+    expect((await screen.findAllByText('この期間のデータはありません')).length).toBe(6)
     expect(screen.getByText('スマホからの閲覧 —')).toBeInTheDocument()
   })
 
   it('集計から除いた閲覧数を注記に出す', async () => {
-    rpc.mockResolvedValueOnce({ data: { ...empty, excluded: { owner_views: 4, bot_views: 6 } }, error: null })
+    mockStats({ data: { ...empty, excluded: { owner_views: 4, bot_views: 6 } }, error: null })
     render(<SiteTrafficPage />)
 
     expect(await screen.findByText(/この期間に除いた閲覧：運営者のブラウザ 4件、bot 6件。/)).toBeInTheDocument()
   })
 
   it('権限がなければその旨を出す', async () => {
-    rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'forbidden' } })
+    mockStats({ data: null, error: { code: '42501', message: 'forbidden' } })
     render(<SiteTrafficPage />)
 
     expect(await screen.findByText('この画面を見る権限がありません')).toBeInTheDocument()
