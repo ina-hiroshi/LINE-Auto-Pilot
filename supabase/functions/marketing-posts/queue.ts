@@ -28,6 +28,7 @@ export type SocialPostRow = {
   platform: Platform
   caption: string
   image_urls: string[]
+  video_url: string | null
   sort_order: number
   status: 'pending' | 'publishing' | 'posted' | 'failed'
   attempts: number
@@ -44,6 +45,7 @@ export type SlugView = {
   sortOrder: number
   caption: string
   imageUrls: string[]
+  videoUrl: string | null
   platforms: Partial<Record<Platform, SocialPostRow>>
   /** まだ投稿されうる行数（pending、または failed かつ試行回数が上限未満） */
   remaining: number
@@ -103,6 +105,7 @@ export function buildQueueView(rows: SocialPostRow[], now: Date): QueueView {
         sortOrder: row.sort_order,
         caption: row.caption,
         imageUrls: row.image_urls ?? [],
+        videoUrl: row.video_url ?? null,
         platforms: {},
         remaining: 0,
         needsAttention: false,

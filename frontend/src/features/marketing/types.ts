@@ -7,6 +7,8 @@ export type SocialPostRow = {
   platform: Platform
   caption: string
   image_urls: string[]
+  /** あればリール（Instagram）・ページの動画（Facebook）として投稿する。image_urls はその表紙 */
+  video_url: string | null
   sort_order: number
   status: PostStatus
   attempts: number
@@ -23,6 +25,7 @@ export type SlugView = {
   sortOrder: number
   caption: string
   imageUrls: string[]
+  videoUrl: string | null
   platforms: Partial<Record<Platform, SocialPostRow>>
   remaining: number
   /** 上限に達した失敗がある（手動の見送りは含まない） */

@@ -15,6 +15,8 @@ type SocialPost = {
   platform: "instagram" | "facebook";
   caption: string;
   image_urls: string[];
+  /** あればリール（IG）・ページの動画（FB）として投稿する。image_urls[0] はその表紙 */
+  video_url: string | null;
   status: string;
   attempts: number;
 };
@@ -42,6 +44,64 @@ const CHILD_RETRY_DELAYS_MS = [3000, 8000];
 
 function isRetryableChildError(json: { error?: { code?: number; is_transient?: boolean; message?: string } }): boolean {
   return json.error?.code === 9004 || json.error?.is_transient === true;
+}
+
+// リールの動画は画像より処理に時間がかかる。IG と FB は同じ呼び出しの中で並行に
+// 動くので、Edge Function の実行時間の上限（150秒）に収まる長さで待つ。
+const REEL_POLL_ATTEMPTS = 22;
+const REEL_POLL_DELAY_MS = 5000;
+
+/** dryRun のときは公開せず、Meta 側で処理が通るところまでを確かめる */
+type PublishOptions = { dryRun: boolean };
+
+async function publishInstagramReel(post: SocialPost, token: string, igUserId: string, opts: PublishOptions) {
+  const params = new URLSearchParams({
+    media_type: "REELS",
+    video_url: post.video_url!,
+    caption: post.caption,
+    share_to_feed: "true",
+    access_token: token,
+  });
+  if (post.image_urls[0]) params.set("cover_url", post.image_urls[0]);
+
+  const res = await fetch(`${IG_BASE}/${igUserId}/media`, { method: "POST", body: params });
+  const json = await res.json();
+  if (!json.id) throw new Error(`Failed to create reel container: ${JSON.stringify(json)}`);
+  const containerId = json.id as string;
+
+  await pollIgStatus(containerId, token, REEL_POLL_ATTEMPTS, REEL_POLL_DELAY_MS);
+  // 公開しなかったコンテナは、Meta 側で24時間後に消える
+  if (opts.dryRun) return { mediaId: `dry-run:${containerId}`, permalink: undefined };
+
+  const publishParams = new URLSearchParams({ creation_id: containerId, access_token: token });
+  const publishRes = await fetch(`${IG_BASE}/${igUserId}/media_publish`, { method: "POST", body: publishParams });
+  const publishJson = await publishRes.json();
+  if (!publishJson.id) throw new Error(`Failed to publish reel: ${JSON.stringify(publishJson)}`);
+  const mediaId = publishJson.id as string;
+
+  const permalinkRes = await fetch(`${IG_BASE}/${mediaId}?fields=permalink&access_token=${token}`);
+  const permalinkJson = await permalinkRes.json();
+  return { mediaId, permalink: permalinkJson.permalink as string | undefined };
+}
+
+async function publishFacebookVideo(post: SocialPost, token: string, pageId: string, opts: PublishOptions) {
+  const params = new URLSearchParams({
+    file_url: post.video_url!,
+    description: post.caption,
+    published: opts.dryRun ? "false" : "true",
+    access_token: token,
+  });
+  const res = await fetch(`${FB_BASE}/${pageId}/videos`, { method: "POST", body: params });
+  const json = await res.json();
+  if (!json.id) throw new Error(`Failed to publish Facebook video: ${JSON.stringify(json)}`);
+  const videoId = json.id as string;
+
+  if (opts.dryRun) {
+    // 非公開でアップロードできたことだけを確かめ、ページに残さない
+    await fetch(`${FB_BASE}/${videoId}?access_token=${token}`, { method: "DELETE" });
+    return { mediaId: `dry-run:${videoId}`, permalink: undefined };
+  }
+  return { mediaId: videoId, permalink: `https://www.facebook.com/${pageId}/videos/${videoId}` };
 }
 
 async function createCarouselChild(imageUrl: string, token: string, igUserId: string): Promise<string> {
@@ -152,7 +212,7 @@ async function publishFacebookPost(post: SocialPost, token: string, pageId: stri
   return { mediaId, permalink: `https://www.facebook.com/${mediaId}` };
 }
 
-async function publishOne(post: SocialPost, supabase: SupabaseClient) {
+async function publishOne(post: SocialPost, supabase: SupabaseClient, opts: PublishOptions = { dryRun: false }) {
   // _shared/meta-tokens.ts は npm: 指定の SupabaseClient 型を要求するが、
   // この関数は jsr: 指定で import している。実体は同じクライアントだが、
   // モジュール指定子が違うと TS 上は別型になるため橋渡しする
@@ -167,6 +227,8 @@ async function publishOne(post: SocialPost, supabase: SupabaseClient) {
     const igToken = await getToken(supabaseForTokens, "instagram_login");
     const igUserId = Deno.env.get("INSTAGRAM_USER_ID");
     if (!igToken || !igUserId) throw new Error("missing instagram credentials");
+    if (post.video_url) return await publishInstagramReel(post, igToken.token, igUserId, opts);
+    if (opts.dryRun) throw new Error("dry run supports video posts only");
     return await publishInstagramCarousel(post, igToken.token, igUserId);
   }
 
@@ -174,6 +236,8 @@ async function publishOne(post: SocialPost, supabase: SupabaseClient) {
     const fbToken = await getToken(supabaseForTokens, "facebook_page");
     const fbPageId = Deno.env.get("FACEBOOK_PAGE_ID");
     if (!fbToken || !fbPageId) throw new Error("missing facebook credentials");
+    if (post.video_url) return await publishFacebookVideo(post, fbToken.token, fbPageId, opts);
+    if (opts.dryRun) throw new Error("dry run supports video posts only");
     return await publishFacebookPost(post, fbToken.token, fbPageId);
   }
 
@@ -192,6 +256,25 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // 試験：指定した slug の動画を、公開せずに Meta 側の処理まで通す。
+    // キューの状態（status・attempts）は変えない。
+    const dryRunSlug = req.headers.get("x-dry-run-slug");
+    if (dryRunSlug) {
+      const { data: rows, error } = await supabase
+        .from("social_posts")
+        .select("*")
+        .eq("slug", dryRunSlug);
+      if (error) throw error;
+      const results = await Promise.all(((rows ?? []) as SocialPost[]).map(async (post) => {
+        try {
+          return { platform: post.platform, ok: true, ...(await publishOne(post, supabase, { dryRun: true })) };
+        } catch (e) {
+          return { platform: post.platform, ok: false, error: e instanceof Error ? e.message : String(e) };
+        }
+      }));
+      return new Response(JSON.stringify({ dryRun: dryRunSlug, results }), { status: 200 });
+    }
 
     // marketing_settings（管理画面から切り替え可能）を優先し、行が無ければ
     // 従来の env（Supabase Secrets の SOCIAL_AUTOPOST_ENABLED）にフォールバックする。

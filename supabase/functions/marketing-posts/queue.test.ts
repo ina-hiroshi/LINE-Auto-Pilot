@@ -6,6 +6,7 @@ function row(over: Partial<SocialPostRow> & Pick<SocialPostRow, 'slug' | 'platfo
     id: `${over.slug}-${over.platform}`,
     caption: 'caption',
     image_urls: ['https://example.test/1.png'],
+    video_url: null,
     status: 'pending',
     attempts: 0,
     error: null,

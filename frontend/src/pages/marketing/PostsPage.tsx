@@ -355,7 +355,16 @@ function PostCard({
       </div>
 
       <div className="mb-3 flex gap-2 overflow-x-auto">
-        {view.imageUrls.map((url, i) => (
+        {view.videoUrl && (
+          <video
+            src={view.videoUrl}
+            poster={view.imageUrls[0]}
+            controls
+            preload="none"
+            className="h-36 w-20 shrink-0 rounded border border-gray-200 bg-black object-cover"
+          />
+        )}
+        {!view.videoUrl && view.imageUrls.map((url, i) => (
           <img
             key={url}
             src={url}
