@@ -46,7 +46,7 @@ Deno.serve(async (req: Request) => {
     const loadRows = async (): Promise<SocialPostRow[]> => {
       const { data, error } = await admin
         .from('social_posts')
-        .select('id, slug, platform, caption, image_urls, sort_order, status, attempts, error, permalink, platform_media_id, posted_at, claimed_at, created_at')
+        .select('id, slug, platform, caption, image_urls, video_url, sort_order, status, attempts, error, permalink, platform_media_id, posted_at, claimed_at, created_at')
         .order('sort_order', { ascending: true })
         .order('platform', { ascending: true })
       if (error) throw error
