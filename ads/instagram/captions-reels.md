@@ -1,4 +1,4 @@
-# Instagram リール投稿キャプション（post33〜39）
+# Instagram リール投稿キャプション（post33〜）
 
 動画: `frontend/public/social/post33.mp4` 〜（声：Gemini TTS Aoede、音楽：OpenTracks（旧DOVA-SYNDROME））
 表紙: `frontend/public/social/post33_cover.jpg` 〜
@@ -108,3 +108,18 @@ Proプランなら、ボタンの数や色も選べます。
 「モニター」とDMいただければ、案内を自動でお送りします。
 
 #LINE公式アカウント #リッチメニュー #店舗経営 #IToguchi
+
+---
+
+## post40（AI の返信と管理画面 / ai-night）
+
+夜、お店を閉めたあとに届く質問に。
+
+「髪が細くてぺたんこになりやすいんですが…」のような質問にも、AIがお店の情報をもとに返信します。
+答えられない質問は、管理画面に「要対応」で残ります。
+管理画面から手動で返信でき、AIの返事に補足を送ることもできます。
+
+AIの自動返信は、Proプランの機能です。
+「モニター」とDMいただければ、案内を自動でお送りします。
+
+#LINE公式アカウント #AI自動返信 #美容室経営 #IToguchi
