@@ -38,17 +38,20 @@ export function GuideTab({ webhookUrl, onCopyWebhook, onNavigateConnection }: Gu
         <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
           <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
             <span className="bg-[#06C755] text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">2</span>
-            LINE Developersへの登録とチャネル作成
+            Messaging APIの有効化
           </h3>
           <p className="text-sm text-gray-600 mb-4 ml-8">
-            Messaging APIを利用するために、LINE Developersへの登録が必要です。
+            LINE公式アカウントでMessaging APIを有効にすると、Messaging APIのチャネルが作られます。
           </p>
           <ol className="list-decimal list-inside text-sm text-gray-600 ml-8 space-y-2 mb-4">
-            <li><a href="https://developers.line.biz/console/" target="_blank" rel="noopener noreferrer" className="text-[#06C755] hover:underline">LINE Developers Console</a>にログインします。</li>
-            <li>初めての場合は「プロバイダー作成」を行います（店舗名などでOK）。</li>
-            <li>「新規チャネル作成」をクリックし、「Messaging API」を選択します。</li>
-            <li>必要な情報を入力してチャネルを作成します。</li>
+            <li><a href="https://manager.line.biz/" target="_blank" rel="noopener noreferrer" className="text-[#06C755] hover:underline">LINE Official Account Manager</a>にログインし、対象のLINE公式アカウントを開きます。</li>
+            <li>「Messaging APIを利用する」をクリックします。</li>
+            <li>LINE Developersを初めて使う場合は、名前とメールアドレスで開発者アカウントを作ります。続けて、プロバイダーを選びます（店舗名などでOK）。</li>
+            <li>同じアカウントで<a href="https://developers.line.biz/console/" target="_blank" rel="noopener noreferrer" className="text-[#06C755] hover:underline">LINE Developers Console</a>にログインし、選んだプロバイダーを開いて、チャネルができていることを確認します。</li>
           </ol>
+          <p className="text-sm text-gray-500 ml-8">
+            一度選んだプロバイダーは、あとから変更できません。
+          </p>
         </div>
 
         <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">

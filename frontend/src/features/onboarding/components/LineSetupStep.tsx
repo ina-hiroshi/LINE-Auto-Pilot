@@ -166,29 +166,35 @@ export default function LineSetupStep({
             >
               <div className="flex items-center gap-3">
                 <span className="bg-[#06C755] text-white w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">2</span>
-                <span className="font-bold text-slate-800">LINE Developersへの登録とチャネル作成</span>
+                <span className="font-bold text-slate-800">Messaging APIの有効化</span>
               </div>
               {expandedGuide === 'developers' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
             </button>
             {expandedGuide === 'developers' && (
               <div className="p-4 bg-white border-t border-slate-200">
                 <p className="text-sm text-slate-600 mb-4">
-                  Messaging APIを利用するために、LINE Developersへの登録が必要です。
+                  LINE公式アカウントでMessaging APIを有効にすると、Messaging APIのチャネルが作られます。
                 </p>
                 <ol className="list-decimal list-inside text-sm text-slate-600 space-y-2 mb-4">
                   <li>
+                    <a href="https://manager.line.biz/" target="_blank" rel="noopener noreferrer" className="text-[#06C755] hover:underline font-medium">
+                      LINE Official Account Manager
+                    </a>
+                    にログインし、対象のLINE公式アカウントを開きます。
+                  </li>
+                  <li>「Messaging APIを利用する」をクリックします。</li>
+                  <li>LINE Developersを初めて使う場合は、名前とメールアドレスで開発者アカウントを作ります。続けて、プロバイダーを選びます（店舗名などでOK）。</li>
+                  <li>
+                    同じアカウントで
                     <a href="https://developers.line.biz/console/" target="_blank" rel="noopener noreferrer" className="text-[#06C755] hover:underline font-medium">
                       LINE Developers Console
                     </a>
-                    にログインします。
+                    にログインし、選んだプロバイダーを開いて、チャネルができていることを確認します。
                   </li>
-                  <li>初めての場合は「プロバイダー作成」を行います（店舗名などでOK）。</li>
-                  <li>「新規チャネル作成」をクリックし、「Messaging API」を選択します。</li>
-                  <li>必要な情報を入力してチャネルを作成します。</li>
                 </ol>
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
                   <BookOpen size={16} className="inline mr-2" />
-                  チャネル作成時の「アプリタイプ」は「BOT」を選択してください。
+                  一度選んだプロバイダーは、あとから変更できません。
                 </div>
               </div>
             )}
