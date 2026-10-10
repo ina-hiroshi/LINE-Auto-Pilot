@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
-  AlertTriangle, ArrowDown, ArrowUp, ExternalLink, Loader2, RefreshCw,
-  RotateCcw, Send, BarChart2, XCircle,
+  AlertTriangle, ArrowDown, ArrowUp, ExternalLink, Loader2, Play, RefreshCw,
+  RotateCcw, Send, BarChart2, X, XCircle,
 } from 'lucide-react'
 import Modal from '../../components/Modal'
 import Toast from '../../components/Toast'
@@ -53,6 +54,57 @@ function StatCard({ label, value, tone }: { label: string; value: number; tone?:
         {value}
       </div>
     </div>
+  )
+}
+
+/** リール動画を大きく再生する。縦長（9:16）なので高さを画面にそろえる。
+ *  Esc・背景のクリック・閉じるボタンで閉じる。 */
+function VideoPreview({ title, src, poster, onClose }: {
+  title: string
+  src: string
+  poster?: string
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div role="dialog" aria-modal="true" aria-label={`${title} の動画`} className="relative flex max-h-full flex-col items-center gap-3">
+        <div className="flex w-full items-center justify-between text-white">
+          <span className="font-bold">{title}</span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 hover:bg-white/10"
+            aria-label="閉じる"
+          >
+            <X size={22} />
+          </button>
+        </div>
+        <video
+          src={src}
+          poster={poster}
+          controls
+          autoPlay
+          playsInline
+          // 高さは「画面の高さ」と「画面の幅から決まる9:16の高さ」の小さい方。幅は縦横比から決まる。
+          style={{ height: 'min(calc(100dvh - 6rem), calc((100vw - 2rem) * 16 / 9))' }}
+          className="aspect-[9/16] rounded-lg bg-black"
+        />
+      </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -310,6 +362,7 @@ function PostCard({
   // 本文がプラットフォームごとに違うときは、1枚のテキストエリアで編集させてはいけない。
   // まとめて保存すると、表示していない側の本文を黙って上書きしてしまう。
   const diverged = new Set(editable.map((p) => view.platforms[p]!.caption)).size > 1
+  const [previewing, setPreviewing] = useState(false)
 
   return (
     <div
@@ -356,13 +409,20 @@ function PostCard({
 
       <div className="mb-3 flex gap-2 overflow-x-auto">
         {view.videoUrl && (
-          <video
-            src={view.videoUrl}
-            poster={view.imageUrls[0]}
-            controls
-            preload="none"
-            className="h-36 w-20 shrink-0 rounded border border-gray-200 bg-black object-cover"
-          />
+          <button
+            type="button"
+            onClick={() => setPreviewing(true)}
+            className="group relative h-36 w-20 shrink-0 overflow-hidden rounded border border-gray-200 bg-black"
+            title="大きい画面で再生する"
+            aria-label={`${view.slug} の動画を大きい画面で再生する`}
+          >
+            {view.imageUrls[0] && (
+              <img src={view.imageUrls[0]} alt="" loading="lazy" className="h-full w-full object-cover" />
+            )}
+            <span className="absolute inset-0 flex items-center justify-center bg-black/25 transition-colors group-hover:bg-black/40">
+              <Play size={22} className="fill-white text-white" />
+            </span>
+          </button>
         )}
         {!view.videoUrl && view.imageUrls.map((url, i) => (
           <img
@@ -374,6 +434,15 @@ function PostCard({
           />
         ))}
       </div>
+
+      {previewing && view.videoUrl && (
+        <VideoPreview
+          title={view.slug}
+          src={view.videoUrl}
+          poster={view.imageUrls[0]}
+          onClose={() => setPreviewing(false)}
+        />
+      )}
 
       <div className="mb-3 grid gap-2 sm:grid-cols-2">
         {PLATFORMS.map((p) => {
