@@ -24,7 +24,7 @@ import { btnOutline, btnPrimary, textLink, wrap } from '../components/site/ui'
 // 公式アカウントの開設はオーナー権限を店舗が持つため、お客様ご自身で行っていただく。
 // 予約枠・リッチメニューなどの運用設定は代行に含まない（SetupServiceModal と同じ範囲）。
 const BENEFITS = [
-  'LINE Developersでのチャネル作成をサポートします',
+  'Messaging APIの有効化をサポートします',
   '認証情報（チャネルID・シークレットなど）の取得と登録を代行します',
   'Webhook URLの設定と、LINE連携の完了確認まで行います',
   'やりとりはメールだけで済み、お店に伺う必要はありません',

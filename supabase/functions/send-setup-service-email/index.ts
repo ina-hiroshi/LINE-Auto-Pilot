@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
             <h3 style="color: #333; margin-top: 24px; margin-bottom: 12px;">【今後の流れ】</h3>
             <p>メールでのやり取りを通じて、以下の設定作業を実施いたします：</p>
             <ul style="line-height: 1.8;">
-              <li>LINE Developersチャネル作成サポート</li>
+              <li>Messaging APIの有効化サポート</li>
               <li>認証情報の取得と登録</li>
               <li>Webhook URLの設定</li>
               <li>LINE連携の完了確認</li>
@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
             <p>メールでのやり取りを通じて、以下の設定作業を実施いたします：</p>
             <ul style="line-height: 1.8;">
               <li>LINE公式アカウントの作成サポート</li>
-              <li>LINE Developersチャネル作成サポート</li>
+              <li>Messaging APIの有効化サポート</li>
               <li>認証情報の取得と登録</li>
               <li>Webhook URLの設定</li>
               <li>LINE連携の完了確認</li>
@@ -272,7 +272,7 @@ Deno.serve(async (req) => {
           
           <h3 style="color: #333; margin-top: 24px; margin-bottom: 12px;">【完了した作業】</h3>
           <ul style="line-height: 1.8;">
-            <li>✓ LINE Developersチャネル作成</li>
+            <li>✓ Messaging APIの有効化</li>
             <li>✓ 認証情報の取得と登録</li>
             <li>✓ Webhook URLの設定</li>
             <li>✓ LINE連携の完了確認</li>

@@ -133,7 +133,7 @@ const SpecifiedCommercialTransactions: React.FC = () => {
                   {/* 役務の範囲を明示する。代行は公式アカウントとの接続設定までで、
                       公式アカウントの開設や運用設定は含まない。 */}
                   <p className="text-xs text-ink-soft mt-3 leading-relaxed">
-                    初期設定代行の役務内容：LINE公式アカウントと本サービスの接続設定（LINE Developersでのチャネル作成サポート、認証情報の取得と登録、Webhook URLの設定、連携の完了確認）。
+                    初期設定代行の役務内容：LINE公式アカウントと本サービスの接続設定（Messaging APIの有効化サポート、認証情報の取得と登録、Webhook URLの設定、連携の完了確認）。
                     LINE公式アカウントの開設、および予約枠・リッチメニュー等の運用設定は含まれません。
                   </p>
                 </div>

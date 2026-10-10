@@ -67,7 +67,7 @@ export default function SetupServiceModal({ isOpen, onClose, onSubmit, submittin
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {[
-              { icon: MessageSquare, text: 'LINE Developersチャネル作成サポート' },
+              { icon: MessageSquare, text: 'Messaging APIの有効化サポート' },
               { icon: UserCheck, text: '認証情報の取得と登録' },
               { icon: Shield, text: 'Webhook URLの設定' },
               { icon: Check, text: 'LINE連携の完了確認' }

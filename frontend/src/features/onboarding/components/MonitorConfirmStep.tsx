@@ -65,7 +65,7 @@ export default function MonitorConfirmStep({
           </p>
           <p className="text-sm text-slate-600">
             通常 ¥9,980 の初期設定代行を、こちらで無償で行います。
-            LINE公式アカウントとIToguchiの接続設定（チャネル作成・認証情報の登録・Webhook設定）を
+            LINE公式アカウントとIToguchiの接続設定（Messaging APIの有効化・認証情報の登録・Webhook設定）を
             メールのやり取りだけで代行します。
             ※ 公式アカウントの開設はお客様ご自身で行っていただきます（無料・手順はご案内します）。
           </p>
