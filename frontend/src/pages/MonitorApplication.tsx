@@ -1,13 +1,12 @@
-import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowRight, Check } from 'lucide-react'
-import { supabase } from '../lib/supabase'
 import SiteShell from '../components/site/SiteShell'
 import HeroDemo from '../components/site/HeroDemo'
 import { LeaderRow, Slip, Stamp } from '../components/site/Receipt'
 import { FEATURES, LINE_DEMO_URL, SETUP_SERVICE_PRICE } from '../components/site/siteData'
 import { recordSiteClick } from '../lib/sitePageViews'
+import { useMonitorCapacity } from '../lib/useMonitorCapacity'
 import { btnOutline, btnPrimary, textLink, wrap } from '../components/site/ui'
 
 /**
@@ -46,24 +45,12 @@ const TRY_ITEMS = [
   { title: '会員証', body: 'リッチメニューの「会員証」から、会員証の見え方を確かめられます。' },
 ]
 
-type MonitorCapacity = { remaining: number; isFull: boolean }
-
 const h2 = 'text-3xl font-black leading-snug tracking-[-0.02em] sm:text-4xl'
 
 export default function MonitorApplication() {
   const navigate = useNavigate()
-  const [capacity, setCapacity] = useState<MonitorCapacity | null>(null)
-
-  useEffect(() => {
-    // API呼び出しが失敗した場合はバッジ自体を出さない（訴求のためにダミー値は出さない）。
-    supabase.functions
-      .invoke('get-monitor-capacity')
-      .then(({ data, error }) => {
-        if (error || !data) return
-        setCapacity({ remaining: data.remaining, isFull: data.isFull })
-      })
-      .catch(() => {})
-  }, [])
+  // API呼び出しが失敗した場合はバッジ自体を出さない（訴求のためにダミー値は出さない）。
+  const capacity = useMonitorCapacity()
 
   // 登録フォームはトップページの #auth セクション。
   // 他の機能ページと同じ遷移方法に合わせる。

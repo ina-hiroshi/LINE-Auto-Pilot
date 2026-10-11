@@ -4,8 +4,9 @@ import { ArrowRight } from 'lucide-react'
 import SiteShell from './SiteShell'
 import { LeaderRow, Slip, SlipNumbers } from './Receipt'
 import TryTag from './TryTag'
-import { FEATURES, LINE_DEMO_URL, PLANS, type FeatureSlug } from './siteData'
+import { FEATURES, LINE_DEMO_URL, PLANS, SETUP_SERVICE_PRICE, type FeatureSlug } from './siteData'
 import { recordSiteClick } from '../../lib/sitePageViews'
+import { useMonitorCapacity } from '../../lib/useMonitorCapacity'
 import { btnInk, btnOutline, btnPrimary, wrap } from './ui'
 
 export type Gain = { title: string; body: string; pro?: boolean }
@@ -40,6 +41,7 @@ const leadText = 'mt-5 text-[17px] leading-[1.9] text-ink-soft'
 export default function FeaturePage({ slug, title, lead, hero, heroTry, wideHero = false, gains, showcases = [], steps, plans, planNote, closing }: FeaturePageProps) {
   const feature = FEATURES.find((f) => f.slug === slug)!
   const others = FEATURES.filter((f) => f.slug !== slug)
+  const capacity = useMonitorCapacity()
 
   return (
     <SiteShell>
@@ -70,6 +72,18 @@ export default function FeaturePage({ slug, title, lead, hero, heroTry, wideHero
                 LINEで動きを試す
               </a>
             </div>
+            {/* 「モニター特典を見る」だけでは中身が伝わらないため、特典と実際の残り枠を添える。
+                枠数を取れないときと満枠のときは出さない（限定の文言は実際の枠数でだけ出す） */}
+            {capacity && !capacity.isFull && (
+              <p className="mt-5 max-w-xl text-[14px] leading-relaxed text-ink-soft [word-break:auto-phrase]">
+                モニター店舗は、LINEとの接続設定（通常{SETUP_SERVICE_PRICE}）を無料で代行します。
+                <span className="inline-block">
+                  先着{capacity.capacity}店舗、残り
+                  <span className="font-slip text-[16px] font-bold text-primary-800">{capacity.remaining}</span>
+                  店舗です。
+                </span>
+              </p>
+            )}
           </div>
           <div className="min-w-0">
             {heroTry && <TryTag className="mb-4">{heroTry}</TryTag>}
