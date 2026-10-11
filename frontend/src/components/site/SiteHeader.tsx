@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Menu, X } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { ArrowRight, Menu, X } from 'lucide-react'
 import Logo from '../Logo'
 import { btnPrimary } from './ui'
+import { recordSiteClick } from '../../lib/sitePageViews'
 
 const NAV = [
   { label: '機能', to: '/', state: { scrollTo: 'features' } },
@@ -13,6 +14,7 @@ const NAV = [
 
 export default function SiteHeader() {
   const [open, setOpen] = useState(false)
+  const { pathname } = useLocation()
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
@@ -73,6 +75,21 @@ export default function SiteHeader() {
           </button>
         </div>
       </div>
+
+      {/* スマホでは中央の項目がメニューの中に隠れるため、モニター特典だけはヘッダーの下の行に出しておく。
+          ヘッダーの1行には収まらない（360px幅で「無料で始める」が折れる） */}
+      {pathname !== '/monitor' && (
+        <div className="border-t border-rule md:hidden">
+          <Link
+            to="/monitor"
+            onClick={() => recordSiteClick('monitor')}
+            className="mx-auto flex max-w-6xl items-center justify-center gap-1.5 px-4 py-2 text-[13px] font-bold text-primary-800"
+          >
+            モニター特典を見る
+            <ArrowRight className="size-3.5" aria-hidden="true" />
+          </Link>
+        </div>
+      )}
 
       {open && (
         <nav id="site-mobile-nav" className="border-t border-rule bg-paper px-4 pb-5 md:hidden" aria-label="サイト内">
