@@ -433,6 +433,11 @@ verify_jwt = false
 # 両方を受け付ける。marketing-ads / meta-token-refresh と同じ二重受付の形。
 verify_jwt = false
 
+[functions.social-ig-insights]
+# pg_cron（毎日、x-cron-secret のみ、JWTなし）と管理画面からの手動実行（JWTあり）の
+# 両方を受け付ける。social-dm-poll と同じ二重受付の形。
+verify_jwt = false
+
 [functions.social-outbound-drain]
 # pg_cron（毎分、x-cron-secret のみ）と管理画面からの手動実行（JWTあり）の
 # 両方を受け付ける。social-dm-poll と同じ二重受付の形。
