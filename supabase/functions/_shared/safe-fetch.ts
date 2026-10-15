@@ -218,7 +218,9 @@ export function createSafeFetcher(resolve: Resolver, request: PinnedFetch = fetc
           if ([301, 302, 303, 307, 308].includes(response.status)) {
             const location = response.headers.get('location')
             if (location) {
-              await response.body?.cancel()
+              // ランタイムのストリームアダプターで cancel が失敗しても、
+              // finally の close で TCP 接続を閉じてから転送先を再検証する。
+              await response.body?.cancel().catch(() => {})
               const next = new URL(location, url)
               if (next.origin !== url.origin) {
                 headers.delete('authorization'); headers.delete('cookie'); headers.delete('proxy-authorization')

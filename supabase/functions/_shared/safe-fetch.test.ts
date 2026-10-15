@@ -119,6 +119,25 @@ Deno.test('別オリジンへのリダイレクトで認証ヘッダーを転送
   assertEquals(calls, 2)
 })
 
+Deno.test('転送元のストリームcancelが失敗しても接続を閉じて転送先を取得する', async () => {
+  let calls = 0
+  let closed = 0
+  const get = createSafeFetcher(async () => ['8.8.8.8'], async () => {
+    calls++
+    return {
+      response: calls === 1
+        ? new Response(new ReadableStream({ cancel() { throw new Error('adapter cancellation failed') } }), {
+          status: 308, headers: { location: 'https://destination.example/' },
+        })
+        : new Response('ok'),
+      close() { closed++ },
+    }
+  })
+  assertEquals(await (await get('http://source.example/')).text(), 'ok')
+  assertEquals(calls, 2)
+  assertEquals(closed, 2)
+})
+
 Deno.test('無限リダイレクトを制限し、各接続を閉じる', async () => {
   let closed = 0
   const get = createSafeFetcher(async () => ['8.8.8.8'], async () => ({
