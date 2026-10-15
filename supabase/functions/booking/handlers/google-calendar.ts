@@ -75,7 +75,8 @@ export async function createGoogleEvent(client: { accessToken: string; calendarI
 }
 
 export async function deleteGoogleEvent(client: { accessToken: string; calendarId: string }, eventId: string) {
-  if (!/^[a-v0-9_]{5,1024}$/.test(eventId)) throw new Error('Invalid Google event ID')
+  // 従来の _ を含む基本IDに加え、繰り返し予定の各回の日付・UTC日時を許可する。
+  if (!/^[a-v0-9_]{5,1024}(?:_[0-9]{8}(?:T[0-9]{6}Z)?)?$/.test(eventId)) throw new Error('Invalid Google event ID')
   try {
     await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(client.calendarId)}/events/${encodeURIComponent(eventId)}`,
