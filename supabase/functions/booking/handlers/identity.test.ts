@@ -74,8 +74,53 @@ Deno.test('見積金額: 一般顧客の金額指定を無視し管理者だけ�
 })
 
 Deno.test('Googleイベント削除: パス操作・クエリ・ドットを拒否し通信しない', async () => {
-  for (const eventId of ['../calendars/primary', '..', 'abcde?x=1', 'abcde#x', '%2e%2e']) {
-    await assertRejects(() => deleteGoogleEvent({ accessToken: 'unused', calendarId: 'primary' }, eventId), Error, 'Invalid Google event ID')
+  const originalFetch = globalThis.fetch
+  let calls = 0
+  globalThis.fetch = () => { calls++; throw new Error('Unexpected fetch') }
+  try {
+    for (const eventId of [
+      '../calendars/primary', '..', 'abcde/12345', 'abcde?x=1', 'abcde#x', '%2e%2e',
+      '', 'abcd', 'a'.repeat(1025), 'ABCDE', 'abcw0',
+      `${'a'.repeat(1025)}_20261015`, 'abcd_20261015T090000Z',
+      'abcde_20261015T09000Z',
+      'abcde_20261015T090000', 'abcde_20261015t090000z',
+      'abcde\n', 'abcde\r', 'abcde_20261015T090000Z/../',
+    ]) {
+      await assertRejects(() => deleteGoogleEvent({ accessToken: 'unused', calendarId: 'primary' }, eventId), Error, 'Invalid Google event ID')
+    }
+    assertEquals(calls, 0)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+Deno.test('Googleイベント削除: 基本IDと繰り返し予定の各回のIDを許可する', async () => {
+  const originalFetch = globalThis.fetch
+  const calls: { url: string; method?: string; authorization: string | null }[] = []
+  globalThis.fetch = (input: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(input), method: init?.method, authorization: new Headers(init?.headers).get('Authorization') })
+    return Promise.resolve(new Response(null, { status: 204 }))
+  }
+  try {
+    const eventIds = [
+      'abcde', '0123456789abcdefghijklmnopqrstuv', 'a'.repeat(1024),
+      'ab_cd', '_abcdefg', 'abcde_', '_____',
+      'abcd_20261015', 'abcde_2026101', 'abcde_202610150',
+      'abcde_20261015_20261016',
+      'abcde_20261015', 'abcde_20261015T090000Z',
+      'ab_cd_20261015T090000Z', '_abcdefg_20261015T090000Z',
+      `${'a'.repeat(1024)}_20261015`, `${'a'.repeat(1024)}_20261015T090000Z`,
+    ]
+    for (const eventId of eventIds) {
+      await deleteGoogleEvent({ accessToken: 'test-token', calendarId: 'owner@example.com' }, eventId)
+      assertEquals(calls.at(-1), {
+        url: `https://www.googleapis.com/calendar/v3/calendars/owner%40example.com/events/${eventId}`,
+        method: 'DELETE', authorization: 'Bearer test-token',
+      })
+    }
+    assertEquals(calls.length, eventIds.length)
+  } finally {
+    globalThis.fetch = originalFetch
   }
 })
 
