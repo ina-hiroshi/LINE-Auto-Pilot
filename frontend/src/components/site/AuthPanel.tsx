@@ -110,13 +110,6 @@ export default function AuthPanel() {
 
       if (error) throw error
 
-      // 既存ユーザーの場合
-      if (data?.existingUser) {
-        setToast({ message: data.error || 'このメールアドレスはすでに登録されています。', type: 'error' })
-        setIsLoginMode(true)
-        throw new Error('existing_user')
-      }
-
       if (data?.error) {
         throw new Error(data.error)
       }
@@ -125,7 +118,7 @@ export default function AuthPanel() {
       setResendCooldown(60) // 60秒のクールダウン
     } catch (error) {
       console.error('Send code error:', error)
-      if (error instanceof Error && error.message !== 'existing_user') {
+      if (error instanceof Error) {
         setToast({ message: error.message || '認証コードの送信に失敗しました', type: 'error' })
       }
       throw error

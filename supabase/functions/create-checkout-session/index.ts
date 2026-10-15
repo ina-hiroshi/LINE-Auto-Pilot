@@ -1,3 +1,4 @@
+import { validateStripeReturnUrl, stripeSuccessUrl } from '../_shared/stripe-return-url.ts'
 // Using Deno.serve instead of @std/http/server
 import { createClient } from '@supabase/supabase-js'
 import { stripe } from '../_shared/stripe-client.ts'
@@ -42,6 +43,8 @@ Deno.serve(async (req: Request) => {
     }
 
     const { price_id, return_url } = await req.json()
+
+    const returnUrl = validateStripeReturnUrl(return_url)
 
     const allowedPriceIds = parseAllowedPriceIds(Deno.env.get('STRIPE_PRICE_ID_PRO'))
     if (allowedPriceIds.length === 0) {
@@ -114,7 +117,7 @@ Deno.serve(async (req: Request) => {
     // トライアル設定: 過去にトライアルを利用していない場合のみ適用
     const subscriptionData: {
       trial_period_days?: number
-      trial_settings?: { end_behavior: { missing_payment_method: string } }
+      trial_settings?: { end_behavior: { missing_payment_method: 'cancel' } }
     } = {}
 
     console.log(`Trial check: hasUsedTrial=${hasUsedTrial}, IS_PRE_RELEASE_MODE=${IS_PRE_RELEASE_MODE}, TRIAL_DAYS=${TRIAL_DAYS}`)
@@ -145,8 +148,8 @@ Deno.serve(async (req: Request) => {
           },
         ],
         mode: 'subscription',
-        success_url: `${return_url}?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${return_url}`,
+        success_url: stripeSuccessUrl(returnUrl, 'session_id', '{CHECKOUT_SESSION_ID}'),
+        cancel_url: returnUrl,
         subscription_data: Object.keys(subscriptionData).length > 0 ? subscriptionData : undefined,
       })
       console.log(`Checkout session created: ${session.id}`)
@@ -184,8 +187,8 @@ Deno.serve(async (req: Request) => {
             },
           ],
           mode: 'subscription',
-          success_url: `${return_url}?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${return_url}`,
+          success_url: stripeSuccessUrl(returnUrl, 'session_id', '{CHECKOUT_SESSION_ID}'),
+          cancel_url: returnUrl,
           subscription_data: Object.keys(subscriptionData).length > 0 ? subscriptionData : undefined,
         })
       } else {

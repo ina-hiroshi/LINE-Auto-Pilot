@@ -1,4 +1,4 @@
-const ALLOWED_ORIGINS = [
+export const ALLOWED_ORIGINS = [
   'https://itoguchi-app.jp',
   'https://itoguchi.vercel.app',
   'https://line-auto-pilot.vercel.app',

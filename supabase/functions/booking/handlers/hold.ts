@@ -18,6 +18,8 @@ import {
 import { getGoogleCalendarClient, createGoogleEvent, deleteGoogleEvent, listGoogleEvents } from './google-calendar.ts'
 
 export type HoldParams = {
+  verifiedUserId?: string | null
+  isManualRegistration?: boolean
   store_id?: string
   line_user_id?: string
   date?: string
@@ -36,7 +38,7 @@ export async function handleHoldSlot(
 ): Promise<Response> {
   const { store_id, line_user_id: requestLineUserId, date, time, menu_id, display_name, reservation_id } = params
   let { staff_id } = params
-  let line_user_id = requestLineUserId
+  let line_user_id = params.isManualRegistration ? requestLineUserId : params.verifiedUserId ?? undefined
 
   if (!store_id || !date || !time) throw new ClientVisibleError('store_id, date, and time are required')
   if (!isValidUUID(store_id)) throw new ClientVisibleError('Invalid store_id format')
@@ -53,7 +55,10 @@ export async function handleHoldSlot(
 
   if (reservation_id) {
     modifyExclude = await loadModifyExcludeContext(supabaseClient, store_id, reservation_id)
-    // 予約所有者の LINE ID を使用（LIFF / Messaging API の ID ゆれ対策）
+    if (!params.isManualRegistration && (!params.verifiedUserId || params.verifiedUserId !== modifyExclude.lineUserId)) {
+      throw new ClientVisibleError('この予約を変更する権限がありません', 403)
+    }
+    // 店舗管理者の手動操作は予約所有者の ID を使用する
     line_user_id = modifyExclude.lineUserId
     if (modifyExclude.staffId) {
       staff_id = modifyExclude.staffId
@@ -85,6 +90,8 @@ export async function handleHoldSlot(
         .eq('line_user_id', line_user_id)
     }
   }
+
+  if (!line_user_id) throw new ClientVisibleError('この操作には LINE ログインが必要です', 401)
 
   const excludeReservationId = modifyExclude?.reservationId
 

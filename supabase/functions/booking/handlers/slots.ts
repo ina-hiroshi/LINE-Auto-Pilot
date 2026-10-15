@@ -28,6 +28,8 @@ import { getGoogleCalendarClient, listGoogleEvents, deleteGoogleEvent } from './
 export const SLOTS_API_VERSION = '2026-05-21T15:00:00Z'
 
 export type BookingParams = {
+  verifiedUserId?: string | null
+  isManualRegistration?: boolean
   store_id?: string
   line_user_id?: string
   date?: string
@@ -122,7 +124,8 @@ export async function handleGetAvailableSlots(
   params: BookingParams,
   corsHeaders: CorsHeaders
 ): Promise<Response> {
-  const { store_id, date, line_user_id, menu_id, reservation_id } = params
+  const { store_id, date, menu_id, reservation_id } = params
+  let line_user_id = params.verifiedUserId ?? undefined
   let { staff_id } = params
 
   if (!store_id || !date) throw new ClientVisibleError('store_id and date are required')
@@ -140,6 +143,10 @@ export async function handleGetAvailableSlots(
 
   if (reservation_id) {
     modifyExclude = await loadModifyExcludeContext(supabaseClient, store_id, reservation_id)
+    if (!params.isManualRegistration && (!params.verifiedUserId || params.verifiedUserId !== modifyExclude.lineUserId)) {
+      throw new ClientVisibleError('この予約を変更する権限がありません', 403)
+    }
+    if (params.isManualRegistration) line_user_id = modifyExclude.lineUserId
     if (modifyExclude.staffId) {
       staff_id = modifyExclude.staffId
     }

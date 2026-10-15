@@ -44,3 +44,39 @@ Deno.test('receivedImageRetentionCutoff: 既定は 90 日前', () => {
   assertEquals(receivedImageRetentionCutoff(now).toISOString(), '2026-07-07T00:00:00.000Z')
   assertEquals(receivedImageRetentionCutoff(now, 1).toISOString(), '2026-10-04T00:00:00.000Z')
 })
+
+import { saveReceivedImage } from './line-image.ts'
+import type { SupabaseClientType } from './types.ts'
+
+Deno.test('saveReceivedImage: 外部の内部URLを取得・保存しない', async () => {
+  let calls = 0
+  const original = globalThis.fetch
+  globalThis.fetch = () => { calls++; throw new Error('must not fetch') }
+  try {
+    assertEquals(await saveReceivedImage({} as SupabaseClientType, 'secret', STORE, {
+      id: '123', contentProvider: { type: 'external', originalContentUrl: 'http://169.254.169.254/' },
+    }), null)
+    assertEquals(calls, 0)
+  } finally { globalThis.fetch = original }
+})
+
+Deno.test('saveReceivedImage: LINE APIの画像は上限内だけ保存し、転送を禁止する', async () => {
+  let uploaded = 0
+  const original = globalThis.fetch
+  globalThis.fetch = (_input, init) => {
+    const options = init as RequestInit
+    assertEquals(options?.redirect, 'error')
+    assertEquals(new Headers(options?.headers).get('authorization'), 'Bearer secret')
+    return Promise.resolve(new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/png' } }))
+  }
+  const supabase = { storage: { from: () => ({ upload: (_path: string, body: Uint8Array) => {
+    uploaded++; assertEquals(body.byteLength, 3); return Promise.resolve({ error: null })
+  } }) } } as unknown as SupabaseClientType
+  try {
+    assertEquals(await saveReceivedImage(supabase, 'secret', STORE, { id: '123' }), `${STORE}/123.png`)
+    assertEquals(uploaded, 1)
+    globalThis.fetch = () => Promise.resolve(new Response(new Uint8Array(10 * 1024 * 1024 + 1), { headers: { 'content-type': 'image/png' } }))
+    assertEquals(await saveReceivedImage(supabase, 'secret', STORE, { id: '123' }), null)
+    assertEquals(uploaded, 1)
+  } finally { globalThis.fetch = original }
+})

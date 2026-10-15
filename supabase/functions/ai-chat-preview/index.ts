@@ -1,13 +1,14 @@
 // Using Deno.serve instead of @std/http/server
 import { createClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
-import { safeErrorResponse } from '../_shared/error-utils.ts'
+import { ClientVisibleError, clientVisibleErrorResponse, safeErrorResponse } from '../_shared/error-utils.ts'
 import { getGeminiUrl, KNOWLEDGE_BASE_MAX_CHARS } from '../_shared/ai-config.ts'
 
 // Helper to generate AI response using Gemini API
 import type { SupabaseClientType, AISettings } from '../_shared/types.ts'
 import { generateSystemPrompt } from '../_shared/ai-prompt.ts'
 import { requireStoreAccess } from '../_shared/store-access.ts'
+import { validatePreviewInput, requirePaidAiPlan, reserveAiGeneration } from '../_shared/ai-generation-policy.ts'
 
 async function generateAIResponse(apiKey: string, message: string, settings: AISettings, storeId: string, supabase: SupabaseClientType): Promise<string> {
   try {
@@ -82,7 +83,7 @@ Deno.serve(async (req: Request) => {
         throw new Error('Missing API Keys')
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false, autoRefreshToken: false } })
 
     const { message, store_id, ai_settings } = await req.json()
 
@@ -100,13 +101,17 @@ Deno.serve(async (req: Request) => {
     const access = await requireStoreAccess(req, store_id, supabase, corsHeaders)
     if (!access.ok) return access.response
 
-    const reply = await generateAIResponse(geminiApiKey, message, ai_settings, store_id, supabase)
+    const validated = validatePreviewInput(message, ai_settings)
+    await requirePaidAiPlan(supabase, store_id)
+    await reserveAiGeneration(supabase, store_id, 'ai-chat-preview')
+    const reply = await generateAIResponse(geminiApiKey, validated.message, validated.settings, store_id, supabase)
 
     return new Response(
       JSON.stringify({ reply }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error: unknown) {
+    if (error instanceof ClientVisibleError) return clientVisibleErrorResponse(error, corsHeaders)
     return safeErrorResponse(error, corsHeaders, 400, 'Invalid request')
   }
 })

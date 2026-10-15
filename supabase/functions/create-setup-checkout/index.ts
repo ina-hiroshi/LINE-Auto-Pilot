@@ -1,3 +1,5 @@
+import { validateStripeReturnUrl, stripeSuccessUrl } from '../_shared/stripe-return-url.ts'
+import { isSingleEmail, normalizeBasicId } from '../_shared/setup-email-policy.ts'
 // 設定代行サービスの決済セッション作成
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { stripe } from '../_shared/stripe-client.ts'
@@ -29,6 +31,11 @@ Deno.serve(async (req: Request) => {
       return_url,
       store_id
     } = await req.json()
+
+    const returnUrl = validateStripeReturnUrl(return_url)
+
+    if (!isSingleEmail(contact_email)) throw new Error('メールアドレスが不正です')
+    const basicId = normalizeBasicId(line_account_basic_id)
 
     // クライアントから渡された store_id は、他人の店舗IDを指定すれば
     // 決済注文(setup_service_orders)を他店舗に紐付けられてしまう
@@ -71,7 +78,7 @@ Deno.serve(async (req: Request) => {
         store_id: finalStoreId || null,
         contact_email,
         has_line_account: has_line_account || false,
-        line_account_basic_id,
+        line_account_basic_id: basicId,
         additional_notes,
         status: 'pending'
       })
@@ -97,8 +104,8 @@ Deno.serve(async (req: Request) => {
       }],
       mode: 'payment', // サブスクリプションではなく一回払い
       customer_email: contact_email, // 決済ページにメールアドレスを事前入力
-      success_url: `${return_url}?setup_order_id=${order.id}`,
-      cancel_url: `${return_url}`,
+      success_url: stripeSuccessUrl(returnUrl, 'setup_order_id', order.id),
+      cancel_url: returnUrl,
       client_reference_id: order.id, // 注文IDを紐付け
       metadata: {
         order_id: order.id,

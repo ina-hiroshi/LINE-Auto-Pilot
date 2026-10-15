@@ -45,7 +45,7 @@ function getJstDateString(date: Date): string {
   return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' })
 }
 
-async function resolveQuotedAmount(
+export async function resolveQuotedAmount(
   supabaseClient: SupabaseClientType,
   menu_id: string | null,
   quoted_amount: number | null | undefined,
@@ -57,7 +57,7 @@ async function resolveQuotedAmount(
       .select('price')
       .eq('id', menu_id)
       .maybeSingle()
-    if (typeof quoted_amount === 'number' && quoted_amount >= 0) {
+    if (isManualRegistration && typeof quoted_amount === 'number' && Number.isFinite(quoted_amount) && quoted_amount >= 0) {
       return Math.round(quoted_amount)
     }
     if (menu?.price != null && menu.price >= 0) {
@@ -69,9 +69,6 @@ async function resolveQuotedAmount(
     if (typeof quoted_amount !== 'number' || quoted_amount < 0 || !Number.isFinite(quoted_amount)) {
       throw new ClientVisibleError('メニュー未選択の場合は見込み金額（税込）の入力が必要です')
     }
-    return Math.round(quoted_amount)
-  }
-  if (typeof quoted_amount === 'number' && quoted_amount >= 0) {
     return Math.round(quoted_amount)
   }
   return null
