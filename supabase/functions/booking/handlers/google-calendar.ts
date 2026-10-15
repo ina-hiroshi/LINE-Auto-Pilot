@@ -75,9 +75,10 @@ export async function createGoogleEvent(client: { accessToken: string; calendarI
 }
 
 export async function deleteGoogleEvent(client: { accessToken: string; calendarId: string }, eventId: string) {
+  if (!/^[a-v0-9_]{5,1024}$/.test(eventId)) throw new Error('Invalid Google event ID')
   try {
     await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(client.calendarId)}/events/${eventId}`,
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(client.calendarId)}/events/${encodeURIComponent(eventId)}`,
       {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${client.accessToken}` }

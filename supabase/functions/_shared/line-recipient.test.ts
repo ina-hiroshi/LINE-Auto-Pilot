@@ -43,26 +43,22 @@ Deno.test('候補: 同じ ID は重複させない', () => {
   const ids = buildRecipientCandidates({
     requestedUserId: REQUESTED,
     customer: { line_user_id: REQUESTED },
-    logsByName: [{ line_user_id: REQUESTED }],
   })
   assertEquals(ids, [REQUESTED])
 })
 
-Deno.test('候補: 名前一致のログから代替 ID を拾う（LIFF と Messaging の ID ゆれ対策）', () => {
+Deno.test('候補: 表示名しか一致しない場合は指定 ID のみ使う', () => {
   const ids = buildRecipientCandidates({
     requestedUserId: REQUESTED,
     customer: { line_user_id: null, display_name: 'たろ' },
-    logsByName: [{ line_user_id: 'U-messaging' }],
   })
-  assertEquals(ids, [REQUESTED, 'U-messaging'])
+  assertEquals(ids, [REQUESTED])
 })
 
-Deno.test('候補: 同名の顧客が他にいるときは名前一致の ID を使わない（誤送信を防ぐ）', () => {
+Deno.test('候補: 名前による代替 ID を使わない', () => {
   const ids = buildRecipientCandidates({
     requestedUserId: REQUESTED,
     customer: { line_user_id: 'U-customer', display_name: 'たろ' },
-    logsByName: [{ line_user_id: 'U-another-person' }],
-    nameIsAmbiguous: true,
   })
   assertEquals(ids, [REQUESTED, 'U-customer'])
 })
@@ -71,9 +67,8 @@ Deno.test('候補: 空や空白だけの ID は候補にしない', () => {
   const ids = buildRecipientCandidates({
     requestedUserId: REQUESTED,
     customer: { line_user_id: '   ' },
-    logsByName: [{ line_user_id: null }, { line_user_id: '' }, { line_user_id: ' U-ok ' }],
   })
-  assertEquals(ids, [REQUESTED, 'U-ok'])
+  assertEquals(ids, [REQUESTED])
 })
 
 Deno.test('候補: 顧客レコードが無くても指定 ID だけで送れる', () => {
@@ -84,9 +79,8 @@ Deno.test('候補: 順序を保つ（先に成功した宛先に送るため）'
   const ids = buildRecipientCandidates({
     requestedUserId: REQUESTED,
     customer: { line_user_id: 'U-customer' },
-    logsByName: [{ line_user_id: 'U-log-1' }, { line_user_id: 'U-log-2' }],
   })
-  assertEquals(ids, [REQUESTED, 'U-customer', 'U-log-1', 'U-log-2'])
+  assertEquals(ids, [REQUESTED, 'U-customer'])
 })
 
 Deno.test('buildRecipientCandidates: 紐付いた Bot 側の ID を最優先にする', () => {

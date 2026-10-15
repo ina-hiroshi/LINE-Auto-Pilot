@@ -394,15 +394,14 @@ Deno.serve(async (req: Request) => {
             .eq('line_user_id', userId)
             .maybeSingle()
           customer = byLineUser
-          if (!customer && displayName) {
-            // 同名が複数いる場合 maybeSingle は null を返すので、別人には紐づかない
-            const { data: byLineName } = await supabase
+          if (!customer) {
+            const { data: byMessagingUser } = await supabase
               .from('customers')
               .select('real_name, display_name')
               .eq('store_id', storeId)
-              .eq('display_name', displayName)
+              .eq('line_messaging_user_id', userId)
               .maybeSingle()
-            customer = byLineName
+            customer = byMessagingUser
           }
           const logDisplayName =
             customer?.real_name?.trim() ||

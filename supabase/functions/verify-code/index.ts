@@ -1,18 +1,9 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getCorsHeaders } from '../_shared/cors.ts'
-import { decideVerification } from '../_shared/verification-code-guard.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-
-/**
- * 6桁コード(約90万通り)は、試行回数を制限しないと有効期限の15分間
- * 総当たりで突破されうる。突破されると他人のメールアドレスで
- * signUp が走ってしまう（新規登録の先取り）。
- * この回数を超えたら、正しいコードが後から来ても弾き再送信を要求する。
- */
-const MAX_ATTEMPTS = 5
 
 interface RequestBody {
   email: string
@@ -28,9 +19,11 @@ serve(async (req) => {
   }
 
   try {
-    const { email, code, password }: RequestBody = await req.json()
+    const body: RequestBody = await req.json()
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+    const { code, password } = body
 
-    if (!email || !code || !password) {
+    if (!email || typeof code !== 'string' || !/^[0-9]{6}$/.test(code) || typeof password !== 'string' || !password) {
       return new Response(
         JSON.stringify({ error: 'メールアドレスと認証コードとパスワードが必要です' }),
         { 
@@ -54,74 +47,18 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-    // このメールアドレス宛の、有効期限内・未検証の最新コードを引く
-    // （code では絞らない。誤答でも attempts を記録するため）。
-    const { data: pending, error: fetchError } = await supabase
-      .from('verification_codes')
-      .select('*')
-      .eq('email', email)
-      .eq('verified', false)
-      .gte('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (fetchError) {
-      console.error('Database error:', fetchError)
-      throw new Error('認証コードの検証に失敗しました')
-    }
-
-    const invalidResponse = () =>
-      new Response(
-        JSON.stringify({
-          error: '認証コードが無効か、有効期限が切れています',
-          valid: false,
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        },
-      )
-
-    const decision = decideVerification(pending, code, MAX_ATTEMPTS)
-
-    if (decision.outcome === 'not_found') {
-      return invalidResponse()
-    }
-
-    if (decision.outcome === 'locked') {
-      return new Response(
-        JSON.stringify({
-          error: '試行回数が上限に達しました。認証コードを再送信してください。',
-          valid: false,
-        }),
-        {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        },
-      )
-    }
-
-    if (decision.outcome === 'wrong') {
-      const { error: attemptError } = await supabase
-        .from('verification_codes')
-        .update({ attempts: decision.nextAttempts })
-        .eq('id', pending!.id)
-      if (attemptError) {
-        console.error('Attempt count update error:', attemptError)
-      }
-      return invalidResponse()
-    }
-
-    // 認証コードを検証済みに更新
-    const { error: updateError } = await supabase
-      .from('verification_codes')
-      .update({ verified: true })
-      .eq('id', decision.id)
-
-    if (updateError) {
-      console.error('Update error:', updateError)
-      throw new Error('認証コードの更新に失敗しました')
+    const requestIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || req.headers.get('x-real-ip') || 'unknown'
+    const { data: outcome, error: verificationError } = await supabase.rpc('consume_verification_code', {
+      p_email: email, p_code: code, p_ip: requestIp,
+    })
+    if (verificationError) throw new Error('認証コードの検証に失敗しました')
+    if (outcome !== 'success') {
+      return new Response(JSON.stringify({
+        error: outcome === 'locked' ? '試行回数が上限に達しました。しばらくしてから再度お試しください。' : '認証コードが無効か、有効期限が切れています',
+        valid: false,
+      }), { status: outcome === 'locked' ? 429 : 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     // アカウント作成はここでのみ行う。従来はコード検証後にフロントが
@@ -145,8 +82,7 @@ serve(async (req) => {
     })
 
     if (createUserError) {
-      // send-verification-code 側の checkExisting で通常は弾かれているが、
-      // 複数タブでの同時登録などの競合で既に作成済みの場合はここに来うる。
+      // 登録済みのメールにもコードを送り、所有を確認してからここへ進む。
       // その場合はエラーにせず「既存アカウントとして扱う」ことでフロントの
       // signInWithPassword にそのまま繋げる。
       if (!createUserError.message?.includes('already been registered')) {

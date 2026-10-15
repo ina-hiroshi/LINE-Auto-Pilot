@@ -1,3 +1,5 @@
+import { UNTRUSTED_DATA_INSTRUCTION } from './ai-untrusted.ts'
+import { requiresHumanReview, validateSocialReply } from './social-reply-policy.ts'
 import { getGeminiUrl } from './ai-config.ts'
 import {
   buildSocialReplyPrompt,
@@ -17,14 +19,16 @@ export async function generateSocialReply(
   input: SocialReplyPromptInput,
   options: { timeoutMs?: number; temperature?: number } = {},
 ): Promise<SocialReplyResult> {
+  if (requiresHumanReview(input)) return { draft: null, needsHuman: true }
   const prompt = buildSocialReplyPrompt(input)
 
   const response = await fetch(getGeminiUrl(apiKey), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      systemInstruction: { parts: [{ text: UNTRUSTED_DATA_INSTRUCTION }] },
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 600, temperature: options.temperature ?? 0.4 },
+      generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 600, temperature: options.temperature ?? 0.4 },
     }),
     signal: AbortSignal.timeout(options.timeoutMs ?? 20_000),
   })
@@ -36,6 +40,6 @@ export async function generateSocialReply(
   const data = await response.json()
   const aiText: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
   const result = parseSocialReplyResult(aiText)
-  if (!result) throw new Error(`AI 応答を解釈できませんでした: ${aiText.slice(0, 200)}`)
-  return result
+  if (!result) throw new Error('AI 応答を解釈できませんでした')
+  return validateSocialReply(result, input)
 }

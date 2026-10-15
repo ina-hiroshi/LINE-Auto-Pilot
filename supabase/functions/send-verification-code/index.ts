@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { generateVerificationCode } from '../_shared/verification-code.ts'
 import { getCorsHeaders } from '../_shared/cors.ts'
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
@@ -8,7 +9,6 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 interface RequestBody {
   email: string
-  checkExisting?: boolean
 }
 
 serve(async (req) => {
@@ -19,7 +19,8 @@ serve(async (req) => {
   }
 
   try {
-    const { email, checkExisting = true }: RequestBody = await req.json()
+    const body: RequestBody = await req.json()
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
 
     if (!email || !email.includes('@')) {
       return new Response(
@@ -39,37 +40,20 @@ serve(async (req) => {
       }
     })
 
-    // 既存ユーザーのチェック
-    if (checkExisting) {
-      const { data: existingUsers } = await supabase.auth.admin.listUsers()
-      const existingUser = existingUsers?.users?.find(u => u.email === email)
-      
-      if (existingUser) {
-        return new Response(
-          JSON.stringify({ 
-            error: 'このメールアドレスは既に登録されています。ログインしてください。',
-            existingUser: true
-          }),
-          { 
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        )
-      }
-    }
-
     // このエンドポイントは未認証で誰でも呼べる。連投を防がないと、
     // 任意の第三者のメールアドレスに対して認証コードメール（＝スパム）を
     // 無制限に送りつけられてしまう（フロントの60秒クールダウンは表示上の
     // ものでしかなく、直接APIを叩けば素通りする）。直近の送信から60秒
     // 経っていなければ送信自体を拒否する。
-    const { data: recentCode } = await supabase
+    const { data: recentCode, error: recentError } = await supabase
       .from('verification_codes')
       .select('created_at')
       .eq('email', email)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
+
+    if (recentError) throw new Error('送信制限の確認に失敗しました')
 
     if (recentCode && Date.now() - new Date(recentCode.created_at).getTime() < 60 * 1000) {
       return new Response(
@@ -88,11 +72,13 @@ serve(async (req) => {
     const requestIp = forwardedFor?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown'
 
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
-    const { count: recentIpCount } = await supabase
+    const { count: recentIpCount, error: ipError } = await supabase
       .from('verification_codes')
       .select('id', { count: 'exact', head: true })
       .eq('request_ip', requestIp)
       .gte('created_at', tenMinutesAgo)
+
+    if (ipError) throw new Error('送信制限の確認に失敗しました')
 
     const IP_RATE_LIMIT = 5
     if (requestIp !== 'unknown' && recentIpCount !== null && recentIpCount >= IP_RATE_LIMIT) {
@@ -107,7 +93,7 @@ serve(async (req) => {
     }
 
     // 6桁の認証コード生成
-    const code = Math.floor(100000 + Math.random() * 900000).toString()
+    const code = generateVerificationCode()
 
     // 有効期限は15分後
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()

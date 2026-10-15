@@ -28,8 +28,8 @@ Deno.test('buildSocialReplyPrompt: inbound/outbound を話者名で並べる', (
       { direction: 'outbound', text: '10時から19時です' },
     ],
   })
-  assertStringIncludes(prompt, 'たろう: 営業時間を教えてください')
-  assertStringIncludes(prompt, '伊奈サロン: 10時から19時です')
+  assertStringIncludes(prompt, '\"sender\":\"たろう\",\"text\":\"営業時間を教えてください\"')
+  assertStringIncludes(prompt, '\"sender\":\"伊奈サロン\",\"text\":\"10時から19時です\"')
 })
 
 Deno.test('buildSocialReplyPrompt: 本文が空のメッセージは履歴に出さない', () => {

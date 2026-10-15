@@ -1,3 +1,4 @@
+import { validateStripeReturnUrl } from '../_shared/stripe-return-url.ts'
 // Using Deno.serve instead of @std/http/server
 import { createClient } from '@supabase/supabase-js'
 import { stripe } from '../_shared/stripe-client.ts'
@@ -36,6 +37,8 @@ Deno.serve(async (req: Request) => {
     }
 
     const { return_url } = await req.json()
+
+    const returnUrl = validateStripeReturnUrl(return_url)
 
     const { data: profile } = await supabaseClient
       .from('profiles')
@@ -85,7 +88,7 @@ Deno.serve(async (req: Request) => {
 
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: return_url,
+      return_url: returnUrl,
     })
 
     return new Response(

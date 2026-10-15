@@ -1,3 +1,5 @@
+import { escapeHtml } from '../_shared/email-html.ts'
+import { canOwnerSendSetupEmail, isSingleEmail, normalizeBasicId } from '../_shared/setup-email-policy.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { isAdminUser } from '../_shared/admin-check.ts'
@@ -55,7 +57,7 @@ Deno.serve(async (req) => {
   try {
     const { order_id, email_type }: RequestBody = await req.json()
 
-    if (!order_id || !email_type) {
+    if (typeof order_id !== 'string' || !order_id || !['payment_confirmation', 'completion'].includes(email_type)) {
       return new Response(
         JSON.stringify({ error: 'order_idとemail_typeが必要です' }),
         { 
@@ -113,8 +115,8 @@ Deno.serve(async (req) => {
       // esm.sh 指定で作っている。実体は同じクライアントだが、モジュール指定子が
       // 違うと TS 上は別型になるため橋渡しする。
       const anonClientForAdminCheck = anonClient as unknown as Parameters<typeof isAdminUser>[0]
-      const isAdmin = isOwner ? false : await isAdminUser(anonClientForAdminCheck, user.id, user.email)
-      if (!isOwner && !isAdmin) {
+      const isAdmin = await isAdminUser(anonClientForAdminCheck, user.id, user.email)
+      if (!isAdmin && (!isOwner || !canOwnerSendSetupEmail(order, email_type))) {
         return new Response(
           JSON.stringify({ error: 'Forbidden' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -123,9 +125,11 @@ Deno.serve(async (req) => {
     }
 
     const email = order.contact_email
-    if (!email) {
+    if (!isSingleEmail(email)) {
       throw new Error('メールアドレスが設定されていません')
     }
+
+    const basicId = normalizeBasicId(order.line_account_basic_id)
 
     // 冪等性: 既に送信済みなら再送しない。
     // completion メールは「作業が終わったのでスタッフのLINE権限を削除してください」と
@@ -164,8 +168,8 @@ Deno.serve(async (req) => {
       
       if (order.has_line_account) {
         // パターンA: LINE公式アカウントを持っている場合
-        const basicIdText = order.line_account_basic_id 
-          ? `Basic ID: @${order.line_account_basic_id}`
+        const basicIdText = basicId
+          ? `Basic ID: @${escapeHtml(basicId)}`
           : ''
         
         html = `

@@ -1,3 +1,5 @@
+import { boundedText, untrustedJson, UNTRUSTED_DATA_INSTRUCTION } from './ai-untrusted.ts'
+
 /**
  * DM への返信文を作るプロンプト。2つの用途で使う。
  *
@@ -47,15 +49,14 @@ export const SOCIAL_REPLY_MAX_CHARS = 200
 export function buildSocialReplyPrompt(input: SocialReplyPromptInput): string {
   const storeName = input.storeName?.trim() || '当店'
   const platformLabel = PLATFORM_LABEL[input.platform]
-  const displayName = input.displayName?.trim() || '相手'
+  const displayName = boundedText(input.displayName, 100) || '相手'
   const knowledge = input.knowledgeText?.trim() || ''
   const mode = input.mode ?? 'draft'
 
   const history = input.recentMessages
     .slice(-SOCIAL_REPLY_HISTORY_MAX_MESSAGES)
     .filter((m) => m.text && m.text.trim().length > 0)
-    .map((m) => `${m.direction === 'inbound' ? displayName : storeName}: ${m.text}`)
-    .join('\n')
+    .map((m) => ({ direction: m.direction, sender: m.direction === 'inbound' ? displayName : boundedText(storeName, 100), text: boundedText(m.text, 2000) }))
 
   const tone = input.tone === 'friendly' ? 'フレンドリーで親しみやすい口調' : '丁寧でフォーマルな口調'
 
@@ -65,10 +66,11 @@ export function buildSocialReplyPrompt(input: SocialReplyPromptInput): string {
       : `あなたは「${storeName}」のスタッフとして、${platformLabel} の DM に返信する下書きを1件だけ作成します。`,
     '',
     '# 店舗情報',
-    knowledge || '（登録されていません）',
+    knowledge ? untrustedJson({ storeKnowledge: boundedText(knowledge, 20000) }) : '（登録されていません）',
     '',
     '# これまでのやり取り（古い→新しい）',
-    history || '（まだやり取りはありません）',
+    UNTRUSTED_DATA_INSTRUCTION,
+    history.length ? untrustedJson({ conversation: history }) : '（まだやり取りはありません）',
     '',
     '# 守ること',
     '- 直前の相手のメッセージに対して、次の1通として自然に返す内容にする。',
@@ -116,8 +118,10 @@ export function parseSocialReplyResult(aiResponse: string): SocialReplyResult | 
   const jsonText = (fenced ? fenced[1] : aiResponse).trim()
 
   try {
+    if (jsonText.length > 10000) return null
     const parsed = JSON.parse(jsonText)
-    const raw = typeof parsed === 'string' ? parsed : parsed?.draft
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || typeof parsed.draft !== 'string' || typeof parsed.needsHuman !== 'boolean') return null
+    const raw = parsed.draft
     const trimmed = typeof raw === 'string' ? raw.trim() : ''
     const needsHuman = typeof parsed === 'object' && parsed !== null && parsed.needsHuman === true
     if (!trimmed && !needsHuman) return null
@@ -129,5 +133,11 @@ export function parseSocialReplyResult(aiResponse: string): SocialReplyResult | 
 
 /** 下書き用途の互換ラッパー。本文が無ければ null。 */
 export function parseSocialReplyDraft(aiResponse: string): string | null {
-  return parseSocialReplyResult(aiResponse)?.draft ?? null
+  const result = parseSocialReplyResult(aiResponse)
+  if (result) return result.draft ? Array.from(result.draft).slice(0, SOCIAL_REPLY_MAX_CHARS).join('') : null
+  try {
+    const fenced = aiResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+    const parsed = JSON.parse((fenced ? fenced[1] : aiResponse).trim())
+    return typeof parsed?.draft === 'string' && parsed.draft.trim() ? Array.from(parsed.draft.trim()).slice(0, SOCIAL_REPLY_MAX_CHARS).join('') : null
+  } catch { return null }
 }

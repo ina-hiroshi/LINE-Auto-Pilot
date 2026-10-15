@@ -122,44 +122,30 @@ Deno.serve(async (req: Request) => {
 
       logLabel = resolveLogLabel(customerRow, displayName)
 
-      let logsByName: { line_user_id?: string | null }[] | null = null
-      let nameIsAmbiguous = false
-
-      if (logLabel) {
-        // 同名の顧客が他にもいるなら、名前一致で拾った ID は別人のものかもしれない。
-        // その場合は候補に入れず、指定された ID と顧客レコードの ID だけを使う。
-        // .or() に名前をそのまま埋めると、カンマや括弧を含む名前でフィルタが壊れる。
-        // 列ごとに .eq() で引いて突き合わせる。
-        const [byDisplay, byReal] = await Promise.all([
-          supabaseAdmin.from('customers').select('id').eq('store_id', storeId)
-            .eq('display_name', logLabel).limit(3),
-          supabaseAdmin.from('customers').select('id').eq('store_id', storeId)
-            .eq('real_name', logLabel).limit(3),
-        ])
-        const sameNameIds = new Set<string>()
-        for (const row of [...(byDisplay.data ?? []), ...(byReal.data ?? [])]) {
-          sameNameIds.add(row.id)
-        }
-        nameIsAmbiguous = sameNameIds.size > 1
-
-        if (!nameIsAmbiguous) {
-          const { data } = await supabaseAdmin
-            .from('customer_logs')
-            .select('line_user_id')
-            .eq('store_id', storeId)
-            .eq('display_name', logLabel)
-            .order('created_at', { ascending: false })
-            .limit(10)
-          logsByName = data
-        }
+      if (!customerRow) {
+        throw new ClientVisibleError('顧客が見つかりません', 404)
       }
+      if (![customerRow.line_user_id, customerRow.line_messaging_user_id].includes(userId)) {
+        throw new ClientVisibleError('顧客に紐付いていない送信先です', 400)
+      }
+      candidateIds = buildRecipientCandidates({ requestedUserId: userId, customer: customerRow })
+    }
 
-      candidateIds = buildRecipientCandidates({
-        requestedUserId: userId,
-        customer: customerRow,
-        logsByName,
-        nameIsAmbiguous,
-      })
+    // 受信ログへの返信は、そのログの送信者にだけ送る。
+    if (replyToLogId) {
+      const { data: replyLog, error: replyLogError } = await supabaseAdmin
+        .from('customer_logs')
+        .select('line_user_id')
+        .eq('id', replyToLogId)
+        .eq('store_id', storeId)
+        .maybeSingle()
+      if (replyLogError || !replyLog?.line_user_id) {
+        throw new ClientVisibleError('返信先のログが見つかりません', 404)
+      }
+      if (!candidateIds.includes(replyLog.line_user_id)) {
+        throw new ClientVisibleError('返信先が送信対象と一致しません', 400)
+      }
+      candidateIds = [replyLog.line_user_id]
     }
 
     let lastLineError = ''

@@ -1,3 +1,4 @@
+import { escapeHtml } from '../_shared/email-html.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getCorsHeaders } from '../_shared/cors.ts'
 
@@ -25,16 +26,6 @@ const COURSE_LABELS: Record<string, string> = {
 
 const BENEFIT_LABEL = '初期設定代行（¥9,980）が無料'
 
-/** メール本文に埋め込む申込者入力をエスケープする（HTML インジェクション防止） */
-function escapeHtml(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '—'
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
 
 async function sendEmail(
   from: string,

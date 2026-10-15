@@ -15,7 +15,6 @@ import { handleGetBookingResources } from './handlers/resources.ts'
 import { handleGetStorePublicInfo } from './handlers/store-info.ts'
 import { handleCheckCustomer, handleGetActiveReservation } from './handlers/customer.ts'
 import { handleHoldSlot, handleReleaseHold } from './handlers/hold.ts'
-import { isValidUUID } from './handlers/utils.ts'
 import {
   handleCreateReservation,
   handleCancelReservation,
@@ -58,8 +57,6 @@ Deno.serve(async (req: Request) => {
       is_manual
     } = await req.json()
 
-    let line_user_id = requestLineUserId
-
     console.log('[Booking] Request:', { action, store_id, date, time })
 
     let verifiedUserId: string | null = null
@@ -95,7 +92,6 @@ Deno.serve(async (req: Request) => {
         try {
           const profile = await verifyLineToken(accessToken as string)
           verifiedUserId = profile.userId
-          line_user_id = verifiedUserId
           log.info('LINE access token verified', { userId: verifiedUserId })
         } catch (e) {
           loginCredentialRejected = true
@@ -132,7 +128,6 @@ Deno.serve(async (req: Request) => {
         try {
           const profile = await verifyLineIdToken(idToken as string, clientIdForIdTokenVerify)
           verifiedUserId = profile.userId
-          line_user_id = verifiedUserId
           loginCredentialRejected = false
           log.info('LINE ID token verified', { userId: verifiedUserId })
         } catch (e) {
@@ -145,37 +140,8 @@ Deno.serve(async (req: Request) => {
     const publicActions = ['get_available_slots', 'get_booking_resources', 'get_store_public_info']
     const sensitiveActions = ['create_reservation', 'cancel_reservation', 'update_reservation', 'complete_payment', 'hold_slot', 'release_hold', 'check_customer', 'get_active_reservation']
 
-    /** 予約変更時: reservation_id が有効なら空き枠・仮押さえは予約所有者として処理 */
-    let modifyReservationFlow = false
-    if (
-      reservation_id &&
-      isValidUUID(reservation_id) &&
-      (action === 'get_available_slots' || action === 'hold_slot')
-    ) {
-      const { data: modifyTarget } = await supabaseClient
-        .from('reservations')
-        .select('line_user_id, store_id, status')
-        .eq('id', reservation_id)
-        .maybeSingle()
-
-      if (!modifyTarget || modifyTarget.store_id !== store_id || modifyTarget.status === 'cancelled') {
-        throw new ClientVisibleError('変更対象の予約が見つかりません', 404)
-      }
-
-      // 予約IDを知っているだけでは仮押さえさせない。
-      // 以前は店舗の一致だけを見て LINE ログイン必須の判定を通していたため、
-      // 予約IDさえ分かれば無認証で枠を押さえられる状態だった。
-      const isReservationOwner =
-        verifiedUserId !== null && verifiedUserId === modifyTarget.line_user_id
-
-      // 空き枠の照会はもともと公開の操作なので、変更対象の除外だけを有効にする。
-      // 仮押さえは本人が確認できたときに限る。
-      modifyReservationFlow = action === 'get_available_slots' || isReservationOwner
-      line_user_id = verifiedUserId ?? requestLineUserId ?? modifyTarget.line_user_id
-    }
-
     if (!publicActions.includes(action) && sensitiveActions.includes(action)) {
-      if (!verifiedUserId && !isManualRegistration && !modifyReservationFlow) {
+      if (!verifiedUserId && !isManualRegistration) {
         if (loginCredentialRejected) {
           throw new ClientVisibleError(
             'LINE の認証が期限切れか無効です。再度お試しください。',
@@ -190,7 +156,9 @@ Deno.serve(async (req: Request) => {
 
     const params = {
       store_id,
-      line_user_id,
+      line_user_id: isManualRegistration ? requestLineUserId : verifiedUserId ?? undefined,
+      verifiedUserId,
+      isManualRegistration,
       date,
       time,
       reservation_id,
@@ -224,7 +192,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'get_available_slots') {
-      return await handleGetAvailableSlots(supabaseClient, { ...params, line_user_id }, corsHeaders)
+      return await handleGetAvailableSlots(supabaseClient, params, corsHeaders)
     }
 
     if (action === 'get_active_reservation') {

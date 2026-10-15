@@ -5,6 +5,7 @@
  * - 送信: 店舗が送る画像の URL が、その店舗の送信用フォルダのものかを確かめる
  */
 import type { SupabaseClientType } from './types.ts'
+import { safeFetch, readBoundedBody } from './safe-fetch.ts'
 
 export const RECEIVED_IMAGES_BUCKET = 'line-received-images'
 export const SENT_IMAGES_BUCKET = 'line-sent-images'
@@ -17,7 +18,7 @@ export function receivedImageRetentionCutoff(now: Date, days = RECEIVED_IMAGE_RE
   return new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
 }
 
-/** バケットの file_size_limit と同じ。LINE の originalContentUrl の上限も 10MB */
+/** バケットの file_size_limit と同じ。LINE 外部画像の仕様も最大10MB。 */
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 const EXTENSION_BY_TYPE: Record<string, string> = {
@@ -63,24 +64,30 @@ export async function saveReceivedImage(
     const external = message.contentProvider?.type === 'external'
       ? message.contentProvider.originalContentUrl
       : undefined
+    if (message.contentProvider?.type === 'external' && !external) return null
+    const imageSignal = AbortSignal.timeout(15000)
     const response = external
-      ? await fetch(external)
+      ? await safeFetch(external, undefined, 5, { maxBytes: MAX_IMAGE_BYTES, timeoutMs: 15000 })
       : await fetch(`https://api-data.line.me/v2/bot/message/${encodeURIComponent(messageId)}/content`, {
         headers: { Authorization: `Bearer ${channelAccessToken}` },
+        redirect: 'error',
+        signal: imageSignal,
       })
 
     if (!response.ok) {
+      await response.body?.cancel()
       console.error('Failed to fetch LINE image:', response.status)
       return null
     }
 
     const extension = imageExtensionFor(response.headers.get('Content-Type'))
     if (!extension) {
+      await response.body?.cancel()
       console.error('Unsupported LINE image type:', response.headers.get('Content-Type'))
       return null
     }
 
-    const body = new Uint8Array(await response.arrayBuffer())
+    const body = await readBoundedBody(response, MAX_IMAGE_BYTES, imageSignal)
     if (body.byteLength === 0 || body.byteLength > MAX_IMAGE_BYTES) {
       console.error('LINE image size out of range:', body.byteLength)
       return null

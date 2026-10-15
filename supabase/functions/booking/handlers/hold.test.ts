@@ -76,6 +76,7 @@ const hold = (fake: ReturnType<typeof setup>, params: Record<string, unknown>) =
   handleHoldSlot(fake.client, {
     store_id: STORE,
     line_user_id: USER,
+    verifiedUserId: USER,
     date: futureDate(),
     time: '11:00',
     ...params,
