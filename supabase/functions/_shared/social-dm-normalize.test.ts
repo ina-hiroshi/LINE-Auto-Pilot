@@ -5,11 +5,42 @@ import {
   extractOtherParticipant,
   latestInboundOccurredAt,
   latestOccurredAt,
+  shouldSkipConversation,
   type GraphConversation,
   type GraphMessage,
 } from './social-dm-normalize.ts'
 
 const ACCOUNT_REF = '17841479980730727'
+
+Deno.test('shouldSkipConversation: 更新時刻が余裕より古い会話は飛ばす', () => {
+  assertEquals(shouldSkipConversation('2026-10-17T00:00:00Z', '2026-10-17T00:05:00Z'), true)
+})
+
+Deno.test('shouldSkipConversation: 余裕の範囲内・境界・新しい更新は飛ばさない', () => {
+  for (const updated of ['00:04:30', '00:04:00', '00:06:00']) {
+    assertEquals(shouldSkipConversation(`2026-10-17T${updated}Z`, '2026-10-17T00:05:00Z'), false)
+  }
+  assertEquals(shouldSkipConversation('2026-10-17T00:00:00Z', '2026-10-17T00:05:00Z', 300_000), false)
+})
+
+Deno.test('shouldSkipConversation: 更新時刻がなければ処理する', () => {
+  assertEquals(shouldSkipConversation(undefined, '2026-10-17T00:05:00Z'), false)
+})
+
+Deno.test('shouldSkipConversation: 新規会話は処理する', () => {
+  assertEquals(shouldSkipConversation('2026-10-17T00:00:00Z', undefined), false)
+  assertEquals(shouldSkipConversation('2026-10-17T00:00:00Z', null), false)
+})
+
+Deno.test('shouldSkipConversation: 解析できない時刻なら処理する', () => {
+  assertEquals(shouldSkipConversation('invalid', '2026-10-17T00:05:00Z'), false)
+  assertEquals(shouldSkipConversation('2026-10-17T00:00:00Z', 'invalid'), false)
+})
+
+Deno.test('shouldSkipConversation: +0000 と +00:00 を実時刻で比較する', () => {
+  assertEquals(shouldSkipConversation('2026-10-17T00:00:00+0000', '2026-10-17T00:05:00+00:00'), true)
+  assertEquals(shouldSkipConversation('2026-10-17T00:05:00+0000', '2026-10-17T00:05:00+00:00'), false)
+})
 
 Deno.test('extractOtherParticipant: 自社アカウント以外の参加者を返す', () => {
   const conv: GraphConversation = {

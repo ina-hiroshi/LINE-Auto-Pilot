@@ -10,6 +10,21 @@
  * （ad-name-parser と同じ「捨てずにバケットへ」方針）。
  */
 
+// Meta とこちらの時計のずれに備えて1分の余裕を取る。
+// cron は5分間隔なので、この余裕があってもほとんどの会話は飛ばせる。
+export const POLL_SKIP_MARGIN_MS = 60_000
+
+export function shouldSkipConversation(
+  updatedTime: string | undefined,
+  lastPolledAt: string | null | undefined,
+  marginMs = POLL_SKIP_MARGIN_MS,
+): boolean {
+  if (!updatedTime || !lastPolledAt) return false
+  const updatedAt = Date.parse(updatedTime)
+  const polledAt = Date.parse(lastPolledAt)
+  return Number.isFinite(updatedAt) && Number.isFinite(polledAt) && updatedAt < polledAt - marginMs
+}
+
 export type GraphParticipant = {
   id?: string
   username?: string

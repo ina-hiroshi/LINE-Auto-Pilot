@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { requireAdmin } from '../_shared/admin-access.ts'
 import { getToken } from '../_shared/meta-tokens.ts'
-import { classifyMessages, extractOtherParticipant, latestInboundOccurredAt, latestOccurredAt, type GraphConversation } from '../_shared/social-dm-normalize.ts'
+import { classifyMessages, extractOtherParticipant, latestInboundOccurredAt, latestOccurredAt, shouldSkipConversation, type GraphConversation } from '../_shared/social-dm-normalize.ts'
 import { pickNewestInbound } from '../_shared/social-auto-reply-eval.ts'
 import { selectAutoResponse, type ScorableRule } from '../_shared/auto-response.ts'
 import { loadStoreKnowledge, type StoreKnowledge } from '../_shared/store-knowledge.ts'
@@ -37,6 +37,7 @@ type ConversationsPage = {
 
 /**
  * IG/FB それぞれの会話一覧を1回分ポーリングし、正規化して DB に upsert する。
+ * 前回の取得時刻より十分古く、変化のない会話は書き込みを飛ばす。
  *
  * webhook が無い間の最初の受信経路。webhook 導入後もテーブル構造とここで作る
  * 正規化ロジック（_shared/social-dm-normalize.ts）はそのまま使い回す想定。
@@ -82,14 +83,31 @@ async function pollPlatform(
 
   while (cursor && pages < 5) {
     pages += 1
+    const pageFetchedAt = new Date().toISOString()
     const res: Response = await fetch(cursor)
     const body: ConversationsPage = await res.json()
     if (body.error) {
       throw new Error(`Graph API error (${platform}): ${JSON.stringify(body.error)}`)
     }
 
+    const ids = (body.data ?? []).flatMap((conv) => conv.id ? [conv.id] : [])
+    const lastPolledAtById = new Map<string, string | null>()
+    if (ids.length > 0) {
+      const { data: conversations, error: lookupError } = await admin
+        .from('social_conversations')
+        .select('external_conversation_id, last_polled_at')
+        .eq('platform', platform)
+        .eq('account_ref', accountRef)
+        .in('external_conversation_id', ids)
+      if (lookupError) throw lookupError
+      for (const conversation of conversations ?? []) {
+        lastPolledAtById.set(conversation.external_conversation_id, conversation.last_polled_at)
+      }
+    }
+
     for (const conv of body.data ?? []) {
       if (!conv.id) continue
+      if (shouldSkipConversation(conv.updated_time, lastPolledAtById.get(conv.id))) continue
       const other = extractOtherParticipant(conv, accountRef)
       if (!other?.id) continue // グループ DM 等、1:1 に正規化できないものは対象外
 
@@ -117,7 +135,6 @@ async function pollPlatform(
             account_ref: accountRef,
             external_conversation_id: conv.id,
             identity_id: identity.id,
-            last_polled_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'platform,account_ref,external_conversation_id' },
@@ -257,6 +274,11 @@ async function pollPlatform(
           }
         }
       }
+      const { error: polledError } = await admin
+        .from('social_conversations')
+        .update({ last_polled_at: pageFetchedAt })
+        .eq('id', conversation.id)
+      if (polledError) throw polledError
     }
 
     cursor = body.paging?.next ?? null
