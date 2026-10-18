@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { createSupabaseMock, type QueryHandler, type SupabaseMock } from '../test/supabaseMock'
 
 let mock: SupabaseMock
@@ -60,6 +60,44 @@ const renderProbe = () =>
 const value = (id: string) => screen.getByTestId(id).textContent
 
 describe('useUserFeatures', () => {
+  describe('認証通知', () => {
+    it.each(['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED'] as const)(
+      '%s では同じユーザーの機能フラグを再取得しない',
+      async (event) => {
+        setup()
+        renderProbe()
+        await waitFor(() => expect(value('email')).toBe('owner@example.com'))
+
+        await act(async () => {
+          mock.emitAuthStateChange(event, { user: { id: 'u1', email: 'owner@example.com' } })
+        })
+
+        expect(mock.supabase.auth.getUser).toHaveBeenCalledTimes(1)
+        expect(mock.findOps('profiles', 'select')).toHaveLength(1)
+        expect(mock.findOps('user_features', 'select')).toHaveLength(1)
+      },
+    )
+
+    it('別ユーザーの SIGNED_IN では機能フラグを読み込み直す', async () => {
+      setup()
+      renderProbe()
+      await waitFor(() => expect(value('email')).toBe('owner@example.com'))
+
+      const user = { id: 'u2', email: 'other@example.com' }
+      mock.supabase.auth.getUser.mockResolvedValue({ data: { user }, error: null })
+      await act(async () => {
+        mock.emitAuthStateChange('SIGNED_IN', { user })
+      })
+
+      await waitFor(() => expect(value('email')).toBe(user.email))
+      expect(mock.supabase.auth.getUser).toHaveBeenCalledTimes(2)
+      expect(mock.findOps('profiles', 'select')).toHaveLength(2)
+      expect(mock.findOps('user_features', 'select')).toHaveLength(2)
+      expect(mock.filterValue(mock.findOps('profiles')[1], 'id')).toBe(user.id)
+      expect(mock.filterValue(mock.findOps('user_features')[1], 'user_id')).toBe(user.id)
+    })
+  })
+
   describe('管理者判定', () => {
     it('profiles.is_admin が true なら管理者', async () => {
       setup({ isAdmin: true })

@@ -5,7 +5,7 @@
  * ADMIN_EMAILS はフォールバックとして残す。
  */
 
-import { useState, useEffect, createContext, useContext } from 'react'
+import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import type { ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { markOwnBrowser } from '../lib/sitePageViews'
@@ -47,6 +47,7 @@ interface UserFeaturesProviderProps {
 }
 
 export function UserFeaturesProvider({ children }: UserFeaturesProviderProps) {
+  const loadedUserId = useRef<string | null>(null)
   const [state, setState] = useState<Omit<UserFeatures, 'hasFeature'>>({
     isLoading: true,
     isAdmin: false,
@@ -63,6 +64,7 @@ export function UserFeaturesProvider({ children }: UserFeaturesProviderProps) {
         
         if (!user) {
           setState(prev => ({ ...prev, isLoading: false }))
+          loadedUserId.current = null
           return
         }
 
@@ -116,6 +118,7 @@ export function UserFeaturesProvider({ children }: UserFeaturesProviderProps) {
           features,
           userConfig: {}
         })
+        loadedUserId.current = userId
       } catch (error) {
         console.error('Error loading user features:', error)
         setState(prev => ({ ...prev, isLoading: false }))
@@ -124,7 +127,9 @@ export function UserFeaturesProvider({ children }: UserFeaturesProviderProps) {
 
     loadUserFeatures()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'INITIAL_SESSION') return
+      if (session?.user?.id && session.user.id === loadedUserId.current) return
       loadUserFeatures()
     })
 
