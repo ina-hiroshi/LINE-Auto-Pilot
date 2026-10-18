@@ -4,10 +4,10 @@ import { Upload, User } from 'lucide-react'
 import Modal from '../../../components/Modal'
 import { supabase } from '../../../lib/supabase'
 import { removeOrphanedStoreAssets } from '../../../lib/storageAssets'
+import { resizeImageForUpload } from '../../../lib/resizeImageForUpload'
 import type { Staff } from '../types'
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
-const ALLOWED_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp']
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024
 
 type StaffFormData = Pick<Staff, 'name' | 'role' | 'image_url'>
@@ -70,16 +70,15 @@ export function StaffModal({ isOpen, isLoading, storeId, formData, savedImageUrl
 
     setUploading(true)
     try {
-      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'png'
-      const sanitizedExt = ALLOWED_IMAGE_EXTS.includes(fileExt) ? fileExt : 'png'
-      const filePath = `${storeId}/staff_${Date.now()}.${sanitizedExt}`
+      const result = await resizeImageForUpload(file, 384)
+      const filePath = `${storeId}/staff_${Date.now()}.${result.ext}`
 
       const { data, error } = await supabase.storage
         .from('store-assets')
-        .upload(filePath, file, {
+        .upload(filePath, result.blob, {
           cacheControl: '3600',
           upsert: true,
-          contentType: file.type,
+          contentType: result.contentType,
         })
 
       if (error) {

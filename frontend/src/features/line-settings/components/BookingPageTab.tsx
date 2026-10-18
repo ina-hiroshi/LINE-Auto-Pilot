@@ -10,6 +10,7 @@ import { UnderlineTabs } from '../../../components/UnderlineTabs'
 import ProUpgradeButton from '../../../components/ProUpgradeButton'
 import { supabase } from '../../../lib/supabase'
 import { removeOrphanedStoreAssets } from '../../../lib/storageAssets'
+import { resizeImageForUpload } from '../../../lib/resizeImageForUpload'
 import { LOGO_LAYOUTS, type LogoLayout } from '../../../lib/bookingLogoLayout'
 
 /** ロゴ配置の選択肢に添える、レイアウトの見取り図 */
@@ -146,17 +147,16 @@ export function BookingPageTab({
     setUploading(true)
     try {
       // ファイル名を安全に生成
-      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'png'
-      const sanitizedExt = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt) ? fileExt : 'png'
-      const fileName = `${storeId}/logo_${Date.now()}.${sanitizedExt}`
+      const result = await resizeImageForUpload(file, 800)
+      const fileName = `${storeId}/logo_${Date.now()}.${result.ext}`
 
       // アップロード実行
       const { data, error } = await supabase.storage
         .from('store-assets')
-        .upload(fileName, file, {
+        .upload(fileName, result.blob, {
           cacheControl: '3600',
           upsert: true,
-          contentType: file.type
+          contentType: result.contentType
         })
 
       if (error) {
