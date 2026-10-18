@@ -1,4 +1,5 @@
 import { vi } from 'vitest'
+import type { AuthChangeEvent } from '@supabase/supabase-js'
 
 /**
  * Supabase JS クライアントの最小モック。
@@ -137,6 +138,8 @@ export function createSupabaseMock(options: SupabaseMockOptions) {
 
   const broadcasts: Array<{ topic: string; payload: unknown }> = []
   const subscriptions: ChannelSubscription[] = []
+  type AuthSession = { user: { id: string; email?: string } } | null
+  const authCallbacks = new Set<(event: AuthChangeEvent, session: AuthSession) => void>()
 
   const makeChannel = (topic: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -170,7 +173,10 @@ export function createSupabaseMock(options: SupabaseMockOptions) {
       getSession: vi.fn(async () => ({ data: { session: user ? { user } : null }, error: null })),
       updateUser: vi.fn(async () => ({ data: { user }, error: null })),
       signOut: vi.fn(async () => ({ error: null })),
-      onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
+      onAuthStateChange: vi.fn((callback: (event: AuthChangeEvent, session: AuthSession) => void) => {
+        authCallbacks.add(callback)
+        return { data: { subscription: { unsubscribe: vi.fn(() => { authCallbacks.delete(callback) }) } } }
+      }),
     },
     rpc: vi.fn(async (name: string, args?: unknown) => {
       rpcCalls.push({ name, args })
@@ -218,7 +224,11 @@ export function createSupabaseMock(options: SupabaseMockOptions) {
     }
   }
 
-  return { supabase, ops, invocations, rpcCalls, uploads, signedUrlRequests, broadcasts, subscriptions, emitRealtime, findOps, filterValue }
+  const emitAuthStateChange = (event: AuthChangeEvent, session: AuthSession) => {
+    for (const callback of authCallbacks) callback(event, session)
+  }
+
+  return { supabase, ops, invocations, rpcCalls, uploads, signedUrlRequests, broadcasts, subscriptions, emitRealtime, emitAuthStateChange, findOps, filterValue }
 }
 
 export type SupabaseMock = ReturnType<typeof createSupabaseMock>
