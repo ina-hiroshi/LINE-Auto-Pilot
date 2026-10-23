@@ -16,7 +16,7 @@ type AutoReplyRule = ScorableRule & { id: string; response_text: string }
  */
 type AiReplyConfig = {
   apiKey: string
-  knowledge: StoreKnowledge
+  getKnowledge: () => Promise<StoreKnowledge | null>
   dispatch: boolean
 }
 
@@ -305,6 +305,9 @@ async function enqueueAiReply(
     displayName: string | null
   },
 ): Promise<boolean> {
+  const knowledge = await ai.getKnowledge()
+  if (!knowledge || knowledge.text.trim().length === 0) return false
+
   const { data: history, error: historyError } = await admin
     .from('social_messages')
     .select('direction, text')
@@ -314,13 +317,13 @@ async function enqueueAiReply(
   if (historyError) throw historyError
 
   const result = await generateSocialReply(ai.apiKey, {
-    storeName: ai.knowledge.storeName,
+    storeName: knowledge.storeName,
     platform: target.platform,
     displayName: target.displayName,
     recentMessages: (history ?? []).reverse(),
-    knowledgeText: ai.knowledge.text,
-    tone: ai.knowledge.tone,
-    personaPrompt: ai.knowledge.personaPrompt,
+    knowledgeText: knowledge.text,
+    tone: knowledge.tone,
+    personaPrompt: knowledge.personaPrompt,
     mode: 'auto',
   })
 
@@ -396,22 +399,21 @@ Deno.serve(async (req: Request) => {
       !settingsError && !!settings && settings.auto_reply_enabled === true && settings.auto_reply_dry_run !== true
 
     // AI 応答も同じくフェイルクローズ。ai_reply_enabled が明示的に true で、
-    // 参照する店舗と学習データがあるときだけ動かす。実送信（pending）には
+    // 参照する店舗があり、返信時に空でない資料を読めたときだけ動かす。実送信（pending）には
     // 全体の自動応答オン・全体のドライランオフに加え、AI 専用のドライランオフも要る。
     let aiReply: AiReplyConfig | null = null
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
     if (!settingsError && settings?.ai_reply_enabled === true && settings.knowledge_store_id && geminiApiKey) {
-      try {
-        const knowledge = await loadStoreKnowledge(admin, settings.knowledge_store_id)
-        if (knowledge.text.trim().length > 0) {
-          aiReply = {
-            apiKey: geminiApiKey,
-            knowledge,
-            dispatch: shouldDispatchAutoReply && settings.ai_reply_dry_run !== true,
-          }
-        }
-      } catch (e) {
-        console.error('[social-dm-poll] failed to load knowledge:', e instanceof Error ? e.message : String(e))
+      // 資料は AI 返信時にだけ読み、失敗も含めて IG・FB で共有する。
+      let knowledgePromise: Promise<StoreKnowledge | null> | undefined
+      aiReply = {
+        apiKey: geminiApiKey,
+        getKnowledge: () => knowledgePromise ??= loadStoreKnowledge(admin, settings.knowledge_store_id)
+          .catch((e) => {
+            console.error('[social-dm-poll] failed to load knowledge:', e instanceof Error ? e.message : String(e))
+            return null
+          }),
+        dispatch: shouldDispatchAutoReply && settings.ai_reply_dry_run !== true,
       }
     }
 
