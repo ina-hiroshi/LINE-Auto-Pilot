@@ -78,15 +78,15 @@ const RULES = [
 ]
 
 /** 管理画面のキーワード応答ルール一覧を縮めたもの */
-export function KeywordRulesMini({ highlight }: { highlight?: string }) {
+export function KeywordRulesMini({ highlight, rules = RULES }: { highlight?: string; rules?: typeof RULES }) {
   return (
     <div className="p-4 text-gray-800">
       <div className="mb-3 flex items-baseline justify-between">
         <p className="text-[14px] font-bold">キーワード応答</p>
-        <p className="text-[11px] text-gray-500">3 / 10 件（無料プラン）</p>
+        <p className="text-[11px] text-gray-500">{rules.length} / 10 件（無料プラン）</p>
       </div>
       <ul className="space-y-2">
-        {RULES.map((r) => (
+        {rules.map((r) => (
           <li
             key={r.keyword}
             className={`rounded-lg border px-3 py-2.5 transition-colors ${
