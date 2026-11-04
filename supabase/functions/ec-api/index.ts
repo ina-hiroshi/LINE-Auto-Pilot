@@ -43,11 +43,12 @@ Deno.serve(async req => {
     const customerResponse = await customerAction(admin, link, body)
     if (customerResponse) return customerResponse
     if (body.action === 'entitlement') {
-      if (typeof body.entitled !== 'boolean' || (body.until !== null &&
+      if ((body.chat_enabled !== undefined && typeof body.chat_enabled !== 'boolean') || typeof body.entitled !== 'boolean' || (body.until !== null &&
         (typeof body.until !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(body.until) || !Number.isFinite(Date.parse(body.until))))) {
         return json({ error: 'invalid_request' }, 400)
       }
       const { error } = await admin.from('ec_links').update({
+        ...(body.chat_enabled === undefined ? {} : { chat_enabled: body.chat_enabled }),
         entitled_until: body.entitled ? (body.until ?? 'infinity') : new Date().toISOString(),
       }).eq('id', link.id)
       if (error) throw error

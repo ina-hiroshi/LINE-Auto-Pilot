@@ -48,7 +48,7 @@ export async function requirePaidAiPlan(admin: SupabaseClient, storeId: string):
 export async function reserveAiGeneration(
   admin: SupabaseClient,
   storeId: string,
-  feature: 'ai-chat-preview' | 'campaign-generator',
+  feature: 'ai-chat-preview' | 'campaign-generator' | 'ec-site-chat',
 ): Promise<void> {
   const { data, error } = await admin.rpc('reserve_ai_generation', {
     p_store_id: storeId,

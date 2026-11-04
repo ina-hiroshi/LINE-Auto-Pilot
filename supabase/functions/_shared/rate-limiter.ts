@@ -19,7 +19,7 @@ export type RateLimitResult =
   | { allowed: true }
   | { allowed: false; reason: 'user_cooldown' | 'store_hourly_limit' | 'duplicate_message' }
 
-function simpleHash(text: string): string {
+export function simpleHash(text: string): string {
   let hash = 0
   for (let i = 0; i < text.length; i++) {
     const ch = text.charCodeAt(i)
@@ -39,13 +39,14 @@ export async function checkAiRateLimit(
   lineUserId: string,
   messageText: string,
   config: RateLimitConfig = DEFAULT_RATE_CONFIG,
+  failClosed = false,
 ): Promise<RateLimitResult> {
   const now = new Date()
   const msgHash = simpleHash(messageText)
 
   // 1. 同一メッセージの重複排除
   const dedupeThreshold = new Date(now.getTime() - config.dedupeWindowSeconds * 1000).toISOString()
-  const { data: dupeRows } = await supabase
+  const { data: dupeRows, error: dupeError } = await supabase
     .from('ai_rate_limits')
     .select('id')
     .eq('store_id', storeId)
@@ -54,31 +55,34 @@ export async function checkAiRateLimit(
     .gte('created_at', dedupeThreshold)
     .limit(1)
 
+  if (failClosed && dupeError) throw dupeError
   if (dupeRows && dupeRows.length > 0) {
     return { allowed: false, reason: 'duplicate_message' }
   }
 
   // 2. ユーザー単位クールダウン
   const cooldownThreshold = new Date(now.getTime() - config.userCooldownSeconds * 1000).toISOString()
-  const { count: recentUserCount } = await supabase
+  const { count: recentUserCount, error: userError } = await supabase
     .from('ai_rate_limits')
     .select('id', { count: 'exact', head: true })
     .eq('store_id', storeId)
     .eq('line_user_id', lineUserId)
     .gte('created_at', cooldownThreshold)
 
+  if (failClosed && userError) throw userError
   if (recentUserCount && recentUserCount > 0) {
     return { allowed: false, reason: 'user_cooldown' }
   }
 
   // 3. 店舗単位の時間あたり上限
   const hourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
-  const { count: storeHourlyCount } = await supabase
+  const { count: storeHourlyCount, error: storeError } = await supabase
     .from('ai_rate_limits')
     .select('id', { count: 'exact', head: true })
     .eq('store_id', storeId)
     .gte('created_at', hourAgo)
 
+  if (failClosed && storeError) throw storeError
   if (storeHourlyCount && storeHourlyCount >= config.storeHourlyLimit) {
     return { allowed: false, reason: 'store_hourly_limit' }
   }

@@ -13,10 +13,12 @@ Deno.test('EC endpoints authenticate callers and scope mutations', async t => {
   let handler: Handler
   let exchangeError = 'invalid_code'
   let userId = 'owner'
+  let linked = false
+  const updates: unknown[] = []
   const calls: string[] = []
   const storeId = '00000000-0000-4000-8000-000000000001'
   Object.defineProperty(Deno, 'serve', { configurable: true, writable: true, value: (fn: Handler) => { handler = fn } })
-  globalThis.fetch = ((input: RequestInfo | URL) => {
+  globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     calls.push(url)
     const json = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), {
@@ -24,7 +26,10 @@ Deno.test('EC endpoints authenticate callers and scope mutations', async t => {
     }))
     if (url.includes('/auth/v1/user')) return json({ id: userId })
     if (url.includes('/rest/v1/stores')) return json({ owner_id: 'owner' })
-    if (url.includes('/rest/v1/ec_links')) return json(null)
+    if (url.includes('/rest/v1/ec_links')) {
+      if (init?.method === 'PATCH') { updates.push(JSON.parse(String(init.body))); return json(null) }
+      return json(linked ? { id: 'link', store_id: storeId } : null)
+    }
     if (url.includes('/rpc/exchange_ec_link')) return exchangeError
       ? json({ code: 'P0001', message: exchangeError }, 400)
       : json('Test store')
@@ -73,6 +78,21 @@ Deno.test('EC endpoints authenticate callers and scope mutations', async t => {
       const result = await response.json()
       assertEquals(/^[a-f0-9]{64}$/.test(result.token), true)
       assertEquals(result.store_name, 'Test store')
+    })
+    await t.step('entitlement accepts optional boolean chat_enabled and preserves it when omitted', async () => {
+      linked = true
+      const headers = { ...secret, Authorization: `Bearer ${'a'.repeat(64)}` }
+      for (const chat_enabled of [true, false]) {
+        const response = await invoke({ action: 'entitlement', entitled: true, until: null, chat_enabled }, headers)
+        assertEquals(response.status, 200)
+        assertEquals(updates.at(-1), { entitled_until: 'infinity', chat_enabled })
+      }
+      const before = updates.length
+      assertEquals((await invoke({ action: 'entitlement', entitled: true, until: null, chat_enabled: 'true' }, headers)).status, 400)
+      assertEquals(updates.length, before)
+      assertEquals((await invoke({ action: 'entitlement', entitled: true, until: null }, headers)).status, 200)
+      assertEquals(updates.at(-1), { entitled_until: 'infinity' })
+      linked = false
     })
     await import('../ec-link-code/index.ts')
     await t.step('other owner and admin cannot issue or unlink for a store', async () => {

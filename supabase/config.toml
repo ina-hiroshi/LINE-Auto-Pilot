@@ -536,3 +536,6 @@ verify_jwt = false
 
 [functions.ec-link-code]
 verify_jwt = false
+
+[functions.ec-site-chat]
+verify_jwt = false
