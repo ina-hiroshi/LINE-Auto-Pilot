@@ -20,7 +20,7 @@ export function generateEcToken(): string {
 export async function findEcLink(admin: SupabaseClient, authorization: string | null) {
   const match = authorization?.match(/^Bearer ([a-f0-9]{64})$/i)
   if (!match) return null
-  const { data, error } = await admin.from('ec_links').select('id, store_id')
+  const { data, error } = await admin.from('ec_links').select('id, store_id, ec_shop_url, entitled_until')
     .eq('token_hash', await hashEcToken(match[1])).maybeSingle()
   if (error) throw error
   return data

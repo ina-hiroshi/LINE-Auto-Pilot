@@ -81,10 +81,14 @@ Deno.serve(async (req) => {
     
     // 3-4. Define Areas based on Layout and store settings
     const { width, height } = getRichMenuSize(layoutId)
+    const { data: ecLink, error: ecLinkError } = await supabaseClient.from('ec_links')
+      .select('ec_shop_url').eq('store_id', store_id).maybeSingle()
+    if (ecLinkError) throw ecLinkError
     const finalAreas = buildRichMenuAreas(layoutId, actions, {
       storeId: store_id,
       liffId,
       botId,
+      ecShopUrl: ecLink?.ec_shop_url,
     })
 
     // 5. Create Rich Menu Object

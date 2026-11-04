@@ -44,6 +44,10 @@ export type SegmentType =
   | 'staff'
   | 'high_spender'
   | 'manual'
+  | 'ec_linked'
+  | 'ec_recent'
+  | 'ec_dormant'
+  | 'ec_high_spender'
 
 export type SegmentParams = {
   /** dormant: 最終来店からの経過日数がこれを超える顧客 */

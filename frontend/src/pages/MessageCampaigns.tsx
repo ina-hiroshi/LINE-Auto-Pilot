@@ -35,6 +35,7 @@ export default function MessageCampaigns() {
   const [tab, setTab] = useState<TabId>('compose')
   const [step, setStep] = useState(0)
   const [storeId, setStoreId] = useState<string | null>(null)
+  const [ecLinked, setEcLinked] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [quotaInfo, setQuotaInfo] = useState<LineQuotaInfo | null>(null)
@@ -89,6 +90,8 @@ export default function MessageCampaigns() {
           return
         }
         setStoreId(store.id)
+        const { data: ecLinks, error: ecError } = await supabase.rpc('my_ec_link')
+        setEcLinked(!ecError && !!ecLinks?.length)
       } catch (e) {
         console.error('Failed to load store:', e)
         setLoadError('店舗情報の取得に失敗しました')
@@ -124,6 +127,10 @@ export default function MessageCampaigns() {
     if (!storeId) return
 
     const definition = findSegmentDefinition(segmentType)
+    if (definition?.numberParam) {
+      const n = segmentParams[definition.numberParam]
+      if (!Number.isInteger(n) || !n || n < 1 || n > 2147483647) { setPreview(null); return }
+    }
     if (definition?.resource === 'menu' && !segmentParams.menu_id) return
     if (definition?.resource === 'staff' && !segmentParams.staff_id) return
 
@@ -159,11 +166,16 @@ export default function MessageCampaigns() {
     if (preview.broadcast) return true
     if (preview.count === 0) return false
     const definition = findSegmentDefinition(segmentType)
+    if (definition?.group === 'ec' && !ecLinked) return false
+    if (definition?.numberParam) {
+      const n = segmentParams[definition.numberParam]
+      if (!Number.isInteger(n) || !n || n < 1 || n > 2147483647) return false
+    }
     if (definition?.resource === 'menu' && !segmentParams.menu_id) return false
     if (definition?.resource === 'staff' && !segmentParams.staff_id) return false
     if (segmentType === 'manual' && (segmentParams.customer_ids?.length ?? 0) === 0) return false
     return true
-  }, [preview, previewLoading, segmentType, segmentParams])
+  }, [preview, previewLoading, segmentType, segmentParams, ecLinked])
 
   const handleSend = async () => {
     if (!storeId) return
@@ -267,6 +279,7 @@ export default function MessageCampaigns() {
               {step === 0 && (
                 <div data-tour="campaigns.segment">
                   <SegmentSelector
+                    ecLinked={ecLinked}
                     segmentType={segmentType}
                     segmentParams={segmentParams}
                     onChange={handleSegmentChange}

@@ -1,3 +1,4 @@
+import { customerAction } from './customer-actions.ts'
 import { createClient } from '@supabase/supabase-js'
 import { findEcLink, generateEcToken, hashEcToken, verifyEcSharedSecret } from '../_shared/ec-link.ts'
 
@@ -39,6 +40,8 @@ Deno.serve(async req => {
     }
     const link = await findEcLink(admin, req.headers.get('Authorization'))
     if (!link) return json({ error: 'unauthorized' }, 401)
+    const customerResponse = await customerAction(admin, link, body)
+    if (customerResponse) return customerResponse
     if (body.action === 'entitlement') {
       if (typeof body.entitled !== 'boolean' || (body.until !== null &&
         (typeof body.until !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(body.until) || !Number.isFinite(Date.parse(body.until))))) {

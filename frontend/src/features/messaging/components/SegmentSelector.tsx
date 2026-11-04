@@ -10,6 +10,7 @@ import {
 import type { SegmentPreview } from '../hooks/useCampaign'
 
 type Props = {
+  ecLinked?: boolean
   segmentType: SegmentType
   segmentParams: SegmentParams
   onChange: (segmentType: SegmentType, segmentParams: SegmentParams) => void
@@ -22,13 +23,14 @@ type Props = {
   manualSelectionCount: number
 }
 
-const GROUP_ORDER: SegmentGroup[] = ['visit', 'attribute', 'manual']
+const GROUP_ORDER: SegmentGroup[] = ['visit', 'attribute', 'ec', 'manual']
 
 function presetIsActive(params: SegmentParams, preset: SegmentParams): boolean {
   return Object.entries(preset).every(([key, value]) => params[key as keyof SegmentParams] === value)
 }
 
 export default function SegmentSelector({
+  ecLinked = false,
   segmentType,
   segmentParams,
   onChange,
@@ -76,7 +78,7 @@ export default function SegmentSelector({
   return (
     <div className="space-y-6">
       {GROUP_ORDER.map((group) => {
-        const definitions = SEGMENT_DEFINITIONS.filter((definition) => definition.group === group)
+        const definitions = SEGMENT_DEFINITIONS.filter((definition) => definition.group === group && (group !== 'ec' || ecLinked))
         if (definitions.length === 0) return null
 
         return (
@@ -128,6 +130,16 @@ export default function SegmentSelector({
                           </button>
                         ))}
                       </div>
+                    )}
+
+                    {selected && definition.numberParam && (
+                      <label className="block mt-2 text-sm">
+                        {definition.numberParam === 'top_n' ? '人数' : '日数'}
+                        <input type="number" min={1} max={2147483647} step={1}
+                          className="ml-2 border rounded px-2 py-1 w-28"
+                          value={segmentParams[definition.numberParam] ?? ''}
+                          onChange={(e) => onChange(definition.type, e.target.value === '' ? {} : { [definition.numberParam!]: Number(e.target.value) })} />
+                      </label>
                     )}
 
                     {selected && definition.resource === 'menu' && (

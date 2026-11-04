@@ -10,6 +10,8 @@ import { selectAutoResponse, shouldDeferKeywordToAi } from '../_shared/auto-resp
 import { judgeKeywordReplyFit } from '../_shared/keyword-judge.ts'
 import type { SupabaseClientType, AISettings } from '../_shared/types.ts'
 import { extractLinkCode } from '../_shared/link-code.ts'
+import { extractEcCustomerCode } from '../_shared/ec-customer-code.ts'
+import { handleEcCustomerCode } from './ec-link.ts'
 import type { FlexMessage } from '../_shared/reservation-flex.ts'
 import { detectSameProviderCustomer, handleLinkCode, recordFriendEvent } from './link.ts'
 import {
@@ -467,6 +469,15 @@ Deno.serve(async (req: Request) => {
 
           // 予約ページ（LIFF）がお客様のトークへ送る確認コード。Bot 側の ID との紐付けと、
           // 予約内容の返信（応答メッセージ）を行う。自動応答・AI・受信箱には回さない。
+          const ecCustomerCode = extractEcCustomerCode(text)
+          if (ecCustomerCode) {
+            await handleEcCustomerCode({
+              supabase, storeId, messagingUserId: userId, code: ecCustomerCode, replyToken,
+              reply: (token, messages) => replyMessage(channelAccessToken, token, messages),
+            })
+            continue
+          }
+
           const linkCode = extractLinkCode(text)
           if (linkCode) {
             await handleLinkCode({
