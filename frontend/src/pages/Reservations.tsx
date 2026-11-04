@@ -395,13 +395,9 @@ export default function Reservations() {
         .limit(1)
       
       // Get Profile for Plan
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('plan')
-        .eq('id', user.id)
-        .single()
+      const { data: plan, error: planError } = await supabase.rpc('my_effective_plan')
       
-      setIsPro(isPaidPlan(profile?.plan))
+      setIsPro(!planError && isPaidPlan(plan))
       
       const currentStore = stores?.[0]
       if (!currentStore) return

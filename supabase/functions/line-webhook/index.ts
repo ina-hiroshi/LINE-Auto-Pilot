@@ -332,18 +332,15 @@ Deno.serve(async (req: Request) => {
           }
 
           if (storeData && storeData.owner_id) {
-            const { data: profileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('plan')
-              .eq('id', storeData.owner_id)
-              .single()
+            const { data: effectivePlan, error: planError } = await supabase
+              .rpc('effective_plan', { p_user_id: storeData.owner_id })
 
-            if (profileError) {
-              console.error('Error fetching profile for plan check:', profileError)
+            if (planError) {
+              console.error('Error fetching effective plan:', planError)
             }
 
-            if (profileData) {
-              plan = String(profileData.plan || 'free').trim().toLowerCase()
+            if (!planError && typeof effectivePlan === 'string') {
+              plan = effectivePlan.trim().toLowerCase()
             }
           }
         } catch (e) {

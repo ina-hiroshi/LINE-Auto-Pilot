@@ -48,12 +48,10 @@ Deno.serve(async (req) => {
     // 1.5 Check Plan
     let isPro = false
     if (store.owner_id) {
-      const { data: profile } = await supabaseClient
-        .from('profiles')
-        .select('plan')
-        .eq('id', store.owner_id)
-        .single()
-      isPro = isPaidPlan(profile?.plan)
+      const { data: plan, error: planError } = await supabaseClient
+        .rpc('effective_plan', { p_user_id: store.owner_id })
+      if (planError) throw new ClientVisibleError('プランを確認できませんでした', 503)
+      isPro = isPaidPlan(plan)
     }
 
     // 2. Fetch LINE Account Settings

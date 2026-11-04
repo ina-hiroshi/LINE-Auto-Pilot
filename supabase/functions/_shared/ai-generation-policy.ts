@@ -37,10 +37,9 @@ export async function requirePaidAiPlan(admin: SupabaseClient, storeId: string):
   const { data: store, error: storeError } = await admin.from('stores')
     .select('owner_id').eq('id', storeId).single()
   if (storeError || !store) throw new ClientVisibleError('店舗が見つかりません', 404)
-  const { data: profile, error } = await admin.from('profiles')
-    .select('plan').eq('id', store.owner_id).single()
+  const { data: plan, error } = await admin.rpc('effective_plan', { p_user_id: store.owner_id })
   if (error) throw new ClientVisibleError('プランを確認できませんでした', 503)
-  if (!isPaidPlan(profile?.plan)) {
+  if (!isPaidPlan(plan)) {
     throw new ClientVisibleError('AI機能はProプラン以上でご利用いただけます', 403)
   }
 }

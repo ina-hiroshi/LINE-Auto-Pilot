@@ -20,7 +20,7 @@ Deno.test('AIエンドポイントはプラン・回数を確認してから外�
     const json = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }))
     if (url.includes('/auth/v1/user')) return json({ id: 'owner', email: 'owner@example.test' })
     if (url.includes('/rest/v1/stores')) return json({ owner_id: 'owner', name: 'store', industry: 'test' })
-    if (url.includes('/rest/v1/profiles')) return json({ plan })
+    if (url.includes('/rpc/effective_plan')) return json(plan)
     if (url.includes('/rpc/reserve_ai_generation')) {
       calls.push('reserve')
       return rpcFailure ? json({ message: 'db unavailable' }, 500) : json(allowed)

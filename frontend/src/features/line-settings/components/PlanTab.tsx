@@ -7,6 +7,7 @@ import { PRO_PRICE_ID } from '../../../constants/stripe'
 import { IS_PRE_RELEASE_MODE } from '../../../constants/releaseMode'
 
 export function PlanTab() {
+  const [ecEntitled, setEcEntitled] = useState(false)
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
   const [subscription, setSubscription] = useState<{
@@ -27,6 +28,9 @@ export function PlanTab() {
 
   useEffect(() => {
     fetchSubscription()
+    supabase.rpc('my_ec_link').then(({ data, error }) => {
+      if (!error) setEcEntitled(data?.some((link: { entitled: boolean }) => link.entitled) ?? false)
+    })
   }, [])
 
   const fetchSubscription = async () => {
@@ -165,6 +169,8 @@ export function PlanTab() {
         <h2 className="text-lg font-medium text-gray-900">料金プラン</h2>
         <p className="text-sm text-gray-500 mt-1">ビジネスの成長に合わせて最適なプランをお選びください。</p>
       </div>
+
+      {ecEntitled && <p className="text-sm text-primary-700">IToguchi EC の契約で、有料の機能を使えます。</p>}
 
       {/* プレリリース特典 or リリース特典バナー（トライアル未使用 & Proプラン未加入の場合のみ表示） */}
       {!isPro && !hasUsedTrial && IS_PRE_RELEASE_MODE && (

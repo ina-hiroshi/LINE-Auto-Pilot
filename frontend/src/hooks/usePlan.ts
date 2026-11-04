@@ -19,18 +19,14 @@ export function usePlan() {
         }
         if (mounted) setUserId(user.id)
 
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('plan')
-          .eq('id', user.id)
-          .single()
+        const { data: plan, error } = await supabase.rpc('my_effective_plan')
 
         if (error) {
           console.error('Error fetching plan:', error)
         }
         
         if (mounted) {
-          setIsPro(isPaidPlan(profile?.plan))
+          setIsPro(!error && isPaidPlan(plan))
         }
       } catch (error) {
         console.error('Error checking plan:', error)
@@ -49,21 +45,28 @@ export function usePlan() {
   useEffect(() => {
     if (!userId) return
 
+    let active = true
+    const refreshPlan = async () => {
+      const { data: plan, error } = await supabase.rpc('my_effective_plan')
+      if (active) setIsPro(!error && isPaidPlan(plan))
+    }
+    window.addEventListener('profile-updated', refreshPlan)
+    window.addEventListener('focus', refreshPlan)
     const channel = supabase
       .channel('plan-changes')
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
-        (payload) => {
-          if (payload.new) {
-            const newPlan = (payload.new as { plan?: string }).plan
-            setIsPro(isPaidPlan(newPlan))
-          }
-        }
+        refreshPlan
       )
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    return () => {
+      active = false
+      window.removeEventListener('profile-updated', refreshPlan)
+      window.removeEventListener('focus', refreshPlan)
+      supabase.removeChannel(channel)
+    }
   }, [userId])
 
   return { isPro, loading }
