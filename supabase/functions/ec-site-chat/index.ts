@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { selectAutoResponse } from '../_shared/auto-response.ts'
 import { generateAIResponse } from '../_shared/ai-reply.ts'
 import { requirePaidAiPlan, reserveAiGeneration } from '../_shared/ai-generation-policy.ts'
-import { checkAiRateLimit, simpleHash } from '../_shared/rate-limiter.ts'
+import { checkAiRateLimit, DEFAULT_RATE_CONFIG, simpleHash } from '../_shared/rate-limiter.ts'
 
 export const FALLBACK = 'お答えできませんでした。お手数ですが、LINE でお問い合わせください。'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -54,15 +54,18 @@ export function createHandler({ admin, apiKey, development = false, rateLimit = 
       const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip))
       const ipUser = `web-ip:${Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('')}`
       for (const identity of [user, ipUser]) {
-        const result = await rateLimit(admin, link.store_id, identity, body.message, undefined, true)
+        const result = await rateLimit(admin, link.store_id, identity, body.message, { ...DEFAULT_RATE_CONFIG, storeHourlyLimit: Number.POSITIVE_INFINITY }, true)
         if (!result.allowed) return json({ error: 'rate_limited' }, 429)
       }
       // 定型返信も制限対象。記録できない場合は返信生成を進めない。
-      const { error: usageError } = await admin.from('ai_rate_limits').insert([
-        { store_id: link.store_id, line_user_id: user, message_hash: simpleHash(body.message) },
-        { store_id: link.store_id, line_user_id: ipUser, message_hash: simpleHash(body.message) },
-      ])
+      const { data: reserved, error: usageError } = await admin.rpc('reserve_ec_site_chat', {
+        p_store_id: link.store_id,
+        p_session_user: user,
+        p_ip_user: ipUser,
+        p_message_hash: simpleHash(body.message),
+      })
       if (usageError) throw usageError
+      if (reserved === false) return json({ error: 'rate_limited' }, 429)
       const { data: rules, error: ruleError } = await admin.from('auto_responses').select('keyword, sub_keywords, response_text').eq('store_id', link.store_id).eq('is_active', true)
       if (ruleError) throw ruleError
       const match = selectAutoResponse(body.message, rules)

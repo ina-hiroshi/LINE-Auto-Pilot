@@ -80,6 +80,8 @@ export async function checkAiRateLimit(
     .from('ai_rate_limits')
     .select('id', { count: 'exact', head: true })
     .eq('store_id', storeId)
+    .not('line_user_id', 'like', 'web:%')
+    .not('line_user_id', 'like', 'web-ip:%')
     .gte('created_at', hourAgo)
 
   if (failClosed && storeError) throw storeError
