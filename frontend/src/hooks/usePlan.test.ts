@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
-import { createSupabaseMock, type QueryHandler, type SupabaseMock } from '../test/supabaseMock'
+import { createSupabaseMock, type SupabaseMock } from '../test/supabaseMock'
 
 let mock: SupabaseMock
 
@@ -16,10 +16,7 @@ const USER_ID = 'owner-1'
 
 function setup(plan: string | null, options: { user?: { id: string } | null; error?: unknown } = {}) {
   const { user = { id: USER_ID }, error = null } = options
-  const handler: QueryHandler = (op) =>
-    op.table === 'profiles' ? { data: plan === null ? null : { plan }, error } : { data: null, error: null }
-
-  mock = createSupabaseMock({ user, handler })
+  mock = createSupabaseMock({ user, handler: () => ({ data: null, error: null }), rpc: () => ({ data: plan, error }) })
   return renderHook(() => usePlan())
 }
 
@@ -75,15 +72,25 @@ describe('usePlan', () => {
     await waitFor(() => expect(result.current.loading).toBe(false))
     expect(result.current.isPro).toBe(false)
 
+    mock.supabase.rpc.mockResolvedValue({ data: 'pro', error: null })
     mock.emitRealtime('profiles', { new: { plan: 'pro' } })
 
     await waitFor(() => expect(result.current.isPro).toBe(true))
+  })
+
+  it('プロフィールが free に戻っても EC の有料権利があれば維持する', async () => {
+    const { result } = setup('pro')
+    await waitFor(() => expect(result.current.isPro).toBe(true))
+    mock.emitRealtime('profiles', { new: { plan: 'free' } })
+    await waitFor(() => expect(mock.rpcCalls).toHaveLength(2))
+    expect(result.current.isPro).toBe(true)
   })
 
   it('解約でプランが戻ったら Pro を解除する', async () => {
     const { result } = setup('pro')
     await waitFor(() => expect(result.current.isPro).toBe(true))
 
+    mock.supabase.rpc.mockResolvedValue({ data: 'free', error: null })
     mock.emitRealtime('profiles', { new: { plan: 'free' } })
 
     await waitFor(() => expect(result.current.isPro).toBe(false))

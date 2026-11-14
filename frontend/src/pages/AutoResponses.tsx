@@ -221,13 +221,9 @@ export default function AutoResponses() {
       if (!user) return;
 
       // Get user profile for plan
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('plan')
-        .eq('id', user.id)
-        .single();
+      const { data: plan, error: planError } = await supabase.rpc('my_effective_plan');
       
-      setIsPro(isPaidPlan(profile?.plan));
+      setIsPro(!planError && isPaidPlan(plan));
 
       // Get store_id
       const { data: store } = await supabase

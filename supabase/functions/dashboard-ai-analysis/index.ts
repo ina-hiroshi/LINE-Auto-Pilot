@@ -5,6 +5,7 @@ import { getCorsHeaders } from '../_shared/cors.ts'
 import { safeErrorResponse } from '../_shared/error-utils.ts'
 import { getGeminiUrl } from '../_shared/ai-config.ts'
 import { requireStoreAccess } from '../_shared/store-access.ts'
+import { isPaidPlan } from '../_shared/plan-utils.ts'
 
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get('Origin')
@@ -48,25 +49,22 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('plan')
-      .eq('id', storeData.owner_id)
-      .single()
+    const { data: plan, error: planError } = await supabase
+      .rpc('effective_plan', { p_user_id: storeData.owner_id })
 
-    if (profileError || !profile) {
+    if (planError) {
       return new Response(
-        JSON.stringify({ error: 'Profile not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Failed to check plan' }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    if (profile.plan !== 'pro' && profile.plan !== 'executive') {
+    if (!isPaidPlan(plan)) {
       return new Response(
         JSON.stringify({ 
           error: 'Pro plan required',
-          currentPlan: profile.plan,
-          message: `This feature requires Pro plan. Current plan: ${profile.plan}`
+          currentPlan: plan,
+          message: `This feature requires Pro plan. Current plan: ${plan}`
         }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )

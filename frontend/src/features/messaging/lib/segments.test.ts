@@ -51,7 +51,7 @@ describe('SEGMENT_DEFINITIONS', () => {
       'menu',
       'staff',
       'high_spender',
-      'manual',
+      'manual', 'ec_linked', 'ec_recent', 'ec_dormant', 'ec_high_spender',
     ]
 
     for (const type of types) {

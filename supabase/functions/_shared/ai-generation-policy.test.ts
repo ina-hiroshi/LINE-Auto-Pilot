@@ -20,11 +20,14 @@ Deno.test('不正な設定と長すぎる入力は拒否する', () => {
 function planClient(plan: string | null, profileError = false) {
   const ids: unknown[] = []
   const admin = { from(table: string) {
+    assertEquals(table, 'stores')
     return { select() { return this }, eq(_key: string, value: unknown) { ids.push(value); return this },
-      single() { return Promise.resolve(table === 'stores'
-        ? { data: { owner_id: 'owner' }, error: null }
-        : { data: { plan }, error: profileError ? { message: 'db error' } : null }) },
+      single() { return Promise.resolve({ data: { owner_id: 'owner' }, error: null }) },
     }
+  }, rpc(name: string, params: { p_user_id: string }) {
+    assertEquals(name, 'effective_plan')
+    ids.push(params.p_user_id)
+    return Promise.resolve({ data: plan, error: profileError ? { message: 'db error' } : null })
   } } as unknown as SupabaseClient
   return { admin, ids }
 }

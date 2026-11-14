@@ -1,3 +1,4 @@
+import { validateEcSegmentParams } from '../_shared/ec-segments.ts'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { ClientVisibleError, clientVisibleErrorResponse, safeErrorResponse } from '../_shared/error-utils.ts'
@@ -40,6 +41,7 @@ const SEGMENT_TYPES = [
   'staff',
   'high_spender',
   'manual',
+  'ec_linked', 'ec_recent', 'ec_dormant', 'ec_high_spender',
 ] as const
 
 type SegmentCustomer = {
@@ -206,6 +208,9 @@ Deno.serve(async (req: Request) => {
       return await resumeCampaign(admin, storeId, resumeCampaignId, channelAccessToken, corsHeaders)
     }
 
+    if (!validateEcSegmentParams(segmentType, segmentParams)) {
+      throw new ClientVisibleError('ショップの配信条件には1以上の整数を指定してください', 400)
+    }
     if (!SEGMENT_TYPES.includes(segmentType)) {
       throw new ClientVisibleError('配信対象の指定が不正です', 400)
     }

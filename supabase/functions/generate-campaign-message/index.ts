@@ -75,18 +75,16 @@ Deno.serve(async (req: Request) => {
       throw new ClientVisibleError('店舗が見つかりません', 404)
     }
 
-    const { data: profile } = await admin
-      .from('profiles')
-      .select('plan')
-      .eq('id', store.owner_id)
-      .single()
+    const { data: plan, error: planError } = await admin
+      .rpc('effective_plan', { p_user_id: store.owner_id })
+    if (planError) throw new ClientVisibleError('プランを確認できませんでした', 503)
 
-    if (!isPaidPlan(profile?.plan)) {
+    if (!isPaidPlan(plan)) {
       // フロントはこのステータスを見て「Proプラン以上でご利用いただけます」を出す
       return new Response(
         JSON.stringify({
           error: 'AIによる文章作成はProプラン以上でご利用いただけます',
-          currentPlan: profile?.plan ?? null,
+          currentPlan: plan ?? null,
         }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )

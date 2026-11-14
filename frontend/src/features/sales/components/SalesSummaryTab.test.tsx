@@ -56,7 +56,6 @@ function setup(options: { paid?: PaidRow[]; unpaidCount?: number; plan?: string 
   const { paid = [], unpaidCount = 0, plan = 'pro' } = options
 
   const handler = (op: QueryOp): QueryResult => {
-    if (op.table === 'profiles') return { data: { plan }, error: null }
     if (op.table === 'reservations') {
       const isUnpaidCount = op.filters.some((f) => f.column === 'status' && f.value === 'confirmed')
       if (isUnpaidCount) return { data: null, error: null, count: unpaidCount }
@@ -65,7 +64,10 @@ function setup(options: { paid?: PaidRow[]; unpaidCount?: number; plan?: string 
     return { data: [], error: null }
   }
 
-  mock = createSupabaseMock({ handler })
+  mock = createSupabaseMock({
+    handler,
+    rpc: (name) => ({ data: name === 'my_effective_plan' ? plan : null, error: null }),
+  })
 }
 
 const renderTab = (storeId: string | null = STORE_ID) => render(<SalesSummaryTab storeId={storeId} />)

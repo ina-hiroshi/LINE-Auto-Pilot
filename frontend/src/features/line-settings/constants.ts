@@ -1,6 +1,7 @@
-import { Instagram, Globe, MapPin, Phone, Ticket, CreditCard, Twitter, Facebook, Youtube, Mail, ExternalLink } from 'lucide-react'
+import { ShoppingBag, Instagram, Globe, MapPin, Phone, Ticket, CreditCard, Twitter, Facebook, Youtube, Mail, ExternalLink } from 'lucide-react'
 
 export const AVAILABLE_ICONS = [
+  { id: 'shopping-bag', icon: ShoppingBag, label: 'ショップ' },
   { id: 'instagram', icon: Instagram, label: 'Instagram' },
   { id: 'globe', icon: Globe, label: 'Web' },
   { id: 'map-pin', icon: MapPin, label: 'Map' },

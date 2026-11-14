@@ -46,6 +46,7 @@ interface RichMenuTabProps {
   savedSlotImages: Record<number, string>
   onChangeSettings: (next: RichMenuSettings) => void
   previewRef?: React.RefObject<HTMLDivElement | null>
+  ecLinked?: boolean
   isPro: boolean
   storeId?: string | null
   onToast?: (message: string, type: 'success' | 'error') => void
@@ -58,6 +59,7 @@ export function RichMenuTab({
   savedSlotImages,
   onChangeSettings,
   previewRef,
+  ecLinked = false,
   isPro,
   storeId,
   onToast,
@@ -579,13 +581,14 @@ export function RichMenuTab({
                                 <>
                                   <div className="fixed inset-0 z-40" onClick={() => setOpenIconSelector(null)} />
                                   <div className="absolute z-50 top-full right-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-xl p-2 grid grid-cols-4 gap-2">
-                                    {AVAILABLE_ICONS.map((iconItem) => (
+                                    {AVAILABLE_ICONS.filter((icon) => icon.id !== 'shopping-bag' || ecLinked).map((iconItem) => (
                                       <button
                                         key={iconItem.id}
                                         type="button"
                                         onClick={() => {
                                           updateAction(slotNum, (prev) => {
                                             const updates: Partial<RichMenuAction> = { icon: iconItem.id }
+                                            if (iconItem.id === 'shopping-bag') { updates.label = 'ショップ'; updates.url = '' }
                                             if (iconItem.id === 'credit-card') {
                                               updates.label = '会員証'
                                               updates.url = ''
@@ -608,7 +611,7 @@ export function RichMenuTab({
                           </div>
 
                           {/* URL入力（会員証以外） */}
-                          {action.icon !== 'credit-card' && (
+                          {action.icon !== 'credit-card' && !(action.icon === 'shopping-bag' && ecLinked) && (
                             <div>
                               <label className="block text-xs font-medium text-gray-700 mb-1">URL</label>
                               <input

@@ -5,9 +5,10 @@ import type { SegmentParams, SegmentType } from '../types'
  * 選択画面・確認画面・配信履歴が同じ文言を使うため、ここに集約する。
  */
 
-export type SegmentGroup = 'visit' | 'attribute' | 'manual'
+export type SegmentGroup = 'visit' | 'attribute' | 'manual' | 'ec'
 
 export const SEGMENT_GROUP_LABELS: Record<SegmentGroup, string> = {
+  ec: 'ショップの購入状況で選ぶ',
   visit: '来店状況で選ぶ',
   attribute: '属性で選ぶ',
   manual: '個別に選ぶ',
@@ -25,11 +26,16 @@ export type SegmentDefinition = {
   description: string
   /** 日数や回数など、追加で選ばせる条件 */
   presets?: SegmentPreset[]
+  numberParam?: 'recent_days' | 'dormant_days' | 'top_n'
   /** メニュー・スタッフのように店舗のデータから選ばせるもの */
   resource?: 'menu' | 'staff'
 }
 
 export const SEGMENT_DEFINITIONS: SegmentDefinition[] = [
+  { type: 'ec_linked', group: 'ec', label: 'ショップでつないだ人全員', description: 'ショップの会員とLINEをつないだお客様。' },
+  { type: 'ec_recent', group: 'ec', label: 'N 日以内にショップで買った人', description: '購入からの日数を指定します。', numberParam: 'recent_days' },
+  { type: 'ec_dormant', group: 'ec', label: 'N 日ショップで買っていない人', description: '連携済みで、指定日数以上購入がない方。購入履歴がない方も含みます。', numberParam: 'dormant_days' },
+  { type: 'ec_high_spender', group: 'ec', label: 'ショップの購入額の上位 N 人', description: '返金を差し引いた購入額の順に選びます。', numberParam: 'top_n' },
   {
     type: 'all',
     group: 'visit',
@@ -130,6 +136,10 @@ export function describeSegment(
   resourceName?: string | null,
 ): string {
   switch (type) {
+    case 'ec_linked': return 'ショップでつないだ人全員'
+    case 'ec_recent': return `${params.recent_days ?? 'N'}日以内にショップで買った人`
+    case 'ec_dormant': return `${params.dormant_days ?? 'N'}日ショップで買っていない人`
+    case 'ec_high_spender': return `ショップの購入額の上位${params.top_n ?? 'N'}人`
     case 'all':
       return '友だち全員'
     case 'visited':

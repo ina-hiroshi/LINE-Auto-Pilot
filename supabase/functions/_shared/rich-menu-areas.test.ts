@@ -162,3 +162,12 @@ Deno.test('bounds は設定内容に左右されない', () => {
   const filled = buildRichMenuAreas('large_4', { 1: { icon: 'credit-card' } }, CTX).map((a) => a.bounds)
   assertEquals(empty, filled)
 })
+
+Deno.test('ショップのボタンは連携したショップURLを開く', () => {
+  assertEquals(resolveSlotAction(3, { icon: 'shopping-bag', url: 'https://example.com' }, { ...CTX, ecShopUrl: 'https://shop.itoguchi-app.jp' }),
+    { type: 'uri', uri: 'https://shop.itoguchi-app.jp', label: 'ショップ' })
+})
+Deno.test('ショップ未連携なら保存済みURLを使う', () => {
+  assertEquals(resolveSlotAction(3, { icon: 'shopping-bag', url: 'https://example.com', label: 'お店' }, CTX),
+    { type: 'uri', uri: 'https://example.com', label: 'お店' })
+})

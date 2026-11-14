@@ -51,8 +51,6 @@ function setup(options: SetupOptions = {}) {
 
   const handler = (op: QueryOp): QueryResult => {
     switch (op.table) {
-      case 'profiles':
-        return { data: { plan }, error: null }
       case 'stores':
         return { data: { id: STORE_ID }, error: null }
       case 'auto_responses':
@@ -66,7 +64,7 @@ function setup(options: SetupOptions = {}) {
     }
   }
 
-  mock = createSupabaseMock({ user: { id: OWNER_ID }, handler })
+  mock = createSupabaseMock({ user: { id: OWNER_ID }, handler, rpc: () => ({ data: plan, error: null }) })
 }
 
 const renderPage = () =>

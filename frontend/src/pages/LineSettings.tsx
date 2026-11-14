@@ -9,6 +9,7 @@ import { ConnectionTab } from '../features/line-settings/components/ConnectionTa
 import { GuideTab } from '../features/line-settings/components/GuideTab'
 import { BasicInfoTab } from '../features/line-settings/components/BasicInfoTab'
 import { PasswordTab } from '../features/line-settings/components/PasswordTab'
+import { EcLinkTab } from '../features/line-settings/components/EcLinkTab'
 import { PlanTab } from '../features/line-settings/components/PlanTab'
 import TutorialButton from '../features/tutorial/TutorialButton'
 import { usePageTutorial } from '../features/tutorial/usePageTutorial'
@@ -50,7 +51,7 @@ const DEFAULT_PASSWORD_DATA = {
 	confirmPassword: '',
 }
 
-export type LineSettingsTab = 'connection' | 'guide' | 'basic_info' | 'password' | 'plan'
+export type LineSettingsTab = 'connection' | 'guide' | 'basic_info' | 'password' | 'plan' | 'ec_link'
 
 const WEBHOOK_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/line-webhook`
 
@@ -479,6 +480,7 @@ export default function LineSettings() {
 						items={[
 							{ id: 'connection', label: 'LINE連携', icon: Link2, tourId: 'line-settings.tab-connection' },
 							{ id: 'basic_info', label: '基本情報', icon: Building2, tourId: 'line-settings.tab-basic-info' },
+							{ id: 'ec_link', label: 'IToguchi EC', icon: Link2 },
 							{ id: 'plan', label: 'プラン', icon: CreditCard, tourId: 'line-settings.tab-plan' },
 							{ id: 'password', label: 'パスワード', icon: Lock },
 							{ id: 'guide', label: '設定ガイド', icon: BookOpen, tourId: 'line-settings.tab-guide' },
@@ -506,6 +508,8 @@ export default function LineSettings() {
 						onPostalSearch={handlePostalCodeSearch}
 					/>
 				)}
+
+				{activeTab === 'ec_link' && <EcLinkTab storeId={storeId} />}
 
 				{activeTab === 'plan' && (
 					<PlanTab />

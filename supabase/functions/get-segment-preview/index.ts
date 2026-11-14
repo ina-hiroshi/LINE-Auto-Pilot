@@ -1,3 +1,4 @@
+import { validateEcSegmentParams } from '../_shared/ec-segments.ts'
 import { createClient } from '@supabase/supabase-js'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { ClientVisibleError, clientVisibleErrorResponse, safeErrorResponse } from '../_shared/error-utils.ts'
@@ -22,6 +23,7 @@ const SEGMENT_TYPES = [
   'staff',
   'high_spender',
   'manual',
+  'ec_linked', 'ec_recent', 'ec_dormant', 'ec_high_spender',
 ]
 
 /** 画面に出す確認用の氏名サンプル数 */
@@ -43,6 +45,10 @@ Deno.serve(async (req: Request) => {
     }
     if (!SEGMENT_TYPES.includes(segmentType)) {
       throw new ClientVisibleError('配信対象の指定が不正です', 400)
+    }
+
+    if (!validateEcSegmentParams(segmentType, segmentParams ?? {})) {
+      throw new ClientVisibleError('日数・人数には正の整数を指定してください', 400)
     }
 
     const admin = createClient(

@@ -48,12 +48,10 @@ Deno.serve(async (req) => {
     // 1.5 Check Plan
     let isPro = false
     if (store.owner_id) {
-      const { data: profile } = await supabaseClient
-        .from('profiles')
-        .select('plan')
-        .eq('id', store.owner_id)
-        .single()
-      isPro = isPaidPlan(profile?.plan)
+      const { data: plan, error: planError } = await supabaseClient
+        .rpc('effective_plan', { p_user_id: store.owner_id })
+      if (planError) throw new ClientVisibleError('プランを確認できませんでした', 503)
+      isPro = isPaidPlan(plan)
     }
 
     // 2. Fetch LINE Account Settings
@@ -83,10 +81,14 @@ Deno.serve(async (req) => {
     
     // 3-4. Define Areas based on Layout and store settings
     const { width, height } = getRichMenuSize(layoutId)
+    const { data: ecLink, error: ecLinkError } = await supabaseClient.from('ec_links')
+      .select('ec_shop_url').eq('store_id', store_id).maybeSingle()
+    if (ecLinkError) throw ecLinkError
     const finalAreas = buildRichMenuAreas(layoutId, actions, {
       storeId: store_id,
       liffId,
       botId,
+      ecShopUrl: ecLink?.ec_shop_url,
     })
 
     // 5. Create Rich Menu Object

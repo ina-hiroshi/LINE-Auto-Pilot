@@ -27,6 +27,7 @@ export type StoredAction = {
 
 export type RichMenuContext = {
   storeId: string
+  ecShopUrl?: string | null
   /** LIFF ID。無ければ LIFF を開く動作は代替に落とす */
   liffId?: string | null
   /** LINE公式アカウントのベーシックID（@から始まる）。無ければ入力誘導を文言で代替 */
@@ -155,6 +156,9 @@ export function resolveSlotAction(
   // deno-lint-ignore no-explicit-any
 ): Record<string, any> {
   if (stored) {
+    if (stored.icon === 'shopping-bag' && ctx.ecShopUrl) {
+      return { type: 'uri', uri: ctx.ecShopUrl, label: stored.label?.trim() || 'ショップ' }
+    }
     if (stored.icon === 'credit-card') return memberCardAction(ctx, stored.label)
     if (stored.icon === 'smartphone') return bookingAction(ctx, stored.label)
     if (stored.icon === 'message-square') return keyboardAction(ctx, stored.label)

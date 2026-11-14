@@ -3,7 +3,7 @@ import { checkAiRateLimit, DEFAULT_RATE_CONFIG, recordAiUsage } from './rate-lim
 
 /**
  * ai_rate_limits テーブルを模したフェイククライアント。
- * eq / gte のフィルタと count クエリだけを解釈する。
+ * eq / gte / not like のフィルタと count クエリだけを解釈する。
  */
 type Row = {
   store_id: string
@@ -12,7 +12,7 @@ type Row = {
   created_at: string
 }
 
-type Filter = { op: 'eq' | 'gte'; column: string; value: unknown }
+type Filter = { op: 'eq' | 'gte' | 'notLike'; column: string; value: unknown }
 
 function createFakeSupabase(initialRows: Row[] = [], options: { failQueries?: boolean } = {}) {
   const rows = [...initialRows]
@@ -38,6 +38,7 @@ function createFakeSupabase(initialRows: Row[] = [], options: { failQueries?: bo
       const matched = rows.filter((row) =>
         filters.every((f) => {
           const value = row[f.column as keyof Row]
+          if (f.op === 'notLike') return !value.startsWith(String(f.value).slice(0, -1))
           return f.op === 'eq' ? value === f.value : value >= String(f.value)
         })
       )
@@ -58,6 +59,11 @@ function createFakeSupabase(initialRows: Row[] = [], options: { failQueries?: bo
       },
       eq: (column: string, value: unknown) => {
         filters.push({ op: 'eq', column, value })
+        return builder
+      },
+      not: (column: string, operator: string, value: unknown) => {
+        assertEquals(operator, 'like')
+        filters.push({ op: 'notLike', column, value })
         return builder
       },
       gte: (column: string, value: unknown) => {
@@ -197,4 +203,18 @@ Deno.test('メッセージが違えばハッシュも変わる', async () => {
 
   assertEquals(rows.length, 2)
   assertEquals(rows[0].message_hash === rows[1].message_hash, false)
+})
+
+Deno.test('店舗の時間上限からwebとweb-ipの行を除き、LINEの行だけを数える', async () => {
+  const recent = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+  for (const prefix of ['web:', 'web-ip:']) {
+    const { client } = createFakeSupabase([
+      oldRow({ line_user_id: 'U-other', created_at: recent }),
+      oldRow({ line_user_id: `${prefix}session`, created_at: recent }),
+    ])
+    const config = { ...DEFAULT_RATE_CONFIG, storeHourlyLimit: 2 }
+    assertEquals(await checkAiRateLimit(client, STORE, USER, '質問', config), { allowed: true })
+    assertEquals(await checkAiRateLimit(client, STORE, USER, '質問', { ...config, storeHourlyLimit: 1 }),
+      { allowed: false, reason: 'store_hourly_limit' })
+  }
 })

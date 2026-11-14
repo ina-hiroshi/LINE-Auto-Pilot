@@ -24,6 +24,7 @@ const DEFAULT_RICH_MENU_SETTINGS: RichMenuSettings = {
 
 export default function RichMenu() {
   const { isPro } = usePlan()
+  const [ecLinked, setEcLinked] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [storeId, setStoreId] = useState<string | null>(null)
@@ -59,6 +60,8 @@ export default function RichMenu() {
         const store = stores && stores.length > 0 ? stores[0] : null
         if (store) {
           setStoreId(store.id)
+          const { data: ecLinks, error: ecError } = await supabase.rpc('my_ec_link')
+          setEcLinked(!ecError && !!ecLinks?.length)
           
           // actionsからslot_background_imagesを抽出
           const rawActions = store.rich_menu_actions || {}
@@ -454,6 +457,7 @@ export default function RichMenu() {
           previewRef={previewRef}
           isPro={isPro}
           storeId={storeId}
+          ecLinked={ecLinked}
           onToast={handleToast}
         />
         </div>
